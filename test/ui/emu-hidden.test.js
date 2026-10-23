@@ -163,3 +163,26 @@ uiTest('board emulator: paused while hidden and while its document tab is not ac
   await setLang('en');
   assert.deepEqual(page.dialogs, []);
 });
+
+uiTest('#1106 the status line while the emulator runs: rewritten twice a second at most (every frame, it flickered); at once when paused', E, async (page) => {
+  await makeProject(env, { name: 'EmuStat', board: 'basys2', files: { 'src/cnt.vhd': COUNTER }, top: 'cnt' });
+  await page.openProject('EmuStat');
+  await openEmulator(page);
+  await advances(page, 'running');
+  // the line's rewrites over 3 s, counted where the page writes them
+  const writes = await page.eval(async () => {
+    const el = document.querySelector('.emu-bar .stat');
+    let n = 0;
+    const mo = new MutationObserver((ms) => { n += ms.length; });
+    mo.observe(el, { childList: true, characterData: true, subtree: true });
+    await new Promise((r) => setTimeout(r, 3000));
+    mo.disconnect();
+    return n;
+  });
+  assert.ok(writes >= 3 && writes <= 8, `${writes} rewrites in 3 s`);
+  assert.match(await stat(page), /^t = .+ · [\d,]+ cycles · [\d.]+ k?Hz \([\d.]+% of real time\)$/);
+  // Pause: the line at once, without the rate
+  await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏸ Pause' });
+  await page.waitFor(() => !/of real time/.test(document.querySelector('.emu-bar .stat').textContent), [], { what: 'the paused line', timeout: 2000 });
+  assert.match(await stat(page), /^t = .+ · [\d,]+ cycles$/);
+});
