@@ -1164,3 +1164,21 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
   assert.equal(await page.eval(() => Math.round(document.getElementById('left').getBoundingClientRect().width)), 520);
   await noWarnings(page);
 }, { build: DEV });
+
+uiTest('#1102 Tasks ▸ Simulate: the test bench\'s Edit button has its label centred', E, async (page) => {
+  await makeProject(env, { name: 'TasksEdit', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksEdit');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.waitFor(() => document.querySelector('.task-bench-edit')?.getClientRects().length > 0, [], { what: 'the Edit button' });
+  const off = await page.eval(() => {
+    const b = document.querySelector('.task-bench-edit'), r = b.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(b);
+    const t = range.getBoundingClientRect();
+    return { text: b.textContent, dx: Math.round((t.left + t.width / 2) - (r.left + r.width / 2)), dy: Math.round((t.top + t.height / 2) - (r.top + r.height / 2)) };
+  });
+  assert.equal(off.text, 'Edit');
+  assert.ok(Math.abs(off.dx) <= 1 && Math.abs(off.dy) <= 1, JSON.stringify(off));
+}, { build: DEV });

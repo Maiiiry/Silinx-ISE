@@ -488,3 +488,20 @@ uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagra
   }
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
+
+uiTest('#1100 the Design pane: the design tree right under the View selector, no "Hierarchy" heading; in Portuguese too', E, async (page) => {
+  await makeProject(env, { name: 'NoHierCaption', template: 'gates' });
+  await page.openProject('NoHierCaption');
+  await page.waitFor(() => document.querySelector('#hier .row'), [], { what: 'the design tree' });
+  const pane = () => page.eval(() => {
+    const p = document.getElementById('design-panel');
+    const sel = p.querySelector('.view-select').getBoundingClientRect(), tree = document.getElementById('hier').getBoundingClientRect();
+    return { heading: [...p.querySelectorAll(':scope > *')].map((e) => e.className || e.id), words: /Hierarchy|Hierarquia/i.test(p.innerText), gap: Math.round(tree.top - sel.bottom) };
+  });
+  const en = await pane();
+  assert.deepEqual([en.heading, en.words], [['caption', 'view-select', 'body'], false]);
+  assert.ok(en.gap >= 0 && en.gap <= 8, `the tree right under the View selector (the pane's own padding): ${en.gap} px`);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  assert.equal((await pane()).words, false);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+});

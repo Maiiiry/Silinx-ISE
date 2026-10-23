@@ -199,7 +199,6 @@ html[data-ui="modern"] .view-select label { flex: 1; justify-content: center; ga
 html[data-ui="modern"] .view-select label:has(input:checked) { background: var(--m-surface); color: var(--m-fg); box-shadow: var(--m-shadow); }
 html[data-ui="modern"] .view-select label:has(input:focus-visible) { box-shadow: var(--m-focus); }
 html[data-ui="modern"] .view-select input { position: absolute; opacity: 0; pointer-events: none; }
-html[data-ui="modern"] .hier-caption { padding: 8px 14px 4px; background: none; border: none; color: var(--m-muted); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 
 /* trees */
 html[data-ui="modern"] .tree { padding: 2px 6px 8px; }

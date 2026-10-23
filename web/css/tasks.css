@@ -135,7 +135,7 @@ html[data-layout="tasks"][data-task="sim"] #task-bar .task-main { display: none;
 #task-model, #task-bench, .task-bench-edit { display: none; }
 html[data-layout="tasks"][data-task="sim"] #task-bench { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
   border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-html[data-layout="tasks"][data-task="sim"] .task-bench-edit { display: inline-flex; margin-left: 4px; }
+html[data-layout="tasks"][data-task="sim"] .task-bench-edit { display: inline-flex; align-items: center; justify-content: center; margin-left: 4px; }   /* (its label centred, #1102) */
 #task-empty .task-empty-bench[hidden] { display: none; }
 /* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
 @media (max-width: 1024px) {
