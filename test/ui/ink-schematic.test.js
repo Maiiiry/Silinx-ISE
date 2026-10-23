@@ -1,5 +1,5 @@
-// UI: hand-drawn schematics (#1067, flip-flops #1083). The schematic editor's Handwritten…: a half adder drawn on the pad with the
-// mouse, a finger and a pen (CDP input) is read (its gates listed with their types, its names), a gate's type and a
+// UI: hand-drawn schematics (#1067, flip-flops #1083), Development ▸ Handwritten Schematic… while a preview
+// (#1098): a half adder drawn on the pad with the mouse, a finger and a pen (CDP input) is read (its gates listed with their types, its names), a gate's type and a
 // name corrected, and made into the editor's drawing in one edit (Undo brings the drawing before back): its netlist
 // clean, its HDL simulating to the corrected circuit's truth table. The dialog in Portuguese, with a drawing that is
 // not a circuit (its errors) and a name at no wire's end (its warning). No console warnings.
@@ -20,6 +20,8 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const ED = '.doc:not([hidden]) .sch-editor';
+// a development build: its Development menu has the handwritten input while it is a preview (#1098)
+const DEV = { commit: 'abc1234', date: '2026-10-23 12:00', since: '15.12.0', changes: [] };
 const D = '.dlg-overlay .ink-dialog';
 const warnings = (page) => page.console.filter((m) => /^warn/.test(m.type)).map((m) => m.text);
 const message = (page) => page.eval((d) => document.querySelector(`${d} .ink-msg`).innerText.trim(), D);
@@ -58,12 +60,14 @@ async function openSchematic(page, project) {
   await makeProject(env, { name: project, files: { 'src/hand.sch.json': JSON.stringify(newDoc('hand', 'vhdl')) } });
   await page.openProject(project);
   await page.eval(() => window.SilinxApp.openSch('src/hand.sch.json'));
-  await page.waitFor((ed) => document.querySelector(`${ed} [data-act=ink]`), [ED], { what: 'the schematic editor' });
+  await page.waitFor((ed) => document.querySelector(`${ed} [data-act=check]`), [ED], { what: 'the schematic editor' });
+  // (no Handwritten… in its toolbar: in the Development menu while a preview, #1098)
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} [data-act=ink]`), ED), null);
 }
 
 uiTest('Handwritten… (schematic): a half adder drawn with the mouse, a finger and a pen, corrected, made into the drawing; Undo', E, async (page) => {
   await openSchematic(page, 'InkSch');
-  await page.click(`${ED} [data-act=ink]`);
+  await page.menu('Development', 'Handwritten Schematic…');
   await page.waitDialog('Handwritten Schematic');
   // the whole page (#1088): the dialog over all of the window, the pad most of it
   const size = await page.eval((d) => { const r = document.querySelector(d).closest('.dlg').getBoundingClientRect(), p = document.querySelector(`${d} .ink-canvas`).getBoundingClientRect(); return [r.width / innerWidth, r.height / innerHeight, p.width / r.width, p.height / r.height]; }, D);
@@ -94,20 +98,20 @@ uiTest('Handwritten… (schematic): a half adder drawn with the mouse, a finger 
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.length === 0, [], { what: 'undone' });
   // drawn again over a drawing: the dialog says it replaces it
   await page.click(`${ED} [data-act=redo]`);
-  await page.click(`${ED} [data-act=ink]`);
+  await page.menu('Development', 'Handwritten Schematic…');
   await page.waitDialog('Handwritten Schematic');
   assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-replaces`).textContent, D), 'The schematic drawn replaces the one in the editor (Undo brings it back).');
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
   assert.equal(await page.eval(() => window.Silinx.active.schEditor.getDoc().symbols.length), 2);
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });
 
 uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circuit, a name at no wire\'s end', E, async (page) => {
   await openSchematic(page, 'InkSch2');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   try {
-    await page.click(`${ED} [data-act=ink]`);
+    await page.menu('Desenvolvimento', 'Esquemático Manuscrito…');
     await page.waitDialog('Esquemático Manuscrito');
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), label, .hint')].map((e) => e.textContent.trim()), D);
     assert.deepEqual(labels, [
@@ -136,7 +140,7 @@ uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circu
     assert.equal(await page.eval(() => window.Silinx.active.schEditor.getDoc().symbols.length), 0);
   } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });
 
 // a 2-bit counter of T flip-flops (#1083): q0 toggles while en is 1, q1 when q0 is 1 too
 const COUNTER = { gates: [{ type: 'ff', x: 2.4, y: 0, ins: ['T', 'C'], outs: ['Q'], wedge: true }, { type: 'and', x: 5.2, y: 1.2, n: 2 }, { type: 'ff', x: 7.4, y: 1.6, ins: ['T', 'C'], outs: ['Q'], wedge: true }], nets: [
@@ -145,7 +149,7 @@ const COUNTER = { gates: [{ type: 'ff', x: 2.4, y: 0, ins: ['T', 'C'], outs: ['Q
 
 uiTest('Handwritten… (schematic): a counter of flip-flops drawn with the mouse, a finger and a pen, made into the drawing; clocked', E, async (page) => {
   await openSchematic(page, 'InkSch3');
-  await page.click(`${ED} [data-act=ink]`);
+  await page.menu('Development', 'Handwritten Schematic…');
   await page.waitDialog('Handwritten Schematic');
   await draw(page, writeSchematic(COUNTER, { seed: 9, amount: 0.4, size: 48, x: 24, y: 30 }).strokes);
   const rows = () => page.eval((d) => [...document.querySelectorAll(`${d} .ink-gate`)].map((r) => `${r.querySelector('b').textContent} ${r.querySelector('.ink-ff-type')?.textContent ?? r.querySelector('select').value} ${r.querySelector('code').textContent}`), D);
@@ -167,4 +171,4 @@ uiTest('Handwritten… (schematic): a counter of flip-flops drawn with the mouse
   for (const en of [1, 1, 1, 1, 0, 0, 1]) { sim.set('en', en); sim.cycle(1); seen.push(Number(sim.get('q1')) * 2 + Number(sim.get('q0'))); }
   assert.deepEqual(seen, [1, 2, 3, 0, 0, 0, 1]);
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });

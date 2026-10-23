@@ -162,7 +162,7 @@ export function mountSchEditor(container, opts = {}) {
     leaveSim: (...a) => leaveSim(...a), live: () => live, mirrorSel: (...a) => mirrorSel(...a), namesBox,
     openInfo: (...a) => openInfo(...a), readOnly, redo: (...a) => redo(...a), rotateSel: (...a) => rotateSel(...a),
     runCheck: (...a) => runCheck(...a), sep, setTool: (...a) => setTool(...a), tb, undo: (...a) => undo(...a),
-    zoomAt: (...a) => zoomAt(...a), handwritten: () => import('./sch-ink.js').then(m => m.handwrittenSchematicInto({ doc: () => doc, replace: parts => edit(() => { doc = { ...doc, ...parts }; }), fit: () => fit() }))   // (#1067)
+    zoomAt: (...a) => zoomAt(...a)
   });
 
   // ---------------- left: symbols palette (sch-palette.js)
@@ -352,6 +352,7 @@ export function mountSchEditor(container, opts = {}) {
     // Edit ▸ Cut / Copy / Paste / Delete (#677)
     copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => { if (!live) deleteSel(); },
     canCopy: () => !readOnly && !live && sel.size > 0, canPaste: () => !readOnly && !live && hasClip('schematic'),
+    handwritten: readOnly ? null : () => import('./sch-ink.js').then(m => m.handwrittenSchematicInto({ doc: () => doc, replace: parts => edit(() => { doc = { ...doc, ...parts }; }), fit: () => fit() })),   // (#1067, #1098)
     setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc(), { modules }); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) {

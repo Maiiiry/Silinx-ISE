@@ -1,6 +1,6 @@
 // The schematic editor's toolbar (#405: out of mountSchEditor in sch-editor.js): its tools and buttons (Select, Wire,
 // Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Undo / Redo, the zooms, Symbol Info, Hop-overs,
-// Names, Check, Try it, Handwritten…, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
+// Names, Check, Try it, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
 import { PROPS_KEY, SYMBOLS_KEY, panelToggle } from './narrow.js';
 import { h } from './dom.js';
 import { undoButton } from './ui.js';
@@ -9,7 +9,7 @@ import { ICON } from './sch-editor.js';
 /** { optBox } of mountSchEditor (live(): its current values). */
 export function mountSchToolbar(ctx) {
   const {
-    container, btn, canSim, deleteSel, enterSim, fit, handwritten, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
+    container, btn, canSim, deleteSel, enterSim, fit, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
     openInfo, readOnly, redo, rotateSel, runCheck, sep, setTool, tb, undo, zoomAt
   } = ctx;
 
@@ -26,8 +26,6 @@ export function mountSchToolbar(ctx) {
     h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Try it: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Try it</span>` }),   // (not "Simulate": the design flow's, the waves, #992)
-    // (a circuit drawn by hand, #1067)
-    sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'ink', title: 'Draw the schematic by hand: with a pen, a finger or the mouse' }, h('span', { text: 'Handwritten…' })),
     sep(), optBox,
     // a narrow screen (#266): the symbols and the properties over the canvas, shown by these
     h('span', { class: 'se-panels' },
@@ -39,7 +37,7 @@ export function mountSchToolbar(ctx) {
     let prevSep = true;                                   // a separator at the start is not needed
     let lastSep = null;
     for (const el of tb.children) {
-      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'ink'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
+      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
       if (el.classList.contains('se-sep')) { if (prevSep) el.style.display = 'none'; else { prevSep = true; lastSep = el; } }
       else { prevSep = false; lastSep = null; }
     }
@@ -57,7 +55,6 @@ export function mountSchToolbar(ctx) {
     else if (a === 'undo') undo(); else if (a === 'redo') redo();
     else if (a === 'zin') zoomAt(1.25); else if (a === 'zout') zoomAt(0.8); else if (a === 'fit') fit();
     else if (a === 'check') runCheck(true);
-    else if (a === 'ink') { handwritten(); return; }
     container.focus({ preventScroll: true });
   });
 

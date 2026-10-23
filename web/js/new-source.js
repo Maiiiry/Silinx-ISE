@@ -69,14 +69,9 @@ export async function newSourceWizard({ type } = {}) {
     return null;
   };
   const typeShown = h('span');   // (the page is drawn once: the type set on show)
-  // a truth table: an optional expression, typed or written by hand (#1056), gives its inputs, its output and its column
+  // a truth table: an optional expression (#1056) gives its inputs, its output and its column
   const ttExpr = h('input', { type: 'text', class: 'ns-tt-expr', spellcheck: 'false', placeholder: "optional, e.g. F = A·B' + C" });
-  const ttHand = h('button', { type: 'button', class: 'btn ns-tt-ink', title: 'Write the expression by hand: with a pen, a finger or the mouse', onclick: async () => {
-    const { handwrittenExpression } = await import('./ink-dialog.js');
-    const r = await handwrittenExpression();
-    if (r) ttExpr.value = r.text;
-  } }, 'Handwritten…');
-  const [ttLbl, ttRow] = field('Expression:', h('div', { class: 'ns-tt-row' }, ttExpr, ttHand));
+  const [ttLbl, ttRow] = field('Expression:', h('div', { class: 'ns-tt-row' }, ttExpr));
   const fileGrid = h('div', { class: 'form-grid' }, ...field('Source type:', typeShown), ...field('File name:', fname), ...field('Location:', loc));
   // (the expression's row on the page of a truth table only)
   const typeShownAt = () => { typeShown.textContent = st.label; if (st.id === 'tt') fileGrid.append(ttLbl, ttRow); else { ttLbl.remove(); ttRow.remove(); } };

@@ -1,8 +1,10 @@
 // Portuguese strings of the handwritten input (#1056: web/js/ink-dialog.js, its messages from core/ink/; merged into
 // the dictionary of i18n.js).
 export const INK_PT = {
-  'Handwritten Expression': 'Expressão Manuscrita', 'Handwritten…': 'Manuscrita…',
-  'Write the expression by hand: with a pen, a finger or the mouse': 'Escrever a expressão à mão: com uma caneta, um dedo ou o rato',
+  'Handwritten Expression': 'Expressão Manuscrita',
+  // the Development menu's items (#1098)
+  'Handwritten Expression…': 'Expressão Manuscrita…', 'Handwritten Truth Table…': 'Tabela de Verdade Manuscrita…',
+  'Handwritten Schematic…': 'Esquemático Manuscrito…',
   "Write the expression with a pen, a finger or the mouse, e.g. F = A·B' + C. A bar over letters is NOT; a dot or a * is AND.":
     "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
   'Show the whole drawing': 'Mostrar todo o desenho',
@@ -22,8 +24,7 @@ export const INK_PT = {
   'Nothing written: write the expression on the pad.': 'Nada escrito: escreva a expressão na área de escrita.',
   "More than one '=': only the first one separates the name from the expression.": "Mais de um '=': só o primeiro separa o nome da expressão.",
   // the Handwritten Truth Table dialog (#1066) and its messages
-  'Handwritten Table…': 'Tabela Manuscrita…', 'Handwritten Truth Table': 'Tabela de Verdade Manuscrita',
-  'Draw the whole truth table by hand: with a pen, a finger or the mouse': 'Desenhar toda a tabela de verdade à mão: com uma caneta, um dedo ou o rato',
+  'Handwritten Truth Table': 'Tabela de Verdade Manuscrita',
   "Draw the truth table with a pen, a finger or the mouse: the names in a header, a line under it, a line between the inputs and the outputs, then a row of 0, 1 or X (don't care) for each combination.":
     'Desenhe a tabela de verdade com uma caneta, um dedo ou o rato: os nomes num cabeçalho, uma linha por baixo dele, uma linha entre as entradas e as saídas, depois uma linha de 0, 1 ou X (indiferente) para cada combinação.',
   'Nothing written: draw the table on the pad.': 'Nada escrito: desenhe a tabela na área de escrita.',
@@ -34,7 +35,7 @@ export const INK_PT = {
   'The table is empty.': 'A tabela está vazia.', "Line 1: the names of the inputs, '|', the names of the outputs.": "Linha 1: os nomes das entradas, '|', os nomes das saídas.",
   'At least 1 output.': 'Pelo menos 1 saída.',
   // the Handwritten Schematic dialog (#1067) and its messages
-  'Handwritten Schematic': 'Esquemático Manuscrito', 'Draw the schematic by hand: with a pen, a finger or the mouse': 'Desenhar o esquemático à mão: com uma caneta, um dedo ou o rato',
+  'Handwritten Schematic': 'Esquemático Manuscrito',
   "Draw the circuit with a pen, a finger or the mouse: the gates (AND, OR, XOR, a triangle for a buffer, a small circle at the output for NOT) larger than the names, their inputs on the left, square wires, and the name of each input and output at its wire's end.":
     'Desenhe o circuito com uma caneta, um dedo ou o rato: as portas (AND, OR, XOR, um triângulo para um buffer, um pequeno círculo na saída para NOT) maiores do que os nomes, as suas entradas à esquerda, fios em esquadria, e o nome de cada entrada e saída na ponta do seu fio.',
   'A flip-flop: a box with its pins written inside it, on the left D, T, or J and K, the clock (C, CLK or a wedge), CE, CLR, PRE; on the right Q, and Q with a bar.':
