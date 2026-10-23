@@ -105,3 +105,21 @@ uiTest('Device Primitives: the palette of the project\'s family, a RAMB16 placed
   assert.equal((await paras()).at(-1), 'PLLs: 2 on this device (XC6SLX16), 0 used in this schematic.');
   await page.key('Escape');
 });
+
+uiTest('#1122 schematic: a VCC and a GND of 8 bits drawn with a bus stem (as every symbol\'s bus pin), of 1 bit a thin one', E, async (page) => {
+  const doc = newDoc('pw', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'vcc', x: 100, y: 100, params: { width: 8 } }, { id: 'S2', type: 'gnd', x: 200, y: 100, params: { width: 8 } },
+    { id: 'S3', type: 'vcc', x: 300, y: 100, params: { width: 1 } }, { id: 'S4', type: 'gnd', x: 400, y: 100, params: { width: 1 } },
+    { id: 'S5', type: 'and2', x: 500, y: 100, params: { width: 8 } });
+  await makeProject(env, { name: 'PwPj', files: { 'src/pw.sch.json': JSON.stringify(doc) } });
+  await page.openProject('PwPj');
+  await page.eval(() => window.SilinxApp.openSch('src/pw.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 5, [ED], { what: 'drawn' });
+  // the stem's (each VCC / GND's one lead) stroke width, and the 8-bit AND2's pins' (the bus width every symbol has)
+  const widths = await page.eval((ed) => Object.fromEntries([...document.querySelectorAll(`${ed} svg .sym`)].map((g) => [g.dataset.id,
+    [...g.querySelectorAll('line.pin')].map((l) => getComputedStyle(l).strokeWidth)])), ED);
+  const busW = widths.S5[0];
+  assert.ok(parseFloat(busW) > 2, `the AND2's bus pins: ${busW}`);
+  assert.deepEqual([widths.S1, widths.S2], [[busW], [busW]], JSON.stringify(widths));
+  assert.ok(parseFloat(widths.S3[0]) < 2 && parseFloat(widths.S4[0]) < 2, JSON.stringify(widths));
+});

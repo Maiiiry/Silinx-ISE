@@ -111,8 +111,9 @@ export function bodySvg(sym, def) {
       s += `<rect class="cbox" x="0" y="2" width="${def.w - 20}" height="16" rx="2"/>` + lead(def.w - 20, 10, def.w, 10, bus(pins[0]));
       break;
     }
-    case 'vcc': s += `<path class="gate nofill" d="M2,10 H18 M10,10 V30"/>`; break;
-    case 'gnd': s += `<path class="gate nofill" d="M10,0 V20 M1,20 H19 M4,24 H16 M7,28 H13"/>`; break;
+    // (their stem their pin's lead: a bus when it is wider than 1 bit, as every symbol's pins, #1122)
+    case 'vcc': s += `<path class="gate nofill" d="M2,10 H18"/>` + lead(10, 10, 10, 30, bus(pins[0])); break;
+    case 'gnd': s += lead(10, 0, 10, 20, bus(pins[0])) + `<path class="gate nofill" d="M1,20 H19 M4,24 H16 M7,28 H13"/>`; break;
     case 'module': case 'hdl': default: {
       const b = def.body;
       s += `<rect class="box${def.shape === 'hdl' ? ' hdl' : ''}${def.missing ? ' missing' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`;

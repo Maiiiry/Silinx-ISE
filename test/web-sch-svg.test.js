@@ -110,3 +110,17 @@ test('#953 schematic drawing: a VCC / GND wider than a bit, its width by its out
     assert.match(draw({ width: 8 }), new RegExp(`>${type.toUpperCase()}</text>`));
   }
 });
+
+test('#1122 schematic drawing: a VCC / GND wider than a bit has its stem a bus, as every symbol\'s pin; one bit, a thin one', () => {
+  // (the stem, in the symbol's own frame: VCC's from its bar down to its pin, GND's from its pin down to its bars)
+  const stem = { vcc: { x1: '10', y1: '10', x2: '10', y2: '30' }, gnd: { x1: '10', y1: '0', x2: '10', y2: '20' } };
+  for (const type of ['vcc', 'gnd']) {
+    const body = (params) => { const sym = { id: 'S1', type, x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params }; return bodySvg(sym, symbolDef(sym)); };
+    const leads = (svg) => [...svg.matchAll(/<line class="(pin(?: bus)?)"[^>]*>/g)].map((m) => ({ cls: m[1], ...Object.fromEntries(['x1', 'y1', 'x2', 'y2'].map((k) => [k, attrs(m[0])[k]])) }));
+    assert.deepEqual(leads(body({ width: 8 })), [{ cls: 'pin bus', ...stem[type] }], type);
+    assert.deepEqual(leads(body({ width: 1 })), [{ cls: 'pin', ...stem[type] }], type);
+    assert.deepEqual(leads(body({})), [{ cls: 'pin', ...stem[type] }], type);
+    // the bar(s) still the shape's
+    assert.match(body({ width: 8 }), type === 'vcc' ? /<path class="gate nofill" d="M2,10 H18"\/>/ : /<path class="gate nofill" d="M1,20 H19 M4,24 H16 M7,28 H13"\/>/);
+  }
+});
