@@ -26,7 +26,8 @@
 //   slices: [{ kind: 'X' | 'L' | 'M', pos: { A: { o6, o5, ff, ff5, x (the bypass input's net), mux } … }, carry, f7: { A, B },
 //              f8, chain: { id, index } | null, ctrl (the storage elements' control set key) | null, mem (the SLICEM's
 //              RAM / SRL control key) | null }]   (cells by their index in the netlist; o6 / o5 / ff / ff5: a cell or
-//              null; ff: AND2L, the storage element as a gate passing the carry's sum; mux: what leaves by AMUX … ('o5', 'xor',
+//              null; ff: AND2L, the storage element as a gate passing the carry's sum; o5 'thru:<net>': the LUT passing a
+//              net to the 5FF (#1143); mux: what leaves by AMUX … ('o5', 'xor',
 //              'cy', 'f7', 'f8', 'ff5'))
 //   chains: [[slice indices, bottom to top]]   carry chains: consecutive SLICEL / SLICEM of one column
 //   others: { type: count }   the cells on sites of their own (I/O buffers, BUFG, RAMB8BWER / RAMB16BWER, DSP48A1…)
@@ -303,8 +304,17 @@ export function packS6(nl, { combine = 'off' } = {}) {
       }
     }
   }
-  // the other storage elements: with others of their control set, a bypass input each (the FF, then the 5FF of the
-  // position: one net per bypass input)
+  // the other storage elements: with others of their control set, the FF of a position by its bypass input (one
+  // net per bypass input), the 5FF (whose D is O5's only, #1143) through the position's O5 as a route-through of a
+  // LUT input ('thru:<net>', as map's PK_PACKTHRU): when O5 is free and the O6 LUT leaves it an input (5 shared at
+  // most, A6 high)
+  const o5Thru = (q, net) => {
+    if (q.o5 !== null || net <= 1) return false;
+    if (q.o6 === null || (typeof q.o6 === 'string' && q.o6.startsWith('const:'))) return true;
+    if (typeof q.o6 === 'string') return true;   // a route-through of S: two inputs
+    if (!isLut(cells[q.o6])) return false;
+    return new Set([...lutInputs(cells[q.o6]), net]).size <= 5;
+  };
   for (const ci of rest) {
     if (placed.has(ci)) continue;
     const key = ctrlKey(cells[ci]), latch = ffKind(cells[ci].type).latch, dnet = cells[ci].pins.D ?? 0;
@@ -316,7 +326,7 @@ export function packS6(nl, { combine = 'off' } = {}) {
         const pos = s.pos[p];
         if (pos.x !== null && pos.x !== dnet) continue;
         if (pos.ff === null) { placeFf(si, p, ci, false, dnet); done = true; break; }
-        if (!latch && pos.ff5 === null && pos.mux === null && fitsFf5(s, key)) { placeFf(si, p, ci, true, dnet); done = true; break; }
+        if (!latch && pos.ff5 === null && pos.mux === null && fitsFf5(s, key) && o5Thru(pos, dnet)) { placeFf(si, p, ci, true); pos.o5 = `thru:${dnet}`; done = true; break; }
       }
     }
     if (!done) { const si = slice('X'); placeFf(si, 'A', ci, false, dnet); }
@@ -398,7 +408,13 @@ export function checkSlice(s, nl) {
       const c = cells[q[k]], kind = ffKind(c.type);
       if (!kind) { err.push(`${p}${k === 'ff' ? 'FF' : '5FF'}: ${c.type} is not a storage element`); continue; }
       ctrls.add(ctrlKey(c));
-      if (k === 'ff5') { ff5 = true; if (kind.latch) err.push(`${p}5FF: a latch (${c.name})`); }
+      if (k === 'ff5') {
+        ff5 = true;
+        if (kind.latch) err.push(`${p}5FF: a latch (${c.name})`);
+        // (its D is O5's: the O5 LUT's output or its route-through of the D net, #1143)
+        const d = c.pins.D ?? 0;
+        if (!(typeof q.o5 === 'number' && cells[q.o5].pins.O === d) && q.o5 !== `thru:${d}`) err.push(`${p}5FF: its D (${c.name}) is not the position's O5`);
+      }
       if (kind.latch) latch = true;
     }
     if (typeof q.o6 === 'number' && MEM[cells[q.o6].type]) mems.add(memKey(cells[q.o6]));
@@ -406,6 +422,8 @@ export function checkSlice(s, nl) {
       const a = typeof q.o6 === 'number' && isLut(cells[q.o6]) ? lutInputs(cells[q.o6]) : [];
       const b = lutInputs(cells[q.o5]);
       if (b.length > 5 || new Set([...a, ...b]).size > 5) err.push(`${p}: O6 and O5 share more than 5 inputs`);
+    } else if (typeof q.o5 === 'string' && typeof q.o6 === 'number' && isLut(cells[q.o6])) {
+      if (new Set([...lutInputs(cells[q.o6]), +q.o5.slice(5)]).size > 5) err.push(`${p}: O6 and the route-through of O5 share more than 5 inputs`);
     }
   }
   if (ctrls.size > 1) err.push(`storage elements of ${ctrls.size} control sets`);
