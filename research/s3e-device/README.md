@@ -408,3 +408,24 @@ cut at the site tile, not the join under test.
 RAM-I/O 53): the hexes that begin in an I/O tile and its OMUX, which a pad's input reaches only where ISE routed it.
 The next step: the same for the I/O tiles (their PIPs need the arc probe per type, the database sharing them between
 types). Rounds 1-6: 23 183 tests, no disagreement.
+
+### Round 7: the I/O tiles' switches asked of ISE, tile by tile (2026-10-24)
+
+The database shares the I/O tiles' switches between their types (and names their wires as the CLB's, `rename`), and
+three of them were refused in round 1, so round 6 kept the I/O tiles to the PIPs ISE's routes showed. Round 7 asks
+`xdl -xdl2ncd` itself, in each tile: `candidates.mjs io obs.json` gives every feature of each observed I/O tile's type
+(its own and the CLB switch box's) in the tile's wire names (`IOIS_<name>` where ISE's routes showed one), less what
+the routes showed there and what the type lacks (`absent`, #74): 204 603 candidates in 120 tiles. Asked whole, at
+about 28 % refused (each refusal is one of xdl's 20 errors per design), that census would take some 7 hours; asked
+only for the joins left (the PIPs into their I/O-tile wires and into those PIPs' from-wires: 7590), 20 rounds of the
+arc probe (`probe-run.mjs`): 4476 exist, 3114 not. `prototype.mjs tests` takes them with `PROBED=probe.json`, each in
+the tile where ISE accepted it.
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 7 | 2850 (24, 405 s): 744 new, round 6's 2106 again | new: 511 joins, 233 islands | **all**; the 2106 the same verdicts |
+
+**537 stay untestable** (CLB-I/O 448, I/O-I/O 73, block RAM-I/O 16): mostly the hexes that begin in a bottom or top
+I/O tile (`BIBUFS/N6BEG2 -> CLB/N6MID2`) and some I/O OMUX lines, which no pad input observed reaches within the
+probed depth. Next: the probe one step deeper for those, then the sites' pins and the irregular tiles. Rounds 1-7:
+23 927 tests, no disagreement.
