@@ -135,3 +135,20 @@ export function resolveAmbiguous(ambiguous, joins) {
   }
   return { joins: found, ambiguous: left };
 }
+
+/** Where a block RAM's output enters its interconnect tile, in an ISE-routed design (#3, round 6): for each net from a
+ *  RAMB16 output, the site tile's wire RAMB16_DO… drives (`RAMB16_DOA0 -> BRAM_DOA0_INT0`) joined to the interconnect
+ *  tile's wire the net's first PIP there leaves (`BRAM_DOA0 -> OMUXk`, its from-wire driven by no PIP of the net in that
+ *  tile). isInterconnect(tile): a block-RAM interconnect tile. Returns [['TILE/WIRE', 'TILE/WIRE']]. */
+export function blockRamOutputJoins(design, isInterconnect) {
+  const out = [];
+  for (const net of design.nets) {
+    const site = net.pips.find(p => /^RAMB16_DO/.test(p.from) && /_INT\d$/.test(p.to));
+    if (!site) continue;
+    const driven = new Set(net.pips.map(p => `${p.tile}/${p.to}`));
+    const enter = net.pips.find(p => isInterconnect(p.tile) && /^BRAM_DO/.test(p.from) && !driven.has(`${p.tile}/${p.from}`));
+    if (enter) out.push([`${site.tile}/${site.to}`, `${enter.tile}/${enter.from}`]);
+  }
+  return out;
+}
+

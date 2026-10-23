@@ -6,6 +6,7 @@
 //                                                               rules -> predicted joins not yet observed or tested
 //                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too)
 //   node prototype.mjs tests pred.json obs.json dir [tested-dir...]   join test designs (run: ise-remote.sh dir);
+//                                                               (SOURCES=1, DBPIPS=1, SOURCEXDL=routed.xdl,…: rounds 4-6)
 //                                                               a tile with no slice driven from a CLB across known joins
 //   node prototype.mjs verdicts dir...                          -> dir/verdicts.json (ISE's DRC)
 //   node prototype.mjs build obs.json clb-tiles.txt out.json.gz dir...   the measured CLB array
@@ -20,7 +21,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { parseXdl } from '../../core/xdl.js';
 import { loadDevice, PIP_BIDI } from '../../core/fpga/device.js';
-import { observeDesign, resolveAmbiguous, tileXY, wireFamily } from './observe.mjs';
+import { observeDesign, resolveAmbiguous, tileXY, wireFamily, blockRamOutputJoins } from './observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from './model.mjs';
 import { joinTestDesigns, parseJoinTests } from './hypotheses.mjs';
 import { clbSlices } from './gen-observe.mjs';
@@ -38,7 +39,10 @@ const layout = readJson(path.join(DB, `${PART.replace(/(cp|fg|vq|tq|pq|ft)\d+-\d
 const dbType = name => { const { prefix, y } = tileXY(name); return prefix === 'CLB' ? ((layout.brkRows || []).includes(y) ? 'CENTER_SMALL_BRK' : 'CENTER_SMALL') : prefix; };
 
 /** PIPs per tile type: the CLB's from the bit database, the others' from ISE's routed designs only
- *  (the database shares the I/O tiles' features between types, README.md). */
+ *  (the database shares the I/O tiles' features between types, README.md). With DBPIPS=1 (round 6, #3) the
+ *  block-RAM tiles' too: their own features (BRAMSITE2's pins, the interconnect's BRAM_DO… -> OMUXk) and the CLB's
+ *  switch box they share, less the PIPs and wires they do not have (`absent`, #74), so that a test can drive every
+ *  output line of a block RAM, not only those ISE's routes happened to take. */
 function pipTable(obs) {
   const seen = new Map();
   for (const p of obs.pips) { const t = dbType(p.tile); if (!seen.has(t)) seen.set(t, new Map()); seen.get(t).set(`${p.from}->${p.to}`, p.dir); }
@@ -47,8 +51,12 @@ function pipTable(obs) {
     if (!cache.has(type)) {
       const m = new Map();
       // (the break rows' CLB shares the CLB's features: sameAs; the census probe checks them per tile)
-      if (/^CENTER_SMALL/.test(type)) {
-        for (const ty of new Set([type, tiles.types[type]?.sameAs].filter(Boolean))) for (const f of Object.keys(tiles.types[ty]?.features || {})) if (/^\S+->\S+$/.test(f)) m.set(f, '->');
+      if (/^CENTER_SMALL/.test(type) || (process.env.DBPIPS === '1' && /^BRAM(\d_SMALL|SITE2)/.test(type))) {
+        const absent = new Set(tiles.types[type]?.absent || []);
+        for (const ty of new Set([type, tiles.types[type]?.sameAs].filter(Boolean))) for (const f of Object.keys(tiles.types[ty]?.features || {})) {
+          if (!/^\S+->\S+$/.test(f) || absent.has(f) || f.split('->').some(w => absent.has(w))) continue;
+          m.set(f, '->');
+        }
       }
       for (const [f, dir] of seen.get(type) || []) m.set(f, dir);
       // a bidirectional PIP seen as `a =- b`: both orientations exist
@@ -110,7 +118,11 @@ if (cmd === 'observe') {
   const pipsOf = pipTable(obs);
   const maxJoins = +(process.env.MAXJOINS ?? 2);
   const joins = readJson(predFile).filter(([a, b]) => maxJoins > 0 || a.startsWith('CLB_') || b.startsWith('CLB_'));
-  const known = [...obs.joins, ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]]))];
+  // (SOURCEXDL=a.xdl,b.xdl: ISE's routed designs, round 6: where a block RAM's output enters its interconnect tile, the
+  // join of the site tile's BRAM_DO…_INTk (RAMB16_DO… -> BRAM_DO…_INTk) and the interconnect's BRAM_DO… (the from-wire of
+  // the net's first PIP there), so that a test reaches every OMUX line through the bit database's BRAM_DO… -> OMUXk)
+  const pinJoins = (process.env.SOURCEXDL || '').split(',').filter(Boolean).flatMap(f => blockRamOutputJoins(parseXdl(fs.readFileSync(f, 'utf8')), t => /^BRAM\d_SMALL/.test(dbType(t))));
+  const known = [...obs.joins, ...pinJoins, ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]]))];
   const joinedTo = new Map();
   for (const [a, b] of known) for (const [x, y] of [[a, b], [b, a]]) { if (!joinedTo.has(x)) joinedTo.set(x, []); joinedTo.get(x).push(y); }
   // the known nodes are reserved whole: two tests never share one
