@@ -1108,20 +1108,23 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await noWarnings(page);
 }, { build: DEV });
 
-// #838: a release (and the local server) offers no Tasks interface, and a stored tasks (the dev/ site's, which shares
-// the stable one's storage) opens the modern one, with no Tasks layout before the first paint either
-uiTest('#838 without a development build: View ▸ Interface is Modern and Classic; a stored tasks opens the modern interface', E, async (page) => {
+// #1131: a release (and the local server) offers the Tasks interface too, modern the default; a stored tasks opens
+// it, its layout before the first paint, and its tasks shown; the Development menu stays a development build's only
+uiTest('#1131 without a development build: View ▸ Interface is Modern, Classic and Tasks; a stored tasks opens the Tasks interface', E, async (page) => {
   await page.waitFor(() => window.Silinx?.startupChecked && document.querySelector('#start-page .start-box'), [], { what: 'app boot' });
+  assert.equal(await page.eval(() => document.documentElement.dataset.layout ?? null), null, 'not Tasks: the interface of the run (modern, the default)');
   const items = await page.openMenu('View');
+  assert.ok(!(await page.eval(() => [...document.querySelectorAll('#menubar .item')].some((e) => e.textContent === 'Development'))), 'no Development menu');
   await page.hover(await page.point('body > .menu-popup > .mi', { index: items.findIndex((x) => x.label === 'Interface') }));
   await page.waitForSelector('.menu-popup.sub .mi');
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent)), ['Modern', 'Classic']);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent)), ['Modern', 'Classic', 'Tasks']);
   await page.closeMenus();
   await page.eval(() => localStorage.setItem('silinx.ui', 'tasks'));
   await page.reload();
   await page.waitFor(() => window.Silinx?.startupChecked && document.querySelector('#start-page .start-box'), [], { what: 'app boot' });
-  assert.deepEqual(await page.eval(() => [document.documentElement.dataset.ui, document.documentElement.dataset.layout ?? null]), ['modern', null]);
-  assert.ok(!(await shown(page, '#task-switch')) && !(await shown(page, '#task-tabs')));
+  assert.deepEqual(await page.eval(() => [document.documentElement.dataset.ui, document.documentElement.dataset.layout ?? null]), ['modern', 'tasks']);
+  assert.ok((await shown(page, '#task-switch')) || (await shown(page, '#task-tabs')));
+  await noWarnings(page);
   await page.eval(() => localStorage.removeItem('silinx.ui'));
 });
 

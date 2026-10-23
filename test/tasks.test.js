@@ -179,10 +179,9 @@ test('index.html: the Tasks interface before the first paint (data-ui modern, da
   assert.match(html, /<link rel="stylesheet" href="\/css\/modern.css">\n<link rel="stylesheet" href="\/css\/tasks.css">/);
   const script = html.slice(html.indexOf('<script>'), html.indexOf('</script>'));
   // run the early script with each kept interface: the attributes it puts on <html>
-  // (dev: a development build's <html data-dev>, #838)
-  const run = (ui, dev = true) => {
+  const run = (ui) => {
     const attrs = {};
-    const d = { setAttribute: (k, v) => { attrs[k] = v; }, hasAttribute: (k) => dev && k === 'data-dev' };
+    const d = { setAttribute: (k, v) => { attrs[k] = v; }, hasAttribute: () => false };
     const store = { 'silinx.ui': ui, 'silinx.theme': 'dark' };
     new Function('document', 'localStorage', 'window', 'matchMedia', script.replace('<script>', ''))(
       { documentElement: d }, { getItem: (k) => store[k] ?? null }, {}, () => ({ matches: false }));
@@ -192,7 +191,6 @@ test('index.html: the Tasks interface before the first paint (data-ui modern, da
   assert.deepEqual(run('modern'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
   assert.deepEqual(run('classic'), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'open' });
   assert.deepEqual(run('retro'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
-  // a release (no data-dev): a stored tasks is the modern interface, no flash of the Tasks layout (#838)
-  assert.deepEqual(run('tasks', false), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
-  assert.deepEqual(run('classic', false), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'open' });
+  // nothing stored: the modern interface, the default (#1131)
+  assert.deepEqual(run(null), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
 });
