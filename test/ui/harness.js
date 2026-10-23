@@ -273,6 +273,18 @@ class PageBase {
     await this.mouse('mouseReleased', b.x, b.y);
   }
   async hover(target) { const { x, y } = await this.point(target); await this.mouse('mouseMoved', x, y); }
+  /** A finger's tap on a target (as click, the target or a point): CDP's touch events in Chrome, Playwright's
+   *  touchscreen in the others (a page with touch: a test of `tablet`, #1130). */
+  async tap(target, opts = {}) {
+    debug(`tap ${typeof target === 'string' ? target : JSON.stringify(target)}${opts.text != null ? ` '${opts.text}'` : ''}`);
+    const { x, y } = await this.point(target, opts);
+    if (BROWSER === 'chrome') {
+      const at = [{ x, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }];
+      await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at });
+      await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else await this.page.touchscreen.tap(x, y);
+    return { x, y };
+  }
   /** A finger dragged from `from` to `to` (CDP touch events: pointer events of pointerType 'touch'; Chrome only). */
   async touchDrag(from, to, { steps = 8 } = {}) {
     const a = await this.point(from), b = await this.point(to);
@@ -694,6 +706,13 @@ export function missingDependencies(root = ROOT) {
 export const dependenciesMessage = (missing) => `UI tests: npm dependencies missing from node_modules (${missing.join(', ')}): run npm ci`;
 /** The browser of the UI tests: chrome (default, CDP), or firefox / webkit / chromium (Playwright). */
 export const BROWSER = (process.env.SILINX_UI_BROWSER || 'chrome').toLowerCase();
+// a tablet (#1130): its screen in each orientation (an iPad Air's, 10.9"), its browser's User-Agent; a test that says
+// `tablet` gets its page as one (touch, no hover)
+export const TABLET = { landscape: { width: 1180, height: 820 }, portrait: { width: 820, height: 1180 } };
+const TABLET_UA = {
+  android: 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  ipad: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+};
 /** `skip` reason for a test that needs the Chrome DevTools Protocol (undefined in Chrome). */
 export const chromeOnly = BROWSER === 'chrome' ? undefined : `needs the Chrome DevTools Protocol (not in ${BROWSER})`;
 
@@ -741,7 +760,7 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
   env.chromeProc = proc;
   env.cdp = cdp;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null } = {}) => {
     const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
@@ -754,7 +773,12 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
     await page.send('Page.enable');
     for (const source of initScripts({ updateCheck, build })) await page.send('Page.addScriptToEvaluateOnNewDocument', { source });
     await page.send('DOM.enable');
-    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await page.send('Emulation.setDeviceMetricsOverride', { ...(tablet ? TABLET[tablet] : { width: 1400, height: 900 }), deviceScaleFactor: 1, mobile: false });
+    // (a tablet: a touch screen, its pointer coarse and no hover, an Android tablet's Chrome, #1130)
+    if (tablet) {
+      await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await page.send('Emulation.setUserAgentOverride', { userAgent: TABLET_UA.android, platform: 'Linux armv8l' });
+    }
     await page.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
     // SILINX_UI_THROTTLE=6: a slow CPU (e.g. to reproduce CI-only timing problems)
     if (process.env.SILINX_UI_THROTTLE) await page.send('Emulation.setCPUThrottlingRate', { rate: +process.env.SILINX_UI_THROTTLE }).catch(() => {});
@@ -795,10 +819,12 @@ async function setupPlaywright({ server, offline }) {
   const browser = await type.launch({ executablePath, ...(proxy ? { proxy: { server: proxy.url } } : {}) });
   env.pw = browser;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null } = {}) => {
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
-    const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+    // (a tablet, #1130: its screen with touch; WebKit as an iPad's Safari, Firefox as an Android tablet's)
+    const device = tablet ? { viewport: TABLET[tablet], hasTouch: true, userAgent: BROWSER === 'webkit' ? TABLET_UA.ipad : TABLET_UA.android } : { viewport: { width: 1400, height: 900 } };
+    const context = await browser.newContext({ ...device, acceptDownloads: true });
     for (const content of initScripts({ updateCheck, build })) await context.addInitScript({ content });
     const page = new PwPage(env, context, await context.newPage(), downloadDir);
     if (url) await page.goto(url);
@@ -820,7 +846,8 @@ async function setupPlaywright({ server, offline }) {
  * screenshot is written and its path printed.
  */
 // skip: a reason to skip the test (e.g. it needs the default interface)
-export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build } = {}) {
+// tablet: 'landscape' | 'portrait': the page a tablet's (TABLET, #1130)
+export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build, tablet } = {}) {
   test(name, { timeout }, async (t) => {
     const env = typeof envRef === 'function' ? envRef() : envRef;
     if (env.skip || skip) { t.skip(env.skip || skip); return; }
@@ -831,7 +858,7 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build } =
     const listWs = async () => new Set(ws ? await fsp.readdir(ws).catch(() => []) : []);
     for (let attempt = 1; ; attempt++) {
       const before = await listWs();
-      try { await runUiTest(name, env, fn, url, t, build); return; } catch (e) {
+      try { await runUiTest(name, env, fn, url, t, build, tablet); return; } catch (e) {
         if (!(e instanceof PageGoneError) || BROWSER === 'chrome' || attempt > 1) throw e;
         console.error(`# ${e.message}, in '${name}': run once more in a fresh page (#237)`);
         t.diagnostic(`${e.message}: run once more in a fresh page`);
@@ -840,8 +867,8 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build } =
     }
   });
 }
-async function runUiTest(name, env, fn, url, t, build) {
-  const page = await env.newPage(url ? url(env) : undefined, { build });
+async function runUiTest(name, env, fn, url, t, build, tablet) {
+  const page = await env.newPage(url ? url(env) : undefined, { build, tablet });
   try {
     if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
     await fn(page, env, t);
