@@ -390,6 +390,7 @@ html[data-ui="modern"] .tt-sep { background: var(--m-border); }
 html[data-ui="modern"] .tt-left { border-color: var(--m-border); }
 html[data-ui="modern"] .tt-caption { color: var(--m-fg); }
 html[data-ui="modern"] .tt-table :is(th, td) { border-color: var(--m-border); }
+html[data-ui="modern"] .tt-table :is(.tt-idx + .tt-in, .tt-in + :is(.tt-out, .tt-cell)) { border-left-color: var(--m-border-strong); }
 html[data-ui="modern"] .tt-table th { background: var(--m-surface-2); }
 html[data-ui="modern"] .tt-table th.tt-out { background: var(--m-accent-soft); }
 html[data-ui="modern"] .tt-table th.tt-out.sel { background: var(--m-accent); color: var(--m-accent-fg); }

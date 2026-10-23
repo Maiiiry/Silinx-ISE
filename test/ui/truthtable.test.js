@@ -564,3 +564,19 @@ end rtl;
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-ops`).textContent, T), "Operadores: / ' ~ (NOT), · . * (AND), ⊕ ^ ou xor (XOR), xnor, + (OR)");
   await setLang('en');
 });
+
+uiTest('#1120 Truth Table: solid lines between the row number, the inputs and the outputs, in the header and every row', E, async (page) => {
+  const { newTable } = await import('../../core/logic.js');
+  const t = newTable('maj', ['a', 'b', 'c'], ['y', 'z'], 'vhdl');
+  await makeProject(env, { name: 'TtLines', files: { 'src/maj.tt.json': JSON.stringify(t) } });
+  await page.openProject('TtLines');
+  await page.eval(() => window.SilinxApp.openTt('src/maj.tt.json'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .tt-table tr:nth-child(2)'), [], { what: 'the table' });
+  // each row's cells' left borders: width and style (# a b c | y z)
+  const rows = await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .tt-table tr')].map((tr) => [...tr.children].map((c) => {
+    const s = getComputedStyle(c);
+    return `${s.borderLeftWidth} ${s.borderLeftStyle}`;
+  })));
+  assert.equal(rows.length, 9, 'the header and 8 rows');
+  for (const r of rows) assert.deepEqual(r.slice(1), ['2px solid', '1px solid', '1px solid', '2px solid', '1px solid'], JSON.stringify(r));
+});
