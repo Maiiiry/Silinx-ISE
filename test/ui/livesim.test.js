@@ -185,3 +185,34 @@ uiTest('#1110 Try it: a clock marker clicked (one cycle) goes green a moment, ba
   await page.click(`${ED} .se-simbar .lv-run`);
   await page.waitFor((s) => !document.querySelector(s).classList.contains('lv-ticked'), [CLK], { what: 'paused' });
 });
+
+uiTest('#1124 Try it: turned and mirrored I/O markers get their switch, LED and value on their own body, not where the unturned marker would be', E, async (page) => {
+  const doc = newDoc('turned', 'vhdl');
+  const g = { id: 'S1', type: 'and2', x: 300, y: 200, rot: 0, mirror: false, name: 'U1', params: {} };
+  doc.symbols.push(g);
+  const pin = (n) => symbolPins(normalizeDoc({ ...doc, symbols: [g] }).symbols[0], {}).find((q) => q.name === n);
+  const I0 = pin('I0'), I1 = pin('I1'), O = pin('O');
+  // a turned up (N), b mirrored (E: its body over its wire's side), y turned down (S)
+  const A = { x: I0.x - 60, y: I0.y }, B = { x: I1.x - 60, y: I1.y }, Y = { x: O.x + 60, y: O.y };
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, ...A, side: 'N' }, { id: 'P2', name: 'b', dir: 'in', width: 1, ...B, side: 'E' },
+    { id: 'P3', name: 'y', dir: 'out', width: 1, ...Y, side: 'S' });
+  doc.wires.push({ id: 'W1', points: [A, { x: I0.x, y: I0.y }] }, { id: 'W2', points: [B, { x: I1.x, y: I1.y }] }, { id: 'W3', points: [{ x: O.x, y: O.y }, Y] });
+  await makeProject(env, { name: 'TurnPj', files: { 'src/turned.sch.json': JSON.stringify(doc) } });
+  await page.openProject('TurnPj');
+  await page.eval(() => window.SilinxApp.openSch('src/turned.sch.json'));
+  await page.waitFor((sel) => document.querySelector(`${sel} .se-btn[data-act=sim]`), [ED]);
+  await page.click(`${ED} .se-btn[data-act=sim]`);
+  await page.waitFor((sel) => document.querySelector(`${sel} .se-simlayer .lv-sw`), [ED], { what: 'simulation mode' });
+  // each control's centre inside its marker's drawn box (the marker's hit box, on the screen)
+  const inside = await page.eval((sel) => Object.fromEntries(['P1', 'P2', 'P3'].map((id) => {
+    const m = document.querySelector(`${sel} g.port[data-id="${id}"] .hitbox`).getBoundingClientRect();
+    const c = document.querySelector(`${sel} .se-simlayer [data-port="${id}"]`).getBoundingClientRect();
+    const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+    return [id, cx >= m.left && cx <= m.right && cy >= m.top && cy <= m.bottom];
+  })), ED);
+  assert.deepEqual(inside, { P1: true, P2: true, P3: true });
+  // and they work: a and b switched on, y lit
+  await page.click(`${ED} .lv-ctl[data-port="P1"]`);
+  await page.click(`${ED} .lv-ctl[data-port="P2"]`);
+  await page.waitFor((sel) => document.querySelector(`${sel} .se-simlayer .lv-out[data-port="P3"]`).classList.contains('lv-1'), [ED], { what: 'y = 1' });
+});

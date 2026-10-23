@@ -5,6 +5,7 @@
 // The model is core/schlive.js; sch-editor.js owns the drawing and calls this module.
 import { buildLiveSim, level, fmtValue } from '/core/schlive.js';
 import { symbolPins, symbolBox, SYMBOLS } from '/core/schdoc.js';
+import { alongMarker, valueBoxAt } from '/core/sch-live-place.js';
 import { formatTime } from '/core/interp.js';
 import { t } from './i18n.js';
 import { esc } from './dom.js';
@@ -128,43 +129,46 @@ function liveController(ctx, live) {
   function controlsSvg() {
     let s = '';
     for (const p of doc.ports) {
-      const v = live.portValue(p.id), lv = lvClass(v), y = p.y;
+      const v = live.portValue(p.id), lv = lvClass(v);
       const inp = live.input(p.id), bd = live.bidir?.(p.id);
+      // (where on the marker, whichever side of its tip its body is: turned or mirrored, #1124)
+      const led = alongMarker(p, 15), ctl = alongMarker(p, 19);
+      const box = (txt) => { const w = Math.max(30, textW(txt)), b = valueBoxAt(p, w); return { w, x: b.x, y: b.y }; };
       if (bd) {
         // bidirectional marker: the value on the bus; click to drive it from outside or release it (Z)
         const tip = `${p.name}: ${t(bd.value == null ? 'released (Z): click to drive the bus' : 'driven from outside: click to change or release (Z)')}`;
         if (bd.width === 1) {
           s += `<g class="lv-ctl lv-out lv-bidir ${lv}" data-lv="bidir" data-port="${esc(p.id)}"><title>${esc(tip)}</title>`
-            + `<circle class="lv-led" cx="${p.x + 15}" cy="${y}" r="5"/>`
-            + `<text class="lv-val" x="${p.x + 15}" y="${y - 9}" text-anchor="middle">${bd.value == null ? 'Z' : String(bd.value)}</text></g>`;
+            + `<circle class="lv-led" cx="${led.x}" cy="${led.y}" r="5"/>`
+            + `<text class="lv-val" x="${led.x}" y="${led.y - 9}" text-anchor="middle">${bd.value == null ? 'Z' : String(bd.value)}</text></g>`;
         } else {
-          const txt = `${bd.value == null ? '' : '▸'}${fmtValue(v, radix)}`, w = Math.max(30, textW(txt));
+          const txt = `${bd.value == null ? '' : '▸'}${fmtValue(v, radix)}`, b = box(txt);
           s += `<g class="lv-ctl lv-out lv-bidir lv-bus ${lv}" data-lv="bidir" data-port="${esc(p.id)}"><title>${esc(tip)}</title>`
-            + `<rect class="lv-box" x="${p.x + 3}" y="${y - 22}" width="${w}" height="13" rx="2"/>`
-            + `<text class="lv-val" x="${p.x + 3 + w / 2}" y="${y - 12}" text-anchor="middle">${esc(txt)}</text></g>`;
+            + `<rect class="lv-box" x="${b.x}" y="${b.y}" width="${b.w}" height="13" rx="2"/>`
+            + `<text class="lv-val" x="${b.x + b.w / 2}" y="${b.y + 10}" text-anchor="middle">${esc(txt)}</text></g>`;
         }
       } else if (inp && inp.clock) {
-        const x = p.x - 27;
+        const x = ctl.x - 8, y = ctl.y;
         const tick = running.has(p.id) || (ticked.get(p.id) ?? 0) > performance.now() ? ' lv-ticked' : '';
         s += `<g class="lv-ctl lv-clk ${lv}${tick}" data-lv="clock" data-port="${esc(p.id)}"><title>${esc(p.name)}: ${esc(t('click for one clock cycle'))}</title>`
           + `<rect class="lv-box" x="${x}" y="${y - 6}" width="16" height="12" rx="2"/>`
           + `<path class="lv-wave" d="M${x + 2},${y + 3} h3 v-6 h5 v6 h3"/></g>`;
       } else if (inp && inp.width === 1) {
-        const x = p.x - 27, on = level(v) === '1';
+        const x = ctl.x - 8, y = ctl.y, on = level(v) === '1';
         s += `<g class="lv-ctl lv-sw ${lv}" data-lv="toggle" data-port="${esc(p.id)}"><title>${esc(p.name)}: ${esc(t('click to toggle'))}</title>`
           + `<rect class="lv-box" x="${x}" y="${y - 6}" width="16" height="12" rx="2"/>`
           + `<rect class="lv-knob" x="${on ? x + 9 : x + 2}" y="${y - 4}" width="5" height="8" rx="1"/></g>`;
       } else if (inp) {
-        const txt = fmtValue(v, radix), w = Math.max(30, textW(txt));
+        const txt = fmtValue(v, radix), b = box(txt);
         s += `<g class="lv-ctl lv-bus ${lv}" data-lv="edit" data-port="${esc(p.id)}"><title>${esc(p.name)}: ${esc(t('click to change the value'))}</title>`
-          + `<rect class="lv-box" x="${p.x - 3 - w}" y="${y - 22}" width="${w}" height="13" rx="2"/>`
-          + `<text class="lv-val" x="${p.x - 3 - w / 2}" y="${y - 12}" text-anchor="middle">${esc(txt)}</text></g>`;
+          + `<rect class="lv-box" x="${b.x}" y="${b.y}" width="${b.w}" height="13" rx="2"/>`
+          + `<text class="lv-val" x="${b.x + b.w / 2}" y="${b.y + 10}" text-anchor="middle">${esc(txt)}</text></g>`;
       } else if ((p.width || 1) === 1 && (v == null || v.w === 1)) {
-        s += `<g class="lv-out ${lv}" data-port="${esc(p.id)}"><circle class="lv-led" cx="${p.x + 15}" cy="${y}" r="5"/></g>`;
+        s += `<g class="lv-out ${lv}" data-port="${esc(p.id)}"><circle class="lv-led" cx="${led.x}" cy="${led.y}" r="5"/></g>`;
       } else {
-        const txt = fmtValue(v, radix), w = Math.max(30, textW(txt));
-        s += `<g class="lv-out lv-bus ${lv}" data-port="${esc(p.id)}"><rect class="lv-box" x="${p.x + 3}" y="${y - 22}" width="${w}" height="13" rx="2"/>`
-          + `<text class="lv-val" x="${p.x + 3 + w / 2}" y="${y - 12}" text-anchor="middle">${esc(txt)}</text></g>`;
+        const txt = fmtValue(v, radix), b = box(txt);
+        s += `<g class="lv-out lv-bus ${lv}" data-port="${esc(p.id)}"><rect class="lv-box" x="${b.x}" y="${b.y}" width="${b.w}" height="13" rx="2"/>`
+          + `<text class="lv-val" x="${b.x + b.w / 2}" y="${b.y + 10}" text-anchor="middle">${esc(txt)}</text></g>`;
       }
     }
     // registers: the value they store
