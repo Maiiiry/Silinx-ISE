@@ -140,11 +140,15 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.waitNoDialog();
   assert.doesNotMatch(await page.consoleText(), /Programming FPGA/);
   // a build said done whose bitstream this browser does not have (its files were in the memory of a page since
-  // reloaded): the reason at the end of the failure line
+  // reloaded): asked again, with the reason (#1084, #1104); No programs nothing
   await page.eval(() => { window.Silinx.status.bitgen = 'ok'; });
   await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
-  await page.waitConsole(/Programming FPGA \(SRAM\) failed: no bitstream build\/top\.bit in this browser: run Generate Programming File first, or choose a \.bit file/);
-  assert.doesNotMatch(await page.consoleText(), /see log/);
+  await page.waitDialog('Program FPGA');
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .msg-text').innerText),
+    /^The programming file of 'top' is not in this browser any more \(a build is kept for the browser session only\)\.\s+Implement the design first\? When it ends without errors, the FPGA is programmed\.$/);
+  await page.dialogButton('No');
+  await page.waitNoDialog();
+  assert.doesNotMatch(await page.consoleText(), /Programming FPGA|see log/);
   // edits are kept across a reload (localStorage)
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
