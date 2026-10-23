@@ -433,6 +433,29 @@ OFFSET = IN 20 ns BEFORE "clk" ;\nNET "q" OFFSET = OUT 1 ns AFTER "clk" ;\nTIMEG
   assert.equal(r.report.timing.met, false);
 });
 
+test('#1103 Implement Design: a PERIOD on the clock of a single register stage (no path between two of its flip-flops) is met with no path to time, no warning; VHDL and Verilog', { timeout: 300000 }, async () => {
+  const { flow } = await import('./timesim-lib.mjs');
+  const { orderOpenSteps } = await import('../core/open-steps.js');
+  const ucf = 'NET "clk" LOC = "B8" ;\nNET "clk" PERIOD = 20 ns ;\nNET "other" PERIOD = 10 ns ;\n';
+  for (const src of [
+    { path: 'top.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all;
+entity top is port (clk, a, b : in std_logic; y : out std_logic); end;
+architecture rtl of top is begin
+  process (clk) begin if rising_edge(clk) then y <= a and b; end if; end process;
+end;` },
+    { path: 'top.v', lang: 'verilog', text: 'module top(input clk, input a, input b, output reg y);\n  always @(posedge clk) y <= a & b;\nendmodule\n' },
+  ]) {
+    const r = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, [src], [], ucf);
+    assert.equal(r.ok, true, r.lines.join('\n'));
+    const timing = r.store['open/timing.txt'];
+    assert.match(timing, /^constraint PERIOD 20 ns on clk: met \(no path between two flip-flops of its clock to time\)$/m, src.lang);
+    // (a port that clocks nothing: the warning stays, for it only)
+    assert.deepEqual(r.lines.filter(l => /^WARNING/.test(l)), ['WARNING:Timing - constraint PERIOD 10 ns on other: no clock of the design comes from this port'], src.lang);
+    assert.deepEqual(r.report.timing.constraints.map(c => [c.name, c.timingErrors, c.minPeriodNs, c.maxFreqMHz]), [['PERIOD clk', 0, null, null]], src.lang);
+    assert.equal(r.report.timing.met, true, src.lang);
+  }
+});
+
 // #661: trce's Component Switching Limit checks in the flow's timing: feat_dcm_div2 as it was (CLKIN_DIVIDE_BY_2, CLKFX
 // x 3 / 15: 200 ns, over the 100 ns trce allows once the input is halved: ISE's "Slack: -100.000ns", Tdcmpfx) is a
 // timing error, in the report, the warnings and the report's constraints; x 2 / 5 (100 ns, its fixture now) is met

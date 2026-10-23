@@ -114,8 +114,10 @@ export function clockRequirement(a, b) {
 /**
  * The clocks' periods against the PERIOD constraints of the UCF (core/ucf.js parseUcf().clocks:
  * [{ net, period }], the net being the clock's port): [{ clock, port, required, period, slack, met }]
- * for each constrained clock found, and { port, required, missing: true } for a constraint on a port
- * that clocks nothing analyzed. A clock from a DCM (#601) has the constraint trce derives from its input's:
+ * for each constrained clock found; a clock from the port with no path between two of its flip-flops (one register
+ * stage) { clock, port, required, period: 0, slack, met: true, noPaths: true } (trce's 0 paths analyzed, #1103); and
+ * { port, required, missing: true } for a constraint on a port that clocks nothing. A clock from a DCM (#601) has the
+ * constraint trce derives from its input's:
  * { …, via: 'CLKFX of u_dcm' (the DCM outputs on the way), constraint: the port's PERIOD, required: that x its
  * periods (CLK2X half of it, CLKDV the divider times, CLKFX D / M times) }.
  */
@@ -128,7 +130,13 @@ export function checkPeriods(r, design, constraints = []) {
   const ports = c => [portOf(c), ...(switched.get(c.clock) || [])];
   for (const k of constraints) {
     const hit = r.clocks.filter(c => ports(c).includes(String(k.net).toLowerCase()));
-    if (!hit.length) { out.push({ port: k.net, required: k.period, missing: true }); continue; }
+    if (!hit.length) {
+      // a clock from the port with no path between its flip-flops (one register stage, #1103): no path to time, as trce's
+      // "0 paths analyzed", not missing
+      const clk = [...src].find(([, s]) => String(s.port).toLowerCase() === String(k.net).toLowerCase() && !s.via.length);
+      out.push(clk ? { clock: clk[0], port: k.net, required: k.period, period: 0, slack: k.period, met: true, noPaths: true } : { port: k.net, required: k.period, missing: true });
+      continue;
+    }
     // (the port's own clock first, the slowest of its nets, then the DCMs')
     const own = hit.filter(c => !src.get(c.clock)?.via.length).sort((a, b) => b.period - a.period).slice(0, 1);
     for (const c of [...own, ...hit.filter(c => src.get(c.clock)?.via.length)]) {
@@ -300,6 +308,7 @@ export function timingReport(r, checks = []) {
           : `constraint ${k.text}: ${k.met ? 'met' : 'NOT MET'} on ${k.port}${clocksOf.get(`${k.text}\u0000${k.port}`) > 1 ? `, clock ${k.clock}` : ''} (${k.dir === 'in' ? 'pad to setup' : 'clock to pad'} ${k.value.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
       continue;
     }
+    if (k.noPaths) { lines.push(`constraint PERIOD ${k.required} ns on ${k.port}: met (no path between two flip-flops of its clock to time)`); continue; }
     lines.push(k.missing ? `constraint PERIOD ${k.required} ns on ${k.port}: no clock of the design comes from this port`
       : `constraint PERIOD ${k.required} ns on ${k.port}: ${k.met ? 'met' : 'NOT MET'} (period ${k.period.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
   }
