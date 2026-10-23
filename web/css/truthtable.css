@@ -25,7 +25,8 @@
 .tt-table th.tt-out { cursor: pointer; background: #e8f0ff; }
 .tt-table th.tt-out.sel { background: #c9dbfb; }
 .tt-table td.tt-idx, .tt-table th.tt-idx { color: var(--muted, #777); }
-.tt-table th.tt-out:first-of-type, .tt-table td.tt-cell:first-of-type { border-left: 2px solid var(--border, #999); }
+/* solid lines between the row number (#), the inputs and the outputs (#1120; :first-of-type was the row's first cell, the #) */
+.tt-table .tt-idx + .tt-in, .tt-table .tt-in + :is(.tt-out, .tt-cell) { border-left: 2px solid var(--border, #999); }
 .tt-table td.tt-cell { cursor: pointer; user-select: none; min-width: 26px; font-weight: bold; }
 .tt-table td.tt-cell:hover { background: var(--hover, #e5f1fb); }
 .tt-table td.tt-cell.sel { background: #f3f7ff; }
