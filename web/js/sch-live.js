@@ -45,6 +45,9 @@ function liveController(ctx, live) {
   let errorText = null;
   let destroyed = false;
   const running = new Map();      // clock port id -> { rate, acc }
+  // a clock's tick shown (#1110): its marker green a moment after a click (one cycle leaves it at 0), and while it runs
+  const ticked = new Map();       // clock port id -> the time (performance.now()) its tick shows until
+  const TICK_MS = 300;
   let raf = 0, lastT = 0;
 
   // ------------------------------------------------------------------ static geometry
@@ -142,7 +145,8 @@ function liveController(ctx, live) {
         }
       } else if (inp && inp.clock) {
         const x = p.x - 27;
-        s += `<g class="lv-ctl lv-clk ${lv}" data-lv="clock" data-port="${esc(p.id)}"><title>${esc(p.name)}: ${esc(t('click for one clock cycle'))}</title>`
+        const tick = running.has(p.id) || (ticked.get(p.id) ?? 0) > performance.now() ? ' lv-ticked' : '';
+        s += `<g class="lv-ctl lv-clk ${lv}${tick}" data-lv="clock" data-port="${esc(p.id)}"><title>${esc(p.name)}: ${esc(t('click for one clock cycle'))}</title>`
           + `<rect class="lv-box" x="${x}" y="${y - 6}" width="16" height="12" rx="2"/>`
           + `<path class="lv-wave" d="M${x + 2},${y + 3} h3 v-6 h5 v6 h3"/></g>`;
       } else if (inp && inp.width === 1) {
@@ -239,7 +243,12 @@ function liveController(ctx, live) {
       }
       const inp = live.input(portId);
       if (!inp) return false;
-      if (inp.clock) { stopClock(portId); act(() => live.cycle(portId)); }
+      if (inp.clock) {
+        stopClock(portId);
+        ticked.set(portId, performance.now() + TICK_MS);
+        act(() => live.cycle(portId));
+        setTimeout(() => update(), TICK_MS + 20);   // (green no more)
+      }
       else if (inp.width === 1) act(() => live.toggle(portId));
       else openEditor(portId);
       return true;

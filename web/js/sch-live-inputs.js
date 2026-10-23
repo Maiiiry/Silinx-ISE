@@ -25,6 +25,7 @@ export function mountLiveInputs(parts) {   // (parts: ctx is the editor's, as in
       b.runBtn.textContent = on ? 'Pause' : 'Run';
       b.runBtn.classList.toggle('on', on);
     }
+    if (!destroyed()) update();   // (the clocks' markers: green while they run, #1110)
   }
   function tick(t) {
     setRaf(0);
