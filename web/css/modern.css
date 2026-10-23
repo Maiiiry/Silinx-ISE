@@ -217,12 +217,12 @@ html[data-ui="modern"] .splitter:hover, html[data-ui="modern"] body.resizing-h .
 /* editor area: document tabs on top */
 html[data-ui="modern"] #center { background: var(--m-surface); }
 html[data-ui="modern"] #doc-tabs { order: -1; height: 38px; align-items: stretch; padding: 0; gap: 0; background: var(--m-surface-2); border: none; border-bottom: 1px solid var(--m-border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+html[data-ui="modern"] #doc-tabs { --doc-tab-w: 190px; }
 html[data-ui="modern"] #doc-tabs .tab { height: auto; margin: 0; padding: 0 8px 0 12px; gap: 7px; border: none; border-right: 1px solid var(--m-border); border-radius: 0;
   background: transparent; color: var(--m-muted); font-weight: 450; cursor: pointer; }
 html[data-ui="modern"] #doc-tabs .tab:hover:not(.active) { background: var(--m-hover); color: var(--m-fg); }
 html[data-ui="modern"] #doc-tabs .tab.active { height: auto; background: var(--m-surface); color: var(--m-fg); font-weight: 550; box-shadow: inset 0 2px 0 var(--m-accent); margin-bottom: -1px; }
-html[data-ui="modern"] #doc-tabs .tab .tclose { width: 20px; height: 20px; border-radius: 5px; color: var(--m-muted); visibility: hidden; }
-html[data-ui="modern"] #doc-tabs .tab:hover .tclose, html[data-ui="modern"] #doc-tabs .tab.active .tclose { visibility: visible; }
+html[data-ui="modern"] #doc-tabs .tab .tclose { width: 20px; height: 20px; border-radius: 5px; color: var(--m-muted); }
 html[data-ui="modern"] #doc-tabs .tab .tclose:hover { background: var(--m-hover); color: var(--m-fg); }
 html[data-ui="modern"] #doc-tabs .tab.dirty .tlabel::after { content: ' ●'; color: var(--m-accent); font-size: 10px; }
 html[data-ui="modern"] #workspace { border: none; background: var(--m-surface); }

@@ -59,6 +59,11 @@
 .bottom-tabs .tab .tclose { width: 14px; height: 14px; border-radius: 2px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #666; }
 .bottom-tabs .tab .tclose:hover { background: #e81123; color: #fff; }
 .bottom-tabs .tab.dirty .tlabel::after { content: '*'; }
+/* the document tabs: one width, their close button at the same place on each (closing several in a row with no move),
+   always shown (a tablet has no hover), #1128 */
+#doc-tabs .tab { flex: none; width: var(--doc-tab-w, 170px); max-width: none; justify-content: space-between; }
+#doc-tabs .tab .tlabel { flex: 1 1 auto; min-width: 0; }
+#doc-tabs .tab .tclose { flex: none; }
 .bottom-tabs .count { color: #555; font-weight: normal; }
 
 #console-wrap { height: 170px; margin: 0 3px; min-height: 60px; flex: none; }
