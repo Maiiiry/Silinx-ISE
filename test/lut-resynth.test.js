@@ -453,3 +453,18 @@ test('#652 the wide form\'s cofactors: a LUT of the inputs each depends on only 
   const ch = shallower(z.json.modules.w, z.root, netlistLevels(z.json.modules.w));
   assert.ok(!ch?.wide || ch.wide.luts.every(l => l.inputs.length > 0), JSON.stringify(ch?.wide));
 });
+
+test('#652 the wide form on a cone of many leaves (the traffic example\'s): declined at once, no truth table of 2^leaves rows', () => {
+  // a root of level 3 over 24 inputs (the old limit was 28 leaves: a table of 2^24 rows, minutes): LUT4s of 4 inputs
+  // (6), LUT3s of 3 of those (2), a LUT2 of those (the root)
+  const lut = (ins, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: '0110100110010110'.slice(-(1 << ins.length)) }, port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' },
+    connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const ins = Array.from({ length: 24 }, (_, i) => i + 2), cells = {};
+  const l1 = Array.from({ length: 6 }, (_, k) => { cells[`a${k}`] = lut(ins.slice(4 * k, 4 * k + 4), 100 + k); return 100 + k; });
+  const l2 = Array.from({ length: 2 }, (_, k) => { cells[`b${k}`] = lut(l1.slice(3 * k, 3 * k + 3), 200 + k); return 200 + k; });
+  cells.root = lut(l2, 300);
+  const mod = { cells, ports: { q: { direction: 'output', bits: [300] } }, netnames: {} };
+  const t0 = Date.now();
+  assert.equal(shallower(mod, 300, netlistLevels(mod)), null);
+  assert.ok(Date.now() - t0 < 2000, `${Date.now() - t0} ms`);
+});

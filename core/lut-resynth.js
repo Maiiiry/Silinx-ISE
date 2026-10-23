@@ -160,7 +160,8 @@ function shallowerWide(mod, root, { driver, level }, rule) {
   // state machine's decoding, has fewer leaves further down), expanded whole, not one LUT at a time
   let leaves = null;
   for (let t = L - 3; t >= 0 && !leaves; t--) {
-    const z = cone(cells, driver, root, b => level(b) > t, rule.wideLeaves * 4);
+    // (a cut of rule.treeLeaves leaves at most: its truth table 2^leaves rows, the leaves F does not depend on dropped after)
+    const z = cone(cells, driver, root, b => level(b) > t, rule.treeLeaves);
     if (z && z.leaves.every(b => level(b) <= t)) {
       const [T] = tables(cells, driver, z.leaves, [root]);
       if (z.leaves.filter((_, i) => dependsOn(T, T.length, i)).length <= rule.wideLeaves) leaves = z.leaves;
