@@ -155,9 +155,36 @@ endmodule`);
   // two 6-input LUTs in one position
   s.pos.D.o6 = lut6[0]; s.pos.D.o5 = lut6[1];
   s.kind = 'X'; s.carry = null; s.f7 = { A: null, B: null }; s.f8 = 99;
-  assert.deepEqual(checkSlice(s, nl), ['a carry chain or a wide multiplexer in a SLICEX', 'C5FF: a latch (' + nl.cells[find(/^LD/)].name + ')', 'D: O6 and O5 share more than 5 inputs', 'storage elements of 3 control sets', 'latches with a 5FF used']);
+  assert.deepEqual(checkSlice(s, nl), ['a carry chain or a wide multiplexer in a SLICEX', 'C5FF: a latch (' + nl.cells[find(/^LD/)].name + ')',
+    `C5FF: its D (${nl.cells[find(/^LD/)].name}) is not the position's O5`, 'D: O6 and O5 share more than 5 inputs', 'storage elements of 3 control sets', 'latches with a 5FF used']);
   assert.deepEqual(checkSlice({ ...s, f8: null, pos: { A: { ...s.pos.A, ff: null }, B: s.pos.B, C: { ...s.pos.C, ff5: null }, D: { ...s.pos.D, o5: null } }, mem: 'ram:2:3:', kind: 'L' }, nl),
     ['a RAM or shift register in a slice that is not a SLICEM']);
+});
+
+// #1143: a 5FF's D is the position's O5 only (UG384; the slices' primitive definitions): one fed from outside the
+// slice takes it through O5, the LUT passing its input (map's PK_PACKTHRU), A6 high
+test('a 5FF fed from outside its slice: its D through the position\'s O5 as a route-through of the LUT, never by the bypass input (#1143)', async () => {
+  // (two registers of the same inputs, of other initial values: not merged, one control set, eight in one slice)
+  const nl = await verilog(`module m(input clk, input [3:0] d, output [3:0] q, output [3:0] r);
+  reg [3:0] a = 4'b0000; reg [3:0] b = 4'b1111;
+  always @(posedge clk) begin a <= d; b <= d; end
+  assign q = a; assign r = b;
+endmodule`);
+  const p = packed(nl);
+  assert.equal(kinds(p), 'X');
+  for (const q of Object.values(p.slices[0].pos)) {
+    const d = nl.cells[q.ff].pins.D;
+    assert.equal(nl.cells[q.ff5].pins.D, d, 'the FF and the 5FF of a position: one D');
+    assert.equal(q.x, d, 'the FF by the bypass input');
+    assert.equal(q.o5, `thru:${d}`, 'the 5FF through O5');
+    assert.equal(q.mux, 'ff5');
+  }
+  // checkSlice: a 5FF on the bypass input is refused
+  const s = JSON.parse(JSON.stringify(p.slices[0]));
+  s.pos.A.o5 = null;
+  assert.deepEqual(checkSlice(s, nl), [`A5FF: its D (${nl.cells[s.pos.A.ff5].name}) is not the position's O5`]);
+  assert.deepEqual(p.warnings, []);
+  assert.deepEqual([p.stats.slices, p.stats.ffs, p.stats.luts], [1, 8, 0]);
 });
 
 // night 1: map's packing of the clock example (BOUTMUX CY, BFF #AND2L with BFFMUX XOR) in a slice of no other storage element
