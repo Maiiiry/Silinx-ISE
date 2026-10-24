@@ -341,6 +341,15 @@ class PageBase {
   async openMenu(label) {
     debug(`menu ${label}`);
     await this.closeMenus();
+    // a menu the modern interface does not show (#1217): its items as its definition has them, no popup
+    const def = typeof label === 'string' && await this.eval((m) => {
+      const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
+      if (!e || e.getClientRects().length) return null;
+      const menu = window.SilinxApp.S.menus.find((x) => x.label === m);
+      return (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-')
+        .map((x) => ({ label: x.label, disabled: !!(typeof x.disabled === 'function' ? x.disabled() : x.disabled), submenu: !!x.submenu }));
+    }, label);
+    if (def) return def;
     const items = await this.eval(() => [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()));
     const idx = typeof label === 'number' ? label : items.indexOf(label);
     if (idx < 0) throw new Error(`no menu '${label}' (menus: ${items.join(', ')})`);
@@ -397,6 +406,22 @@ class PageBase {
   }
   /** File ▸ Open Project… style: open the menu and click the item. */
   async menu(menuLabel, itemLabel) {
+    // a menu the modern interface does not show (Project, Process, Tools: #1217): its command run as the command
+    // palette runs it, from the menus' definitions
+    const hidden = await this.eval((m) => { const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m); return !!e && !e.getClientRects().length; }, menuLabel);
+    if (hidden) {
+      const r = await this.eval((m, l) => {
+        const menu = window.SilinxApp.S.menus.find((x) => x.label === m);
+        const it = (typeof menu.items === 'function' ? menu.items() : menu.items).filter(Boolean).find((x) => x.label === l);
+        if (!it) return 'missing';
+        if (typeof it.disabled === 'function' ? it.disabled() : it.disabled) return 'disabled';
+        it.action();
+        return 'ran';
+      }, menuLabel, itemLabel);
+      if (r === 'missing') throw new Error(`no item '${itemLabel}' in menu '${menuLabel}'`);
+      if (r === 'disabled') throw new Error(`menu item '${menuLabel} ▸ ${itemLabel}' is disabled`);
+      return;
+    }
     const items = await this.openMenu(menuLabel);
     const idx = items.findIndex((i) => i.label === itemLabel);
     if (idx < 0) throw new Error(`no item '${itemLabel}' in menu '${menuLabel}' (${items.map((i) => i.label).join(' | ')})`);

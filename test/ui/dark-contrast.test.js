@@ -100,7 +100,8 @@ for (const theme of ['dark', 'light']) {
   uiTest(`${theme} theme: the Start page, the menus, the command palette, the toasts, the Help and Tools dialogs, the New Project wizard`, E, async (page) => {
     const { check, bad } = await themed(page, theme);
     await check('Start page');
-    for (const m of await page.eval(() => [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()))) {
+    // (the menus shown: the modern interface has no Project, Process and Tools menus, #1217)
+    for (const m of await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()))) {
       await page.openMenu(m);
       await check(`menu ${m}`);
     }

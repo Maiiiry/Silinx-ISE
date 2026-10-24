@@ -458,7 +458,9 @@ uiTest('Portuguese: View ▸ Language switches the UI; menus, dialogs and the ma
     for (const s of untranslated(en, pt, same)) missing.push(`${where}: ${s}`);
   };
   await compare('main window', () => page.eval(() => window.__uiTexts()));
-  for (const m of ['File', 'Edit', 'View', 'Project', 'Process', 'Tools', 'Window', 'Help']) {
+  // (the menus shown: the modern interface has no Project, Process and Tools menus, #1217; the classic run checks them)
+  const shown = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.dataset.menu));
+  for (const m of ['File', 'Edit', 'View', 'Project', 'Process', 'Tools', 'Window', 'Help'].filter((x) => shown.includes(x))) {
     await setLang('en');
     await page.openMenu(m);
     await compare(`menu ${m}`, () => page.eval(() => window.__uiTexts(document.querySelector('body > .menu-popup'))));
