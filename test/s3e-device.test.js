@@ -9,6 +9,7 @@ import { pinCensus, renamePads } from '../research/s3e-device/pins.mjs';
 import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads } from '../research/s3e-device/gen-obspins.mjs';
 import { clockDesign } from '../research/s3e-device/gen-obsclk.mjs';
 import { clockNets, clockTestDesigns, clockTile, rowTile } from '../research/s3e-device/clocktests.mjs';
+import { edgeHypotheses, edgeTile } from '../research/s3e-device/edgejoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -625,4 +626,53 @@ net "g" ,
   assert.match(r.designs[0].xdl, /^net "t0" ,\n {2}outpin "b0" O ,$/m);
   // a wire no net has with the candidate: untestable
   assert.deepEqual(clockTestDesigns([['GCLKH_X9Y5/GCLKH_GCLK_DN1', 'CLB_X3Y4/GCLK1']], [routed]).untestable, [['GCLKH_X9Y5/GCLKH_GCLK_DN1', 'CLB_X3Y4/GCLK1']]);
+});
+
+test('clockTestDesigns: a spine candidate with a baseline, the rows\' PIPs left out, once for each net and candidate (#3, the clock network)', () => {
+  const routed = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "u_b" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y10 ,
+  cfg " GCLK_BUFFER:u_b: "
+  ;
+net "g" ,
+  outpin "u_b" O ,
+  pip CLKT_X13Y35 CLKT_GCLK_PINWIRE1 -> CLKT_GCLK_MAIN1 ,
+  pip GCLKVC_X6Y5 GCLKC_GCLK_B1 -> GCLKC_GCLK_OUT_L1 ,
+  pip GCLKH_X3Y5 GCLKH_GCLK_B1 -> GCLKH_GCLK_DN1 ,
+  pip GCLKH_X4Y5 GCLKH_GCLK_B1 -> GCLKH_GCLK_UP1 ,
+  ;
+`);
+  const r = clockTestDesigns([['GCLKVC_X6Y5/GCLKC_GCLK_OUT_L1', 'GCLKH_X3Y5/GCLKH_GCLK_B1'], ['GCLKVC_X6Y5/GCLKC_GCLK_OUT_L1', 'GCLKH_X4Y5/GCLKH_GCLK_B1']], [routed]);
+  const tests = r.designs.flatMap(d => d.tests.map(t => ({ ...t, pips: [...d.xdl.matchAll(/^ {2}pip (\S+) (\S+) -> (\S+) ,$/gm)].map(m => `${m[1]} ${m[2]}->${m[3]}`) })));
+  // one baseline (the spine without the PIP into the candidate, no row), then each wire's test (the baseline and its PIP)
+  assert.deepEqual(tests.map(t => [t.baseline ? 'baseline' : t.join[1].split('/')[0], t.pips]), [
+    ['baseline', ['CLKT_X13Y35 CLKT_GCLK_PINWIRE1->CLKT_GCLK_MAIN1']],
+    ['GCLKH_X3Y5', ['CLKT_X13Y35 CLKT_GCLK_PINWIRE1->CLKT_GCLK_MAIN1', 'GCLKH_X3Y5 GCLKH_GCLK_B1->GCLKH_GCLK_DN1']],
+    ['GCLKH_X4Y5', ['CLKT_X13Y35 CLKT_GCLK_PINWIRE1->CLKT_GCLK_MAIN1', 'GCLKH_X4Y5 GCLKH_GCLK_B1->GCLKH_GCLK_UP1']],
+  ]);
+  assert.equal(tests[1].base, tests[0].baseline);
+  assert.equal(tests[2].base, tests[0].baseline);
+});
+
+// #3, the edge tiles and corners: their joins' rules applied to the tiles of the same prefix; their ambiguous candidates
+test('edgeHypotheses: an edge tile\'s known join as a rule for the tiles of its prefix, its ambiguous candidates; none known (#3, the edge tiles)', () => {
+  const obs = {
+    pips: [
+      { tile: 'LTERM_X0Y3', from: 'E6END1', to: 'W6BEG1' }, { tile: 'LTERM_X0Y4', from: 'E6END1', to: 'W6BEG1' },
+      { tile: 'CLB_X1Y3', from: 'W6END1', to: 'E2BEG1' }, { tile: 'CLB_X1Y4', from: 'W6END1', to: 'E2BEG1' },
+      { tile: 'UL_X0Y35', from: 'OMUX_N4', to: 'N2BEG0' }, { tile: 'CLB_X1Y34', from: 'N2MID0', to: 'E2BEG0' },
+    ],
+    ambiguous: [
+      { from: 'CLB_X1Y34/N2MID0', candidates: ['UL_X0Y35/N2BEG0', 'CLB_X2Y33/N2BEG0'] },
+      { from: 'CLB_X5Y5/E2MID1', candidates: ['CLB_X4Y5/E2BEG1', 'CLB_X3Y5/E2BEG1'] },
+      { from: 'CLB_X1Y5/GCLK1', candidates: ['LTERM_X0Y5/GCLK1', 'CLB_X1Y6/GCLK1'] },
+    ],
+  };
+  const tiles = ['LTERM_X0Y3', 'LTERM_X0Y4', 'LTERM_X0Y5', 'CLB_X1Y3', 'CLB_X1Y4', 'CLB_X1Y5', 'UL_X0Y35', 'CLB_X1Y34'];
+  const r = edgeHypotheses(obs, tiles, [['LTERM_X0Y3/W6BEG1', 'CLB_X1Y3/W6END1']]);
+  // the rule (W6BEG1 of an LTERM, the CLB east of it) at every LTERM with a CLB there, but the known one
+  assert.deepEqual(r.rules, [['LTERM_X0Y4/W6BEG1', 'CLB_X1Y4/W6END1'], ['LTERM_X0Y5/W6BEG1', 'CLB_X1Y5/W6END1']]);
+  // a corner's ambiguous join, with its candidate in the edge tile (the CLB's left to the switch-box rounds); none
+  // without an edge tile, none of the clock lines
+  assert.deepEqual(r.ambiguous, [['UL_X0Y35/N2BEG0', 'CLB_X1Y34/N2MID0']]);
+  assert.deepEqual(['LTERM4_X0Y9', 'CNR_TTERM_X1Y35', 'COB_TERM_B_X9Y0', 'UL_X0Y35', 'CLB_X1Y1', 'TIOIS_X3Y35'].map(edgeTile), [true, true, true, true, false, false]);
 });
