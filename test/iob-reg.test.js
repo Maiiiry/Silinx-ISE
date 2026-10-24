@@ -117,6 +117,42 @@ net "q" ,
   assert.deepEqual(Object.values(db.padFeats.B3).flat().filter(s => /^!?1[0-3],3$/.test(s)), []);
 });
 
+// #897: bits of a pad's input register held by a neighbour's features (#96 / #759 solved them from designs that registered
+// the two pads together, or against a database that lacked the bit): A3's set / reset and second flip-flop bits on B3,
+// C9's delay bit on E9, B9's, C15's and D13's second flip-flop bits on D9, A16 and E12; measured with ISE, an IDDR2 on
+// one pad alone (gen-padalone.mjs, ana-padalone.mjs: research/s3e-bitstream, measured/fix-897-owners.json)
+test('I/O registers in the measured database: each bit of a lone IDDR2 its own pad\'s, as ISE sets it (#897)', () => {
+  // the IOB of ISE's IDDR2 (R and S, both flip-flops: map writes ISR_USED and IREV_USED either way), or a plain register
+  // with a set / reset (#96's designs)
+  const IDDR2 = 'ICEINV::ICE ICLK1INV::ICLK1 ICLK2INV::ICLK2_B IDDRIN_MUX::2 IFD_DELAY_VALUE::DLY3 IFF1:u_i/FF0:#FF IFF1_INIT_ATTR::INIT0 IFF1_SR_ATTR::SRLOW IFF2:u_i/FF1:#FF IFF2_INIT_ATTR::INIT0 IFF2_SR_ATTR::SRLOW IFFATTRBOX::SYNC IFFDELMUX::0 IFFDMUX::1 IOATTRBOX::LVCMOS25 IREV_USED::0 ISR_USED::0 PRE_DELAY_MUX::0 REVINV::REV SRINV::SR IFD_DELAY:d.IFD_DELAY: INBUF:d_IBUF: PAD:d:';
+  const SR = 'ICEINV::ICE ICLK1INV::ICLK1 IDDRIN_MUX::2 IFD_DELAY_VALUE::DLY3 IFF1:r:#FF IFF1_INIT_ATTR::INIT0 IFF1_SR_ATTR::SRLOW IFFATTRBOX::SYNC IFFDELMUX::0 IFFDMUX::1 IOATTRBOX::LVCMOS25 ISR_USED::0 PRE_DELAY_MUX::0 SRINV::SR IFD_DELAY:d.IFD_DELAY: INBUF:d_IBUF: PAD:d:';
+  const bits = (part, tile, pad, cfg, list) => {
+    const r = frameData(parseXdl(`design "t" ${part} v3.2 , cfg "";\ninst "d" "IBUF",placed ${tile} ${pad} ,\n  cfg " ${cfg} "\n  ;\n`), loadDb(part));
+    assert.deepEqual(r.unknown, [], `${part} ${pad}`);
+    return list.map(b => getBit(r.frames, r.frames.frameWords, ...b.split(',').map(Number)));
+  };
+  for (const [part, row, fr] of [['xc3s500efg320-4', 47, 45], ['xc3s1200efg320-4', 61, 46]]) {
+    const at = [`${fr},29`, `${fr},30`];
+    // as ISE sets them: A3's register both, B3's neither; a set / reset alone only the first
+    assert.deepEqual(bits(part, `TIBUFS_X2Y${row}`, 'A3', IDDR2, at), [1, 1], `${part} A3`);
+    assert.deepEqual(bits(part, `TIOIS_X1Y${row}`, 'B3', IDDR2, at), [0, 0], `${part} B3`);
+    assert.deepEqual(bits(part, `TIBUFS_X2Y${row}`, 'A3', SR, at), [1, 0], `${part} A3, a set / reset`);
+    const f = loadDb(part).padFeats;
+    assert.deepEqual([f.A3['R:ISR_USED:0'], f.A3['R:IFF2:#FF'], f.B3['R:IREV_USED:0']], [[at[0]], [at[1]], []], part);
+  }
+  // [part, the pad that sets the bit (its tile), its neighbour that held it (its tile), the bit]: ISE's bitgen on an
+  // IDDR2 alone on each
+  for (const [part, own, ownTile, other, otherTile, b] of [
+    ['xc3s1200efg320-4', 'C9', 'TIOIS_X22Y61', 'E9', 'TIOIS_X20Y61', '354,11'],
+    ['xc3s1200efg320-4', 'B9', 'TIBUFS_X23Y61', 'D9', 'TIOIS_X22Y61', '369,49'],
+    ['xc3s1200efg320-4', 'C15', 'TIBUFS_X46Y61', 'A16', 'TIOIS_X45Y61', '730,30'],
+    ['xc3s500efg320-4', 'C9', 'TIOIS_X16Y47', 'E9', 'TIOIS_X14Y47', '239,11'],
+    ['xc3s500efg320-4', 'B9', 'TIBUFS_X17Y47', 'D9', 'TIOIS_X16Y47', '254,49'],
+    ['xc3s500efg320-4', 'C15', 'TIBUFS_X34Y47', 'A16', 'TIOIS_X33Y47', '501,30'],
+    ['xc3s500efg320-4', 'D13', 'TIBUFS_X27Y47', 'E12', 'TIOIS_X26Y47', '444,30'],
+  ]) assert.deepEqual([bits(part, ownTile, own, IDDR2, [b])[0], bits(part, otherTile, other, IDDR2, [b])[0]], [1, 0], `${part} ${own} / ${other} ${b}`);
+});
+
 // #751: #44 / #97 solved the input delays from designs where every pad had an input (all registered, or all direct), so a
 // bit of one pad's delay could go to its neighbour's; measured with ISE with each pad used on its own (gen-paddly.mjs,
 // gen-pairdly.mjs, ana-paddly.mjs: research/s3e-bitstream, measured/fix-28-pad-delays.json)

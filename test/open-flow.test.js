@@ -286,6 +286,10 @@ const FEATURES = {
   // both pads of a pair): B3, E17, F14, G13 of the XC3S500E, each alone
   feat_iob_lone: [/^pack \(\d+ slices\)/m, 'IOB', [...['B3', 'E17', 'F14', 'G13'].map(p => new RegExp(`^inst "d<\\d>" "IBUF",placed \\S+ ${p} +,\\n {2}cfg "[^"]* IFF1:[^"]* IFD_DELAY_VALUE::DLY3 `, 'm'))],
     [/placed \S+ (?:A3|C3|D18|F15|G14|E18) /]],
+  // IDDR2s (a set / reset each) on pads whose neighbour's features held some of their bits, each alone (#897): A3, C9, B9,
+  // C15, D13 of the XC3S500E, their neighbours B3, E9, D9, A16, E12 unused
+  feat_iob_owners: [/^pack \(\d+ slices\)/m, 'IOB', [...['A3', 'C9', 'B9', 'C15', 'D13'].map((p, k) => new RegExp(`^inst "d<${k}>" "IBUF",placed \\S+ ${p} +,\\n {2}cfg "[^"]* IFF2:[^"]* ${k % 2 ? 'IREV_USED::0' : 'ISR_USED::0'} `, 'm'))],
+    [/placed \S+ (?:B3|E9|D9|A16|E12) /]],
   // the IOBs' DDR registers (#96): two IDDR2 and three ODDR2 on the clock and its inverse (ICLK2 / OTCLK2 inverted, on the
   // clock's net: the inverter left out), with clock enables and synchronous and asynchronous set / reset; in VHDL and Verilog
   ...Object.fromEntries(['feat_iob_ddr', 'feat_iob_ddr_v'].map(n => [n, [/^pack \(1 slices\)/m, 'IOB', [/^inst "sw<0>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:u_i0\/FF0:#FF [^"]* IFF2:u_i0\/FF1:#FF [^"]* IFFATTRBOX::SYNC [^"]* ICLK2INV::ICLK2_B /m,

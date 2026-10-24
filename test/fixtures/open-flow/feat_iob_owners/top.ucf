@@ -1,0 +1,12 @@
+# Nexys2-500 (#897): the clock, BTN0 and LD0; the IDDR2s on A3, C9, B9, C15 and D13 (the expansion connectors' and the
+# board's other pins; their neighbours B3, E9, D9, A16 and E12 unused)
+NET "clk"  LOC = "B8" | IOSTANDARD = LVCMOS33 ;
+NET "rst"  LOC = "B18" | IOSTANDARD = LVCMOS33 ;
+NET "d<0>" LOC = "A3" | IOSTANDARD = LVCMOS33 ;
+NET "d<1>" LOC = "C9" | IOSTANDARD = LVCMOS33 ;
+NET "d<2>" LOC = "B9" | IOSTANDARD = LVCMOS33 ;
+NET "d<3>" LOC = "C15" | IOSTANDARD = LVCMOS33 ;
+NET "d<4>" LOC = "D13" | IOSTANDARD = LVCMOS33 ;
+NET "led"  LOC = "J14" | IOSTANDARD = LVCMOS33 ;
+NET "clk" TNM_NET = "clk" ;
+TIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;
