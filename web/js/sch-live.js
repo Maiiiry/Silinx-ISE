@@ -12,6 +12,7 @@ import { t } from './i18n.js';
 import { esc } from './dom.js';
 import { mountLiveInputs } from './sch-live-inputs.js';
 import { mountLiveInstance } from './sch-live-instance.js';
+import { prefKey } from './prefs.js';
 
 const LV = ['lv-1', 'lv-0', 'lv-x', 'lv-z', 'lv-n'];
 export const lvClass = v => `lv-${level(v) ?? 'n'}`;
@@ -37,7 +38,7 @@ function liveController(ctx, live) {
   const { doc, modules, h, layer, content, bar, canvas } = ctx;
   const nl = live.nl;
   let radix = 'hex';
-  try { radix = localStorage.getItem('xl.sch.liveRadix') || 'hex'; } catch { /* default */ }
+  try { radix = localStorage.getItem(prefKey('xl.sch.liveRadix')) || 'hex'; } catch { /* default */ }
   if (!['hex', 'dec', 'bin'].includes(radix)) radix = 'hex';
   let last = new Map();           // net id -> painted signature
   let wireEls = new Map();        // wire id -> <g class="wire">
@@ -81,7 +82,7 @@ function liveController(ctx, live) {
   const radixSel = h('select', { class: 'lv-radix', title: 'Number format of the bus values' },
     h('option', { value: 'hex', text: 'Hex' }), h('option', { value: 'dec', text: 'Decimal' }), h('option', { value: 'bin', text: 'Binary' }));
   radixSel.value = radix;
-  radixSel.addEventListener('change', () => { radix = radixSel.value; try { localStorage.setItem('xl.sch.liveRadix', radix); } catch { /* ignore */ } update(true); });
+  radixSel.addEventListener('change', () => { radix = radixSel.value; try { localStorage.setItem(prefKey('xl.sch.liveRadix'), radix); } catch { /* ignore */ } update(true); });
   const clocks = live.inputs.filter(i => i.clock);
   const clockBoxes = clocks.map(c => {
     const runBtn = h('button', { type: 'button', class: 'btn lv-run', title: 'Run / pause the clock', text: 'Run' });

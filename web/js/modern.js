@@ -8,8 +8,10 @@
 // The palette's matching (fuzzyScore, rankEntries, menuCommands) has no DOM and is unit tested.
 
 
-export const UI_KEY = 'silinx.ui';
-export const THEME_KEY = 'silinx.theme';
+import { prefKey } from './prefs.js';
+
+export const UI_KEY = prefKey('silinx.ui');
+export const THEME_KEY = prefKey('silinx.theme');
 export const INTERFACES = ['modern', 'classic'];
 export const THEMES = ['system', 'light', 'dark'];
 

@@ -17,6 +17,7 @@ import { ucfPort } from './drawings.js';
 import { EXTRA_STEPS, ISE_ONLY, SIM_MODEL_NAMES, checkSyntax, diagsFor, loadUcfText, openMode, saveAll, setStatus } from './processes.js';
 import { inView, saveProjectJson } from './design.js';
 import { wcfgFiles } from './sim-wcfg.js';
+import { prefKey } from './prefs.js';
 
 // ---- schematic
 // Netlist written by netgen for `step` (postsynth / posttrans / postmap / postpar) with the
@@ -333,8 +334,8 @@ async function confirmElabErrors(title, lib, design) {
 
 // ---- Board emulator: the design (behavioural RTL) on a virtual board, wired by the UCF
 // the engine the user chose last (#952: remembered, it wins over the default)
-const enginePref = () => { try { return localStorage.getItem(ENGINE_KEY); } catch { return null; } };
-const setEnginePref = (e) => { try { localStorage.setItem(ENGINE_KEY, e); } catch { /* ignore */ } };
+const enginePref = () => { try { return localStorage.getItem(prefKey(ENGINE_KEY)); } catch { return null; } };
+const setEnginePref = (e) => { try { localStorage.setItem(prefKey(ENGINE_KEY), e); } catch { /* ignore */ } };
 export async function openEmulator(mod, { scale, model = null, engine = null } = {}) {
   if (!mod) { toast('Select the top module first'); return; }
   await saveAll();

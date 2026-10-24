@@ -9,10 +9,12 @@
 // Whether each is open is remembered per viewer (localStorage). The look: app.css and modern.css (the
 // drawer), asm-editor.css and sch-editor.css (the side panels); the same width there.
 
+import { prefKey } from './prefs.js';
+
 export const NARROW_QUERY = '(max-width: 1024px)';
-export const DRAWER_KEY = 'silinx.drawer';
-export const PROPS_KEY = 'silinx.narrow.props';       // the diagram editors' properties panel
-export const SYMBOLS_KEY = 'silinx.narrow.symbols';   // the schematic editor's symbols
+export const DRAWER_KEY = prefKey('silinx.drawer');
+export const PROPS_KEY = prefKey('silinx.narrow.props');       // the diagram editors' properties panel
+export const SYMBOLS_KEY = prefKey('silinx.narrow.symbols');   // the schematic editor's symbols
 export const isNarrow = () => !!globalThis.matchMedia?.(NARROW_QUERY).matches;
 
 // 'open' | 'closed' kept per viewer; `def` when nothing is kept (or no storage)

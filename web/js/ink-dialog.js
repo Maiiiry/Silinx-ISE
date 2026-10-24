@@ -13,8 +13,9 @@ import { builtinTemplates, userTemplates, encodeSample, validSamples } from '/co
 import { boxOf } from '/core/ink/segment.js';
 import { SYMBOLS } from '/core/ink/font.js';
 import { parseExpr } from '/core/logic.js';
+import { prefKey } from './prefs.js';
 
-export const SAMPLES_KEY = 'silinx.ink.samples';
+export const SAMPLES_KEY = prefKey('silinx.ink.samples');
 const MAX_SAMPLES = 400;
 
 export function loadSamples() {

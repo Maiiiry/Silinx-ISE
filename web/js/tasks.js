@@ -35,11 +35,12 @@ import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
 import { initCheckMessages } from './tasks-check.js';
+import { prefKey } from './prefs.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl'];
 // (the first task is Design, its id 'edit' kept: the kept state, the documents; 'Design' in Portuguese too, #1046)
 export const TASK_LABEL = { edit: 'Design', sim: 'Simulate', emu: 'Emulate', impl: 'Implement' };
-export const TASKS_KEY = 'silinx.tasks';
+export const TASKS_KEY = prefKey('silinx.tasks');
 // the design-flow button of the modern toolbar (web/js/menus.js, data-step) each task runs
 const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement' };
 const ACTION = { edit: 'Check', sim: 'Simulate', emu: 'Emulate', impl: 'Implement' };

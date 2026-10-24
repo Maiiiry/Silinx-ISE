@@ -166,7 +166,9 @@ test('index.html: one page for both interfaces (header, activity bar icons, empt
   assert.match(html, /<link rel="stylesheet" href="\/css\/modern.css">/);
   // the interface and theme are set before the first paint (no flash of the other look)
   const head = html.slice(0, html.indexOf('</head>'));
-  assert.match(head, /localStorage\.getItem\('silinx\.ui'\)/);
+  // (under the keys of this edition: the site's dev/ its own, web/js/prefs.js, #1243)
+  assert.match(head, /var k = \/\\\/dev\\\/\/\.test\(location\.pathname\) \? 'silinx\.dev\.' : 'silinx\.';/);
+  assert.match(head, /localStorage\.getItem\(k \+ 'ui'\)/);
   assert.match(head, /prefers-color-scheme: dark/);
   for (const page of ['start', 'design', 'files', 'libraries']) assert.match(html, new RegExp(`data-page="${page}" role="tab"`), page);
   assert.equal((html.match(/class="ico-inline tab-ico" data-icon="m\w+"/g) || []).length, 4);

@@ -22,6 +22,7 @@ import { SCH_PT, SCH_PT_PATTERNS } from './i18n-schematic.js';
 import { CLOCKING_PT, CLOCKING_PT_PATTERNS } from './i18n-clocking.js';
 import { MEMORY_PT, MEMORY_PT_PATTERNS } from './i18n-memory.js';
 import { RESOURCES_PT, RESOURCES_PT_PATTERNS } from './i18n-resources.js';
+import { prefKey } from './prefs.js';
 
 const PT = {
   // the Development menu of a development build (#707)
@@ -769,7 +770,7 @@ export const LOCALES = {
   pt: { name: 'Português', strings: PT, patterns: PT_PATTERNS },
 };
 
-const KEY = 'silinx.lang';
+const KEY = prefKey('silinx.lang');
 let lang = 'en';
 try { lang = localStorage.getItem(KEY) || ''; } catch { /* storage unavailable */ }
 if (!LOCALES[lang]) lang = /^pt\b/i.test(navigator.language || '') ? 'pt' : 'en';

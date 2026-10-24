@@ -16,12 +16,13 @@ import { mountBoardParts } from './emulator-board.js';
 import { mountEmuSide } from './emulator-side.js';
 import { mountEmuPaint } from './emulator-paint.js';
 import { mountEmuToolbar } from './emulator-toolbar.js';
+import { prefKey } from './prefs.js';
 
 export const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
 const FRAME_BUDGET_MS = 14;
 // what the emulator does while it is not seen (another browser tab, a minimised window, another document tab,
 // #719): 'pause' (the default: it goes on where it was when shown again) or 'run' (it simulates on, drawing nothing)
-export const HIDDEN_KEY = 'silinx.emulator.hidden';
+export const HIDDEN_KEY = prefKey('silinx.emulator.hidden');
 const hiddenPref = () => { try { return localStorage.getItem(HIDDEN_KEY) === 'run' ? 'run' : 'pause'; } catch { return 'pause'; } };
 
 const SVG = (tag, attrs = {}) => {

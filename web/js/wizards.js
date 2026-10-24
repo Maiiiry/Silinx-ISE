@@ -12,6 +12,7 @@ import { countEvent, siteCounts } from './analytics.js';
 import { confirmDeviceChange } from './device-change.js';
 import { byLastUsed } from './project-store.js';
 import { opened } from './project.js';
+import { prefKey } from './prefs.js';
 
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -846,7 +847,7 @@ async function latestRelease() {
 
 // the start-up check's last answer (GitHub allows 60 unauthenticated requests an hour per address:
 // a page reloaded many times would use them up), kept an hour, a failure ten minutes
-const UPDATE_CACHE = 'silinx.updateCheck';
+const UPDATE_CACHE = prefKey('silinx.updateCheck');
 const cachedRelease = () => {
   try {
     const c = JSON.parse(localStorage.getItem(UPDATE_CACHE) || 'null');
@@ -858,7 +859,7 @@ const cacheRelease = rel => { try { localStorage.setItem(UPDATE_CACHE, JSON.stri
 
 // the setting Help ▸ Check for Updates at Start-up (#488): on unless turned off, kept in localStorage;
 // Help ▸ Check for Updates… always works by hand
-const UPDATE_ON_START = 'silinx.updateCheckOnStart';
+const UPDATE_ON_START = prefKey('silinx.updateCheckOnStart');
 /** Whether the start-up check for updates is on (the default). */
 export function updateCheckEnabled() {
   try { return localStorage.getItem(UPDATE_ON_START) !== 'off'; } catch { return true; }

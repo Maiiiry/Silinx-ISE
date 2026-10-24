@@ -5,8 +5,9 @@ import { designChecks } from '/core/lint.js';
 import { hintFor, HINT_LABELS } from '/core/hints.js';
 import { getLanguage } from './i18n.js';
 import { h } from './ui.js';
+import { prefKey } from './prefs.js';
 
-const KEY = 'silinx.lint';
+const KEY = prefKey('silinx.lint');
 /** Lint warnings on (default) or off; the language rules (errors) always run. */
 export function lintEnabled() {
   try { return localStorage.getItem(KEY) !== 'off'; } catch { return true; }

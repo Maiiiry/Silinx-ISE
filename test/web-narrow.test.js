@@ -148,7 +148,9 @@ test('the breakpoint (1024 px) is the same in the stylesheets and the first-pain
   }
   assert.ok(fs.readFileSync(path.join(ROOT, 'web/css/app.css'), 'utf8').includes('@media (min-width: 1025px) { .narrow-only { display: none !important; } }'));
   const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
-  assert.ok(html.includes(`localStorage.getItem('${N.DRAWER_KEY}') === 'closed'`));
+  // (k: 'silinx.', or the site's dev/ edition's 'silinx.dev.': web/js/prefs.js, #1243)
+  assert.equal(N.DRAWER_KEY, 'silinx.drawer');
+  assert.ok(html.includes("localStorage.getItem(k + 'drawer') === 'closed'"));
   assert.match(html, /<button id="drawer-btn"[^>]*aria-controls="left"/);
   assert.match(html, /<div id="drawer-scrim"><\/div>/);
 });
