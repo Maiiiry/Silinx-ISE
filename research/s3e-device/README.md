@@ -469,3 +469,49 @@ UNBONDED=1 PROBED=probe7.json DBPIPS=1 SOURCES=1 SOURCEXDL=… MAXJOINS=3 MAXDEP
   node prototype.mjs tests left8.json obs.json t8b t1 … t8           # left8: t8's untestable
 ise-remote.sh -f t8 && ise-remote.sh -f t8b && node prototype.mjs verdicts t8 t8b
 ```
+
+## 7. Step 3: the sites' pins (2026-10-24)
+
+Which tile wire each pin of a site is attached to, for the sites the open flow places: the I/O blocks (IOB, IBUF, DIFFM /
+DIFFS and their input-only kinds), RAMB16, MULT18X18SIO, DCM and BUFGMUX (the slices: section 2). The others (BSCAN, ICAP,
+CAPTURE, STARTUP, PCILOGICSE, PMV, the RESERVED_* sites) are hidden from the open flow (`HIDDEN_SITES`, core/xdl.js) and
+left out. Observed in ISE's routes: a net's source pin is on the from-wire its PIPs leave and no other PIP drives, a sink
+pin on the to-wire its PIPs end on, when the sink is the net's one sink in its tile.
+
+- **The observer** (`observeNet`) read pin wires only outside the wire families, and the clock tiles' pins are clock wires.
+  It now also takes a clock wire that no other tile's wire continues in the net (a BUFGMUX's I0 on `CLKT_GCLKIN00`, a
+  DCM's CLKIN), when the tile has no plain wire to take. A `…GCLK_PINWIRE…` is no clock line (`wireFamily`): a
+  BUFGMUX's O leaves `CLKT_GCLK_PINWIRE1`. On the 99 designs below, the joins and their candidates are unchanged and no
+  pin fact is lost, with 1116 more pin facts.
+- **The designs:** 94 that ISE implemented for the XC3S250E in the bit database's experiments (IOB registers, IDDR2 /
+  ODDR2, bidirectional pads, DCMs, block RAMs, global and side clocks, `top.xdl` next to its `par.log`), and 8 of
+  `gen-obspins.mjs`, which give every pin a signal of its own (one shift register's bits):
+  - `ramwide` / `ramnarrow`: every block RAM as `RAMB16_S36_S36` and as `RAMB16_S1_S1`;
+  - `multcasc`: the multipliers in cascade chains up each column, every register, enable and reset;
+  - `dcmpins`: the four DCMs with a variable phase shift;
+  - `iobddr`: every pad with an IDDR2, an ODDR2 for the data and an ODDR2 for the tristate (one SR and one REV per IOB:
+    map refuses registers of one IOB on different ones);
+  - `iobclk2-0/1/2`: the pads at each position of their tile on a DCM's CLK0 / CLK180 / CLK90, so that ICLK2 and OTCLK2
+    are each their net's one sink.
+
+  ISE implements them with no error; par finds a DCM's STATUS 3-7 unrouteable (they lead nowhere).
+- **Result** (`prototype.mjs pins obs.json`, against the shipped graph, local scoring only): **17 509 pin facts, every one
+  right**. By pin name:
+
+| Site | Pin names observed | Not observed |
+|---|---|---|
+| RAMB16 | 180 of 180 | |
+| BUFGMUX | 4 of 4 | |
+| MULT18X18SIO | 97 of 115 | BCIN0-17: the cascade is a wire with no PIP in the upper tile. ISE's route ends in the tile below (`MULT_CARRYB_BCOUTk`), on BCIN's node in the shipped graph for all 180 cascade nets |
+| DCM | 20 of 41 | CTL\*, FREEZE\*, STSADRS\*, CONCUR (test pins, no port of DCM_SP); DSSEN (map trims it); STATUS 3-7 (unrouteable) |
+| IOB, DIFFM, DIFFS | 16 of 29 | DIFFI_IN, DIFFO_\*, PADOUT, PCI_\* (differential and PCI); IDDRIN / ODDRIN / ODDROUT (DDR_ALIGNMENT C0 / C1, which the open flow refuses); T (map drives the tristate through T1) |
+| IBUF, DIFFMI, DIFFSI | 5-7 of 29 | the same, and the output and tristate pins an input-only site does not use |
+
+By tile type, each pin is observed only in the I/O tile types that have a bonded pad in the CP132: 32 of 261 for IOB,
+133 / 144 for DIFFM / DIFFS. The I/O tiles with no pad in the CP132 are reached as in round 8, from the FT256 or from
+their unbonded sites, by a DRC test of the pin's wire. That is the next step, then the irregular tiles.
+
+```
+node gen-obspins.mjs pins && impl-remote.sh ramwide ramnarrow multcasc dcmpins iobddr iobclk2-0 iobclk2-1 iobclk2-2
+node prototype.mjs observe obs.json …/top.xdl pins/*/top.xdl && node prototype.mjs pins obs.json
+```
