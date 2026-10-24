@@ -41,6 +41,9 @@ html[data-layout="tasks"] #topbar:is([data-fit="icons"], [data-fit="tight"]) .ta
 
 /* ------------------------------------------------------------------ the Design pane: one tree, no views (#799) */
 html[data-layout="tasks"] :is(#design-panel .view-select, #left-split, #proc-panel) { display: none; }
+/* the Design page's New Source and Add Copy of Source, above the tree, half of the panel each (#1210) */
+html[data-layout="tasks"] #task-src-bar { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
+html[data-layout="tasks"] #task-src-bar .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-layout="tasks"] #design-panel { flex: 1; }
 
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
