@@ -1069,6 +1069,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   // one command line: ISim's while simulating
   assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'SSim>');
   const before = await page.eval(() => document.querySelector('.isim-st-time').textContent);
+  await page.showMessages();
   await page.click('#mc-cmd input');
   await page.type('run 2 us');
   await page.key('Enter');
@@ -1094,6 +1095,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.click('#task-switch .task-btn[data-task="impl"]');
   assert.deepEqual(await pressed(page), ['synth', 'impl']);
   assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), '›');
+  await page.showMessages();
   await page.click('#mc-cmd input');
   await page.type('pin plan');
   await page.key('Enter');

@@ -93,12 +93,12 @@ for (const [w, h] of [[820, 1180], [768, 1024]]) {
     assert.ok(await shown(page, '#hier'));
     if (modern) {
       // the activity bar: the shown page's button closes the drawer, a page's button opens it
-      await page.click('#left-tabs .tab[data-page=design]');
+      await page.leftTab('design');
       assert.equal((await drawer(page))[0], 'closed');
-      await page.click('#left-tabs .tab[data-page=files]');
+      await page.leftTab('files');
       assert.equal((await drawer(page))[0], 'open');
       assert.ok(await shown(page, '#files-page'));
-      await page.click('#left-tabs .tab[data-page=design]');
+      await page.leftTab('design');
       assert.equal((await drawer(page))[0], 'open');
       assert.ok(await shown(page, '#hier'));
     }

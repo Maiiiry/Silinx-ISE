@@ -49,6 +49,7 @@ uiTest('ISim: Simulate Behavioral Model runs the test bench; waveforms and objec
     return colors.size > 3;
   }, [], { what: 'the waveform canvas shows traces' });
   // SSim> run 500 ns
+  await page.showMessages();
   await page.click('#mc-cmd input');   // (ISim's command line: the bottom console's, #925)
   await page.type('run 500 ns');
   await page.key('Enter');
@@ -57,7 +58,7 @@ uiTest('ISim: Simulate Behavioral Model runs the test bench; waveforms and objec
   // the LEDs move every 64 clock cycles (1.28 us) in this test bench
   assert.ok(await page.eval(() => window.Silinx.active.view.state.rows.find((r) => r.name === 'led').sig.wave.t.length) >= 2, 'led changes');
   // the simulation process is marked OK
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   assert.ok(await page.eval(() => [...document.querySelectorAll('#procs .row')].find((r) => r.querySelector('.lbl').textContent === 'Simulate Behavioral Model')?.querySelector('.status svg')));
 });
 
@@ -103,6 +104,7 @@ const digit = (page, k) => page.eval((i) => window.Silinx.active.view.outputs?.d
 // #925: the message centre in this interface too (modern, or classic with SILINX_UI_INTERFACE): ISim's console and the
 // emulator's Messages box in the bottom console, its lines tagged by source, filtered; one command line, ISim's while an
 // ISim window is in front (its history on ↑), the command palette otherwise
+// (the message centre with no task to follow: the classic interface's; the modern one's follows its task: tasks.test.js, #1149)
 uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s Messages, in the bottom console', E, async (page) => {
   await makeProject(env, { name: 'MsgCentre', template: 'blinky' });
   await page.openProject('MsgCentre');
@@ -119,6 +121,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines' });
   // the command line: ISim's while its window is in front
   assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'SSim>');
+  await page.showMessages();
   await page.click('#mc-cmd input');
   await page.type('run 2 us');
   await page.key('Enter');
@@ -141,7 +144,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'the emulator', timeout: 60000 });
   assert.ok(!(await page.eval(() => !!document.querySelector('.doc:not([hidden]) .emu-log')?.getClientRects().length)), 'the Messages box not shown');
   assert.ok(await page.eval(() => [...document.querySelectorAll('#console-log .ln[data-src="emu"]')].some((l) => /^Board Emulator: 'top'/.test(l.textContent))));
-}, { timeout: 120000 });
+}, { timeout: 120000, ui: 'classic' });
 
 uiTest('board emulator: a manual clock on a button (BTN0) — the flip-flop takes the switch only at a press', E, async (page) => {
   const fx = (f) => fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_manual_clock', f), 'utf8');
@@ -224,7 +227,7 @@ for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
     await page.waitFor(() => !window.Silinx.active.view.powered && window.Silinx.active.view.outputs === null, [], { what: 'power off' });
     const off = await page.eval(() => ({
       sw: document.querySelector('.doc:not([hidden]) .emu-power').getAttribute('aria-checked'),
-      stat: document.querySelector('.doc:not([hidden]) .emu-bar .stat').textContent,
+      stat: document.querySelector('.doc:not([hidden]) .emu .stat').textContent,
       disabled: [...document.querySelectorAll('.doc:not([hidden]) .emu-bar .btn')].map((b) => [b.textContent, b.disabled]),
       t: window.Silinx.active.view.sim.now,
     }));
@@ -431,11 +434,12 @@ end rtl;
 // own then, the whole line shown (no ellipsis), in every interface
 uiTest('#918 board emulator: its status line whole at every window width (a row of its own when the controls leave no room), in every interface', E, async (page) => {
   await emulatorProject(page, 'EmuStat', 'basys2', { 'src/cnt.vhd': EMU_COUNT }, 'cnt');
-  await page.waitFor(() => /^t = .* cycles .* kHz \(.*% of real time\)$/.test(document.querySelector('.doc:not([hidden]) .emu-bar .stat')?.textContent || ''), [], { what: 'the status line' });
+  await page.waitFor(() => /^t = .* cycles .* kHz \(.*% of real time\)$/.test(document.querySelector('.doc:not([hidden]) .emu .stat')?.textContent || ''), [], { what: 'the status line' });
   const cut = [];
-  for (const ui of ['modern', 'classic', 'tasks']) {
+  // (the modern interface: the Tasks one, its Emulate, #1149)
+  for (const ui of ['classic', 'modern']) {
     await page.eval(async (u) => (await import('/js/modern.js')).setInterface(u), ui);
-    if (ui === 'tasks') { await page.waitFor(() => document.documentElement.dataset.layout === 'tasks'); await page.click('#task-switch .task-btn[data-task="emu"]'); }
+    if (ui === 'modern') { await page.waitFor(() => document.documentElement.dataset.layout === 'tasks'); await page.click('#task-switch .task-btn[data-task="emu"]'); }
     for (let w = 600; w <= 1920; w += 20) {
       await page.setViewport(w, 900);
       // (a narrow screen's drawer, over the document, closed)

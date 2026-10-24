@@ -175,7 +175,8 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   assert.deepEqual(idle, [], `menu items that did nothing: ${idle.join(', ')}`);
   // the processes ran on a valid design: the simulator and the emulator opened
   const windows = log.filter((l) => l.startsWith('Window ▸')).map((l) => l.slice(9, l.indexOf(':')));
-  for (const w of ['SSim (tb_top)', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.includes(w), `Window menu lists ${w}: ${windows}`);
+  // (SSim's module: the test bench, or in the modern interface the module its Simulate chose, #1149)
+  for (const w of ['SSim (', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.some((x) => x === w || (w.endsWith('(') && x.startsWith(w))), `Window menu lists ${w}: ${windows}`);
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
@@ -431,8 +432,9 @@ uiTest('Portuguese: View ▸ Language switches the UI; menus, dialogs and the ma
   const db = await env.server.api('GET', '/api/devices');
   const tc = await env.server.api('GET', '/api/toolchain');
   const projects = (await env.server.api('GET', '/api/projects')).flatMap((p) => [p.name, p.top, p.board]);
+  // (and the modern interface's first task, Design, its name in Portuguese too: #1046)
   const data = new Set([...projects, ...db.boards.map((b) => b.name), tc.ise.help, tc.ise.reason, 'LangPj', 'top', 'tb_top', 'basys2', 'in', 'out', 'inout',
-    'impact', 'djtgcfg', 'adepttool', 'xc3sprog', 'openFPGALoader']);
+    'impact', 'djtgcfg', 'adepttool', 'xc3sprog', 'openFPGALoader', 'Design', '@Design']);
   const same = [/^\(.*\)$/, /^LangPj\//, /^constraints\//, { test: (s) => data.has(s) }];
   const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
   const missing = [];
@@ -742,8 +744,10 @@ uiTest('Design Summary: once closed it reopens from the Processes panel whatever
 uiTest('a reload comes back to where the user was: the open documents, the one in front, the left pane, the Design view (#160)', E, async (page) => {
   await makeProject(env, { name: 'ViewPj', template: 'blinky' });
   await page.openProject('ViewPj');
-  const where = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => d.id), active: window.Silinx.active?.id, view: window.Silinx.view,
+  // (the view: the classic interface's; the modern one has none, #1149)
+  const where = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => d.id), active: window.Silinx.active?.id, view: document.documentElement.dataset.layout ? null : window.Silinx.view,
     page: document.querySelector('#left-tabs .tab.active')?.dataset.page }));
+  const sim = await page.eval(() => (document.documentElement.dataset.layout ? null : 'sim'));
   const opened = (ids) => page.waitFor((want) => want.every((id) => window.Silinx.docs.some((d) => d.id === id)), [ids], { what: `documents ${ids.join(', ')}`, timeout: 30000 });
   // the first opening: the Design Summary
   await opened(['summary']);
@@ -754,16 +758,17 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   await page.eval(() => window.SilinxApp.openImpact());
   await opened(['file:src/counter.v', 'file:src/top.vhd', 'impact']);
   await page.setView('sim');
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   await page.click('#doc-tabs .tlabel', { text: 'top.vhd' });
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front', timeout: 30000 });
   const before = await where();
-  assert.deepEqual(before, { docs: ['summary', 'file:src/counter.v', 'file:src/top.vhd', 'impact'], active: 'file:src/top.vhd', view: 'sim', page: 'files' });
+  assert.deepEqual(before, { docs: ['summary', 'file:src/counter.v', 'file:src/top.vhd', 'impact'], active: 'file:src/top.vhd', view: sim, page: 'files' });
   await page.reload();
   await opened(before.docs);
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front again' });
   assert.deepEqual(await where(), before);
-  assert.equal(await page.eval(() => document.querySelector('input[name=view][value=sim]').checked), true);
+  // (the view's radio button: the classic interface's; the modern one has no views, #1149)
+  if (!await page.eval(() => document.documentElement.dataset.layout)) assert.equal(await page.eval(() => document.querySelector('input[name=view][value=sim]').checked), true);
   // a document closed stays closed; one whose file is gone is not reopened (no message)
   await page.eval(async () => { await window.SilinxApp.closeDoc(window.Silinx.docs.find((d) => d.id === 'impact')); });
   await page.eval(() => { const k = 'silinx.view.ViewPj'; const v = JSON.parse(localStorage.getItem(k)); v.open.push('file:src/gone.vhd'); localStorage.setItem(k, JSON.stringify(v)); });
@@ -827,8 +832,9 @@ uiTest('#1101 the Start page: "Project Commands" right under the pane\'s caption
 uiTest('#1128 the document tabs: one width, every close button shown (not only on hover), at the same place: three clicks at one point close three tabs', E, async (page) => {
   await makeProject(env, { name: 'TabsPj', template: 'blinky' });
   await page.openProject('TabsPj');
-  for (const f of ['src/top.vhd', 'src/knight.vhd', 'src/speed_ctrl.vhd']) await page.eval((p) => window.SilinxApp.openFile(p), f);
-  await page.waitFor(() => document.querySelectorAll('#doc-tabs .tab').length >= 4, [], { what: 'the tabs' });
+  // (four files: four tabs at least shown, also where the Design Summary's is another task's, #1149)
+  for (const f of ['src/top.vhd', 'src/knight.vhd', 'src/speed_ctrl.vhd', 'src/counter.v']) await page.eval((p) => window.SilinxApp.openFile(p), f);
+  await page.waitFor(() => document.querySelectorAll('#doc-tabs .tab').length >= 5, [], { what: 'the tabs' });
   // the tabs after the Design Summary's, the three files (the first one active? the last opened is)
   const tabs = () => page.eval(() => [...document.querySelectorAll('#doc-tabs .tab')].filter((t) => t.getClientRects().length).map((t) => {
     const r = t.getBoundingClientRect(), c = t.querySelector('.tclose'), cr = c.getBoundingClientRect();

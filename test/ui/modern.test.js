@@ -73,7 +73,7 @@ uiTest('modern interface by default: the Tasks layout, header with search and th
   await page.eval(() => document.querySelector('#left-tabs .tab[data-page=files]').focus());
   await page.key('Enter');
   assert.equal(await page.eval(() => document.querySelector('#left-tabs .tab.active').dataset.page), 'files');
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   assert.equal(await page.eval(() => document.querySelector('.left-page[data-page=design]').hidden), false);
 }, O);
 
