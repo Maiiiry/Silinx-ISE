@@ -2,6 +2,8 @@
 // and Technology Schematics (#130): the symbol palette and its tooltips (the descriptions of
 // core/schdoc.js SYMBOLS), the properties panel, the status bar; merged into web/js/i18n.js.
 export const SCH_PT = {
+  // a module's symbol out of date (#1183)
+  'Update Symbol': 'Atualizar Símbolo',
   // palette
   'Symbols': 'Símbolos', 'Categories': 'Categorias', '<--All Symbols-->': '<--Todos os Símbolos-->',
   'No other modules in the project': 'Nenhum outro módulo no projeto',
@@ -99,6 +101,12 @@ export const SCH_PT_PATTERNS = [
   [/^(\d+) symbols?, (\d+) nets(?: · (\d+) error\(s\), (\d+) warning\(s\))?$/,
     (m, n, k, e, w) => `${n} símbolo${n === '1' ? '' : 's'}, ${k} redes${e ? ` · ${e} erro(s), ${w} aviso(s)` : ''}`],
   [/^Check Schematic: (\d+) error\(s\), (\d+) warning\(s\)$/, 'Verificar Esquemático: $1 erro(s), $2 aviso(s)'],
+  // a module's symbol out of date (#1183): what changed, Update All, what Update Symbol did
+  [/^The symbol is out of date: module '(.+)' changed its ports \((.+)\)\.$/, (m, mod, what) => `O símbolo está desatualizado: o módulo '${mod}' mudou os seus portos (${what
+    .replace(/\badded\b/g, 'acrescentados').replace(/\bremoved\b/g, 'removidos').replace(/\bdirection changed\b/g, 'direção mudada')}).`],
+  [/^Update All \((\d+)\)$/, 'Atualizar Todos ($1)'],
+  [/^Symbol updated; not connected any more: (.+)$/, 'Símbolo atualizado; já não ligados: $1'],
+  [/^Symbol updated \((.+)\), its connections kept$/, 'Símbolo atualizado ($1), as suas ligações mantidas'],
   // the bar of the RTL / Technology Schematic (web/js/app.js): the source of the module, the status bar
   [/^Open ([\w.-]+\.(?:vhdl?|v|sv))$/, 'Abrir $1'],
   [/^Drawing (RTL|Technology) schematic of (.+)…$/, (m, k, mod) => `A desenhar o esquemático ${k === 'RTL' ? 'RTL' : 'tecnológico'} de ${mod}…`],

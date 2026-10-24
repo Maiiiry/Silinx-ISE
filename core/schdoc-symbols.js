@@ -442,10 +442,16 @@ export function symbolDef(sym, modules = {}) {
   }
   if (t === 'module') {
     const m = findMod(modules, p.module);
-    let ports = m ? m.ports : (p.ports || []);
+    // (its pins the ports it was placed with, not its module's as they are now: a change of the module moves no pin
+    // under its wires, #1183, core/schdoc-modsym.js; their widths the module's, unless its generics are overridden)
+    let ports = Array.isArray(p.ports) ? p.ports : m ? m.ports : [];
     const snapW = new Map((p.ports || []).map(q => [String(q.name).toLowerCase(), q.width]));
+    const theirs = new Map((m?.ports || []).map(q => [String(q.name).toLowerCase(), q]));
     const overridden = p.generics && Object.keys(p.generics).length > 0;
-    ports = ports.map(q => ({ name: q.name, dir: q.dir || 'in', width: (overridden && snapW.has(String(q.name).toLowerCase())) ? snapW.get(String(q.name).toLowerCase()) : (q.width ?? 1), type: q.type }));
+    ports = ports.map(q => {
+      const k = String(q.name).toLowerCase(), t = theirs.get(k);
+      return { name: q.name, dir: q.dir || 'in', width: (overridden && snapW.has(k)) ? snapW.get(k) : ((t ? t.width : q.width) ?? 1), type: t ? t.type : q.type };
+    });
     const d = boxDef(ports.filter(q => q.dir !== 'out'), ports.filter(q => q.dir === 'out'), p.module, 80);
     return { ...d, shape: 'module', title: p.module || '?', missing: !m && !p.ports };
   }

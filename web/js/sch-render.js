@@ -2,7 +2,7 @@
 // wires (their hops, their bus names; curved, #1144), the symbols, I/O markers and net names, the unconnected pins; the overlay of
 // the tool in use (the symbol being placed, the wire being drawn, the pin under the pointer, the selection band); the
 // toolbar's state and the status line. mountRender(ctx) is called by mountSchEditor where this code was.
-import { symbolDef, symbolPins, rotSize, parseNetName, wireCrossings } from '/core/schdoc.js';
+import { symbolDef, symbolDiff, symbolPins, rotSize, parseNetName, wireCrossings } from '/core/schdoc.js';
 import { esc } from './dom.js';
 import { symbolSvg, portSvg, hopPath, inLineRuns, wireRun } from './sch-svg.js';
 import { snap } from './sch-editor.js';
@@ -98,7 +98,9 @@ export function mountRender(ctx) {
       let def;
       try { def = symbolDef(s, modules); } catch { continue; }
       const tapped = s.type === 'slice' ? nl?.pinNet.get(`${s.id}/I`) : null;
-      parts.push(symbolSvg(s, def, sel.has(`sym:${s.id}`) ? ' sel' : '', { busName: tapped && !tapped.auto ? tapped.name : '', allNames: showNames }));
+      // (a module's instance out of date: its module's ports changed, #1183)
+      const cls = `${sel.has(`sym:${s.id}`) ? ' sel' : ''}${s.type === 'module' && symbolDiff(s, modules) ? ' stale' : ''}`;
+      parts.push(symbolSvg(s, def, cls, { busName: tapped && !tapped.auto ? tapped.name : '', allNames: showNames }));
     }
     for (const p of doc.ports) parts.push(portSvg(p, sel.has(`port:${p.id}`) ? ' sel' : ''));
     for (const l0 of doc.labels) {

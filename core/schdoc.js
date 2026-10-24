@@ -28,6 +28,7 @@ import { BLOCK_MARK, blockMarkOf, declaredIn, generateHdl, isBlockSymbol } from 
 import { mergeNetWires } from './schdoc-place.js';
 import { normalizeCurve, splitCurve } from './schcurve.js';
 import { widenMuxes } from './schdoc-upgrade.js';
+import { symbolDiff } from './schdoc-modsym.js';
 import {
   modulesFromLibrary, schematicFromHdl
 } from './schdoc-from-hdl.js';
@@ -42,6 +43,7 @@ export {
   symbolParams, symbolPins, symbolTypeName, turnSide, xform, xformSide
 };
 export { constWidth, MUX_BODY_W, MUX_OLD_BODY_W, MUX_SEL_X } from './schdoc-symbols.js';
+export { symbolDiff, updateModuleSymbols, updatedPorts } from './schdoc-modsym.js';
 export {
   modulesFromLibrary, schematicFromHdl
 };
@@ -133,6 +135,12 @@ export function normalizeDoc(d, { modules } = {}) {
   if (before678) {
     joinOnWires(doc, mods);
     if (stays2) doc.version = 2;
+  }
+  // a module's instance saved without its ports (before #1183, or made elsewhere): the module's, as it is drawn now
+  for (const s of doc.symbols) {
+    if (s.type !== 'module' || Array.isArray(s.params.ports)) continue;
+    const m = findMod(mods, s.params.module);
+    if (m) s.params.ports = (m.ports || []).map(q => ({ name: q.name, dir: q.dir || 'in', width: q.width ?? 1 }));
   }
   return doc;
 }
@@ -239,7 +247,7 @@ export function netlist(docIn, { modules = {} } = {}) {
   // a signal declared in the HDL kept in the schematic (its declarations, a schematic made from HDL)
   let declSet = null;
   const declaredHere = name => { if (!String(doc.hdl?.decls || '').trim()) return false; declSet ||= declaredIn(doc.hdl.decls, doc.hdl.lang || doc.lang); return declSet.has(nk(name)); };
-  const diags = [];
+  const diags = [], outOfDate = [];
   const dsu = new DSU();
   const at = new Map();   // point key -> node ids touching (pins, ports, wire vertices)
   const addAt = (x, y, id) => { const k = key(x, y); let a = at.get(k); if (!a) at.set(k, a = []); a.push(id); };
@@ -257,6 +265,9 @@ export function netlist(docIn, { modules = {} } = {}) {
       addAt(p.x, p.y, id);
     }
     if (def.missing) diags.push({ severity: 'error', message: `${s.name}: module '${s.params.module}' not found in the project`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y });
+    // its symbol out of date: its module's ports changed (#1183)
+    const od = symbolDiff(s, modules);
+    if (od) outOfDate.push([s, od]);
   }
   for (const p of doc.ports) {
     const id = `o:${p.id}`;
@@ -395,6 +406,17 @@ export function netlist(docIn, { modules = {} } = {}) {
   for (const p of doc.ports) {
     const net = portNet.get(p.id);
     if (!net || net.endpoints.length <= 1) diags.push({ severity: 'warning', message: `I/O marker '${p.name}' is not connected`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
+  }
+  // an instance whose module's ports changed (#1183): a warning (Update Symbol), an error for a pin connected to a port
+  // the module no longer has, or has on the other side
+  for (const [s, od] of outOfDate) {
+    const what = [od.added.length && `added ${od.added.join(', ')}`, od.removed.length && `removed ${od.removed.join(', ')}`,
+      od.turned.length && `direction changed ${od.turned.join(', ')}`].filter(Boolean).join('; ');
+    diags.push({ severity: 'warning', message: `${s.name}: the symbol of module '${s.params.module}' is out of date (its ports: ${what}): Update Symbol`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y });
+    for (const n of [...od.removed, ...od.turned]) {
+      const net = pinNet.get(`${s.id}/${n}`);
+      if (net && net.endpoints.length + net.wires.length + net.labels.length > 1) diags.push({ severity: 'error', message: `${s.name}: pin ${n} is connected, but module '${s.params.module}' ${od.removed.includes(n) ? 'no longer has that port' : 'has that port in the other direction now'}: Update Symbol, then connect it again`, ref: { kind: 'symbol', id: s.id, pin: n }, x: s.x, y: s.y });
+    }
   }
   // duplicate instance / port names
   const seen = new Map();
