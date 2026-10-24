@@ -853,18 +853,18 @@ uiTest('#490 a model that needs ISE: the dialog says why, without the button (an
   };
   const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
   await check('Emulate Post-Place & Route Model', 'Emulate Post-Place & Route Model', ["There is no post-place & route simulation model of 'top' yet.",
-    '"Generate Post-Place & Route Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).']);
+    '"Generate Post-Place & Route Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Toolchain Settings (the gear in the toolbar)).']);
   await setLang('pt');
   await check('Emular Modelo Pós-Place & Route', 'Emular Modelo Pós-Place & Route', ["Ainda não há modelo de simulação pós-place & route de 'top'.",
-    '"Gerar Modelo de Simulação Pós-Place & Route" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Ferramentas ▸ Definições da Toolchain).']);
+    '"Gerar Modelo de Simulação Pós-Place & Route" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Definições da Toolchain (a roda dentada da barra de ferramentas)).']);
   await setLang('en');
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await check('Simulate Post-Synthesis Model', 'Simulate Post-Synthesis Model', ["There is no post-synthesis simulation model of 'top' yet.",
-    '"Generate Post-Synthesis Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).']);
+    '"Generate Post-Synthesis Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Toolchain Settings (the gear in the toolbar)).']);
   await setLang('pt');
   await check('Simular Modelo Pós-Síntese', 'Simular Modelo Pós-Síntese', ["Ainda não há modelo de simulação pós-síntese de 'top'.",
-    '"Gerar Modelo de Simulação Pós-Síntese" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Ferramentas ▸ Definições da Toolchain).']);
+    '"Gerar Modelo de Simulação Pós-Síntese" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Definições da Toolchain (a roda dentada da barra de ferramentas)).']);
   await setLang('en');
   // nothing ran
   const log = (await page.consoleText()).slice(before);

@@ -77,7 +77,7 @@ async function offerSimModel(step, action, title) {
     if (ISE_ONLY.has(step)) why = `"${proc}" needs the Xilinx ISE toolchain: it is not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings).`;
   } else {
     const tc = S.toolchain || await api.toolchain().catch(() => null);
-    if (!tc?.ise?.available) why = `"${proc}" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).`;
+    if (!tc?.ise?.available) why = `"${proc}" needs the Xilinx ISE toolchain, which is not available (configure it in Toolchain Settings (the gear in the toolbar)).`;
   }
   const p = (text, first) => h('div', { style: first ? {} : { marginTop: '8px' } }, text);
   const text = h('div', { class: 'msg-text' }, p(`There is no ${SIM_MODEL_NAMES[step].toLowerCase()} simulation model of '${S.project.top}' yet.`, true),

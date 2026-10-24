@@ -283,7 +283,7 @@ export function menuBar(el, menus) {
   el.classList.add('menubar');
   el.innerHTML = '';
   for (const menu of menus) {
-    const item = h('div', { class: 'item' }, menu.label);
+    const item = h('div', { class: 'item', 'data-menu': menu.label }, menu.label);   // (its name, whatever the language: #1217)
     const open = () => {
       closeMenus();
       item.classList.add('open');
