@@ -171,9 +171,11 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   assert.deepEqual(await badgeMenu(page, 'gates', 'Schematic'), ['Open', 'Export as ISE Schematic (.sch)…', 'Remove from Project']);
   // the HDL's: the module's, the same as the row's
   const MODULE = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
-  assert.deepEqual(await badgeMenu(page, 'gates', 'VHDL'), MODULE);
+  // (gates the top: Unset as Top Module, #1220)
+  const TOP = ['Unset as Top Module', ...MODULE.slice(1)];
+  assert.deepEqual(await badgeMenu(page, 'gates', 'VHDL'), TOP);
   await page.treeRow('#hier', 'gates', { right: true, exact: true });
-  assert.deepEqual(await menuLabels(page), MODULE);
+  assert.deepEqual(await menuLabels(page), TOP);
   await page.closeMenus();
   // the HDL editor's menu opens the schematic
   await page.eval(() => window.SilinxApp.openFile('src/gates.vhd'));
