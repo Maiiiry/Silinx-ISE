@@ -839,8 +839,8 @@ function initScripts({ updateCheck, build, ui }) {
     "window.__console = () => [...(document.getElementById('console-log')?.children || [])].map((l) => l.textContent).join('\\n');",
     // SILINX_UI_INTERFACE=classic: run the tests in the Xilinx ISE interface (the default is the modern one)
     // a test of the classic interface's own parts (its views, its Processes panel: the modern interface has none, #1149)
-    ...(ui ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(ui)}); } catch (e) {}`] : []),
-    ...(process.env.SILINX_UI_INTERFACE ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(process.env.SILINX_UI_INTERFACE)}); } catch (e) {}`] : []),
+    // (the site's development edition, dev/: its own key, web/js/prefs.js, #1243)
+    ...[ui, process.env.SILINX_UI_INTERFACE].filter(Boolean).map((v) => `try { var k = /\\/dev\\//.test(location.pathname) ? 'silinx.dev.ui' : 'silinx.ui'; if (!localStorage.getItem(k)) localStorage.setItem(k, ${JSON.stringify(v)}); } catch (e) {}`),
   ];
 }
 

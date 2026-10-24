@@ -1,6 +1,7 @@
 // Generic UI widgets: dialogs, menus, context menus, splitters; the element builder h and esc of dom.js re-exported.
 import { icons } from './icons.js';
 import { h, esc } from './dom.js';
+import { prefKey } from './prefs.js';
 
 export { h, esc };
 
@@ -306,7 +307,7 @@ export function menuBar(el, menus) {
 export function splitter(handle, target, { dir = 'h', min = 80, max = 2000, invert = false, storageKey } = {}) {
   handle.classList.add('splitter', dir === 'h' ? 'split-h' : 'split-v');
   if (storageKey) {
-    try { const v = localStorage.getItem(storageKey); if (v) target.style[dir === 'h' ? 'width' : 'height'] = v; } catch { /* storage unavailable */ }
+    try { const v = localStorage.getItem(prefKey(storageKey)); if (v) target.style[dir === 'h' ? 'width' : 'height'] = v; } catch { /* storage unavailable */ }
   }
   // pointer events, so a finger drags it too (#264); the mouse's own default (a text selection, the
   // focus leaving the editor) stays prevented
@@ -328,7 +329,7 @@ export function splitter(handle, target, { dir = 'h', min = 80, max = 2000, inve
       if (ev.pointerId !== e.pointerId) return;
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
       document.body.classList.remove('resizing-h', 'resizing-v');
-      if (storageKey) { try { localStorage.setItem(storageKey, target.style[dir === 'h' ? 'width' : 'height']); } catch { /* ignore */ } }
+      if (storageKey) { try { localStorage.setItem(prefKey(storageKey), target.style[dir === 'h' ? 'width' : 'height']); } catch { /* ignore */ } }
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   });

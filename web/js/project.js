@@ -11,6 +11,7 @@ import { log, renderDiagnostics } from './console.js';
 import { drawingsAsBase, adoptDrawnHdl, drawnHdlClashes } from './drawings.js';
 import { renderProcesses, restoreImplStatus, reservedNameDiags } from './processes.js';
 import { renderHierarchy } from './design.js';
+import { prefKey } from './prefs.js';
 
 const $ = id => document.getElementById(id);
 // how long after a project opens the browser edition fetches what Implement needs (#967): after the opening's own work
@@ -49,7 +50,7 @@ async function openProjectNow(name, { startup = false } = {}) {
   try {
     S.project = await api.project(name);
   } catch (e) { alertDlg('Open Project', e.message, 'error'); return; }
-  try { localStorage.setItem('silinx.lastProject', name); } catch { /* ignore */ }
+  try { localStorage.setItem(prefKey('silinx.lastProject'), name); } catch { /* ignore */ }
   rememberRecent(name);
   await reloadProject();
   await fixMissingTops();   // (a project saved with a top it no longer has, #253)
@@ -129,7 +130,7 @@ async function closeProjectNow() {
   if (!await closeAllDocs()) return;
   S.project = null; S.lib = null; S.sources = []; S.modules = [];
   resetProjectState();
-  try { localStorage.removeItem('silinx.lastProject'); } catch { /* ignore */ }
+  try { localStorage.removeItem(prefKey('silinx.lastProject')); } catch { /* ignore */ }
   updateTitle(); renderHierarchy(); renderProcesses(); renderFilesPage(); renderLibsPage();
   showLeftPage('start');
 }
@@ -146,21 +147,21 @@ export function updateTitle() {
 
 function rememberRecent(name) {
   try {
-    const r = JSON.parse(localStorage.getItem('silinx.recent') || '[]').filter(x => x !== name);
+    const r = JSON.parse(localStorage.getItem(prefKey('silinx.recent')) || '[]').filter(x => x !== name);
     r.unshift(name);
-    localStorage.setItem('silinx.recent', JSON.stringify(r.slice(0, 8)));
+    localStorage.setItem(prefKey('silinx.recent'), JSON.stringify(r.slice(0, 8)));
     // (when each project was last opened, for Open Project's order, #1156)
     const o = opened();
     o[name] = Date.now();
-    localStorage.setItem('silinx.opened', JSON.stringify(o));
+    localStorage.setItem(prefKey('silinx.opened'), JSON.stringify(o));
   } catch { /* ignore */ }
 }
 /** When each project was last opened in this browser: { name: ms } (#1156). */
-export function opened() { try { const o = JSON.parse(localStorage.getItem('silinx.opened') || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
-export function recent() { try { return JSON.parse(localStorage.getItem('silinx.recent') || '[]'); } catch { return []; } }
+export function opened() { try { const o = JSON.parse(localStorage.getItem(prefKey('silinx.opened')) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
+export function recent() { try { return JSON.parse(localStorage.getItem(prefKey('silinx.recent')) || '[]'); } catch { return []; } }
 // File ▸ Recent Projects ▸ Clear Recent Projects, and the Start page link: forget the list (the projects stay)
 export function clearRecent() {
-  try { localStorage.removeItem('silinx.recent'); } catch { /* ignore */ }
+  try { localStorage.removeItem(prefKey('silinx.recent')); } catch { /* ignore */ }
   if (!document.querySelector('.left-page[data-page=start]').hidden) renderStartPage();
   toast('Recent projects cleared (the projects themselves are kept)', 'ok');
 }

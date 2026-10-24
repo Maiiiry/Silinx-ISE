@@ -30,6 +30,7 @@ import { printActive, refreshSteps, setupMenus, setupToolbar, showPalette } from
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
+import { prefKey } from './prefs.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -426,7 +427,7 @@ export async function closeDoc(doc) {
 // they were: the sources and their editors, the RTL schematic, the summary, the pin planner, iMPACT,
 // and the simulation (ISim) and the board emulator, run again for the same module and model (a
 // netlist model only while it exists); not a report or a technology schematic (a run's output).
-const VIEW_KEY = name => `silinx.view.${name}`;
+const VIEW_KEY = name => prefKey(`silinx.view.${name}`);
 const inProject = p => S.fileTree?.includes(p);
 const REOPEN = [
   [/^file:(.+)$/, p => inProject(p) && openFile(p)], [/^sch:(.+)$/, p => inProject(p) && openSch(p)],
@@ -949,7 +950,7 @@ async function boot() {
   renderHierarchy();
   renderProcesses();
   let last = null;
-  try { last = localStorage.getItem('silinx.lastProject'); } catch { /* ignore */ }
+  try { last = localStorage.getItem(prefKey('silinx.lastProject')); } catch { /* ignore */ }
   const projects = await api.projects().catch(() => []);
   // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
   if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)

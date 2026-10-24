@@ -179,16 +179,19 @@ test('index.html: the modern interface (the Tasks one, #1149) before the first p
   assert.match(html, /<link rel="stylesheet" href="\/css\/modern.css">\n<link rel="stylesheet" href="\/css\/tasks.css">/);
   const script = html.slice(html.indexOf('<script>'), html.indexOf('</script>'));
   // run the early script with each kept interface: the attributes it puts on <html>
-  const run = (ui) => {
+  const run = (ui, { pathname = '/', store = { 'silinx.ui': ui, 'silinx.theme': 'dark' } } = {}) => {
     const attrs = {};
     const d = { setAttribute: (k, v) => { attrs[k] = v; }, hasAttribute: () => false };
-    const store = { 'silinx.ui': ui, 'silinx.theme': 'dark' };
-    new Function('document', 'localStorage', 'window', 'matchMedia', script.replace('<script>', ''))(
-      { documentElement: d }, { getItem: (k) => store[k] ?? null }, {}, () => ({ matches: false }));
+    new Function('document', 'localStorage', 'window', 'matchMedia', 'location', script.replace('<script>', ''))(
+      { documentElement: d }, { getItem: (k) => store[k] ?? null }, {}, () => ({ matches: false }), { pathname });
     return attrs;
   };
   // (the modern interface, the default, is the Tasks one, #1149: a stored tasks, or anything but classic)
   const modern = { 'data-ui': 'modern', 'data-layout': 'tasks', 'data-theme': 'dark', 'data-drawer': 'open' };
   for (const ui of ['modern', 'tasks', 'retro', null]) assert.deepEqual(run(ui), modern, String(ui));
   assert.deepEqual(run('classic'), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'open' });
+  // the site's development edition (dev/) reads its own keys (#1243): not the stable edition's
+  const both = { 'silinx.ui': 'classic', 'silinx.theme': 'light', 'silinx.drawer': 'closed', 'silinx.dev.ui': 'modern', 'silinx.dev.theme': 'dark' };
+  assert.deepEqual(run(null, { pathname: '/Silinx-ISE/dev/', store: both }), modern);
+  assert.deepEqual(run(null, { pathname: '/Silinx-ISE/', store: both }), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'closed' });
 });

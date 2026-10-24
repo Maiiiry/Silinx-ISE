@@ -1037,6 +1037,46 @@ uiTest('the site\'s development edition (dev/): says so, and keeps its projects 
   assert.deepEqual(await page.eval(() => Object.keys(JSON.parse(localStorage.getItem('silinx.standalone.fs')))), ['Stable']);
 }, { url: () => 'about:blank' });
 
+// View ▸ Interface, View ▸ Language: a submenu's entry chosen
+async function subMenu(page, menu, item, sub) {
+  const items = await page.openMenu(menu);
+  await page.hover(await page.point('body > .menu-popup > .mi', { index: items.findIndex((x) => x.label === item) }));
+  await page.waitForSelector('.menu-popup.sub .mi');
+  const subs = await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent));
+  await page.click('.menu-popup.sub .mi', { index: subs.indexOf(sub) });
+}
+
+uiTest('the site\'s development edition (dev/) keeps its own settings (#1243): its interface and language are not the stable edition\'s', E, async (page) => {
+  const boot = async (url, what) => {
+    await page.goto(url);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what });
+    return page.eval(() => ({ ui: document.documentElement.dataset.ui, menus: [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()).join(' ') }));
+  };
+  // (SILINX_UI_INTERFACE=classic: both editions start in the classic interface)
+  const first = (await boot(siteUrl, 'stable boot')).ui;
+  const other = first === 'classic' ? 'modern' : 'classic';
+  await subMenu(page, 'View', 'Interface', other === 'classic' ? 'Classic' : 'Modern');
+  await page.waitFor((ui) => document.documentElement.dataset.ui === ui, [other], { what: 'the stable edition\'s interface changed' });
+  // the development edition: still its own interface; its language changed there
+  let dev = await boot(`${siteUrl}dev/`, 'dev boot');
+  assert.equal(dev.ui, first, 'the development edition\'s interface');
+  await subMenu(page, 'View', 'Language', 'Português');
+  await page.waitFor(() => document.documentElement.lang === 'pt', [], { what: 'Portuguese' });
+  // the stable edition: the interface it chose, in English
+  const stable = await boot(siteUrl, 'stable boot again');
+  assert.equal(stable.ui, other);
+  assert.match(stable.menus, /\bView\b/);
+  // each edition's keys: the development edition's under silinx.dev.*
+  const keys = await page.eval(() => ({ ui: localStorage.getItem('silinx.ui'), devUi: localStorage.getItem('silinx.dev.ui'), lang: localStorage.getItem('silinx.lang'), devLang: localStorage.getItem('silinx.dev.lang') }));
+  assert.equal(keys.ui, other);
+  assert.equal(keys.devUi, process.env.SILINX_UI_INTERFACE || null);
+  assert.deepEqual([keys.lang, keys.devLang], [null, 'pt']);
+  // and back in the development edition: its own again, after a reload
+  dev = await boot(`${siteUrl}dev/`, 'dev boot again');
+  assert.equal(dev.ui, first);
+  assert.doesNotMatch(dev.menus, /\bView\b/);
+}, { url: () => 'about:blank' });
+
 uiTest('the site\'s Check for Updates (#198): the page open against the one the site serves (version.json), never GitHub\'s latest release; a newer page served: reload', E, async (page) => {
   // the site's build says what it serves
   const vfile = path.join(site, 'version.json');
