@@ -22,8 +22,6 @@ import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
 
-const syncXise = () => api.syncXise(S.project.name, 'export').then(() => toast('Exported .xise', 'ok')).catch(e => alertDlg('Sync with .xise', e.message, 'error'));
-
 export function setupMenus() {
   const hasPj = () => !S.project;
   menuBar($('menubar'), S.menus = [
@@ -36,8 +34,6 @@ export function setupMenus() {
       '-',
       { label: 'Import Xilinx ISE Project (.zip)…', action: () => wiz.importXiseDialog() },
       { label: 'Export Xilinx ISE Project (.zip)…', action: () => exportProjectZip('xilinx'), disabled: hasPj },
-      // (the modern interface has no Project menu, #1217: its Sync with .xise here)
-      document.documentElement.dataset.layout === 'tasks' && !api.standalone ? { label: 'Sync with .xise', action: syncXise, disabled: hasPj } : null,
       '-',
       api.standalone ? { label: 'Download Project Bundle…', action: async () => downloadText(`${S.project.name}.silinx.json`, await api.exportBundle(S.project.name), 'application/json'), disabled: hasPj } : null,
       api.standalone ? { label: 'Open Project Bundle…', action: () => openBundle() } : null,
