@@ -435,14 +435,14 @@ class PageBase {
   /** The task's side panel shown (ISim's instances, the emulator's Watch): the modern interface's task may have it folded (#1149). */
   async showSide() {
     if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.side === 'folded')) {
-      await this.click('#task-bar [data-act=side]');
+      await this.click('#task-view [data-act=side]');
       await this.waitFor(() => document.documentElement.dataset.side !== 'folded', [], { what: 'the side panel shown' });
     }
   }
   /** The messages (the bottom console) shown: the modern interface's task may have them folded (#1149). */
   async showMessages() {
     if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.console === 'folded')) {
-      await this.click('#task-bar [data-act=console]');
+      await this.click('#task-view [data-act=console]');
       await this.waitFor(() => document.documentElement.dataset.console !== 'folded', [], { what: 'the messages shown' });
     }
   }

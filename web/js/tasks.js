@@ -173,11 +173,11 @@ function apply() {
   r.dataset.max = a.max ? 'on' : 'off';
   for (const b of document.querySelectorAll('.task-btn')) b.setAttribute('aria-current', String(b.dataset.task === t));
   fitHeader();
-  const bar = document.getElementById('task-bar');
+  const bar = document.getElementById('task-bar'), view = document.getElementById('task-view');
   if (bar) {
-    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && !OWN_SIDE.includes(t) ? drawerOpen() : a.side));
-    bar.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
-    bar.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
+    view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && !OWN_SIDE.includes(t) ? drawerOpen() : a.side));
+    view.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
+    view.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
     const main = bar.querySelector('[data-act=main]');
     main.querySelector('.lbl').textContent = ACTION[t];
     main.title = ACTION[t];
@@ -291,7 +291,7 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-src-bar', 'task-files-bar'];   // (their ids)
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar'];   // (their ids)
 const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implement' };
 function build() {
   const $ = id => document.getElementById(id);
@@ -299,10 +299,12 @@ function build() {
   $('menubar').after(h('nav', { id: 'task-switch', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
   $('statusbar').before(h('nav', { id: 'task-tabs', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
   const tb = (act, title, ico) => h('button', { class: 'tb-btn', type: 'button', 'data-act': act, title, 'aria-label': title, html: ICON[ico] });
-  $('toolbar').append(h('div', { id: 'task-bar', role: 'group', 'aria-label': 'Task' },
+  // the side panel, the messages and the document maximized: at the header's right end, after the theme's button (#1218)
+  $('theme-btn').after(h('div', { id: 'task-view', role: 'group', 'aria-label': 'Layout' },
     tb('side', 'Show or hide the side panel', 'side'),
     tb('console', 'Show or hide the messages', 'msgs'),
-    tb('max', 'Maximize the document (double-click its tab)', 'max'),
+    tb('max', 'Maximize the document (double-click its tab)', 'max')));
+  $('toolbar').append(h('div', { id: 'task-bar', role: 'group', 'aria-label': 'Task' },
     h('span', { id: 'task-doc', hidden: true },
       h('span', { class: 'task-doc-mod', 'data-no-i18n': true }), h('span', { class: 'task-doc-model' }),
       h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close })),
@@ -311,13 +313,15 @@ function build() {
     modelSelect(app),
     Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
       { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
-  $('task-bar').addEventListener('click', e => {
+  const onAct = e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else toggle({ side: !arr().side }); }
     else if (act === 'console') toggle({ console: !arr().console });
     else if (act === 'max') toggle({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
-  });
+  };
+  $('task-bar').addEventListener('click', onAct);
+  $('task-view').addEventListener('click', onAct);
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
     h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
