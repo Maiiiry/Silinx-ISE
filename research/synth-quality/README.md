@@ -1305,6 +1305,40 @@ on and off).
 Still not shallower: vtr-stereovision3's set of a counter (a 7-leaf function of its state machine, no disjoint
 decomposition), iwls05-usb-phy (10 of its 20 critical ends), the EPFL designs' ends of more than 12 leaves.
 
+### Below an end with no shallower form: the descent (#652, 2026-10-24)
+
+The T80 (#651's largest gap left, 1.17× ISE at Normal by Silinx's static timing) was the starting point. Its critical path
+before the register file becomes distributed RAM is `mcycle` → 10 LUT levels of the instruction decode → the register
+file's read (`regbusa`) → the ALU's carry chain → 3 LUTs → a flip-flop. The end's LUT is a function of 17 signals three
+levels down: none of the forms above takes it, so the resynthesis stopped there, though the decode's LUTs on the way have
+cones of 4-9 leaves. Now (`RESYNTH_RULE.descend`, `resynthCritical`), once a round makes no end shallower, the rounds go
+on with a descent: an end with no form has the latest cell below it tried, down the path (through a carry chain too), up
+to 40 cells, the first LUT with a form made shallower. The descent's rounds are kept only when the critical path ends up
+`descendGain` (3 %) shorter than before them, the round of the shortest kept: a round below an end whose other inputs stay
+as deep only adds LUTs (vtr-stereovision3's I2C sequencer: 126 → 137 LUTs at the same 7.62 ns when every round was kept;
+light8080: 1.4 % shorter by the estimate, 5 LUTs more, routed 2 % slower over seeds 1-9).
+
+The T80 itself does not gain: its 1816 LUTs are above `SPEED_RULE.maxLuts` (1500). Raised to 2500 for the test, the
+descent gives 20.36 → 19.76 ns before the distributed RAM, but the netlists with the register file in RAM16X1Ds are then
+the slower by the estimate and lose; made shallower too (19.81 ns), they route no faster (seeds 1-4: 21.74 against
+21.85 ns). Tried there and dropped: the wide form on 8 leaves (MUXF8), nothing more; a lighter rule for the resynthesis
+(1 % faster, 1 % more slices), the corpus +1.0 % at Normal.
+
+The corpus's 53 designs of 1500 LUTs at most and the 7 examples (Silinx's static timing, seed 1): 4 routings change at
+Normal, 3 at High, the others' netlists the same.
+
+| design | Normal | High | estimate, LUTs |
+|---|---:|---:|---|
+| epfl-router | −10.5 % | | 8.77 → 7.62 ns, 68 → 75 |
+| femtorv32-quark | −5.5 % | −8.7 % | 17.45 → 16.30, 740 → 751; High 16.07 → 13.77, 643 → 675 (394 slices, was 410) |
+| the clock example | −4.8 % | −4.8 % | 6.19 → 5.46, 213 → 215 |
+| the vga example | +2.0 % | −0.8 % | 9.02 → 8.11, 166 LUTs |
+
+Over seeds 3, 5, 7 the vga example is 1-4 % faster at Normal (seed 1 the unlucky one). **ISE's trce** on the 7 changed
+routings (main against the change): **−4.3 %** in geometric mean (femtorv32-quark −7.5 % and −7.2 %, epfl-router −6.1 %,
+the clock example −4.8 % at both efforts, vga +2.0 % at Normal and −1.3 % at High); every DRC 0 errors, 0 warnings, every
+`.bit` byte-identical to ISE's bitgen. The synthesis takes about 8 % longer on the corpus at Normal.
+
 ## 4:1 multiplexers in the wider mapping (#54)
 
 The EPFL barrel shifter (`bar`, 128 bits shifted by 7, written as gates: decoded 4:1 multiplexers on the shift

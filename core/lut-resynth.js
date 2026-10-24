@@ -21,12 +21,16 @@
 //     its multiplexers), the slice's wide multiplexers: its 2^k cofactors on k = n-4 of the leaves (the latest) as
 //     LUT4s, into MUXF5, MUXF6 and MUXF7 selected by them (a LUT level and fast multiplexers, as XST maps it); these
 //     cells only its own (a MUXF5's LUTs are its slice's F and G), never shared;
+// an end with none of these (a wide function, more leaves than these forms take) has the latest LUT below it made
+// shallower instead, and so on down the path (through a carry chain too) up to RESYNTH_RULE.descend cells, the first that
+// has one: the end one level shallower with it (the EPFL router, femtorv32-quark, the clock and vga examples: the LUTs on
+// the way to a wide end are narrower);
 // all found by truth tables of up to 2^MAX_LEAVES rows, so the new netlist computes the same functions by
 // construction. A round makes the ends of the critical path that it can one level shallower (or more: the wide
 // multiplexers) and leaves the others (vtr-stereovision3: its I2C data line, a function of 20 flip-flops, kept the
 // clock line's and the stop's from being made, #652); the pass ends when a round makes none (another kind of cell, a
 // function with no such decomposition) or after RESYNTH_RULE.rounds rounds. DEPTH_RULE keeps the result or not.
-export const RESYNTH_RULE = { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7 };
+export const RESYNTH_RULE = { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7, descend: 40, descendGain: 0.03 };
 
 const isLut = t => /^(LUT[1-4]|INV|BUF)$/.test(t);
 const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
@@ -444,23 +448,47 @@ export function resynthCritical(json, top, ends, rule = RESYNTH_RULE) {
   for (const c of Object.values(modOf(nl).cells)) for (const bits of Object.values(c.connections)) for (const b of bits) if (typeof b === 'number') maxBit = Math.max(maxBit, b);
   const fresh = () => ++maxBit;
   let rounds = 0, luts = 0;
+  // the rounds as long as they make the ends shallower; then (when ends give their delays) the descent's rounds, the one of
+  // the shortest critical path kept when it is rule.descendGain shorter than before them (a round below an end whose path
+  // stays as long only adds LUTs; light8080: 1.4 % shorter by the estimate, 5 LUTs more, routed slower)
+  const worstOf = x => { const e = ends(x); return e.length && e.every(z => typeof z.ns === 'number') ? Math.max(...e.map(z => z.ns)) : null; };
+  let descending = false, kept = null, keptNs = null, before = null;
   for (; rounds < rule.rounds; rounds++) {
     const next = JSON.parse(JSON.stringify(nl));
     const mod = modOf(next);
     const roots = [...new Set(ends(next).map(e => mod.cells[e.cell]?.connections[e.port]?.[0]))];
     let made = 0;
-    for (const root of roots) {
+    for (const end of roots) {
       const ctx = netlistLevels(mod);
-      const ch = typeof root === 'number' ? shallower(mod, root, ctx, rule) : null;
+      let root = end, ch = typeof root === 'number' ? shallower(mod, root, ctx, rule) : null;
+      // (descending: the latest cell below the end, down the path, rule.descend cells at most, the LUTs tried)
+      for (let d = 0; descending && !ch && d < rule.descend && typeof root === 'number'; d++) {
+        const c = mod.cells[ctx.driver.get(root)];
+        if (!c || !COMB_CELL(c.type)) break;
+        const inBits = Object.entries(c.connections).filter(([q]) => c.port_directions[q] === 'input').flatMap(([, bs]) => bs);
+        const nxt = inBits.filter(x => typeof x === 'number' && COMB_CELL(mod.cells[ctx.driver.get(x)]?.type ?? '')).sort((x, y) => ctx.level(y) - ctx.level(x))[0];
+        if (nxt === undefined || ctx.level(nxt) < 3) break;
+        root = nxt;
+        if (isLut(mod.cells[ctx.driver.get(root)].type)) ch = shallower(mod, root, ctx, rule);
+      }
       if (!ch) continue;
       applyChange(mod, ch, ctx.driver, fresh);
       made++;
     }
-    if (!made) break;
+    if (!made) {
+      if (descending || !rule.descend || (keptNs = worstOf(nl)) === null) break;
+      descending = true;
+      kept = { json: nl, rounds, luts };
+      before = keptNs * (1 - (rule.descendGain ?? 0));
+      rounds--;
+      continue;
+    }
     sweep(mod);
     nl = next;
     luts += made;
+    if (descending) { const ns = worstOf(nl); if (ns < keptNs - 1e-9 && ns <= before + 1e-9) { kept = { json: nl, rounds: rounds + 1, luts }; keptNs = ns; } }
   }
-  return luts ? { json: nl, rounds, luts } : null;
+  const r = descending ? kept : { json: nl, rounds, luts };
+  return r.luts ? r : null;
 }
 

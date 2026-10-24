@@ -130,7 +130,73 @@ test('#652 a round makes the ends it can shallower and leaves the others; none i
   assert.equal(shallower(mod, 20, netlistLevels(mod)), null);
   assert.equal(resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'C' }]), null);
   // a round per critical path, RESYNTH_RULE.rounds at most
-  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7 });
+  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7, descend: 40, descendGain: 0.03 });
+});
+
+// #652: an end with no shallower form, the latest LUT below it with one (the T80's ALU result after its adders, the
+// decode before its register file: the ends are wide functions, the LUTs on the way to them narrower). spi's enable (level
+// 3, h(g(A), S)) under an end LUT `top` of the enable and three LUTs of level 2 (w0-w2: 16 more leaves, no form for top);
+// the descent makes the enable level 2, and top with it
+function descentNetlist() {
+  const lut = (ins, f, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: Array.from({ length: 1 << ins.length }, (_, m) => +!!f(ins.map((_, i) => (m >> i) & 1))).reverse().join('') },
+    port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' }, connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const IN = Array.from({ length: 32 }, (_, i) => i + 2);
+  const [sc, sp, last, busy, vld, cs] = IN;
+  const T = [0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1].reverse();   // top's table (no decomposition of top found)
+  const cells = {
+    rx: lut([sc, sp, last], ([a, b, c]) => a & !b & c, 100), load: lut([busy, cs, 100, vld], ([b, c, r, v]) => v & ((c & !b) | r), 101),
+    en: lut([101, sp, sc, cs], ([l, p, q, c]) => l | (p & !q & !c), 102),
+  };
+  let o = 110;
+  const w = [];
+  for (let k = 0; k < 3; k++) {
+    const a = [0, 1].map(j => { cells[`p${k}${j}`] = lut([IN[8 + 8 * k + 4 * j], IN[9 + 8 * k + 4 * j]], ([u, v]) => u ^ v, o); return o++; });
+    cells[`w${k}`] = lut([a[0], a[1], IN[10 + 8 * k], IN[11 + 8 * k]], ([u, v, x, y]) => (u & v) | (x ^ y), o);
+    w.push(o++);
+  }
+  cells.top = lut([102, ...w], x => T[x[0] | (x[1] << 1) | (x[2] << 2) | (x[3] << 3)], 120);
+  const ff = (d, q) => ({ type: 'FDRE', parameters: {}, port_directions: { C: 'input', CE: 'input', D: 'input', R: 'input', Q: 'output' }, connections: { C: [1], CE: ['1'], D: [d], R: ['0'], Q: [q] } });
+  cells.ff = ff(120, 130);
+  // (the leaves registers' outputs, as the paths from flip-flop to flip-flop the estimate times)
+  for (const b of IN) cells[`r${b}`] = ff('0', b);
+  return { inputs: IN, json: { modules: { m: { attributes: { top: '1' }, ports: { clk: { direction: 'input', bits: [1] } }, cells, netnames: {} } } } };
+}
+
+test('#652 an end with no shallower form: the latest LUT below it made shallower (RESYNTH_RULE.descend), the end one level shallower with it; the same function on every input tried', () => {
+  const { inputs, json } = descentNetlist();
+  const mod = json.modules.m;
+  const lv = netlistLevels(mod);
+  assert.deepEqual([102, 120].map(lv.level), [3, 4]);
+  assert.equal(shallower(mod, 120, lv), null, 'no shallower form of the end');
+  // (the ends with their delays, as the open synthesis gives them: the descent's rounds kept when the path gets shorter)
+  const ends = x => { const { worst, ends: e } = pathEnds(x, 'm'); return e.filter(z => z.ns >= worst - 1e-9); };
+  assert.deepEqual(ends(json).map(e => `${e.cell}.${e.port}`), ['ff.D']);
+  // without the descent: nothing (as before, #914); nor with ends without their delays
+  assert.equal(resynthCritical(json, 'm', () => [{ cell: 'ff', port: 'D' }]), null);
+  assert.equal(resynthCritical(json, 'm', ends, { ...RESYNTH_RULE, descend: 0 }), null);
+  const r = resynthCritical(json, 'm', ends);
+  assert.ok(r);
+  assert.deepEqual([r.rounds, r.luts], [1, 1]);
+  // kept for a critical path RESYNTH_RULE.descendGain (3 %) shorter at least: not for one 25 % shorter (here about 15 %)
+  assert.equal(resynthCritical(json, 'm', ends, { ...RESYNTH_RULE, descendGain: 0.25 }), null);
+  const m = r.json.modules.m;
+  const after = netlistLevels(m);
+  assert.deepEqual([102, 120].map(after.level), [2, 3], 'the enable and the end one level shallower');
+  // the end's LUT and the flip-flop as they were, the enable's output (its readers) kept; LUT4s at most
+  assert.deepEqual(m.cells.top, mod.cells.top);
+  assert.deepEqual(m.cells.ff.connections.D, [120]);
+  assert.ok(criticalDelay(r.json, 'm') < criticalDelay(json, 'm') - 0.5, 'the estimate of its critical path a LUT shorter');
+  assert.ok(Object.values(m.cells).every(c => !/^LUT/.test(c.type) || +c.type[3] <= 4));
+  // the same functions (the end and the enable) on 4096 inputs (random, fixed)
+  let s = 652;
+  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x80000000; };
+  for (let k = 0; k < 4096; k++) {
+    const x = new Map(inputs.map(b => [b, +(rnd() < 0.5)]));
+    assert.equal(value(m, 120, x), value(mod, 120, x), `end, input ${k}`);
+    assert.equal(value(m, 102, x), value(mod, 102, x), `enable, input ${k}`);
+  }
+  // the descent stops below level 3 (spi's D: its latest LUT input, load, is level 2)
+  assert.equal(resynthCritical(spiNetlist().json, 'spi', () => [{ cell: 'ff', port: 'D' }]), null);
 });
 
 // a function of 7 inputs with no disjoint decomposition (vtr-stereovision3's I2C clock line: a 128-entry case of its 7-bit
