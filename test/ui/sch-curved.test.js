@@ -70,6 +70,17 @@ async function stroke(page, how, pts) {
     await touch('touchEnd');
   }
 }
+// a finger dragging from a to b (screen points) as one places a thing: moved, stopped on b a moment, lifted (a finger
+// lifted while moving makes a fling, and Chrome drops the click of a tap that comes while it runs, the tap taken for
+// stopping it)
+async function fingerDrag(page, a, b, steps = 8) {
+  const touch = (type, q) => page.send('Input.dispatchTouchEvent', { type, touchPoints: q ? [{ x: q.x, y: q.y, id: 1, radiusX: 1, radiusY: 1, force: 1 }] : [] });
+  await touch('touchStart', a);
+  for (let i = 1; i <= steps; i++) await touch('touchMove', { x: a.x + (b.x - a.x) * i / steps, y: a.y + (b.y - a.y) * i / steps });
+  await page.eval(() => new Promise((r) => setTimeout(r, 150)));
+  await touch('touchMove', { x: b.x + 0.5, y: b.y });
+  await touch('touchEnd');
+}
 // a wave from a to b (sheet points), n steps
 const wave = (a, b, n = 16, amp = 40) => Array.from({ length: n + 1 }, (_, i) => {
   const t = i / n, s = Math.sin(t * Math.PI * 2) * amp;
@@ -250,7 +261,7 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
       addEventListener(t, (e) => window.__ev.push(`${t}:${e.pointerType || ''}:${e.target?.tagName || e.target}:${e.target?.isConnected}:${e.defaultPrevented}:${Math.round(e.timeStamp)}`), true);
     }
   });
-  await page.touchDrag(await at(page, (await handles(page))[1]), await at(page, P(280, 260)));
+  await fingerDrag(page, await at(page, (await handles(page))[1]), await at(page, P(280, 260)));
   await page.waitFor(() => Array.isArray(window.Silinx.active.schEditor.getDoc().wires.find(x => x.id === 'W3').curve), [], { what: 'reshaped' });
   const w = (await getDoc(page)).wires.find(x => x.id === 'W3');
   assert.ok(near(curveAbs(w)[1], P(280, 260), 2), JSON.stringify(curveAbs(w)));
