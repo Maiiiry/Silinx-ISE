@@ -427,7 +427,7 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- instance tree (isim-tree.js)
   // (made here, in mount order; the Objects panel, made below, is drawn again when an instance is selected or added)
-  const { renderTree, addInstance } = mountTree({ st, design, treeEl, benches: opts.benches, onBench: opts.onBench, current: opts.title, onOpenSource, openSource, showMenu, renderObjects: () => renderObjects(),
+  const { renderTree, addInstance, openBench } = mountTree({ st, design, treeEl, benches: opts.benches, onBench: opts.onBench, current: opts.title, onOpenSource, openSource, showMenu, renderObjects: () => renderObjects(),
     instSignals, newRow, rebuildFlat, updateVScroll, invalidate });
 
   // ---------------------------------------------------------------- objects list (isim-objects.js)
@@ -506,6 +506,7 @@ export function mountISim(container, opts = {}) {
     setLeftW: (v) => { leftW = v; }, setConsoleH: (v) => { consoleH = v; }, setRafId: (v) => { rafId = v; },
     setNeedScroll: (v) => { needScroll = v; }
   });
+  api.openBench = openBench;   // (Simulate's tree: the bench brought to the front shown expanded, #1267)
 
   // ---------------------------------------------------------------- init
   readColors();

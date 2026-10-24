@@ -208,6 +208,47 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances
   assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
 });
 
+// #1267: a test bench clicked in Simulation: its instances shown expanded, the other benches collapsed (▸)
+uiTest('#1267 Tasks ▸ Simulate: a test bench clicked in Simulation shows its instances expanded, the other benches collapsed', E, async (page) => {
+  const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');
+  await makeProject(env, { name: 'TasksSimOpen', template: 'blinky', files: { 'sim/tb_two.vhd': tb.replaceAll('tb_top', 'tb_two') }, roles: { 'sim/tb_two.vhd': 'sim' } });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimOpen');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  // the benches' rows: "twisty name", and whether its instances are shown
+  const tree = () => page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree > li')].filter((li) => li.getClientRects().length)
+    .map((li) => `${li.querySelector('.twisty').textContent} ${li.querySelector('.lbl').textContent}${li.querySelector(':scope > ul') ? ' +' : ''}`));
+  const row = (name) => page.click('.doc:not([hidden]) .isim-tree > li > .row', { index: ['tb_top', 'tb_two'].indexOf(name) });
+  assert.deepEqual(await tree(), ['▾ tb_top +', '▸ tb_two']);
+  // collapsed by its twisty, then its row clicked: expanded again
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .twisty', { index: 0 });
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-tree > li > ul'), [], { what: 'collapsed' });
+  assert.deepEqual(await tree(), ['▸ tb_top', '▸ tb_two']);
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .lbl', { index: 0 });
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .isim-tree > li > ul'), [], { what: 'expanded by its row' });
+  // the other bench clicked: its instances shown, tb_top collapsed
+  await row('tb_two');
+  await simShown(page, 'tb_two', 'Behavioral');
+  await page.showSide();
+  assert.deepEqual(await tree(), ['▸ tb_top', '▾ tb_two +']);
+  // collapsed in tb_two's tree, then tb_top and tb_two again by their rows: each one expanded when clicked
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .twisty', { index: 1 });
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-tree > li > ul'), [], { what: 'tb_two collapsed' });
+  await row('tb_top');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top', [], { what: 'tb_top\'s tab' });
+  await page.waitFor(() => /tb_top \+/.test([...document.querySelectorAll('.doc:not([hidden]) .isim-tree > li')].map((li) => `${li.querySelector('.lbl').textContent}${li.querySelector(':scope > ul') ? ' +' : ''}`).join('|')), [], { what: 'tb_top expanded' });
+  assert.deepEqual(await tree(), ['▾ tb_top +', '▸ tb_two']);
+  await row('tb_two');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_two', [], { what: 'tb_two\'s tab' });
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .isim-tree > li > ul'), [], { what: 'tb_two expanded again' });
+  assert.deepEqual(await tree(), ['▸ tb_top', '▾ tb_two +']);
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
+
 // #1259: the side panel from the top of the work area, as Design's and Implement's; the simulations' tabs to its right
 uiTest('#1259 Tasks ▸ Simulate: the side panel from the top, the simulations\' tabs to its right above the waves; folded: the tabs from the left', E, async (page) => {
   const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');
