@@ -100,14 +100,14 @@ test('#405 schematic drawing: the hops of a wire over its crossings, the runs of
 test('#953 schematic drawing: a VCC / GND wider than a bit, its width by its output (none for one bit or one saved without)', () => {
   for (const type of ['vcc', 'gnd']) {
     const draw = (params) => { const sym = { id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, name: 'U1', params }; return symbolSvg(sym, symbolDef(sym)); };
-    const w8 = [...draw({ width: 8 }).matchAll(/<text class="pwidth"[^>]*>([^<]*)</g)];
+    const w8 = [...draw({ width: 8 }).matchAll(/<text class="pwidth[^"]*"[^>]*>([^<]*)</g)];
     assert.deepEqual(w8.map((m) => m[1]), ['8'], type);
     const pin = symbolPins({ id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, params: { width: 8 } })[0];
     const at = attrs(w8[0][0]);
-    // (by its stem, 10 px in from the pin's end, turned: inside its box, #1139)
-    assert.deepEqual([+at.x, +at.y, at.transform], [pin.x + 9, pin.y + (type === 'vcc' ? -10 : 10), `rotate(-90 ${pin.x + 9} ${pin.y + (type === 'vcc' ? -10 : 10)})`], type);
-    assert.doesNotMatch(draw({ width: 1 }), /class="pwidth"/);
-    assert.doesNotMatch(draw({}), /class="pwidth"/);
+    // (on its stem, 10 px in from the pin's end, upright: inside its box, #1139)
+    assert.deepEqual([+at.x, +at.y, at.class], [pin.x, pin.y + (type === 'vcc' ? -7 : 13), 'pwidth on'], type);
+    assert.doesNotMatch(draw({ width: 1 }), /class="pwidth[ "]/);
+    assert.doesNotMatch(draw({}), /class="pwidth[ "]/);
     assert.match(draw({ width: 8 }), new RegExp(`>${type.toUpperCase()}</text>`));
   }
 });
@@ -161,10 +161,12 @@ test('#1137 schematic drawing: every symbol turned and mirrored, its pin names i
       const body = { x0: Math.min(p0.x, p1.x) - 1, x1: Math.max(p0.x, p1.x) + 1, y0: Math.min(p0.y, p1.y) - 1, y1: Math.max(p0.y, p1.y) + 1 };
       const names = [...svg.matchAll(/<text class="pname"[^>]*>[^<]*<\/text>/g)].map((m) => m[0]);
       const sb = symbolBox(sym, MODULES, def);
-      for (const t of [...svg.matchAll(/<text class="pwidth"[^>]*>[^<]*<\/text>/g)].map((m) => m[0])) {
+      for (const t of [...svg.matchAll(/<text class="pwidth[^"]*"[^>]*>[^<]*<\/text>/g)].map((m) => m[0])) {
         const box = textBox(t), w = t.replace(/<[^>]*>/g, '');
         if (box.x0 < sb.x - 1 || box.x1 > sb.x + sb.w + 1 || box.y0 < sb.y - 1 || box.y1 > sb.y + sb.h + 1) bad.push(`${what}: width ${w} out of the box`);
-        if (leads.some((l) => crosses(box, l))) bad.push(`${what}: width ${w} on a lead`);
+        // (on a lead up or down, its own, which it breaks: no other one)
+        const own = attrs(t).class === 'pwidth on' ? (l) => l[0].x === l[1].x && Math.abs(l[0].x - +attrs(t).x) < 0.5 : () => false;
+        if (leads.some((l) => !own(l) && crosses(box, l))) bad.push(`${what}: width ${w} on a lead`);
       }
       for (const t of names) {
         const box = textBox(t), name = t.replace(/<[^>]*>/g, '');

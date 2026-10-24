@@ -15,7 +15,7 @@
 // a net name already used in the sheet gets _1, _2… too (the same new name for every label of that net, so
 // the copy's own nets stay joined). A net name of an I/O marker of the sheet that is not pasted is kept: the
 // copy connects to that port (the clk of the sheet, say), as a label of that name drawn by hand does.
-import { GRID, normalizeDoc, symbolPins, parseNetName } from './schdoc.js';
+import { DOC_VERSION, GRID, normalizeDoc, symbolPins, parseNetName } from './schdoc.js';
 
 export const CLIP_VERSION = 1;
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -29,7 +29,7 @@ function onSeg(p, a, b) {
 const onWire = (p, w) => w.points.some((q, i) => i + 1 < w.points.length && onSeg(p, q, w.points[i + 1]));
 const ends = w => [w.points[0], w.points[w.points.length - 1]];
 
-/** The clipboard contents of a selection of doc: { version, lang, from, symbols, wires, ports, labels }. */
+/** The clipboard contents of a selection of doc: { version, docVersion, lang, from, symbols, wires, ports, labels }. */
 export function copySchematic(doc, sel, modules = {}) {
   const pick = (arr, ids) => { const s = new Set(ids || []); return arr.filter(o => s.has(o.id)); };
   const symbols = pick(doc.symbols, sel.symbols), ports = pick(doc.ports, sel.ports);
@@ -63,7 +63,7 @@ export function copySchematic(doc, sel, modules = {}) {
   // the net names: those selected, and those on a copied wire
   const lsel = new Set(sel.labels || []);
   const labels = doc.labels.filter(l => lsel.has(l.id) || allWires.some(w => onWire(l, w)));
-  return clone({ version: CLIP_VERSION, lang: doc.lang, from: doc.name, symbols, wires: doc.wires.filter(w => allWires.includes(w)), ports, labels });
+  return clone({ version: CLIP_VERSION, docVersion: DOC_VERSION, lang: doc.lang, from: doc.name, symbols, wires: doc.wires.filter(w => allWires.includes(w)), ports, labels });
 }
 
 /** Whether a clipboard has something to paste. */
@@ -73,7 +73,8 @@ export const clipEmpty = clip => !clip || !['symbols', 'wires', 'ports', 'labels
  *  { ids: { symbols, wires, ports, labels }, renamed: { instances, ports, nets }: Maps of old -> new names }. */
 export function pasteSchematic(doc, clip, { dx = 0, dy = 0 } = {}) {
   // (a clipboard from the system's, read as text: normalized as a document is, nothing kept that is not one)
-  const c = normalizeDoc({ lang: doc.lang, symbols: clip?.symbols, wires: clip?.wires, ports: clip?.ports, labels: clip?.labels });
+  // (its symbols drawn as in the document copied from, docVersion: one copied before #1136 has narrower multiplexers)
+  const c = normalizeDoc({ version: +clip?.docVersion || 3, lang: doc.lang, symbols: clip?.symbols, wires: clip?.wires, ports: clip?.ports, labels: clip?.labels });
   dx = Math.round(dx / GRID) * GRID; dy = Math.round(dy / GRID) * GRID;
   const ci = doc.lang === 'vhdl';
   const nk = s => (ci ? String(s).toLowerCase() : String(s));
