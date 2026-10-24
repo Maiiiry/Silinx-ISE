@@ -33,7 +33,8 @@ export function wireFamily(name) {
   if ((m = /^(?:[A-Z0-9]+_)*?L([HV])\d+$/.exec(name))) return `long:${m[1]}`;
   if (/^OMUX(?:_[NSEW]{1,2})?\d+$/.test(name) || name === 'NW_N' || name === 'SE_S') return 'omux';
   if (/^(?:COUT_N|CIN)\d+$/.test(name)) return 'carry';
-  if (/GCLK/.test(name)) return 'gclk';
+  // (a pin wire stays in its tile: CLKT_GCLK_PINWIREk, a BUFGMUX's O)
+  if (/GCLK/.test(name) && !/PINWIRE/.test(name)) return 'gclk';
   if (/^BRAM_/.test(name)) return `pin:${name.replace(/_INT(\d*)$/, '$1')}`;
   return null;
 }
@@ -79,20 +80,25 @@ export function observeNet(net, instSite) {
   const srcTile = srcInst?.tile;
   // the from-wires no PIP of the net drives in their own tile
   const dangling = [...new Map(pips.filter(p => !toSet.has(key(p.tile, p.from))).map(p => [key(p.tile, p.from), p])).values()];
-  const srcWires = dangling.filter(p => p.tile === srcTile && !wireFamily(p.from));
+  const candsOf = p => { const fam = wireFamily(p.from); return fam ? [...new Set(pips.filter(q => q.tile !== p.tile && wireFamily(q.to) === fam).map(q => key(q.tile, q.to)))] : []; };
+  // (else a wire of a family with no candidate in the net: the clock tiles' pins, a BUFGMUX's O, #3's sites' pins)
+  const plain = dangling.filter(p => p.tile === srcTile && !wireFamily(p.from));
+  const srcWires = plain.length ? plain : dangling.filter(p => p.tile === srcTile && !candsOf(p).length);
+  const candidates = new Set(dangling.flatMap(candsOf));
   for (const p of dangling) {
-    const fam = wireFamily(p.from);
-    const cands = fam ? [...new Set(pips.filter(q => q.tile !== p.tile && wireFamily(q.to) === fam).map(q => key(q.tile, q.to)))] : [];
+    const cands = candsOf(p);
     if (cands.length === 1) { res.joins.push([cands[0], key(p.tile, p.from)]); continue; }
     if (cands.length > 1) { res.ambiguous.push({ from: key(p.tile, p.from), candidates: cands }); continue; }
-    if (p.tile === srcTile && srcWires.length === 1 && srcInst.site) {
+    if (p.tile === srcTile && srcWires.length === 1 && srcWires[0] === p && srcInst.site) {
       res.pins.push({ site: srcInst.site, pin: net.outpins[0].pin, dir: 'o', tile: p.tile, wire: p.from });
       continue;
     }
     res.unexplained.push(key(p.tile, p.from));
   }
-  // sink pins: the to-wire no PIP of the net continues, in the sink's tile (one sink in that tile)
-  const ends = pips.filter(p => !fromSet.has(key(p.tile, p.to)) && !wireFamily(p.to));
+  // sink pins: the to-wire no PIP of the net continues, in the sink's tile (one sink in that tile); of a family only when
+  // it is no join's candidate (no other tile's wire continues from it: a BUFGMUX's I0, a DCM's CLKIN)
+  const ends = pips.filter(p => !fromSet.has(key(p.tile, p.to)) && (!wireFamily(p.to) || !candidates.has(key(p.tile, p.to))));
+  const endsIn = tile => { const e = ends.filter(p => p.tile === tile), plain = e.filter(p => !wireFamily(p.to)); return [...new Set((plain.length ? plain : e).map(p => p.to))]; };
   const byTile = new Map();
   for (const ip of net.inpins) {
     const inst = instSite.get(ip.inst);
@@ -101,7 +107,7 @@ export function observeNet(net, instSite) {
     byTile.get(inst.tile).push({ ...ip, site: inst.site });
   }
   for (const [tile, sinks] of byTile) {
-    const e = [...new Set(ends.filter(p => p.tile === tile).map(p => p.to))];
+    const e = endsIn(tile);
     if (sinks.length === 1 && e.length === 1) res.pins.push({ site: sinks[0].site, pin: sinks[0].pin, dir: 'i', tile, wire: e[0] });
   }
   return res;

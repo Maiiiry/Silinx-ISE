@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, joinRule, blockRamOutputJoins } from '../research/s3e-device/observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from '../research/s3e-device/model.mjs';
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
+import { pinCensus } from '../research/s3e-device/pins.mjs';
+import { ram, multCascade, dcmPins, iobDdr, iobClk2 } from '../research/s3e-device/gen-obspins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -12,6 +14,7 @@ import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.m
 import { tileCandidates, siteCandidates, censusCandidates, ioCandidates } from '../research/s3e-device/candidates.mjs';
 import { bram, mult, pads, inputs } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
+import { deviceSites } from '../core/fpga/place.js';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
 import { parseXdl } from '../core/xdl.js';
@@ -31,7 +34,7 @@ test('wireFamily: doubles, hexes, long lines, output multiplexers, carry, clock,
   assert.equal(wireFamily('GCLKH_GCLK_UP4'), 'gclk');
   assert.equal(wireFamily('BRAM_DIA_B0_INT'), 'pin:BRAM_DIA_B0');
   assert.equal(wireFamily('BRAM_DIA_B0'), 'pin:BRAM_DIA_B0');
-  for (const w of ['X0', 'F1_B_PINWIRE0', 'BX0', 'VCC_PINWIRE', 'IOIS_Y2', 'SR3']) assert.equal(wireFamily(w), null, w);
+  for (const w of ['X0', 'F1_B_PINWIRE0', 'BX0', 'VCC_PINWIRE', 'IOIS_Y2', 'SR3', 'CLKT_GCLK_PINWIRE1']) assert.equal(wireFamily(w), null, w);
   assert.deepEqual(tileXY('CLB_X10Y7'), { prefix: 'CLB', x: 10, y: 7 });
   assert.deepEqual(tileXY('BRAM0_SMALL_BRK_X3Y25'), { prefix: 'BRAM0_SMALL_BRK', x: 3, y: 25 });
   assert.equal(tileXY('nope'), null);
@@ -432,4 +435,81 @@ test('gen-obshdl: every pad an input (round 8: the FT256), read by Silinx\'s fro
   const srcs = [{ path: 'top.v', lang: 'verilog', text: v.v }];
   const lib = compile([...primitiveSources(srcs), ...srcs]);
   assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
+});
+
+// #3, the sites' pins: a clock tile's pins are wires of the clock family (ISE's routes of a BUFGMUX, gen-obspins.mjs dcmpins)
+test('observeNet: a BUFGMUX\'s O from its pin wire, its I0 from a clock wire no other tile continues (#3, the sites\' pins)', () => {
+  const ins = new Map([
+    ['ib', { name: 'ib', tile: 'TIBUFS_X13Y35', site: 'P10' }],
+    ['bg', { name: 'bg', tile: 'CLKT_X13Y35', site: 'BUFGMUX_X2Y10' }],
+    ['s', { name: 's', tile: 'CLB_X12Y34', site: 'SLICE_X22Y67' }],
+  ]);
+  // the pad into the buffer's I0: CLKT_GCLKIN00 (clock family), no PIP of another tile continues it
+  const a = observeNet({ name: 'ci', outpins: [{ inst: 'ib', pin: 'I' }], inpins: [{ inst: 'bg', pin: 'I0' }], pips: [
+    { tile: 'CLKT_X13Y35', from: 'CLKT_CKI4', dir: '->', to: 'CLKT_GCLK0' },
+    { tile: 'CLKT_X13Y35', from: 'CLKT_GCLK0', dir: '->', to: 'CLKT_GCLKIN00' },
+    { tile: 'TIBUFS_X13Y35', from: 'I0_PINWIRE', dir: '->', to: 'IOIS_IBUF0' },
+  ] }, ins);
+  assert.deepEqual(a.pins, [{ site: 'P10', pin: 'I', dir: 'o', tile: 'TIBUFS_X13Y35', wire: 'I0_PINWIRE' }, { site: 'BUFGMUX_X2Y10', pin: 'I0', dir: 'i', tile: 'CLKT_X13Y35', wire: 'CLKT_GCLKIN00' }]);
+  // the buffer's O: CLKT_GCLK_PINWIRE1, a pin wire (no family), out to a slice's clock through the spine
+  const b = observeNet({ name: 'ck', outpins: [{ inst: 'bg', pin: 'O' }], inpins: [{ inst: 's', pin: 'CLK' }], pips: [
+    { tile: 'CLKT_X13Y35', from: 'CLKT_GCLK_PINWIRE1', dir: '->', to: 'CLKT_GCLK_MAIN1' },
+    { tile: 'CLB_X12Y34', from: 'GCLK1', dir: '->', to: 'CLK_B0' },
+    { tile: 'CLB_X12Y34', from: 'CLK_B0', dir: '->', to: 'CLK_B_PINWIRE0' },
+  ] }, ins);
+  assert.deepEqual(b.pins, [{ site: 'BUFGMUX_X2Y10', pin: 'O', dir: 'o', tile: 'CLKT_X13Y35', wire: 'CLKT_GCLK_PINWIRE1' }, { site: 'SLICE_X22Y67', pin: 'CLK', dir: 'i', tile: 'CLB_X12Y34', wire: 'CLK_B_PINWIRE0' }]);
+  assert.deepEqual(b.joins, [['CLKT_X13Y35/CLKT_GCLK_MAIN1', 'CLB_X12Y34/GCLK1']]);
+  // a clock wire that another tile's wire continues is a join's candidate, not a pin: no pin for the second buffer's I1
+  const c = observeNet({ name: 'c2', outpins: [{ inst: 'bg', pin: 'O' }], inpins: [{ inst: 'bg2', pin: 'I1' }], pips: [
+    { tile: 'CLKT_X13Y35', from: 'CLKT_GCLK_PINWIRE1', dir: '->', to: 'CLKT_GCLK_MAIN1' },
+    { tile: 'CLB_X12Y34', from: 'GCLK1', dir: '->', to: 'CLK_B0' },
+  ] }, new Map([...ins, ['bg2', { name: 'bg2', tile: 'CLKT_X13Y35', site: 'BUFGMUX_X2Y11' }]]));
+  assert.deepEqual(c.pins, [{ site: 'BUFGMUX_X2Y10', pin: 'O', dir: 'o', tile: 'CLKT_X13Y35', wire: 'CLKT_GCLK_PINWIRE1' }]);
+  assert.deepEqual(c.joins, [['CLKT_X13Y35/CLKT_GCLK_MAIN1', 'CLB_X12Y34/GCLK1']]);
+});
+
+test('pinCensus: the observed pin wires against a reference, per site type, and the pins no design used (#3, the sites\' pins)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const ramPin = dev.sitePin('RAMB16_X0Y0', 'CLKA'), bg = dev.sitePin('BUFGMUX_X2Y10', 'I0');
+  const c = pinCensus({ pins: [
+    { site: 'RAMB16_X0Y0', pin: 'CLKA', dir: 'i', tile: ramPin.tileName, wire: ramPin.wire },
+    { site: 'BUFGMUX_X2Y10', pin: 'I0', dir: 'i', tile: bg.tileName, wire: bg.wire },
+    { site: 'BUFGMUX_X2Y10', pin: 'S', dir: 'i', tile: bg.tileName, wire: 'NOT_ITS_WIRE' },
+    { site: 'BUFGMUX_X2Y10', pin: 'NOPE', dir: 'i', tile: bg.tileName, wire: 'X' },
+  ] }, dev);
+  assert.equal(c.right, 2);
+  assert.deepEqual(c.wrong, [`BUFGMUX_X2Y10.S: ${bg.tileName}/NOT_ITS_WIRE, the reference ${bg.tileName}/${dev.sitePin('BUFGMUX_X2Y10', 'S').wire}`, `BUFGMUX_X2Y10.NOPE: ${bg.tileName}/X, the reference has no such pin`]);
+  assert.deepEqual([c.types.BUFGMUX.seen, c.types.BUFGMUX.total, c.types.BUFGMUX.names, c.types.BUFGMUX.missing], [1, 96, 1, ['I1', 'O', 'S']]);
+  assert.deepEqual([c.types.RAMB16.seen, c.types.RAMB16.names, c.types.RAMB16.totalNames], [1, 1, 180]);
+});
+
+test('gen-obspins: designs that use every pin of the block RAMs, multipliers, DCMs and I/O blocks, read by Silinx\'s front end (#3, the sites\' pins)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
+  const locs = ucf => [...ucf.matchAll(/^INST "u(\d+)" LOC = "(\S+)" ;$/gm)].map(x => x[2]);
+  const designs = { wide: ram(dev, true), narrow: ram(dev, false), mult: multCascade(dev), dcm: dcmPins(dev), iob: iobDdr(dev), clk2: [0, 1, 2].map(k => iobClk2(dev, k)) };
+  for (const d of [designs.wide, designs.narrow]) assert.deepEqual(locs(d.ucf).sort(), dev.sites('RAMB16').map(s => s.name).sort());
+  // every pin on a signal of its own: no bit of s twice (the I/O blocks' set and reset once per IOB, shared by its registers)
+  const used = v => [...v.matchAll(/s\[(\d+)(?::(\d+))?\]/g)].flatMap(([, a, b]) => b === undefined ? [+a] : Array.from({ length: +a - +b + 1 }, (_, i) => +b + i));
+  for (const [n, d] of Object.entries({ wide: designs.wide, narrow: designs.narrow, mult: designs.mult })) {
+    const u = used(d.v.replace(/always @\(posedge \w+\) s <= [^;]*;/, ''));
+    assert.equal(new Set(u).size, u.length, `${n}: a signal used twice`);
+  }
+  const iobSigs = used(designs.iob.v.replace(/always @\(posedge \w+\) s <= [^;]*;/, ''));
+  assert.ok([...iobSigs.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map()).values()].every(n => n === 1 || n === 2 || n === 3), 'iob: R and S of a pad on its 1-3 registers, the others once');
+  assert.match(designs.wide.v, /RAMB16_S36_S36 u11 \(\.CLKA\(clk\), \.ADDRA\(s\[\d+:\d+\]\), \.DIA\(s\[\d+:\d+\]\), \.DIPA\(/);
+  assert.match(designs.narrow.v, /RAMB16_S1_S1 u0 \(\.CLKA\(clk\), \.ADDRA\(s\[13:0\]\)/);
+  // a chain up each column of six: the lowest DIRECT, the five above CASCADE from the one below
+  assert.equal((designs.mult.v.match(/B_INPUT\("CASCADE"\)/g) || []).length, 10);
+  assert.match(designs.mult.v, /\.BCIN\(bc0\)/);
+  assert.deepEqual(locs(designs.dcm.ucf), ['DCM_X0Y0', 'DCM_X0Y1', 'DCM_X1Y0', 'DCM_X1Y1']);
+  assert.doesNotMatch(designs.dcm.v, /st\d\[[3-7]\]/, 'STATUS 3-7 lead nowhere');
+  // every pad of the package LOC'd once (the clock, 8 inputs, 8 outputs, the rest registered)
+  const pads = ucf => [...ucf.matchAll(/LOC = "(\S+)"/g)].map(x => x[1]);
+  assert.deepEqual(pads(designs.iob.ucf).sort(), [...deviceSites(dev).pads.keys()].sort());
+  // the pads at each position of their I/O tile in one design: together every pad but the clock, the inputs and outputs
+  const regs = designs.clk2.flatMap(d => pads(d.ucf).filter((p, i, a) => i > 16));
+  assert.equal(new Set(regs).size, regs.length);
+  assert.equal(regs.length, 92 - 17);
+  for (const d of [designs.wide, designs.narrow, designs.mult, designs.dcm, designs.iob, ...designs.clk2]) assert.deepEqual(read(d.v), [[], []]);
 });
