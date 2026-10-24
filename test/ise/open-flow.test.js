@@ -21,7 +21,7 @@ import { deviceSites } from '../../core/fpga/place.js';
 const enabled = process.env.SILINX_ISE_TESTS === '1';
 // the host only from the environment (never written in a file)
 const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !process.env.SILINX_ISE_HOST ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image), or local (the image here)' : false;
-const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_iob_ddr', 'feat_iob_ddr_v', 'feat_iob_bidir', 'feat_iob_bidir_v', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'feat_bufgmux', 'feat_bufgmux_1', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock', 'feat_ll_splitters', 'feat_bram_clocks', 'feat_clock_data'];
+const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_iob_owners', 'feat_iob_ddr', 'feat_iob_ddr_v', 'feat_iob_bidir', 'feat_iob_bidir_v', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'feat_bufgmux', 'feat_bufgmux_1', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock', 'feat_ll_splitters', 'feat_bram_clocks', 'feat_clock_data'];
 
 test('the open-flow fixtures of the hard blocks: Silinx\'s bitstream byte-identical to ISE\'s, ISE\'s DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...FIXTURES.map(f => path.join(ROOT, 'test/fixtures/open-flow', f))], { encoding: 'utf8', env: process.env });
@@ -173,6 +173,21 @@ test('feat_iob_lone on the XC3S1200E: input registers on pads whose neighbouring
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-ise-ioblone-'));
   const name = 'feat_iob_lone-xc3s1200e', dir = path.join(tmp, name);
   fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iob_lone'), dir, { recursive: true });
+  const proj = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ ...proj, name, device: { ...proj.device, part: 'xc3s1200e' }, board: 'nexys2-1200' }));
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), dir], { encoding: 'utf8', env: process.env });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, new RegExp(`^${name}: open flow ok; 0 warning\\(s\\)$`, 'm'));
+  assert.match(r.stdout, new RegExp(`^${name}: DRC 0 errors, 0 warnings; xdl2ncd 0 warnings; \\.bit vs ISE's bitgen: byte-identical \\(CRC on and off\\)$`, 'm'));
+});
+
+// feat_iob_owners on the XC3S1200E too (#897): A3, C9, B9 and C15 are the pads whose bits there had gone to B3, E9, D9 and
+// A16 (D13's to E12 on the XC3S500E only)
+test('feat_iob_owners on the XC3S1200E: IDDR2s on pads whose neighbour held some of their bits, byte-identical to ISE\'s, DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-ise-iobowners-'));
+  const name = 'feat_iob_owners-xc3s1200e', dir = path.join(tmp, name);
+  fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iob_owners'), dir, { recursive: true });
   const proj = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
   fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ ...proj, name, device: { ...proj.device, part: 'xc3s1200e' }, board: 'nexys2-1200' }));
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), dir], { encoding: 'utf8', env: process.env });

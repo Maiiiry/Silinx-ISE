@@ -422,3 +422,46 @@ test('gen-iobreg --bufg: only rd and rd2, their clock buffer on the given BUFGMU
     }
   } finally { fs.rmSync(T, { recursive: true, force: true }); }
 });
+
+// #897: the tools that found which pad a bit belongs to: gen-padbits.mjs (one setting of the given pads, or one PIP of the
+// given tiles, removed per variant) and gen-padalone.mjs (an IDDR2 on one pad alone, its R or its S used)
+test('gen-padbits: a variant per setting of the pads and per PIP of the tiles; gen-padalone: an IDDR2 on each pad alone (#897)', () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-padbits-'));
+  const tool = (f, args, env = {}) => spawnSync(process.execPath, [fileURLToPath(new URL(`../research/s3e-bitstream/${f}`, import.meta.url)), ...args], { encoding: 'utf8', env: { ...process.env, ...env } });
+  try {
+    const xdl = `design "t" xc3s1200efg320-4 v3.2 , cfg "";
+inst "d" "IBUF",placed TIBUFS_X2Y61 A3  ,
+  cfg " _NOTE::x IFF1:r:#FF ISR_USED::0 IFF2::#OFF "
+  ;
+inst "e" "IBUF",placed TIOIS_X1Y61 B3  ,
+  cfg " IFF1:s:#FF "
+  ;
+net "c" ,
+  outpin "x" O ,
+  inpin "d" ICLK1 ,
+  pip TIBUFS_X2Y61 GCLK4 -> IOIS_CLK2 ,
+  pip TIBUFS_X2Y61 IOIS_CLK2 -> ICLK12 ,
+  pip TIOIS_X1Y61 GCLK4 -> IOIS_CLK0 ,
+  ;
+`;
+    fs.writeFileSync(path.join(T, 'r.xdl'), xdl);
+    const r = tool('gen-padbits.mjs', [path.join(T, 'r.xdl'), path.join(T, 'v'), 'A3', 'TIBUFS_X2Y61']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^4 variants \(2 settings, 2 PIPs\)$/m);
+    const key = JSON.parse(fs.readFileSync(path.join(T, 'v', 'key.json'), 'utf8'));
+    // (the notes of the tools, the settings left out and the other pad's kept; each variant one change)
+    assert.deepEqual(key.variants.map(v => v.setting || v.pip), ['IFF1:r:#FF', 'ISR_USED::0', 'GCLK4->IOIS_CLK2', 'IOIS_CLK2->ICLK12']);
+    const v = n => fs.readFileSync(path.join(T, 'v', `${n}.xdl`), 'utf8');
+    assert.equal(v('BASE'), xdl);
+    assert.match(v('A3_ISR_USED'), /cfg " _NOTE::x IFF1:r:#FF +IFF2::#OFF "/);
+    assert.equal(v('P0'), xdl.replace('  pip TIBUFS_X2Y61 GCLK4 -> IOIS_CLK2 ,', ''));
+    const g = tool('gen-padalone.mjs', [path.join(T, 'a'), 'A3,B3'], { PART: 'xc3s1200efg320-4' });
+    assert.equal(g.status, 0, g.stderr);
+    assert.match(g.stdout, /^xc3s1200efg320-4: clock B8, control J16, outputs J17 K12$/m);
+    assert.deepEqual(fs.readdirSync(path.join(T, 'a')).sort(), ['A3-r', 'A3-s', 'B3-r', 'B3-s']);
+    assert.match(fs.readFileSync(path.join(T, 'a', 'A3-r', 'top.vhd'), 'utf8'), /R => ctl, S => '0'/);
+    assert.match(fs.readFileSync(path.join(T, 'a', 'B3-s', 'top.vhd'), 'utf8'), /R => '0', S => ctl/);
+    assert.equal(fs.readFileSync(path.join(T, 'a', 'B3-s', 'top.ucf'), 'utf8'), 'NET "clk" LOC = "B8" ;\nNET "ctl" LOC = "J16" ;\nNET "d" LOC = "B3" ;\nNET "q<0>" LOC = "J17" ;\nNET "q<1>" LOC = "K12" ;\n');
+    assert.notEqual(tool('gen-padalone.mjs', [path.join(T, 'b'), 'J16'], { PART: 'xc3s1200efg320-4' }).status, 0, 'a pad the designs use otherwise');
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});

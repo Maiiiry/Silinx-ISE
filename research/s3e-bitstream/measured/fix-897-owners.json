@@ -1,0 +1,79 @@
+{
+ "source": "#897: bits of some pads' input registers that a neighbouring pad's features held: #96's solution (ana-padowner.mjs) and #759's worked from designs that registered the two pads together, or against a database that lacked the bit. Measured with ISE 14.7 on the XC3S500E and XC3S1200E (gen-padalone.mjs: an IDDR2, its R or its S used, on one pad alone, the design's other pads far from it; xst, map, par with no warning; ana-padalone.mjs against Silinx's writer): A3 / B3, C9 / D9, B9 / E9, C15 / A16, D13 / E12, 36 designs; each bit is set by one pad's register only, its owner's. A3's two bits go to the features they are in the input-only pads' layout (A8, G9\u2026: ISR_USED at INIT0 - 3, IFF2 at INIT0 - 2): in the 657 XC3S1200E designs of #96 / #97 the first is set exactly when A3's register has a set / reset. C9's 354,11 (239,11) is its IFD:DLY3's (gen-padbits.mjs: removing C9's IFD_DELAY_VALUE clears it); the others are second flip-flops' (R:IFF2:#FF), as their pads' layout has them.",
+ "moves": {
+  "xc3s500e-fg320": [
+   {
+    "bit": "45,29",
+    "from": "B3",
+    "feature": "R:IREV_USED:0",
+    "to": "A3",
+    "toFeature": "R:ISR_USED:0"
+   },
+   {
+    "bit": "45,30",
+    "from": "B3",
+    "feature": "R:IFF2:#FF",
+    "to": "A3"
+   },
+   {
+    "bit": "239,11",
+    "from": "E9",
+    "feature": "R:IFF2:#FF",
+    "to": "C9",
+    "toFeature": "IFD:DLY3"
+   },
+   {
+    "bit": "254,49",
+    "from": "D9",
+    "feature": "R:IFF2:#FF",
+    "to": "B9"
+   },
+   {
+    "bit": "501,30",
+    "from": "A16",
+    "feature": "R:IFF2:#FF",
+    "to": "C15"
+   },
+   {
+    "bit": "444,30",
+    "from": "E12",
+    "feature": "R:IFF2:#FF",
+    "to": "D13"
+   }
+  ],
+  "xc3s1200e-fg320": [
+   {
+    "bit": "46,29",
+    "from": "B3",
+    "feature": "R:IREV_USED:0",
+    "to": "A3",
+    "toFeature": "R:ISR_USED:0"
+   },
+   {
+    "bit": "46,30",
+    "from": "B3",
+    "feature": "R:IFF2:#FF",
+    "to": "A3"
+   },
+   {
+    "bit": "354,11",
+    "from": "E9",
+    "feature": "R:IFF2:#FF",
+    "to": "C9",
+    "toFeature": "IFD:DLY3"
+   },
+   {
+    "bit": "369,49",
+    "from": "D9",
+    "feature": "R:IFF2:#FF",
+    "to": "B9"
+   },
+   {
+    "bit": "730,30",
+    "from": "A16",
+    "feature": "R:IFF2:#FF",
+    "to": "C15"
+   }
+  ]
+ }
+}
