@@ -95,7 +95,14 @@ async function strokeWire(page, how, from, to) {
     assert.equal(await page.eval((ed, x, y) => !!document.elementFromPoint(x, y)?.closest(`${ed} svg`), ED, q.x, q.y), true, `${how}: ${JSON.stringify(p)} on the canvas`);
   }
   await stroke(page, how, ink);
-  await page.waitFor((n) => window.Silinx.active.schEditor.getDoc().wires.length === n, [d0.wires.length + 1], { what: `${how}: the wire made` });
+  try {
+    await page.waitFor((n) => window.Silinx.active.schEditor.getDoc().wires.length === n, [d0.wires.length + 1], { what: `${how}: the wire made` });
+  } catch (e) {
+    // (what the editor saw: its tool, what is under the stroke's start, its wires)
+    const q = await at(page, from);
+    const seen = await page.eval((ed, x, y) => ({ tool: document.querySelector(`${ed} .se-canvas, ${ed} [data-tool]`)?.dataset.tool, at: document.elementFromPoint(x, y)?.outerHTML.slice(0, 120), wires: window.Silinx.active.schEditor.getDoc().wires.map((w) => JSON.stringify(w.points)) }), ED, q.x, q.y);
+    throw new Error(`${e.message}: ${JSON.stringify(seen)}`);
+  }
   const w = (await getDoc(page)).wires.at(-1);
   assert.deepEqual(w.points, want, `${how}: its path routed square between its ends`);
   const K = curveAbs(w);
@@ -242,6 +249,7 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   assert.ok(near(curveAbs(w)[1], P(280, 260), 2), JSON.stringify(curveAbs(w)));
   assert.deepEqual(w.points, w3.points);
   await page.tap(`${ED} .se-btn[data-act=wire]`);
+  await page.waitFor((ed) => document.querySelector(`${ed} .se-btn[data-act=wire]`).classList.contains('on'), [ED], { what: 'Add Wire by a tap' });
   await strokeWire(page, 'touch', P(360, 400), P(480, 300));
   const d = await getDoc(page);
   assert.deepEqual(nets(netlist(d)), [...NETS0, 'S3.O port:P4'].sort());
