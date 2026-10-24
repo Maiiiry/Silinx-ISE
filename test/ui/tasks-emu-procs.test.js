@@ -1,4 +1,4 @@
-// UI (#1204): Tasks ▸ Emulate has its Processes at the top of its side column, under a tab as Simulate's: the top
+// UI (#1204): Tasks ▸ Emulate has its Processes at the top of its side column, under a tab named Emulate (#1212): the top
 // module's User Constraints (I/O Pin Planning, Edit Constraints (Text), Check Constraints) and Emulate on Board with
 // its models, the same as Implement's (web/js/processes.js emulateProcesses), each run by a double-click, its state
 // the Processes panel's; in Portuguese; folded with the side panel; none in the classic interface. No warnings.
@@ -50,7 +50,7 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   await page.click('#task-empty button');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor((b) => document.querySelectorAll(`${b} .task-emu-tree li`).length > 0, [BOX], { what: 'Emulate\'s Processes' });
-  assert.deepEqual(await procs(page), { shown: true, first: true, tab: 'Processes', rows: EN });
+  assert.deepEqual(await procs(page), { shown: true, first: true, tab: 'Emulate', rows: EN });
   // the Watch below it, as before
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-side .emu-box h4')?.textContent), 'Watch');
   // a state: the Processes panel's, drawn in Emulate too
@@ -70,7 +70,7 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   // in Portuguese
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor((b) => document.querySelector(`${b} .task-sim-tabs .tab-lbl`)?.textContent === 'Processos', [BOX], { what: 'Portuguese' });
+  await page.waitFor((b) => document.querySelector(`${b} .task-sim-tabs .tab-lbl`)?.textContent === 'Emular', [BOX], { what: 'Portuguese' });
   assert.deepEqual((await procs(page)).rows.slice(0, 5), ['Restrições do Utilizador', '  Planeamento de Pinos de E/S', '  Editar Restrições (Texto)', '  Verificar Restrições', 'Emular na Placa']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // folded with the side panel
