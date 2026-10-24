@@ -14,6 +14,9 @@
 //              clock, the first inverted, is the same net as ICLK1's)
 //   PART=xc3s250ecp132-4 node gen-obspins.mjs outdir [--clk B8]      (folders ramwide, ramnarrow, multcasc, dcmpins, iobddr,
 //                                                                     iobclk2-0, -1, -2)
+//   PART=xc3s250eft256-4 node gen-obspins.mjs outdir --pads obs.json   the I/O designs on the pads of another package's
+//                                                                     observation (the FT256: the I/O sites the CP132
+//                                                                     leaves without a pad; the die's description, PART's)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { deviceSites } from '../../core/fpga/place.js';
@@ -21,6 +24,26 @@ import { deviceSites } from '../../core/fpga/place.js';
 const PART = process.env.PART || 'xc3s250ecp132-4';
 const sitesOf = (dev, type) => dev.sites(type).map(s => s.name).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 const xy = s => s.match(/X(\d+)Y(\d+)$/).slice(1).map(Number);
+
+/** The device's pads: [{ name, tile, inputOnly, pos }], pos the pad's place among its tile's I/O sites. */
+export function devicePads(dev) {
+  return [...deviceSites(dev).pads.values()].map(p => {
+    const k = dev.tileIndex.get(p.tile), types = dev.templates[dev.tileTemplate[k]].sites;
+    return { name: p.name, tile: p.tile, inputOnly: p.inputOnly, pos: dev.tileSites[k].filter(([n], i) => /^(IOB|IBUF|DIFF)/.test(types[i].type)).findIndex(([n]) => n === p.name) };
+  });
+}
+
+/** The pads of an observation's design (prototype.mjs observe), for another package of the die (the FT256): [{ name, tile,
+ *  inputOnly, pos }], each pad whose input ISE routed (pos from its I pin's wire, Ik_PINWIRE: the k-th I/O site of its
+ *  tile, the rule every pin of the CP132 follows; input-only: the IBUFS tiles). */
+export function observedPads(obs) {
+  const out = new Map();
+  for (const p of obs.pins) {
+    const m = p.pin === 'I' && p.dir === 'o' && /^I(\d)_PINWIRE$/.exec(p.wire);
+    if (m && /IOIS|IBUFS/.test(p.tile)) out.set(p.site, { name: p.site, tile: p.tile, inputOnly: /IBUFS/.test(p.tile), pos: +m[1] });
+  }
+  return [...out.values()];
+}
 
 /** A design around n distinct signals s[0…n-1] (a shift register fed from the inputs d) and m results r (XORed into q). */
 function wrap(part, what, n, ports, body, results, pre = '') {
@@ -93,8 +116,8 @@ export function dcmPins(dev, part = PART) {
 
 /** Every pad but the clock, the eight inputs and the eight outputs (LOC'd): an IDDR2 (set and reset), on the pads that can drive an ODDR2
  *  for the data and one for the tristate, every pin on a signal of its own: { v, ucf }. */
-export function iobDdr(dev, clkPin = 'B8', part = PART) {
-  const pads = [...deviceSites(dev).pads.values()].filter(p => p.name !== clkPin).sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
+export function iobDdr(dev, clkPin = 'B8', part = PART, padList = devicePads(dev)) {
+  const pads = padList.filter(p => p.name !== clkPin).sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
   // (the eight inputs d: input-only pads first, then the last pads; the eight outputs q: the last pads left)
   const dPads = [...pads.filter(p => p.inputOnly), ...pads.filter(p => !p.inputOnly).reverse()].slice(0, 8);
   const qPads = pads.filter(p => !p.inputOnly && !dPads.includes(p)).reverse().slice(0, 8);
@@ -124,10 +147,9 @@ ${iddr(`bi${i}`, `b${i}`, r, s)}`; }),
 
 /** The pads at position k of their I/O tile (but the clock, the eight inputs and the eight outputs), each an IDDR2 on a
  *  DCM's CLK0 (C0) and CLK180 (C1), and an ODDR2 on CLK0 and CLK90 where it can drive: { v, ucf }. */
-export function iobClk2(dev, k, clkPin = 'B8', part = PART) {
-  const all = [...deviceSites(dev).pads.values()].sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
-  const pos = new Map();
-  for (const p of all) pos.set(p.name, dev.tileSites[dev.tileIndex.get(p.tile)].filter(([n], i) => /^(IOB|IBUF|DIFF)/.test(dev.templates[dev.tileTemplate[dev.tileIndex.get(p.tile)]].sites[i].type)).findIndex(([n]) => n === p.name));
+export function iobClk2(dev, k, clkPin = 'B8', part = PART, padList = devicePads(dev)) {
+  const all = padList.slice().sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
+  const pos = new Map(all.map(p => [p.name, p.pos]));
   const pads = all.filter(p => p.name !== clkPin);
   const dPads = [...pads.filter(p => p.inputOnly), ...pads.filter(p => !p.inputOnly).reverse()].slice(0, 8);
   const qPads = pads.filter(p => !p.inputOnly && !dPads.includes(p)).reverse().slice(0, 8);
@@ -160,13 +182,19 @@ ${iddr}`;
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2), ci = args.indexOf('--clk'), clkPin = ci >= 0 ? args.splice(ci, 2)[1] : 'B8';
+  const pi = args.indexOf('--pads'), padsObs = pi >= 0 ? JSON.parse(fs.readFileSync(args.splice(pi, 2)[1], 'utf8')) : null;
   const [out] = args;
-  const dev = loadDeviceCache(PART);
-  for (const [name, f] of [['ramwide', () => ram(dev, true)], ['ramnarrow', () => ram(dev, false)], ['multcasc', () => multCascade(dev)], ['dcmpins', () => dcmPins(dev)], ['iobddr', () => iobDdr(dev, clkPin)], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, clkPin)])]) {
+  const dev = padsObs ? null : loadDeviceCache(PART);
+  // (--pads obs.json: only the I/O designs, on that observation's pads: another package, PART naming it)
+  const pads = padsObs ? observedPads(padsObs) : devicePads(dev);
+  const io = [['iobddr', () => iobDdr(dev, clkPin, PART, pads)], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, clkPin, PART, pads)])];
+  const done = [];
+  for (const [name, f] of padsObs ? io : [['ramwide', () => ram(dev, true)], ['ramnarrow', () => ram(dev, false)], ['multcasc', () => multCascade(dev)], ['dcmpins', () => dcmPins(dev)], ...io]) {
     const { v, ucf } = f();
     fs.mkdirSync(`${out}/${name}`, { recursive: true });
     fs.writeFileSync(`${out}/${name}/top.v`, v);
     fs.writeFileSync(`${out}/${name}/top.ucf`, ucf);
+    done.push(name);
   }
-  console.log(`${PART}: ramwide, ramnarrow, multcasc, dcmpins, iobddr, iobclk2-0, -1, -2`);
+  console.log(`${PART}: ${done.join(', ')}`);
 }

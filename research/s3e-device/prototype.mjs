@@ -13,8 +13,9 @@
 //   node prototype.mjs build obs.json clb-tiles.txt out.json.gz dir...   the measured CLB array
 //   node prototype.mjs compare measured.json.gz                 against the shipped graph (local scoring only)
 //   node prototype.mjs score dir...                             the tests' verdicts against the shipped graph (local scoring only)
-//   node prototype.mjs pins obs.json                            the observed pin wires against the shipped graph, per site
-//                                                               type (local scoring only; pins.mjs)
+//   node prototype.mjs pins obs.json [other.json…]              the observed pin wires against the shipped graph, per site
+//                                                               type (local scoring only; pins.mjs); other.json: another
+//                                                               package's observation, its pads renamed (renamePads)
 //
 // switch-tiles.txt: the tiles that hold a switch box (the tile probe, probe-run.mjs, plus the DCM and
 // corner tiles seen in ISE's designs); clb-tiles.txt: the CLB tiles (the tile probe).
@@ -29,7 +30,7 @@ import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } f
 import { joinTestDesigns, parseJoinTests, testSources } from './hypotheses.mjs';
 import { clbSlices } from './gen-observe.mjs';
 import { packMeasured } from './build.mjs';
-import { pinCensus } from './pins.mjs';
+import { pinCensus, renamePads } from './pins.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DB = path.join(HERE, '../s3e-bitstream/db');
@@ -299,7 +300,9 @@ if (cmd === 'observe') {
   if (wrong.length) console.log('disagree:\n  ' + wrong.join('\n  '));
 } else if (cmd === 'pins') {
   const R = loadDevice(readJson(path.join(HERE, '../../core/fpga/devices', `${PART}.json.gz`)));
-  const c = pinCensus(readJson(args[0]), R);
+  const others = args.slice(1).map(f => renamePads(readJson(f), R));
+  for (const [i, o] of others.entries()) if (o.dropped.length) console.log(`${args[i + 1]}: ${o.dropped.length} I/O sites with no I pin fact left out`);
+  const c = pinCensus({ pins: [...readJson(args[0]).pins, ...others.flatMap(o => o.pins)] }, R);
   console.log(`${c.right} pin facts agree with the shipped graph, ${c.wrong.length} do not`);
   for (const w of c.wrong.slice(0, 20)) console.log(`  ${w}`);
   for (const [ty, t] of Object.entries(c.types)) {
