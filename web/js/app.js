@@ -211,7 +211,12 @@ export const history = createHistory(api, {
     for (const p of reopen.reverse()) if ((S.diskTree || []).includes(p)) await openFile(p).catch(() => {});
   },
 });
-setActionRunner((label, fn) => (NOT_RECORDED.test(String(label || '')) ? fn() : history.run(label, fn)));
+// (the toolbar's buttons refreshed when a command ends: Undo / Redo follow the project's history at once, #1199)
+setActionRunner((label, fn) => {
+  const r = NOT_RECORDED.test(String(label || '')) ? fn() : history.run(label, fn);
+  Promise.resolve(r).finally(() => refreshSteps()).catch(() => {});
+  return r;
+});
 
 // Undo / Redo (Edit menu, toolbar, Ctrl+Z / Ctrl+Y outside an editor): the project's last command
 // when it is newer than the last edit of the active document, else the document's own undo
@@ -228,10 +233,12 @@ export const redoesProject = () => history.canRedo() && !(S.active?._editedAt > 
 export async function projectUndo() {
   const e = await history.undo();
   if (e) log(`Undo: ${e.label}.`, 'ok');
+  refreshSteps();
 }
 export async function projectRedo() {
   const e = await history.redo();
   if (e) log(`Redo: ${e.label}.`, 'ok');
+  refreshSteps();
 }
 export const undoAny = () => (undoesProject() ? projectUndo() : docEditor(S.active)?.undo());
 export const redoAny = () => (redoesProject() ? projectRedo() : docEditor(S.active)?.redo());
