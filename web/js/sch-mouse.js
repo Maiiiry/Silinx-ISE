@@ -16,7 +16,7 @@ export function mountSchMouse(ctx) {
     container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, curve,
     cursor, destroyed, doc, drag, finishSegMove, finishWire, flash, hoverPin, ioClick, itemAt, keepConn, live, modules,
     netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render, renderOverlay, renderProps, sel,
-    setTool, spaceDown, svg, toSheet, tool, updateStatus, view, wireClick, wireDraw, zoomAt, setCursor, setDoc, setDrag,
+    setTool, spaceDown, startPlace, svg, toSheet, tool, updateStatus, view, wireClick, wireDraw, zoomAt, setCursor, setDoc, setDrag,
     setHoverPin, setSel, setWireDraw
   } = ctx;
   // a wire drawn as a freehand stroke (#1052)
@@ -205,6 +205,9 @@ export function mountSchMouse(ctx) {
     const it = JSON.parse(raw);
     const src = { type: it.type, params: { ...defaultParams(it.type), ...(it.params || {}) }, rot: 0, mirror: false };
     if (it.type === 'module' && modules()[it.params.module]) src.params.ports = modules()[it.params.module].ports.map(p => ({ name: p.name, dir: p.dir, width: p.width }));
+    // (a finger, #1179: the symbol dragged goes on being placed, by taps on the sheet, until Select or Esc; the mouse:
+    // the symbol dropped selected)
+    if (globalThis.matchMedia?.('(pointer: coarse)').matches) { startPlace(it); placeAt(toSheet(e.clientX, e.clientY)); return; }
     const prevTool = tool();
     if (tool() === 'place') setTool('select');
     placeAt(toSheet(e.clientX, e.clientY), src);

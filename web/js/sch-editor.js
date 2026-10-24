@@ -270,7 +270,7 @@ export function mountSchEditor(container, opts = {}) {
     cursor: () => cursor, destroyed: () => destroyed, doc: () => doc, drag: () => drag, finishSegMove, finishWire,
     flash: (...a) => flash(...a), hoverPin: () => hoverPin, ioClick, itemAt, keepConn, live: () => live,
     modules: () => modules, netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render,
-    renderOverlay, renderProps, sel: () => sel, setTool, spaceDown: () => spaceDown, svg, toSheet, tool: () => tool,
+    renderOverlay, renderProps, sel: () => sel, setTool, spaceDown: () => spaceDown, startPlace, svg, toSheet, tool: () => tool,
     updateStatus, view: () => view, wireClick, wireDraw: () => wireDraw, zoomAt, setCursor: (v) => { cursor = v; },
     setDoc: (v) => { doc = v; }, setDrag: (v) => { drag = v; }, setHoverPin: (v) => { hoverPin = v; },
     setSel: (v) => { sel = v; }, setWireDraw: (v) => { wireDraw = v; }
