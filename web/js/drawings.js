@@ -11,7 +11,7 @@ import { S, activateDoc, closeDocByPath, compileProject, findDoc, flushDoc, hdlI
 import { log } from './console.js';
 import { reloadProject } from './project.js';
 import { markStale, saveAll } from './processes.js';
-import { removeModule, renderHierarchy, saveProjectJson, setTop } from './design.js';
+import { removeModule, renderHierarchy, saveProjectJson, setTop, topMenuItem } from './design.js';
 import { downloadUrl } from './menus.js';
 import { renameDialog } from './rename.js';
 import {
@@ -109,7 +109,7 @@ export async function convertToAsm(mod) {
 export function asmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openAsm(file) },
-    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    S.view === 'sim' ? null : topMenuItem(drawnTop(file), () => setViewAsTop(file)),
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(file) },
     clashItem(file),
@@ -329,7 +329,7 @@ async function syncHdlFromPetri(path, m) {
 export function petriContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openPetri(file) },
-    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    S.view === 'sim' ? null : topMenuItem(drawnTop(file), () => setViewAsTop(file)),
     { label: 'Rename…', action: () => renameDialog(file) },
     clashItem(file),
     { label: 'Remove from Project', action: () => removeModule(file) },
@@ -339,7 +339,7 @@ export function petriContextMenu(e, file) {
 export function fsmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openFsm(file) },
-    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    S.view === 'sim' ? null : topMenuItem(drawnTop(file), () => setViewAsTop(file)),
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to ASM chart', action: () => fsmToAsmChart(file) },
     clashItem(file),
@@ -750,6 +750,8 @@ export async function setViewAsTop(path) {
   alertDlg('Set as Top Module', r?.errors?.length ? `${path.split('/').pop()} cannot be the top yet:\n${r.errors.slice(0, 8).join('\n')}` : `${path.split('/').pop()} defines no module that can be the top.`, 'error');
 }
 export const viewSel = () => (['sch', 'asm', 'tt', 'fsm', 'pn'].includes(S.sel?.type) ? S.sel.file : null);
+// the module a drawing is (its HDL file's, or its own while it has none): Set or Unset as Top Module (#1220)
+export const drawnTop = path => S.modules.find(m => m.file === path && m.kind !== 'package')?.name || topOfView(path);
 export const topOfView = path => { const gen = S.schOwners?.[path] || path; return S.modules.find(m => m.file === gen && m.kind !== 'package')?.name || null; };
 
 // Download a schematic as an ISE 14.7 schematic (.sch); custom symbols come along in a zip.
@@ -779,7 +781,7 @@ async function exportSchAsIse(schPath) {
 export function schContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openSch(file) },
-    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    S.view === 'sim' ? null : topMenuItem(drawnTop(file), () => setViewAsTop(file)),
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(file) },
     clashItem(file),

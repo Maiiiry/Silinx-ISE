@@ -6,10 +6,10 @@ import { alertDlg, confirmDlg, dialog, h, popupMenu, toast } from './ui.js';
 import { api } from './api.js';
 import { log } from './console.js';
 import { markStale, saveAll } from './processes.js';
-import { removeModule, renderHierarchy } from './design.js';
+import { removeModule, renderHierarchy, topMenuItem } from './design.js';
 import { renameDialog } from './rename.js';
 import {
-  clashItem, drawnHdlLanguage, freshHdl, refreshOpenEditor, refreshSyncBanner, setViewAsTop, staleHdl
+  clashItem, drawnHdlLanguage, drawnTop, freshHdl, refreshOpenEditor, refreshSyncBanner, setViewAsTop, staleHdl
 } from './drawings.js';
 
 // ---- truth tables (.tt.json): table -> HDL module, synchronized like ASM charts
@@ -176,7 +176,7 @@ function refreshTtSchematic(ttPath, model) {
 export function ttContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openTt(file) },
-    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    S.view === 'sim' ? null : topMenuItem(drawnTop(file), () => setViewAsTop(file)),
     { label: 'Rename…', action: () => renameDialog(file) },
     clashItem(file),
     { label: 'Remove from Project', action: () => removeModule(file) },
