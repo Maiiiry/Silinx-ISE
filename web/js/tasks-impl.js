@@ -11,9 +11,9 @@
 /** The Processes list of the top module in the Implementation view (Implement's side panel). */
 export function showTopProcesses(app) {
   const S = app.S, top = S.project?.top;
-  if (!top) return;
   S.view = 'impl';
-  S.sel = { type: 'module', module: top, file: S.modules.find(m => m.name === top)?.file };
+  // (no top: none selected, the panel drawn so, not left as it was, #1162)
+  S.sel = top ? { type: 'module', module: top, file: S.modules.find(m => m.name === top)?.file } : null;
   app.renderProcesses();
 }
 

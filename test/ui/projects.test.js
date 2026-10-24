@@ -712,3 +712,18 @@ uiTest('Remove from Project of a diagram (ASM chart): it leaves the hierarchy, t
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => r.textContent.includes('ctl.asm.json')), [], { what: 'chart back in the hierarchy' });
   assert.ok(await inHier());
 });
+
+// #1162: a project opened after another: its own processes, not the last one's (their list, caption and states), also
+// with no state of its own to restore (no run yet) and no top module
+uiTest('#1162 the Processes panel after opening another project: not the last project\'s processes and states', E, async (page) => {
+  await makeProject(env, { name: 'ProcsFull', template: 'blinky' });
+  await makeProject(env, { name: 'ProcsEmpty' });
+  await page.openProject('ProcsFull');
+  await page.treeRow('#hier', 'top');
+  await page.waitFor(() => document.getElementById('proc-caption').textContent === 'Processes: top' && [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize')), [], { what: 'the top\'s processes' });
+  // a state of the last project's (as a run leaves it)
+  await page.eval(() => { window.SilinxApp.S.status.synth = 'ok'; window.SilinxApp.renderProcesses(); });
+  await page.openProject('ProcsEmpty');
+  const procs = await page.eval(() => ({ caption: document.getElementById('proc-caption').textContent, rows: [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent), states: document.querySelectorAll('#procs .status svg').length }));
+  assert.deepEqual(procs, { caption: 'Processes: ', rows: ['Design Summary/Reports'], states: 0 });
+});
