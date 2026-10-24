@@ -35,7 +35,9 @@ export function wireFamily(name) {
   if (/^(?:COUT_N|CIN)\d+$/.test(name)) return 'carry';
   // (a pin wire stays in its tile: CLKT_GCLK_PINWIREk, a BUFGMUX's O)
   if (/GCLK/.test(name) && !/PINWIRE/.test(name)) return 'gclk';
-  if (/^BRAM_/.test(name)) return `pin:${name.replace(/_INT(\d*)$/, '$1')}`;
+  // (a block RAM's pin in its site tile, BRAM_CLK2_INT1, and in the interconnect tile, BRAM_CLK2: the digit after _INT
+  // says which of the four interconnect tiles, #3)
+  if (/^BRAM_/.test(name)) return `pin:${name.replace(/_INT\d*$/, '')}`;
   return null;
 }
 
@@ -48,24 +50,26 @@ const splitKey = k => { const i = k.indexOf('/'); return [k.slice(0, i), k.slice
  *   sites: [{ site, tile, type }] (instances placed by ISE: the site exists, is in that tile, takes that type)
  *   joins: [[ 'TILE/WIRE', 'TILE/WIRE' ]] (a to-wire and a from-wire of different tiles that are one node)
  *   pins: [{ site, pin, dir: 'o' | 'i', tile, wire }] (the tile wire a site pin is attached to)
+ *   pinJoins: [{ site, pin, tile, end: 'TILE/WIRE' }] (a sink pin on the node of another tile's wire, its own unnamed: a
+ *     carry chain's lower CIN, #3)
  *   ambiguous: [{ from: 'TILE/WIRE', candidates: ['TILE/WIRE', ...] }]  unexplained: ['TILE/WIRE']
  */
 export function observeDesign(design) {
   const instSite = new Map(design.insts.filter(i => i.placed).map(i => [i.name, i]));
-  const out = { pips: [], sites: [], joins: [], pins: [], ambiguous: [], unexplained: [] };
+  const out = { pips: [], sites: [], joins: [], pins: [], pinJoins: [], ambiguous: [], unexplained: [] };
   for (const i of instSite.values()) out.sites.push({ site: i.site, tile: i.tile, type: i.type });
   for (const net of design.nets) {
     if (!net.pips.length) continue;
     for (const p of net.pips) out.pips.push(p);
     const r = observeNet(net, instSite);
-    for (const k of ['joins', 'pins', 'ambiguous', 'unexplained']) out[k].push(...r[k]);
+    for (const k of ['joins', 'pins', 'pinJoins', 'ambiguous', 'unexplained']) out[k].push(...r[k]);
   }
   return out;
 }
 
 /** The joins and pin wires one routed net shows (see observeDesign). instSite: inst name -> inst. */
 export function observeNet(net, instSite) {
-  const res = { joins: [], pins: [], ambiguous: [], unexplained: [] };
+  const res = { joins: [], pins: [], pinJoins: [], ambiguous: [], unexplained: [] };
   // signal direction of each PIP: a bidirectional PIP ('=-') is named in one orientation whatever
   // the direction of the signal; it is turned round when that continues the net from a driven wire
   const pips = net.pips.map(p => ({ tile: p.tile, from: p.from, to: p.to }));
@@ -107,10 +111,20 @@ export function observeNet(net, instSite) {
     if (!byTile.has(inst.tile)) byTile.set(inst.tile, []);
     byTile.get(inst.tile).push({ ...ip, site: inst.site });
   }
+  // (a sink in a tile where the net has no PIP: a carry chain's lower CIN, COUT -> COUT_Nk in the tile below and nothing
+  // in the pin's own tile: the pin is on that wire's node, its own wire not named by the route; pinJoins)
+  const carryEnds = ends.filter(p => wireFamily(p.to) === 'carry');
   for (const [tile, sinks] of byTile) {
     const e = endsIn(tile);
     if (sinks.length === 1 && e.length === 1) res.pins.push({ site: sinks[0].site, pin: sinks[0].pin, dir: 'i', tile, wire: e[0] });
+    else if (sinks.length === 1 && !e.length && !pips.some(p => p.tile === tile) && carryEnds.length === 1) res.pinJoins.push({ site: sinks[0].site, pin: sinks[0].pin, tile, end: key(carryEnds[0].tile, carryEnds[0].to) });
   }
+  // (the last ones, #3: in a legal tree a from-wire nothing drives is fed by a join, and an end no PIP continues and no
+  // pin takes feeds one; when exactly one of each is left, in two tiles, they are joined: a clock pad's IOIS_IBUFk into
+  // its clock tile's CLKT_CKIk, wires of no family)
+  const taken = new Set([...res.pins.filter(p => p.dir === 'i').map(p => key(p.tile, p.wire)), ...res.joins.map(j => j[0]), ...res.ambiguous.flatMap(a => a.candidates)]);
+  const loose = [...new Set(pips.filter(p => !fromSet.has(key(p.tile, p.to))).map(p => key(p.tile, p.to)))].filter(k => !taken.has(k));
+  if (res.unexplained.length === 1 && loose.length === 1 && splitKey(loose[0])[0] !== splitKey(res.unexplained[0])[0]) res.joins.push([loose[0], res.unexplained.pop()]);
   return res;
 }
 

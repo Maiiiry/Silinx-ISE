@@ -148,6 +148,8 @@ function testXdl(part, tests) {
     // (an input-only pad is an IBUF site: the instance of the site's own type, in its own tile)
     const at = `${of.get(site).tile || 'TILE'} ${site}`;
     if (types.get(site) === 'IOB') { lines.push(`inst "${n}" "${of.get(site).siteType || 'IOB'}", placed ${at} ,`, `  cfg " IDELMUX::1 IMUX::1 IOATTRBOX::LVCMOS25 INBUF:${n}_ibuf: PAD:${n}_pad: " ;`); continue; }
+    // (a global buffer: its output O, no input, #3's clock network)
+    if (types.get(site) === 'BUFGMUX') { lines.push(`inst "${n}" "BUFGMUX", placed ${at} ,`, `  cfg " DISABLE_ATTR::LOW GCLK_BUFFER:${n}: " ;`); continue; }
     if (types.get(site) === 'RAMB16') { lines.push(`inst "${n}" "RAMB16", placed ${at} ,`, `  cfg " PORTA_ATTR::512X36 PORTB_ATTR::512X36 RAMB16:${n}.RAMB16: RAMB16A:${n}.A: RAMB16B:${n}.B: " ;`); continue; }
     const f = outs.has('X') ? ` F:${n}_f:#LUT:D=A1 FXMUX::F XUSED::0` : '';
     const g = outs.has('Y') ? ` G:${n}_g:#LUT:D=A1 GYMUX::G YUSED::0` : '';
@@ -194,15 +196,16 @@ const IOB_SITE = /^(IOB|IBUF|DIFF[MS]I?)$/;
  *   device (a Device, with joins): an I/O tile of the joins with no input observed takes its unbonded IOB sites (bonded
  *     2: NOPADk, bonded in no package) as sources, an IBUF on each, the I pin's wire from an observed tile of the same
  *     type at the same site position, else Ik_PINWIRE for the tile's k-th IOB, the rule every observed one follows
- *     (throws if one does not; a wrong name would only make xdl -xdl2ncd refuse the design).
+ *     (throws if one does not; a wrong name would only make xdl -xdl2ncd refuse the design);
+ *   bufg: the global buffers' outputs (O) too, the sources of the clock network's tests (#3, the measured description).
  */
-export function testSources(obs, { sourceObs = null, device = null, joins = [] } = {}) {
+export function testSources(obs, { sourceObs = null, device = null, joins = [], bufg = false } = {}) {
   const typed = o => { const t = new Map(o.sites.map(x => [x.site, x.type])); return o.pins.map(p => ({ ...p, ty: t.get(p.site) })); };
   const extra = new Map();
   const add = x => { if (!extra.has(x.tile)) extra.set(x.tile, []); extra.get(x.tile).push(x); };
   for (const p of [...typed(obs).filter(q => !sourceObs || !IOB_SITE.test(q.ty)), ...(sourceObs ? typed(sourceObs).filter(q => IOB_SITE.test(q.ty)) : [])]) {
-    const kind = IOB_SITE.test(p.ty) ? 'IOB' : p.ty === 'RAMB16' ? 'RAMB16' : null;
-    if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin))) continue;
+    const kind = IOB_SITE.test(p.ty) ? 'IOB' : p.ty === 'RAMB16' ? 'RAMB16' : bufg && p.ty === 'BUFGMUX' ? 'BUFGMUX' : null;
+    if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin)) || (kind === 'BUFGMUX' && p.pin !== 'O')) continue;
     add({ site: p.site, type: kind, siteType: p.ty, tile: p.tile, o: p.pin, wire: p.wire });
   }
   if (!device) return extra;
