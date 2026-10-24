@@ -185,3 +185,30 @@ test('#1137 schematic drawing: every symbol turned and mirrored, its pin names i
   }
   assert.deepEqual(bad, []);
 });
+
+// #1138: ADD and SUB in the adder's usual shape (narrower on the result's side, notched between A and B), each pin's
+// lead ending on its outline; COMP, and ADD / SUB with a pin per bit, boxes
+test('#1138 schematic drawing: ADD and SUB drawn as an adder (a notched trapezoid), their leads ending on it; COMP a box', () => {
+  const onSeg = (p, a, b) => Math.abs((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) < 1e-6
+    && p.x >= Math.min(a.x, b.x) - 1e-6 && p.x <= Math.max(a.x, b.x) + 1e-6 && p.y >= Math.min(a.y, b.y) - 1e-6 && p.y <= Math.max(a.y, b.y) + 1e-6;
+  for (const [type, params] of [['add', {}], ['add', { cin: true, cout: true }], ['sub', { bin: true, bout: true }]]) {
+    const sym = { id: 'S1', type, x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params: { ...defaultParams(type), ...params } };
+    const def = symbolDef(sym), body = bodySvg(sym, def), what = `${type} ${JSON.stringify(params)}`;
+    assert.doesNotMatch(body, /<rect class="gate"/, what);
+    const d = attrs(body.match(/<path class="gate"[^>]*>/)[0]).d;
+    const pts = [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => ({ x: +m[1], y: +m[2] }));
+    assert.deepEqual(pts.map((p) => `${p.x},${p.y}`), ['20,0', '60,8', `60,${def.h - 8}`, `20,${def.h}`, '20,25', '27,20', '20,15'], what);
+    // (the notch between A and B)
+    const [a, b] = ['A', 'B'].map((n) => def.pins.find((p) => p.name === n).y);
+    assert.ok(a < 20 && 20 < b, what);
+    for (const p of def.pins) {
+      const lead = [...body.matchAll(/<line class="pin[^"]*"[^>]*>/g)].map((m) => attrs(m[0])).find((l) => +l.x1 === p.x && +l.y1 === p.y || +l.x2 === p.x && +l.y2 === p.y);
+      const inner = +lead.x1 === p.x && +lead.y1 === p.y ? { x: +lead.x2, y: +lead.y2 } : { x: +lead.x1, y: +lead.y1 };
+      assert.ok(pts.some((q, i) => onSeg(inner, q, pts[(i + 1) % pts.length])), `${what}: ${p.name}'s lead on the outline`);
+    }
+  }
+  for (const [type, params] of [['compare', {}], ['add', { width: 4, bits: true }]]) {
+    const sym = { id: 'S1', type, x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params: { ...defaultParams(type), ...params } };
+    assert.match(bodySvg(sym, symbolDef(sym)), /<rect class="gate"/, type);
+  }
+});

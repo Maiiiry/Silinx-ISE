@@ -91,7 +91,10 @@ export function bodySvg(sym, def) {
       break;
     }
     case 'arith': {
-      s += `<rect class="gate" x="20" y="0" width="40" height="${h}"/>`;
+      // ADD and SUB in the adder's usual shape (#1138): narrower on the result's side, notched between the operands
+      // A and B (y 10 and 30); COMP a box
+      if (sym.type === 'add' || sym.type === 'sub') s += `<path class="gate" d="M20,0 L60,8 L60,${h - 8} L20,${h} L20,25 L27,20 L20,15 Z"/>`;
+      else s += `<rect class="gate" x="20" y="0" width="40" height="${h}"/>`;
       for (const p of pins) s += p.side === 'W' ? lead(0, p.y, 20, p.y, bus(p)) : lead(60, p.y, p.x, p.y, bus(p));
       break;
     }
