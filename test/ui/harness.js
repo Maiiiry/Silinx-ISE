@@ -432,6 +432,22 @@ class PageBase {
     // (and the app's start-up checks done: their lines, e.g. 'ISE not available', written before a test reads the console)
     await this.waitFor((n) => window.Silinx.project?.name === n && document.querySelector('#hier .row') && window.Silinx.startupChecked, [name], { what: `project ${name} open` });
   }
+  /** The messages (the bottom console) shown: the modern interface's task may have them folded (#1149). */
+  async showMessages() {
+    if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.console === 'folded')) {
+      await this.click('#task-bar [data-act=console]');
+      await this.waitFor(() => document.documentElement.dataset.console !== 'folded', [], { what: 'the messages shown' });
+    }
+  }
+  /** A page of the side panel (start, design, files, libraries) by its tab; the modern interface's are Design's (its
+   *  layout by tasks, #1149): that task first. */
+  async leftTab(name) {
+    if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.task !== 'edit')) {
+      await this.click('#task-switch .task-btn[data-task="edit"]');
+      await this.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
+    }
+    await this.click(`#left-tabs .tab[data-page=${name}]`);
+  }
   /** The Design pane's view, Implementation or Simulation: its radio button; the modern interface has no views (its
    *  layout by tasks, #1149): the app's view set as the radio would. */
   async setView(view) {
@@ -751,7 +767,7 @@ const TABLET_UA = {
 export const chromeOnly = BROWSER === 'chrome' ? undefined : `needs the Chrome DevTools Protocol (not in ${BROWSER})`;
 
 // the scripts every page starts with
-function initScripts({ updateCheck, build }) {
+function initScripts({ updateCheck, build, ui }) {
   return [
     // a Content-Security-Policy violation (the server's header, the static editions' <meta>, #487) is a
     // console error, which fails the test, in every browser
@@ -764,6 +780,8 @@ function initScripts({ updateCheck, build }) {
     // the Console's lines, every one: the modern interface's message centre hides those of the other tasks (#1149)
     "window.__console = () => [...(document.getElementById('console-log')?.children || [])].map((l) => l.textContent).join('\\n');",
     // SILINX_UI_INTERFACE=classic: run the tests in the Xilinx ISE interface (the default is the modern one)
+    // a test of the classic interface's own parts (its views, its Processes panel: the modern interface has none, #1149)
+    ...(ui ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(ui)}); } catch (e) {}`] : []),
     ...(process.env.SILINX_UI_INTERFACE ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(process.env.SILINX_UI_INTERFACE)}); } catch (e) {}`] : []),
   ];
 }
@@ -774,7 +792,7 @@ function initScripts({ updateCheck, build }) {
  * npm dependencies are missing from <root>/node_modules (root: the checkout; a test's own).
  * `server: false` for tests that do not need the Silinx server (standalone edition, or one started
  * by the test). `offline: true`: the browser's requests to other hosts are refused and recorded in
- * env.external (see startRecordingProxy). env.newPage(url, { updateCheck, build }) opens a page (the
+ * env.external (see startRecordingProxy). env.newPage(url, { updateCheck, build, ui }) opens a page (the
  * update check against GitHub only with updateCheck: true). `fileAccess: false`: Chrome without
  * --allow-file-access-from-files, as a user opens a file (the standalone edition from file://, #512).
  */
@@ -796,7 +814,7 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
   env.chromeProc = proc;
   env.cdp = cdp;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null, ui = null } = {}) => {
     const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
@@ -807,7 +825,7 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
     if (proxy) await page.recordExternal(env.external);
     await page.send('Runtime.enable');
     await page.send('Page.enable');
-    for (const source of initScripts({ updateCheck, build })) await page.send('Page.addScriptToEvaluateOnNewDocument', { source });
+    for (const source of initScripts({ updateCheck, build, ui })) await page.send('Page.addScriptToEvaluateOnNewDocument', { source });
     await page.send('DOM.enable');
     await page.send('Emulation.setDeviceMetricsOverride', { ...(tablet ? TABLET[tablet] : { width: 1400, height: 900 }), deviceScaleFactor: 1, mobile: false });
     // (a tablet: a touch screen, its pointer coarse and no hover, an Android tablet's Chrome, #1130)
@@ -855,13 +873,13 @@ async function setupPlaywright({ server, offline }) {
   const browser = await type.launch({ executablePath, ...(proxy ? { proxy: { server: proxy.url } } : {}) });
   env.pw = browser;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null, tablet = null, ui = null } = {}) => {
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
     // (a tablet, #1130: its screen with touch; WebKit as an iPad's Safari, Firefox as an Android tablet's)
     const device = tablet ? { viewport: TABLET[tablet], hasTouch: true, userAgent: BROWSER === 'webkit' ? TABLET_UA.ipad : TABLET_UA.android } : { viewport: { width: 1400, height: 900 } };
     const context = await browser.newContext({ ...device, acceptDownloads: true });
-    for (const content of initScripts({ updateCheck, build })) await context.addInitScript({ content });
+    for (const content of initScripts({ updateCheck, build, ui })) await context.addInitScript({ content });
     const page = new PwPage(env, context, await context.newPage(), downloadDir);
     if (url) await page.goto(url);
     return page;
@@ -883,7 +901,7 @@ async function setupPlaywright({ server, offline }) {
  */
 // skip: a reason to skip the test (e.g. it needs the default interface)
 // tablet: 'landscape' | 'portrait': the page a tablet's (TABLET, #1130)
-export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build, tablet } = {}) {
+export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build, tablet, ui } = {}) {
   test(name, { timeout }, async (t) => {
     const env = typeof envRef === 'function' ? envRef() : envRef;
     if (env.skip || skip) { t.skip(env.skip || skip); return; }
@@ -894,7 +912,7 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build, ta
     const listWs = async () => new Set(ws ? await fsp.readdir(ws).catch(() => []) : []);
     for (let attempt = 1; ; attempt++) {
       const before = await listWs();
-      try { await runUiTest(name, env, fn, url, t, build, tablet); return; } catch (e) {
+      try { await runUiTest(name, env, fn, url, t, build, tablet, ui); return; } catch (e) {
         if (!(e instanceof PageGoneError) || BROWSER === 'chrome' || attempt > 1) throw e;
         console.error(`# ${e.message}, in '${name}': run once more in a fresh page (#237)`);
         t.diagnostic(`${e.message}: run once more in a fresh page`);
@@ -903,8 +921,8 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build, ta
     }
   });
 }
-async function runUiTest(name, env, fn, url, t, build, tablet) {
-  const page = await env.newPage(url ? url(env) : undefined, { build, tablet });
+async function runUiTest(name, env, fn, url, t, build, tablet, ui) {
+  const page = await env.newPage(url ? url(env) : undefined, { build, tablet, ui });
   try {
     if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
     await fn(page, env, t);

@@ -411,6 +411,7 @@ uiTest('Close Project while the project is still opening: closed after the openi
   assert.doesNotMatch(await page.consoleText(), /ERROR/);
 });
 
+// (the classic interface's views and Processes panel: the modern one has none, #1149)
 uiTest('Add Copy of Source: new files, association, overwrite confirmation (No keeps, Yes replaces)', E, async (page) => {
   const orig = 'library ieee; use ieee.std_logic_1164.all;\nentity inv is port (a : in std_logic; y : out std_logic); end inv;\narchitecture r of inv is begin y <= not a; end r;\n';
   await makeProject(env, { name: 'Copies', files: { 'src/inv.vhd': orig }, top: 'inv' });
@@ -448,24 +449,24 @@ uiTest('Add Copy of Source: new files, association, overwrite confirmation (No k
   await add(['syn_only.v'], 'impl');
   await page.waitFor(() => window.Silinx.project.files.find((f) => f.path === 'src/syn_only.v')?.role === 'impl', [], { what: 'syn_only.v implementation only' });
   await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'syn_only'), [], { what: 'syn_only in the Implementation view' });
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   await page.waitFor(() => document.querySelector('input[name=view][value=sim]')?.getClientRects().length > 0, [], { what: 'Design page shown' });
   await page.setView('sim');
   await page.waitFor(() => ![...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'syn_only') && [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'tb_buf2'), [], { what: 'syn_only hidden in the Simulation view' });
   await page.setView('impl');
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   await page.waitFor(() => [...document.querySelectorAll('#files-page tr')].some((r) => r.cells[0]?.textContent === 'src/syn_only.v' && r.cells[1]?.textContent === 'Implementation'), [], { what: 'Files view: Implementation' });
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   // Yes: replaced, and the open editor of that file shows the new text after reopening
   await add(['inv.vhd'], 'design', 'Yes');
   await page.waitFor(async () => true);
   await page.waitConsole(/(Added 1 source file\(s\)\.[\s\S]*){4}/);   // buf2, tb_buf2, syn_only, then inv replaced
   assert.equal(await readWs(env, 'Copies', 'src/inv.vhd'), changed);
   // Files view: every file with its association
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   const rows = await page.eval(() => [...document.querySelectorAll('#files-page tr')].slice(1).map((r) => [...r.cells].map((c) => c.textContent).join('|')));
   assert.ok(rows.includes('src/inv.vhd|All|vhdl') && rows.includes('src/buf2.v|All|verilog') && rows.includes('sim/tb_buf2.v|Simulation|verilog'), rows.join('\n'));
-});
+}, { ui: 'classic' });
 
 uiTest('Files view: rename a file into another folder, remove a file (right-click)', E, async (page) => {
   await makeProject(env, {
@@ -476,7 +477,7 @@ uiTest('Files view: rename a file into another folder, remove a file (right-clic
     },
   });
   await page.openProject('FilesPj');
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   const row = (text) => page.waitFor((t) => { const r = [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.cells[0]?.textContent === t); return r >= 0 ? r + 1 : 0; }, [text]).then((i) => i - 1);
   // rename src/a.vhd -> rtl/core/a.vhd
   await page.rightClick('#files-page tr', { index: await row('src/a.vhd') });
@@ -570,7 +571,7 @@ uiTest('Files view: rename a folder (its files and subfolders follow, still regi
     },
   });
   await page.openProject('FoldPj');
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   const folderRow = (dir) => page.waitFor((d) => { const i = [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.dataset.folder === d); return i >= 0 ? i + 1 : 0; }, [dir]).then((i) => i - 1);
   // rename src -> rtl: both files (also the one in src/sub) move and stay registered
   await page.rightClick('#files-page tr', { index: await folderRow('src') });
@@ -690,7 +691,7 @@ uiTest('Remove from Project of a diagram (ASM chart): it leaves the hierarchy, t
   await page.openProject('ExclPj');
   const inHier = () => page.eval(() => [...document.querySelectorAll('#hier .row')].some((r) => r.textContent.includes('ctl.asm.json')));
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => r.textContent.includes('ctl.asm.json')), [], { what: 'chart in the hierarchy' });
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   const idx = await page.waitFor(() => { const i = [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.cells[0]?.textContent === 'src/ctl.asm.json'); return i >= 0 ? i + 1 : 0; }) - 1;
   await page.rightClick('#files-page tr', { index: idx });
   await page.waitForSelector('body > .menu-popup');
@@ -699,7 +700,7 @@ uiTest('Remove from Project of a diagram (ASM chart): it leaves the hierarchy, t
   await page.dialogButton('Yes');
   await page.waitFor(() => (window.Silinx.project.excluded || []).includes('src/ctl.asm.json'), [], { what: 'chart excluded' });
   await fs.access(path.join(env.server.workspace, 'ExclPj', 'src/ctl.asm.json'));
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   await page.waitFor(() => ![...document.querySelectorAll('#hier .row')].some((r) => r.textContent.includes('ctl.asm.json')), [], { what: 'chart left the hierarchy' });
   // the Edit menu has one Undo, which now undoes the removal; Ctrl+Z (outside an editor) does it
   const items = await page.openMenu('Edit');

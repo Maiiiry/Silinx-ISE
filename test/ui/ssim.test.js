@@ -33,6 +33,7 @@ uiTest('#920 SSim: the Processes pane, the simulation\'s tab, its console and pr
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-cmdline span').textContent), 'SSim>');
   // ssim force, and isim force (its old name), both force the signal; the commands echoed after SSim>
   const command = async (cmd) => {
+    await page.showMessages();
     await page.click('#mc-cmd input');   // (SSim's command line: the bottom console's, #925)
     await page.type(cmd);
     await page.key('Enter');
@@ -49,7 +50,7 @@ uiTest('#920 SSim: the Processes pane, the simulation\'s tab, its console and pr
   assert.deepEqual((await consoleLines(page)).filter((l) => /^k-(warning|error|failure)\|/.test(l)), []);
   // Portuguese: the process, the prompt (SSim's own)
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulador SSim', { exact: true });
   assert.ok(!(await procLabels(page)).some((l) => /ISim/.test(l)), (await procLabels(page)).join());

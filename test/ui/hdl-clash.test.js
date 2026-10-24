@@ -250,14 +250,14 @@ const pjFiles = async (name) => (await env.server.api('GET', `/api/projects/${en
 // removes the drawing with it, #234)
 const filesRow = (page, file) => page.waitFor((f) => { const i = [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.cells[0]?.textContent === f); return i >= 0 ? i + 1 : 0; }, [file], { what: `${file} in the Files view` }).then((i) => i - 1);
 const removeInFiles = async (page, file) => {
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   await page.rightClick('#files-page tr', { index: await filesRow(page, file) });
   await page.waitForSelector('body > .menu-popup');
   await page.click('body > .menu-popup .mi', { text: 'Remove from Project' });
   await page.waitDialog('Remove Source');
   await page.dialogButton('Yes');
   await page.waitNoDialog();
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
 };
 
 uiTest('#231 regression, a Petri net whose HDL file is deleted from the folder: made again from it and linked at the next load, said in the console, no warning', E, async (page) => {

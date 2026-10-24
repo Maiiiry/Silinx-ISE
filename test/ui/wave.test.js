@@ -51,6 +51,7 @@ const drawnNames = (page) => page.eval(() => {
 });
 const simTime = (page, ps) => page.waitFor((re) => new RegExp(re).test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [`Sim Time: ${ps} ps`], { what: `sim time ${ps} ps`, timeout: 20000 });
 async function cmd(page, text) {
+  await page.showMessages();
   await page.click('#mc-cmd input');   // (ISim's command line: the bottom console's, #925)
   await page.type(text);
   await page.key('Enter');

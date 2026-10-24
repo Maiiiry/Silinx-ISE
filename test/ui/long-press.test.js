@@ -137,7 +137,7 @@ uiTest('#263 a long press opens the right-click menu of a Design-pane row, its b
   await closeAll(page);
 
   // ---- a Files view row
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   await page.waitFor(() => [...document.querySelectorAll('#files-page tr')].some((tr) => tr.dataset.file === 'src/cnt.vhd'), [], { what: 'the Files view' });
   const fileRow = await page.eval(() => [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.dataset.file === 'src/cnt.vhd'));
   const filesRef = await rightMenu(page, '#files-page tr', { index: fileRow });
@@ -147,7 +147,7 @@ uiTest('#263 a long press opens the right-click menu of a Design-pane row, its b
   await closeAll(page);
   await press(page, '#files-page tr', { index: fileRow, move: 30 });
   assert.equal(await noMenu(page), true);
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
 
   assert.deepEqual(await warnings(page), []);
 });

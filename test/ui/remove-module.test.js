@@ -152,11 +152,11 @@ uiTest('#234 Remove from Project from the drawing\'s badge and from the HDL\'s b
   await page.menu('Edit', 'Undo Remove from Project');
   await linkedTo(page, hdl, k.file);
   // the Files view: the drawing alone; its HDL file stays in the project, a plain HDL module
-  await page.click('#left-tabs .tab[data-page=files]');
+  await page.leftTab('files');
   await page.rightClick('#files-page tr', { index: await filesRow(page, k.file) });
   await page.click('body > .menu-popup .mi', { text: 'Remove from Project' });
   assert.equal(await answer(page), `Remove '${k.file}' from the project?\n(The file stays in the project folder: Undo or Add to Project in the Files view brings it back.)`);
-  await page.click('#left-tabs .tab[data-page=design]');
+  await page.leftTab('design');
   await page.waitFor(() => !Object.keys(window.Silinx.hdlToSch || {}).length, [], { what: 'the drawing out' });
   assert.deepEqual(await rows(page), ['project R_badges', '  chip xc3s250e-4-cp132', '    moduleTop ctl [VHDL*] (ctl.vhd)']);
   assert.deepEqual(await pjFiles('R_badges'), [hdl]);
@@ -183,7 +183,7 @@ uiTest('#234 in Portuguese: Remover do Projeto of a drawn module (the question, 
     await page.menu('Editar', 'Anular Remover do Projeto');
     await linkedTo(page, hdl, k.file);
     // one file (the Files view): its question in Portuguese; Não
-    await page.click('#left-tabs .tab[data-page=files]');
+    await page.leftTab('files');
     await page.rightClick('#files-page tr', { index: await filesRow(page, hdl) });
     await page.click('body > .menu-popup .mi', { text: 'Remover do Projeto' });
     assert.equal(await answer(page, 'Não', 'Remover Fonte'), "Remover 'src/gate.vhd' do projeto?\n(O ficheiro fica na pasta do projeto: Anular ou Acrescentar ao Projeto na vista Ficheiros repõe-no.)");
