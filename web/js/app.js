@@ -348,6 +348,8 @@ export function activateDoc(doc, { background = false } = {}) {
   if (!keepView && !background) drawerGiveWay();   // a narrow screen: the drawer gives way to the document (#266)
   updateTitle();
   saveViewState();
+  // (said, for the Tasks layout to bring its task forward, also when it was in front already behind another task: #1191)
+  dispatchEvent(new CustomEvent('silinx:doc-activated', { detail: { doc, background } }));
 }
 
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
@@ -937,7 +939,7 @@ async function boot() {
   try { last = localStorage.getItem('silinx.lastProject'); } catch { /* ignore */ }
   const projects = await api.projects().catch(() => []);
   // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
-  if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last);
+  if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)
   else showLeftPage('start');
   // check for updates at start-up (a newer release opens the update dialog) unless the setting is off; not awaited
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});

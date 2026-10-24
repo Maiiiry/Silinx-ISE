@@ -376,8 +376,24 @@ export function initTasks(a) {
   addEventListener('keydown', e => {
     if (on() && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter' && !document.querySelector('.dlg-overlay')) { e.preventDefault(); arrange({ max: !arr().max }); }
   });
+  // a document brought to the front that was already in front, behind another task (Design, after the project opened):
+  // its task forward (the tabs' observer sees no change then, #1191)
+  addEventListener('silinx:doc-activated', e => {
+    const { doc, background } = e.detail;
+    if (!on() || background || doc !== lastActive || taskOfDoc(doc.id) === current()) return;
+    state.tasks[taskOfDoc(doc.id)].doc = doc.id;
+    keep();
+    setTask(taskOfDoc(doc.id), { fromDoc: true });
+  });
   // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171)
-  addEventListener('silinx:project-opened', () => { if (on()) { setTask('edit'); app.showLeftPage('design'); } });
+  // (a narrow screen's drawer as it was: the Design pane in it, #266)
+  addEventListener('silinx:project-opened', () => {
+    if (!on()) return;
+    const open = isNarrow() && drawerOpen();
+    setTask('edit');
+    app.showLeftPage('design');
+    if (open && !drawerOpen()) { setDrawer(true, { remember: false }); apply(); }
+  });
   // the documents: opened, closed, brought to the front
   new MutationObserver(followActive).observe($('doc-tabs'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   new MutationObserver(refreshDots).observe($('procs'), { childList: true, subtree: true });

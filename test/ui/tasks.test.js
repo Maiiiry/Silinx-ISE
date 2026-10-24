@@ -1250,7 +1250,7 @@ uiTest('#1159 #1160 Tasks: no heading under the side panel\'s tabs; Implement\'s
 
 // #1171: a project opens in Design (its Design page), whatever task its documents (the Design Summary: Implement's)
 // or the last session left in front: opened from the app, or again at start-up after a reload
-uiTest('#1171 Tasks: a project opens in Design, its Design page; at start-up too', E, async (page) => {
+uiTest('#1171 #1191 Tasks: a project opens in Design, its Design page; at start-up where the user was; what is opened right after it in front', E, async (page) => {
   await makeProject(env, { name: 'TasksOpenA', template: 'blinky' });
   await makeProject(env, { name: 'TasksOpenB', template: 'gates' });
   await page.setViewport(1366, 768);
@@ -1266,11 +1266,18 @@ uiTest('#1171 Tasks: a project opens in Design, its Design page; at start-up too
   await page.openProject('TasksOpenB');
   await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
   assert.deepEqual(await where(), ['edit', 'design']);
-  // Implement in front again, a reload: the project opened again at start-up, in Design
+  // Implement in front again, a reload: the app reopens the project at start-up where the user was, in Implement (#1191)
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => window.Silinx.active?.id === 'summary', [], { what: 'the Design Summary' });
   await page.reload();
-  await page.waitFor(() => window.Silinx?.project?.name === 'TasksOpenB' && window.Silinx.docs.some((d) => d.id === 'summary') && document.documentElement.dataset.task === 'edit', [], { what: 'the project open in Design', timeout: 30000 });
-  assert.deepEqual(await where(), ['edit', 'design']);
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksOpenB' && window.Silinx.active?.id === 'summary', [], { what: 'the project open again', timeout: 30000 });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(await page.eval(() => document.documentElement.dataset.task), 'impl');
+  // a document opened right after the project opens: its task, not Design over it (#1191)
+  await page.openProject('TasksOpenA');
+  await page.eval(() => window.SilinxApp.openImpact());
+  await page.waitFor(() => document.documentElement.dataset.task !== 'edit' && window.Silinx.active?.id === 'impact', [], { what: 'iMPACT in front' });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(await page.eval(() => window.Silinx.active?.id), 'impact');
   await noWarnings(page);
 }, { build: DEV });
