@@ -17,7 +17,7 @@ import { openProject, closeProject, recent, clearRecent, storageMenuItems } from
 import { runImpl, stopProcesses } from './implement.js';
 import { setViewAsTop, topOfView, viewSel } from './drawings.js';
 import { checkSyntax, runProcess, saveAll, topConfirmed } from './processes.js';
-import { setTop } from './design.js';
+import { setTop, unsetTop } from './design.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
@@ -95,8 +95,10 @@ export function setupMenus() {
       { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog(), disabled: hasPj },
       '-',
       // the implementation top (the Simulation view has none: Simulate runs the selected module)
-      S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => (S.sel?.module ? setTop(S.sel.module, false) : viewSel() && setViewAsTop(viewSel())),
-        disabled: () => (S.sel?.module ? S.sel.module === S.project?.top : !viewSel() || (topOfView(viewSel()) && topOfView(viewSel()) === S.project?.top)) },
+      // (the selected module the top: Unset as Top Module, #1220)
+      S.view === 'sim' ? null : (S.project?.top && (S.sel?.module || (viewSel() && topOfView(viewSel()))) === S.project.top
+        ? { label: 'Unset as Top Module', action: () => unsetTop() }
+        : { label: 'Set as Top Module', action: () => (S.sel?.module ? setTop(S.sel.module, false) : viewSel() && setViewAsTop(viewSel())), disabled: () => !S.sel?.module && !viewSel() }),
       { label: 'Design Properties…', action: () => wiz.projectProperties(), disabled: hasPj },
     ] },
     { label: 'Process', items: () => [

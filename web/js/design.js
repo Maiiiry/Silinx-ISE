@@ -233,10 +233,24 @@ export function inView(role, sim) {
   return true;
 }
 
+// Set as Top Module, or on the top module Unset as Top Module (#1220): the project has no top then
+export const topMenuItem = (mod, set) => (mod && S.project?.top && mod.toLowerCase() === S.project.top.toLowerCase()
+  ? { label: 'Unset as Top Module', action: () => unsetTop() } : { label: 'Set as Top Module', action: set });
+export async function unsetTop() {
+  const old = S.project?.top;
+  if (!old) return;
+  S.project.top = '';
+  await saveProjectJson();
+  markStale();
+  renderHierarchy();
+  renderProcesses();
+  log(`Top-level module '${old}' unset: the project has no top module (Set as Top Module makes one).`, 'info');
+}
+
 function moduleContextMenu(e, mod, file) {
   const isSimView = S.view === 'sim';
   popupMenu([
-    isSimView ? null : { label: 'Set as Top Module', action: () => setTop(mod, false) },
+    isSimView ? null : topMenuItem(mod, () => setTop(mod, false)),
     { label: 'Open', action: () => { const i = moduleInfo(mod); if (i) openFile(i.file, i.line); } },
     { label: 'Rename…', action: () => renameDialog(file, mod) },
     { label: 'Check Syntax', action: () => checkSyntax(mod, isSimView) },

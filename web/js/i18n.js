@@ -54,7 +54,7 @@ const PT = {
   'Undo': 'Anular', 'Redo': 'Refazer', 'Replace…': 'Substituir…', 'Go to Line…': 'Ir para a Linha…',
   'Implementation': 'Implementação', 'Simulation': 'Simulação',
   'Design Summary': 'Resumo do Projeto', 'Add Source…': 'Adicionar Fonte…', 'Add Copy of Source…': 'Adicionar Cópia de Fonte…',
-  'Set as Top Module': 'Definir como Módulo de Topo', 'Set as Simulation Top': 'Definir como Topo de Simulação',
+  'Set as Top Module': 'Definir como Módulo de Topo', 'Unset as Top Module': 'Retirar como Módulo de Topo', 'Set as Simulation Top': 'Definir como Topo de Simulação',
   'Design Properties…': 'Propriedades do Projeto…',
   'Implement Top Module': 'Implementar Módulo de Topo', 'Run': 'Executar', 'Check Syntax': 'Verificar Sintaxe',
   'Simulate Behavioral Model': 'Simular Modelo Comportamental', 'ASM State Machine Editor…': 'Editor de Máquinas de Estados ASM…',
