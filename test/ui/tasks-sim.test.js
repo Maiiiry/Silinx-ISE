@@ -49,8 +49,8 @@ uiTest('#1017 Tasks ▸ Simulate: no "Ready … Sim Time" status line; the moder
   // the simulator's state still kept (the other interfaces show it), and its console in the message centre
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-st-msg').textContent), 'Ready');
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines in the message centre' });
-  // the modern and the classic interfaces: the status line as it was
-  for (const ui of ['modern', 'classic']) {
+  // the classic interface (#1149: the modern one is the Tasks one): the status line as it was
+  for (const ui of ['classic']) {
     await setInterface(page, ui);
     await page.waitFor(() => !document.documentElement.dataset.layout, [], { what: ui });
     assert.ok(await shown(page, '.doc:not([hidden]) .isim-status'), `${ui}: the status line`);
@@ -93,15 +93,15 @@ uiTest('#1026 Tasks ▸ Simulate: the simulator\'s icons in the wave window\'s l
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-wavewin > .caption .tb-btn')].slice(0, 4).map((b) => b.title)),
     ['Reiniciar', 'Executar Tudo', 'Executar durante o tempo indicado', 'Passo (avançar para o próximo evento)']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  // the modern and the classic interfaces: the toolbar on its own line again, the name and the cursor's text shown
-  for (const ui of ['modern', 'classic']) {
+  // the classic interface (#1149: the modern one is the Tasks one): the toolbar on its own line again, the name and the cursor's text shown
+  for (const ui of ['classic']) {
     await setInterface(page, ui);
     await page.waitFor(() => !document.documentElement.dataset.layout, [], { what: ui });
     assert.equal(await toolbarAt(page), 'top', ui);
     assert.ok(await shown(page, '.doc:not([hidden]) .isim-wcfg') && await shown(page, '.doc:not([hidden]) .isim-cursor-info'), `${ui}: the name and the cursor`);
   }
   // and back to Tasks: in the line again
-  await setInterface(page, 'tasks');
+  await setInterface(page, 'modern');
   await page.waitFor(() => document.documentElement.dataset.layout === 'tasks', [], { what: 'tasks' });
   assert.equal(await toolbarAt(page), 'caption');
   await noWarnings(page);

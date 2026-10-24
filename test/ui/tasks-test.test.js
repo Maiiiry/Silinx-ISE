@@ -97,14 +97,14 @@ uiTest('#1016 Tasks ▸ Edit: the Test tab after Design, its test benches; added
     await page.waitFor(() => !document.querySelector('#test-tree .row') && !document.querySelector('#test-page .test-none').hidden, [], { what: 'the test bench removed' });
     assert.equal((await testPage(page)).none, 'The project has no test bench yet.');
     assert.deepEqual(await rows(page, '#hier'), ['TasksTestTab', 'xc3s250e-4-cp132', 'and2']);
-    // the modern and classic interfaces: no Test tab nor page, Design in front again
-    for (const ui of ['modern', 'classic']) {
+    // the classic interface (#1149: the modern one is the Tasks one): no Test tab nor page, Design in front again
+    for (const ui of ['classic']) {
       await page.eval(async (u) => (await import('/js/modern.js')).setInterface(u), ui);
       await page.waitFor(() => !document.documentElement.dataset.layout);
       assert.deepEqual(await page.eval(() => ({ tabs: [...document.querySelectorAll('#left-tabs .tab')].map((t) => t.dataset.page), page: !!document.querySelector('.left-page[data-page="test"]'),
         active: document.querySelector('#left-tabs .tab.active')?.dataset.page })), { tabs: ['start', 'design', 'files', 'libraries'], page: false, active: 'design' }, ui);
       assert.ok(await vis(page, '#hier'), ui);
-      await page.eval(async () => (await import('/js/modern.js')).setInterface('tasks'));
+      await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
       await page.waitFor(() => document.querySelector('#left-tabs .tab[data-page="test"]'), [], { what: 'the Tasks interface' });
       await page.click('#task-switch .task-btn[data-task="edit"]');
       await page.click('#left-tabs .tab[data-page="test"]');
