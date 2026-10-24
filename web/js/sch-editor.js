@@ -143,7 +143,7 @@ export function mountSchEditor(container, opts = {}) {
   const btn = (act, icon, title) => h('button', { type: 'button', class: 'se-btn', 'data-act': act, title, html: ICON[icon] });
   const sep = () => h('span', { class: 'se-sep' });
   // Curved wires (#1144, sch-curve.js): the schematic drawn with curves (saved with it), or the technical drawing
-  const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => view, readOnly, edit: (...a) => edit(...a), render: (...a) => render(...a), renderProps: (...a) => renderProps(...a), snapshot: (...a) => snapshot(...a), pushUndo: (...a) => pushUndo(...a), changed: (...a) => changed(...a) });
+  const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => view, readOnly, edit: (...a) => edit(...a), render: (...a) => render(...a), renderProps: (...a) => renderProps(...a), snapshot: (...a) => snapshot(...a), pushUndo: (...a) => pushUndo(...a), changed: (...a) => changed(...a), contentG: () => contentG });
   // (the toolbar's buttons and their clicks: sch-toolbar.js)
   const { optBox } = mountSchToolbar({
     container, btn, canSim, curvedBox: curve.box, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),

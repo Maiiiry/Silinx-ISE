@@ -255,6 +255,10 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   const w = (await getDoc(page)).wires.find(x => x.id === 'W3');
   assert.ok(near(curveAbs(w)[1], P(280, 260), 2), JSON.stringify(curveAbs(w)));
   assert.deepEqual(w.points, w3.points);
+  // the handle kept under the finger while dragged (redrawn in place): its touch ended on it, not on a removed element
+  const drag = (await page.eval(() => window.__ev)).map((x) => x.split(':').slice(0, 4).join(':'));
+  assert.deepEqual(drag.filter((x) => /^(pointerdown|pointerup|touchstart|touchend|lostpointercapture)/.test(x)),
+    ['pointerdown:touch:circle:true', 'touchstart::circle:true', 'pointerup:touch:circle:true', 'lostpointercapture:touch:circle:true', 'touchend::circle:true'], 'the drag\'s touch from its handle to its end');
   const tapped = await page.tap(`${ED} .se-btn[data-act=wire]`);
   try {
     await page.waitFor((ed) => document.querySelector(`${ed} .se-btn[data-act=wire]`).classList.contains('on'), [ED], { what: 'Add Wire by a tap' });
