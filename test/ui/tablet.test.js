@@ -117,3 +117,35 @@ for (const orientation of ['landscape', 'portrait']) {
     }
   }, { tablet: orientation, build: DEV });
 }
+
+// #1179: a symbol dragged from the palette onto the sheet by a finger goes on being placed (a tap on the sheet places
+// another, until Select or Esc); dropped with the mouse, it is selected and Select is the tool again, as before
+const dropSymbol = (page, type, at) => page.eval((t, x, y) => {
+  const dt = new DataTransfer();
+  dt.setData('text/x-silinx-symbol', JSON.stringify({ type: t, params: {} }));
+  document.querySelector('.doc:not([hidden]) .sch-editor .se-canvas').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }));
+}, type, at.x, at.y);
+const placing = (page) => page.eval(() => ({ tool: document.querySelector('.doc:not([hidden]) .sch-editor .se-canvas').dataset.tool ?? 'select', n: window.Silinx.active.schEditor.getDoc().symbols.length }));
+async function openGates(page, name) {
+  await makeProject(env, { name, template: 'gates' });
+  await page.openProject(name);
+  await page.eval(() => window.SilinxApp.openSch('src/gates.sch.json'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .sch-editor .se-symrow'), [], { what: 'the schematic editor' });
+  return page.eval(() => { const r = document.querySelector('.doc:not([hidden]) .sch-editor .se-canvas').getBoundingClientRect(); return { x: r.left + r.width * 0.75, y: r.top + r.height * 0.75 }; });
+}
+uiTest('#1179 tablet: a symbol dragged from the palette goes on being placed by taps on the sheet', E, async (page) => {
+  const at = await openGates(page, 'TabDrop');
+  const n0 = (await placing(page)).n;
+  await dropSymbol(page, 'and2', at);
+  assert.deepEqual(await placing(page), { tool: 'place', n: n0 + 1 });
+  await page.tap({ x: at.x - 90, y: at.y - 70 });
+  await page.waitFor((n) => window.Silinx.active.schEditor.getDoc().symbols.length === n, [n0 + 2], { what: 'a second one placed' });
+  assert.deepEqual(await placing(page), { tool: 'place', n: n0 + 2 });
+  assert.deepEqual(await page.eval(() => window.Silinx.active.schEditor.getDoc().symbols.slice(-2).map((s) => s.type)), ['and2', 'and2']);
+}, { tablet: 'landscape' });
+uiTest('#1179 the mouse: a symbol dropped from the palette is selected, Select the tool again', E, async (page) => {
+  const at = await openGates(page, 'MouseDrop');
+  const n0 = (await placing(page)).n;
+  await dropSymbol(page, 'and2', at);
+  assert.deepEqual(await placing(page), { tool: 'select', n: n0 + 1 });
+});
