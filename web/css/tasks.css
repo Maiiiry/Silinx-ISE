@@ -156,6 +156,10 @@ html[data-layout="tasks"] .emu-board-wrap { flex: none; }
 html[data-layout="tasks"] .emu-side { flex: none; width: 300px; min-width: 0; order: 1; }
 html[data-layout="tasks"] .emu-vga { order: 2; }
 html[data-layout="tasks"][data-task="emu"][data-side="folded"] .emu-side { display: none; }
+/* its Processes at the top of the column, under a tab as Simulate's (#1204): the top's User Constraints, Emulate on Board */
+.task-emu-procs { display: none; }
+html[data-layout="tasks"] .task-emu-procs { display: block; padding: 0; overflow: hidden; }
+html[data-layout="tasks"] .task-emu-tree .tree { padding: 2px 0 4px; }
 /* the emulator's status right below the board (moved there by tasks-emu.js), in place of the board's line (#1022) */
 html[data-layout="tasks"] .emu-board-note { display: none; }
 html[data-layout="tasks"] .emu-board-wrap > .stat { align-self: flex-start; color: var(--grey-3); font: 11px var(--mono, monospace);
@@ -245,3 +249,5 @@ html[data-layout="tasks"] .isim-inst-panel > .caption { display: none; }
 html[data-layout="tasks"] .task-sim-tabs { display: flex; flex: none; align-items: stretch; height: 36px; padding: 4px 6px; border-bottom: 1px solid var(--m-border); }
 html[data-layout="tasks"] .task-sim-tabs .tab { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; padding: 0 9px; border-radius: 6px;
   background: var(--m-accent-soft); color: var(--m-accent); font-size: 12px; font-weight: 600; }
+/* its label whole (not the activity bar's short one), Simulate's and Emulate's (#1204) */
+html[data-layout="tasks"] .task-sim-tabs .tab-lbl { max-width: none; }
