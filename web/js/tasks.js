@@ -281,7 +281,7 @@ function refreshDots() {
   if (on()) arrangeProgram(true);   // (Program's iMPACT, also once its document has its task: #803)
   // no project: Design (its Start page) only, the other tasks off; a project closed brings Design back (#1260)
   const none = !!app && !app.S.project;
-  if (none && on() && current() !== 'edit') setTask('edit');
+  if (none && on() && current() !== 'edit') { setTask('edit'); app.showLeftPage('start'); }   // (its Start page, #1272)
   for (const b of document.querySelectorAll('.task-btn')) {
     const off = none && b.dataset.task !== 'edit';
     if (b.disabled !== off) b.disabled = off;

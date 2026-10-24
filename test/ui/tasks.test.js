@@ -1363,7 +1363,8 @@ uiTest('#1260 Tasks: with no project, Simulate, Emulate and Implement are off an
   const btns = () => page.eval(() => Object.fromEntries([...document.querySelectorAll('#task-switch .task-btn')].map((b) => [b.dataset.task, !b.disabled])));
   await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design in front' });
   assert.deepEqual(await btns(), { edit: true, sim: false, emu: false, impl: false });
-  assert.ok(await shown(page, '#start-page .start-box'), 'the Start page');
+  // (drawn once the projects are listed: waited for, #1272)
+  await page.waitFor(() => { const e = document.querySelector('#start-page .start-box'); return !!e && e.getClientRects().length > 0; }, [], { what: 'the Start page' });
   // a click on an off task does nothing
   await page.eval(() => document.querySelector('#task-switch .task-btn[data-task="impl"]').click());
   assert.equal(await page.eval(() => document.documentElement.dataset.task), 'edit');
