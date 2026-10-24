@@ -175,6 +175,11 @@ table.grid tr.sel td { background: #dbe8fb; }
 #start-page .start-box:first-child h3 { margin-top: 0; }
 .start-box .entry { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
 .start-box .entry .disabled, .start-box .entry.hint { color: #888; cursor: default; }
+/* New Project and Open Project at the top of the Start page, half of it each (#1216); a line between the Silinx and
+   the Xilinx commands */
+.start-btns { display: flex; gap: 6px; margin-bottom: 12px; }
+.start-btns .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.start-box .start-sep { border: none; border-top: 1px solid #c9d7ed; margin: 4px 0; }
 .summary-table { border-collapse: collapse; margin-bottom: 16px; min-width: 640px; }
 .summary-table caption { text-align: left; font-weight: bold; background: linear-gradient(#e9eff8, #c9d7ed); color: #15428b; padding: 3px 8px; border: 1px solid #99bbe8; border-bottom: none; }
 .summary-table th, .summary-table td { border: 1px solid #c5d3e8; padding: 3px 8px; text-align: left; }

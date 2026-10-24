@@ -222,7 +222,7 @@ export function downloadUrl(url, filename) {
 
 // kind 'xilinx': a Xilinx ISE 14.7 project (.xise + sources, opens in ISE);
 // kind 'silinx': the whole Silinx project (silinx.json + every file, ASM charts and schematics included)
-async function exportProjectZip(kind = 'xilinx') {
+export async function exportProjectZip(kind = 'xilinx') {
   await saveAll();
   const title = kind === 'silinx' ? 'Export Silinx ISE Project' : 'Export Xilinx ISE Project';
   try {

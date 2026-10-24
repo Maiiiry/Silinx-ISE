@@ -131,7 +131,7 @@ async function newFromExample(page, t) {
   // (the Start page is drawn again asynchronously after the project closes: a click on the link it replaces is
   // lost, so click until the wizard opens)
   for (let k = 0; ; k++) {
-    await page.click('#start-page .entry a', { text: 'New Project…' });
+    await page.click('#start-page .start-btns .btn', { text: 'New Project…' });   // (a button at the top, #1216)
     try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
   }
   await page.fill('.dlg-overlay .wiz-main select', t);
@@ -141,11 +141,10 @@ uiTest('Start page: no Open Example entries (#776); New Project… lists the sev
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
   // (drawn again asynchronously after the project closes: wait for its Project Commands)
-  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].some((a) => a.textContent === 'New Project…'), [], { what: 'the Start page' });
+  await page.waitFor(() => [...document.querySelectorAll('#start-page .start-btns .btn')].some((a) => a.textContent === 'New Project…'), [], { what: 'the Start page' });
   // the examples are New Project's templates now, not entries of their own (#776)
   const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
   assert.deepEqual(entries.filter((e) => /^Open Example/.test(e)), []);
-  assert.deepEqual(entries.slice(0, 4), ['New Project…', 'Open Project…', 'Import Silinx ISE Project (.zip)…', 'Import Xilinx ISE Project (.zip)…']);
   await newFromExample(page, 'pong');
   // the wizard's list of templates: the empty project, then the examples in their order
   assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay .wiz-main select').options].map((o) => [o.value, o.textContent])),
@@ -592,6 +591,52 @@ uiTest('Files view: rename a folder (its files and subfolders follow, still regi
   await page.dialogButton('Yes');
   await page.waitFor(() => !window.Silinx.project.files.some((f) => f.path === 'old/c.v'));
   await assert.rejects(fs.access(path.join(env.server.workspace, 'FoldPj', 'old')));
+});
+
+// #1216: the Start page: New Project… and Open Project… buttons at the top, half of the page each; Project Commands
+// the Silinx and the Xilinx imports and exports, a line between (the exports disabled with no project; with one,
+// they download its zips); in Portuguese
+const startPage = (page) => page.eval(() => {
+  const p = document.getElementById('start-page');
+  const btns = [...p.querySelectorAll('.start-btns .btn')], w = btns.map((b) => b.getBoundingClientRect().width);
+  const box = p.querySelector('.start-box');
+  return {
+    buttons: btns.map((b) => b.textContent), top: p.querySelector('.page').firstElementChild === p.querySelector('.start-btns'),
+    halves: w.length === 2 && Math.abs(w[0] - w[1]) < 1 && btns.every((b) => b.scrollWidth <= b.clientWidth),
+    commands: [...box.children].slice(1).map((e) => (e.tagName === 'HR' ? '—' : `${e.textContent}${e.querySelector('a') ? '' : ' (disabled)'}`)),
+  };
+});
+uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silinx and Xilinx imports and exports in Project Commands', E, async (page) => {
+  await page.eval(() => window.SilinxApp.closeProject?.());
+  await page.leftTab('start');
+  await page.waitFor(() => document.querySelectorAll('#start-page .start-btns .btn').length === 2, [], { what: 'the Start page' });
+  assert.deepEqual(await startPage(page), { buttons: ['New Project…', 'Open Project…'], top: true, halves: true, commands: [
+    'Import Silinx ISE Project (.zip)…', 'Export Silinx ISE Project (.zip)… (disabled)', '—', 'Import Xilinx ISE Project (.zip)…', 'Export Xilinx ISE Project (.zip)… (disabled)'] });
+  // the buttons: their dialogs
+  await page.click('#start-page .start-btns .btn', { text: 'Open Project…' });
+  await page.waitDialog('Open Project');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  await page.click('#start-page .start-btns .btn', { text: 'New Project…' });
+  await page.waitDialog('New Project Wizard');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  // a project open: the exports enabled, downloading its zips
+  await makeProject(env, { name: 'StartZip', template: 'blinky', board: 'basys2' });
+  await page.openProject('StartZip');
+  await page.leftTab('start');
+  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].some((a) => a.textContent === 'Export Silinx ISE Project (.zip)…'), [], { what: 'the exports enabled' });
+  assert.deepEqual((await startPage(page)).commands, ['Import Silinx ISE Project (.zip)…', 'Export Silinx ISE Project (.zip)…', '—', 'Import Xilinx ISE Project (.zip)…', 'Export Xilinx ISE Project (.zip)…']);
+  await page.click('#start-page .entry a', { text: 'Export Silinx ISE Project (.zip)…' });
+  await waitDownload(page, 'StartZip-silinx.zip');
+  await page.click('#start-page .entry a', { text: 'Export Xilinx ISE Project (.zip)…' });
+  await waitDownload(page, 'StartZip.zip');
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#start-page .start-btns .btn')?.textContent !== 'New Project…', [], { what: 'Portuguese' });
+  assert.deepEqual((await startPage(page)).buttons, ['Novo Projeto…', 'Abrir Projeto…']);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
 });
 
 uiTest('Silinx and Xilinx zip: export, import as a new project, and a failing import keeps the existing project', E, async (page) => {
