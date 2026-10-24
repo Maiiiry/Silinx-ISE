@@ -135,6 +135,7 @@ const EXAMPLES = {
 };
 
 for (const [ex, want] of Object.entries(EXAMPLES)) {
+  // (the classic interface's Design pane: its views, its tree without the modern one's groups, #1149)
   uiTest(`Design pane (#207, #220), the example ${ex}: one row per module, its views as badges after its name (the drawing's first, its HDL's last), in the Implementation and Simulation views`, E, async (page) => {
     await makeProject(env, { name: `H_${ex}`, template: ex });
     await page.openProject(`H_${ex}`);
@@ -147,7 +148,7 @@ for (const [ex, want] of Object.entries(EXAMPLES)) {
     assert.deepEqual(await rows(page), want.sim);
     await view(page, 'impl');
     assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR|generated from|made again|base/);
-  });
+  }, { ui: 'classic' });
 }
 
 // the menus of every module's row and badge in the examples: none of the commands removed by #220
@@ -348,6 +349,7 @@ const example = (ex, file) => fs.readFileSync(new URL(`../../examples/${ex}/${fi
 const withBase = (ex, file) => ({ ...JSON.parse(example(ex, file)), base: 'hdl' });
 const NOTE = '-- my own note, written by hand\n';
 
+// (the classic interface's Design pane: its views, its tree without the modern one's groups, #1149)
 uiTest('a drawing whose base was its HDL (before #220), its HDL what the drawing makes: the drawing made the base, nothing else changed', E, async (page) => {
   const vhd = example('gates', 'src/gates.vhd');
   const sch = withBase('gates', 'src/gates.sch.json');
@@ -364,8 +366,9 @@ uiTest('a drawing whose base was its HDL (before #220), its HDL what the drawing
   // opened again: nothing more to do
   await page.openProject('H_mig_same');
   assert.deepEqual(await consoleAfterOpen(page), []);
-});
+}, { ui: 'classic' });
 
+// (the classic interface's Design pane: its views, its tree without the modern one's groups, #1149)
 uiTest('drawings whose base was their HDL (before #220), the HDL edited by hand: the state diagram, the truth table and the ASM chart made again from it and made the base, the HDL kept as it is (said)', E, async (page) => {
   const files = {};
   for (const [ex, f, hdl] of [['traffic', 'src/traffic.fsm.json', 'src/traffic.vhd'], ['traffic', 'src/lamps.tt.json', 'src/lamps.vhd'], ['blinky', 'src/speed_ctrl.asm.json', 'src/speed_ctrl.vhd']]) {
@@ -401,8 +404,9 @@ uiTest('drawings whose base was their HDL (before #220), the HDL edited by hand:
   assert.deepEqual([a.generatedFile, a.base], ['src/speed_ctrl.vhd', undefined]);
   assert.equal(await readWs(env, 'H_mig_asm', 'src/speed_ctrl.vhd'), files.blinky['src/speed_ctrl.vhd']);
   assert.deepEqual(await rows(page), EXAMPLES.blinky.impl.map((r) => r.replace('H_blinky', 'H_mig_asm')));
-});
+}, { ui: 'classic' });
 
+// (the classic interface's Design pane: its views, its tree without the modern one's groups, #1149)
 uiTest('drawings whose base was their HDL (before #220) that cannot be made again from it (a schematic, HDL the diagram cannot show): the HDL kept as a plain module, the drawing out of the project (its file kept)', E, async (page) => {
   // a schematic whose VHDL was edited by hand
   const vhd = NOTE + example('gates', 'src/gates.vhd');
@@ -455,7 +459,7 @@ end architecture rtl;
     '      verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
     '    ucf traffic.ucf',
   ]);
-});
+}, { ui: 'classic' });
 
 // a drawing's HDL language (its editor's HDL language, a schematic's Language): its HDL file made again in it, the other one
 // removed (no Generate HDL any more, #220); a truth table's too (#696)
@@ -489,6 +493,7 @@ uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagra
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
+// (the classic interface's Design pane: its views, its tree without the modern one's groups, #1149)
 uiTest('#1100 the Design pane: the design tree right under the View selector, no "Hierarchy" heading; in Portuguese too', E, async (page) => {
   await makeProject(env, { name: 'NoHierCaption', template: 'gates' });
   await page.openProject('NoHierCaption');
@@ -504,4 +509,4 @@ uiTest('#1100 the Design pane: the design tree right under the View selector, no
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   assert.equal((await pane()).words, false);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-});
+}, { ui: 'classic' });

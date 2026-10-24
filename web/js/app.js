@@ -844,7 +844,8 @@ export function renderLibsPage() {
 // the Simulation view with module `mod` selected (e.g. a test bench just created): Simulate runs it
 export function showInSim(mod) {
   setView('sim');
-  const row = document.querySelector(`#hier [data-key="${CSS.escape(`m:${mod}`)}"]`);
+  // (the modern interface: the test benches in their own tree, #1016, #1149)
+  const key = CSS.escape(`m:${mod}`), row = document.querySelector(`#hier [data-key="${key}"], #test-tree [data-key="${key}"]`);
   if (row) row.dispatchEvent(new MouseEvent('click'));
 }
 
