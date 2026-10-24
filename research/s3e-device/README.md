@@ -650,3 +650,70 @@ PICK=c2 node clocktests.mjs tests obs.json c3 …/top.xdl && ise-remote.sh -f c3
 node gen-obsclk.mjs clk 6 1 && impl-remote.sh clk0 … clk5
 INTERSECT=1 node prototype.mjs observe obs.json …/top.xdl clk/*/top.xdl
 ```
+
+## 9. Steps 5-6: the measured description of the whole chip, and the examples on it (2026-10-24)
+
+`chip.mjs` builds the whole chip in Silinx's packed format (`build.mjs`), from the measurements only:
+
+- **PIPs of a tile:** the bit database's features of its type (an I/O tile's in its own wire names, as `candidates.mjs
+  io`), less `absent` and the arc probe's refusals in that tile; and every PIP ISE's routes took in a tile of the type.
+- **Pins:** where observed.
+- **Joins:** observed, or confirmed by the tests of rounds 1-8, the edge tiles and the clock network.
+- **Sites:** names, types and bonding from the device report, as round 8 took them.
+
+`prototype.mjs compare` measures it against the shipped graph; then the open flow routes the examples on it
+(`SILINX_CONFIG_DIR=…`, the measured graph in its `devices/`). `scripts/check-open-flow.mjs` gives ISE's verdict.
+
+**What the first build lacked**, each found by the examples and measured in turn:
+
+- **The clock spine.** No slice's clock was reached from a global buffer: the spine's joins (`CLKT_GCLK_MAINk ->
+  GCLKVM*_GCLKCOREk -> GCLKVC -> GCLKH`) were among the ambiguous ones, and the removal tests of step 4 cut them. They
+  are the join tests of rounds 1-8 again, driven from a BUFGMUX's output (`BUFGSRC=1`, `testSources` `bufg`, an
+  instance of no input in the test's XDL): 3 rounds, 476 + 2168 + 3067 tests (every spine hypothesis), 387 joins,
+  **every verdict agreeing**. The clock then reaches all 2448 slices from a top or bottom buffer.
+- **The carry chain.** ISE's routes put their counters in the SLICEL columns. `gen-obscarry.mjs`: 32-bit counters, each
+  in 16 slices of one column (AREA_GROUP), every SLICEM and SLICEL column, two band offsets. A chain's lower CIN is a
+  sink in a tile where its net has no PIP (`COUT3 -> COUT_N3` in the tile below): the observer records it as on that
+  wire's node (`pinJoins`), and `chip.mjs` names its wire CIN<k> of the slice's own COUT<k>, the index every observed
+  carry pin follows.
+- **The slices' CE / SR.** These nets reach several slices of a tile, so a sink pin was rarely its net's one in its tile.
+  `gen-obsslice.mjs`: a flip-flop on every slice, its CE, R and D on the 4 nets of its position (one sink per tile).
+- **F5 / FX / FXINA / FXINB.** `gen-obsmux.mjs`: 300 16:1 multiplexers (MUXF5-MUXF8), placed by ISE.
+- **XB / YB.** ISE's own designs never use them, not even for its comparators. So the evidence is Silinx's routes of
+  four examples on the shipped graph (`XBk -> OMUX`), whose DRC ISE runs clean (an island if the pin's wire were
+  wrong). Only their pins are taken (`chip.mjs --ft`), not their PIPs or joins.
+- **The observer:**
+  - the last loose ends of a net are joined: one undriven from-wire and one end no PIP or pin takes, in two tiles. This
+    is a clock pad's `IOIS_IBUF0` into `CLKT_CKI4`: 2729 joins, all right;
+  - a block-RAM pin's family drops the interconnect index after `_INT` (`BRAM_CLK2_INT1` is `BRAM_CLK2`'s): the block
+    RAMs' clocks;
+  - the I/O tiles' `VCC_PINWIRE` is `IOIS_VCC_WIRE`, the database's `rename` read backwards.
+- **Rules** (`PINRULES=1`), each pin they give checked by ISE where a route uses it: 16 pins, and the count is printed.
+  - a slice pin seen in one CLB type is used in the other (`CENTER_SMALL` / `_BRK`, the same slices);
+  - an XB / YB a position never showed takes the index of its COUT;
+  - a VCC site's VCCOUT is on its type's one `*VCC*` wire.
+
+**Result: all seven examples, routed by the open flow on the measured graph, pass ISE:** no open-flow warning, xdl2ncd
+and DRC with 0 errors and 0 warnings, and Silinx's `.bit` byte-identical to ISE's bitgen with CRC on and off (gates,
+traffic, blinky, pong, stopwatch, clock, vga).
+
+The graph against the shipped one (`compare`):
+
+| Part | Measured graph |
+|---|---|
+| Tiles, sites, site types | every one, the same |
+| Pins | every one present is the shipped wire; 22 796 missing, the slice's RAM / shift pins and the like (no example uses them) |
+| PIPs | 62 757 of 2 139 368 missing, mostly route-throughs and I/O wires not yet named; 9732 extra (the I/O tiles' `X1 -> E2BEG5`…, which should be `IOIS_X1`, the naming ambiguity of the database's I/O features: no route took one) |
+| Nodes | 131 996 exact, 46 646 split (missing joins), 2 merged (the two rule-decided E2 doubles across a block-RAM column) |
+
+It is 727 KB (the shipped graph is 1.96 MB). Replacing the shipped graph with it is a decision of its own, not made
+here. Before that: the I/O wire names (an arc probe of each name's forms per type), the route-throughs, the joins still
+split, and the other devices.
+
+```
+node gen-obscarry.mjs carry && node gen-obsslice.mjs slc && node gen-obsmux.mjs mux && impl-remote.sh …   (ISE)
+BUFGSRC=1 SOURCES=1 … node prototype.mjs tests spine.json obs.json sp1 t1 … (rounds sp1-sp3)
+INTERSECT=1 node prototype.mjs observe obs.json …/top.xdl
+PINRULES=1 node chip.mjs measured.json.gz obs.json --ft obs-ft256.json,obs-xb.json --probe probe7.json --tests t1,…,sp3 --clock c2,…,cM2
+SILINX_CONFIG_DIR=cfg node scripts/check-open-flow.mjs examples/gates … examples/vga     (cfg/devices/xc3s250ecp132-4.json.gz: the measured graph)
+```

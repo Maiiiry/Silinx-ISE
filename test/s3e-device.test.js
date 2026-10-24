@@ -10,6 +10,10 @@ import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads } 
 import { clockDesign } from '../research/s3e-device/gen-obsclk.mjs';
 import { clockNets, clockTestDesigns, clockTile, rowTile } from '../research/s3e-device/clocktests.mjs';
 import { edgeHypotheses, edgeTile } from '../research/s3e-device/edgejoins.mjs';
+import { chipMeasurements } from '../research/s3e-device/chip.mjs';
+import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
+import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
+import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -675,4 +679,63 @@ test('edgeHypotheses: an edge tile\'s known join as a rule for the tiles of its 
   // without an edge tile, none of the clock lines
   assert.deepEqual(r.ambiguous, [['UL_X0Y35/N2BEG0', 'CLB_X1Y34/N2MID0']]);
   assert.deepEqual(['LTERM4_X0Y9', 'CNR_TTERM_X1Y35', 'COB_TERM_B_X9Y0', 'UL_X0Y35', 'CLB_X1Y1', 'TIOIS_X3Y35'].map(edgeTile), [true, true, true, true, false, false]);
+});
+
+// #3, step 5: the measured description of the whole chip, and what the observer reads for it
+test('observeNet: a carry chain\'s lower CIN on the tile below\'s COUT_Nk (pinJoins); the last loose ends joined; a block RAM pin\'s family without its interconnect index (#3)', () => {
+  const ins = new Map([['a', { name: 'a', tile: 'CLB_X15Y27', site: 'SLICE_X29Y55' }], ['b', { name: 'b', tile: 'CLB_X15Y28', site: 'SLICE_X29Y56' }]]);
+  const c = observeNet({ name: 'cy', outpins: [{ inst: 'a', pin: 'COUT' }], inpins: [{ inst: 'b', pin: 'CIN' }], pips: [{ tile: 'CLB_X15Y27', from: 'COUT3', dir: '->', to: 'COUT_N3' }] }, ins);
+  assert.deepEqual(c.pins, [{ site: 'SLICE_X29Y55', pin: 'COUT', dir: 'o', tile: 'CLB_X15Y27', wire: 'COUT3' }]);
+  assert.deepEqual(c.pinJoins, [{ site: 'SLICE_X29Y56', pin: 'CIN', tile: 'CLB_X15Y28', end: 'CLB_X15Y27/COUT_N3' }]);
+  // a clock pad into its buffer: IOIS_IBUF0 and CLKT_CKI4, of no family, the one loose end and the one undriven wire
+  const ins2 = new Map([['p', { name: 'p', tile: 'TIBUFS_X13Y35', site: 'B8' }], ['g', { name: 'g', tile: 'CLKT_X13Y35', site: 'BUFGMUX_X1Y10' }]]);
+  const k = observeNet({ name: 'ci', outpins: [{ inst: 'p', pin: 'I' }], inpins: [{ inst: 'g', pin: 'I0' }], pips: [
+    { tile: 'CLKT_X13Y35', from: 'CLKT_CKI4', dir: '->', to: 'CLKT_GCLK0' }, { tile: 'CLKT_X13Y35', from: 'CLKT_GCLK0', dir: '->', to: 'CLKT_GCLKIN00' },
+    { tile: 'TIBUFS_X13Y35', from: 'I0_PINWIRE', dir: '->', to: 'IOIS_IBUF0' },
+  ] }, ins2);
+  assert.deepEqual(k.joins, [['TIBUFS_X13Y35/IOIS_IBUF0', 'CLKT_X13Y35/CLKT_CKI4']]);
+  assert.deepEqual(k.unexplained, []);
+  assert.deepEqual([wireFamily('BRAM_CLK2_INT1'), wireFamily('BRAM_CLK2')], ['pin:BRAM_CLK2', 'pin:BRAM_CLK2']);
+});
+
+test('chipMeasurements: a tile\'s PIPs from the database\'s features and the routes, less the probe\'s refusals; pins where observed; the lower CIN by its COUT\'s index; the joins kept to measured wires (#3, step 5)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { CENTER_SMALL: { features: { 'E2END1->E2BEG1': [], 'OMUX3->E2BEG1': [], 'X0->OMUX3': [] } } } };
+  const obs = {
+    pips: [{ tile: 'CLB_X1Y3', from: 'COUT3', dir: '->', to: 'COUT_N3' }, { tile: 'CLB_X1Y4', from: 'E2MID1', dir: '=-', to: 'E2BEG1' }],
+    pins: [{ site: 'SLICE_X1Y5', pin: 'COUT', dir: 'o', tile: 'CLB_X1Y3', wire: 'COUT3' }, { site: 'SLICE_X1Y4', pin: 'COUT', dir: 'o', tile: 'CLB_X1Y3', wire: 'COUT1' }],
+    pinJoins: [{ site: 'SLICE_X1Y6', pin: 'CIN', tile: 'CLB_X1Y4', end: 'CLB_X1Y3/COUT_N3' }],
+    joins: [['CLB_X1Y3/E2BEG1', 'CLB_X1Y4/E2MID1'], ['CLB_X1Y3/E2BEG1', 'CLB_X9Y9/NOWIRE']],
+  };
+  const m = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs, probe: { yes: [], no: [{ tile: 'CLB_X1Y4', from: 'X0', to: 'OMUX3' }] } });
+  const tile = n => { const t = m.tiles.find(x => x.name === n); return m.types[t.type]; };
+  const pips = n => tile(n).pips.map(([a, b, f]) => `${a}->${b}${f ? '*' : ''}`).sort();
+  // the database's three, the routes' (a bidirectional one both ways), the refused one left out in its tile only
+  assert.deepEqual(pips('CLB_X1Y3'), ['COUT3->COUT_N3', 'E2END1->E2BEG1', 'E2MID1->E2BEG1*', 'E2BEG1->E2MID1*', 'OMUX3->E2BEG1', 'X0->OMUX3'].sort());
+  assert.ok(!pips('CLB_X1Y4').includes('X0->OMUX3'));
+  // SLICE_X1Y6 (position 2 of CLB_X1Y4): its COUT1 seen in another tile of the type, its CIN named CIN1, on COUT_N3
+  const pin = (n, site, p) => { const t = m.tiles.find(x => x.name === n); const i = t.sites.findIndex(([s]) => s === site); return m.types[t.type].sites[i].pins.find(x => x[0] === p); };
+  assert.deepEqual(pin('CLB_X1Y4', 'SLICE_X1Y6', 'CIN'), ['CIN', 'i', 'CIN1']);
+  assert.ok(m.joins.some(([a, b]) => a === 'CLB_X1Y3/COUT_N3' && b === 'CLB_X1Y4/CIN1'));
+  // a join with an end no measured tile has: left out
+  assert.ok(!m.joins.some(j => j.includes('CLB_X9Y9/NOWIRE')));
+});
+
+test('gen-obscarry, gen-obsslice, gen-obsmux: the carry chains in every slice column, a flip-flop on every slice, wide multiplexers and comparators, read by Silinx\'s front end (#3, step 5)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
+  const m0 = carryDesign(dev, 0, 0), l8 = carryDesign(dev, 1, 8);
+  // 16 slices of one column each, the SLICEM's x even, the SLICEL's odd, the bands from the offset
+  const ranges = d => [...d.ucf.matchAll(/RANGE = SLICE_X(\d+)Y(\d+):SLICE_X(\d+)Y(\d+) ;/g)].map(r => r.slice(1).map(Number));
+  assert.ok(ranges(m0).every(([x0, y0, x1, y1]) => x0 === x1 && x0 % 2 === 0 && y1 - y0 === 15 && y0 % 16 === 0));
+  assert.ok(ranges(l8).every(([x0, y0, x1, y1]) => x0 === x1 && x0 % 2 === 1 && y1 - y0 === 15 && y0 % 16 === 8));
+  assert.equal(new Set([...m0.v.matchAll(/STEP\((\d+)\)/g)].map(x => x[1])).size, m0.counters, 'a step of its own each');
+  const sl = sliceDesign(dev);
+  assert.equal(sl.slices, 2448);
+  assert.equal([...sl.ucf.matchAll(/LOC = "(SLICE_X\d+Y\d+)"/g)].length, 2448);
+  assert.match(sl.v, /FDRE f0 \(\.C\(clk\), \.CE\(ce\[0\]\), \.R\(sr\[0\]\), \.D\(d\[0\] \^ q\[2447\]\), \.Q\(q\[0\]\)\);/);
+  const mx = muxDesign(40, 8);
+  // (its data and selects permuted: every multiplexer its own pair)
+  assert.equal(new Set([...mx.v.matchAll(/md(\d+) = (\{[^}]*\});\n {2}wire \[3:0\] ms\d+ = (\{[^}]*\})/g)].map(x => x[2] + x[3])).size, 40, 'every multiplexer its own permutation');
+  for (const v of [m0.v, sl.v, mx.v]) assert.deepEqual(read(v), [[], []]);
 });
