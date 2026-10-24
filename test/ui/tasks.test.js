@@ -1126,6 +1126,9 @@ uiTest('#1149 without a development build: View ▸ Interface is Modern and Clas
     assert.deepEqual(await page.eval(() => [document.documentElement.dataset.ui, document.documentElement.dataset.layout ?? null]), ['modern', 'tasks'], stored);
     assert.ok((await shown(page, '#task-switch')) || (await shown(page, '#task-tabs')), stored);
   }
+  // (a project opened: the start-up checks' warnings, which depend on the computer, are cleared)
+  await makeProject(env, { name: 'TasksStored', template: 'gates' });
+  await page.openProject('TasksStored');
   await noWarnings(page);
 });
 
