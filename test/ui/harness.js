@@ -432,6 +432,13 @@ class PageBase {
     // (and the app's start-up checks done: their lines, e.g. 'ISE not available', written before a test reads the console)
     await this.waitFor((n) => window.Silinx.project?.name === n && document.querySelector('#hier .row') && window.Silinx.startupChecked, [name], { what: `project ${name} open` });
   }
+  /** The task's side panel shown (ISim's instances, the emulator's Watch): the modern interface's task may have it folded (#1149). */
+  async showSide() {
+    if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.side === 'folded')) {
+      await this.click('#task-bar [data-act=side]');
+      await this.waitFor(() => document.documentElement.dataset.side !== 'folded', [], { what: 'the side panel shown' });
+    }
+  }
   /** The messages (the bottom console) shown: the modern interface's task may have them folded (#1149). */
   async showMessages() {
     if (await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.console === 'folded')) {

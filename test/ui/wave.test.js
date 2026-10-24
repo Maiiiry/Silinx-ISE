@@ -201,6 +201,7 @@ Finished circuit initialization process.
   assert.deepEqual(await page.eval(() => window.__asked), [['Divider name:', 'New Divider'], ['Divider name:', 'Counter']]);
 
   // ---- Add to Wave Window (Recursive) from the instance tree: a divider per instance and its signals
+  await page.showSide();
   await page.rightClick('.doc:not([hidden]) .isim-tree .row', { text: '' });
   await menuItem(page, 'Add to Wave Window (Recursive)');
   assert.deepEqual(await rows(page), ['tb/clk', '-- Counter out', 'tb/q', '-- /tb', 'tb/clk', 'tb/q', '-- /tb/u', 'tb/clk', 'tb/q', 'tb/u/r']);  // (u's ports are the test bench's signals)
@@ -299,6 +300,7 @@ uiTest('ISim Wave window (#341): New Group, open / close, Rename Group, drag int
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await simTime(page, '1,000,000');
   // the instance u's signals too: clk q (tb), u/r
+  await page.showSide();
   await page.rightClick('.doc:not([hidden]) .isim-tree .row', { text: '' });
   await menuItem(page, 'Add to Wave Window (Recursive)');
   const st = () => page.eval(() => window.Silinx.active.view.state.rows.map((r) => (r.kind === 'group' ? `[${r.name}${r.expanded ? '' : ' +'}]` : `${r.group != null ? '  ' : ''}${r.kind === 'div' ? `-- ${r.name}` : r.sig.path.replace(/\./g, '/')}`)));
