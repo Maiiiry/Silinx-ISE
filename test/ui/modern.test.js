@@ -1,5 +1,5 @@
-// UI: the modern interface (the default) and the classic Xilinx ISE one — layout, View ▸ Interface,
-// light / dark theme (following the system), command palette, design-flow buttons, Portuguese.
+// UI: the modern interface (the default, its layout by tasks: #1149) and the classic Xilinx ISE one — layout,
+// View ▸ Interface, light / dark theme (following the system), command palette, Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject } from './harness.js';
@@ -31,43 +31,45 @@ async function subMenu(page, menu, item, sub) {
   return subs;
 }
 
-uiTest('modern interface by default: header with search, activity bar, tabs on top, empty state, design-flow buttons', E, async (page) => {
+// #1149: the modern interface is the Tasks one (its layout by tasks, data-layout="tasks"): the header with the search and
+// the task switcher, Design's pages as tabs above its panel, the document and console tabs on top, the task's empty state
+uiTest('modern interface by default: the Tasks layout, header with search and the tasks, Design\'s tabs on top, tabs on top, empty state', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   assert.deepEqual(await ui(page), { ui: 'modern', theme: 'light' });
   const L = await page.eval(() => {
     const r = (id) => document.getElementById(id).getBoundingClientRect();
     const vis = (sel) => { const e = document.querySelector(sel); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none'; };
     return {
-      header: [r('titlebar').top === r('menubar').top || Math.abs(r('titlebar').top - r('menubar').top) < 12, r('palette-btn').top < r('toolbar').top],
-      // activity bar: a column at the left of the panels
-      bar: { dir: getComputedStyle(document.getElementById('left-tabs')).flexDirection, left: r('left-tabs').left < r('left-pages').left, icons: document.querySelectorAll('#left-tabs .tab-ico svg').length },
+      layout: [document.documentElement.dataset.layout, document.documentElement.dataset.task],
+      header: [Math.abs(r('titlebar').top - r('menubar').top) < 12, r('palette-btn').top < r('toolbar').top],
+      tasks: [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.textContent.trim()),
+      // Design's pages: a row of tabs above its panel
+      pages: { dir: getComputedStyle(document.getElementById('left-tabs')).flexDirection, above: r('left-tabs').top < r('left-pages').top, icons: document.querySelectorAll('#left-tabs .tab-ico svg').length },
       tabsOnTop: r('doc-tabs').top < r('workspace').top,
       consoleTabsOnTop: r('console-tabs').top < r('console-body').top,
-      empty: vis('#ws-empty'),
+      empty: [vis('#task-empty'), document.querySelector('#task-empty h2')?.textContent],
       project: document.getElementById('title-project'),
       titlebar: document.getElementById('titlebar').innerText,
-      steps: [...document.querySelectorAll('#toolbar .m-step')].map((b) => [b.textContent, b.disabled]),
-      hiddenIcons: [...document.querySelectorAll('#toolbar .tb-btn')].filter((b) => !b.getClientRects().length).map((b) => b.dataset.cmd),
       classicTitle: vis('#title-text'),
     };
   });
+  assert.deepEqual(L.layout, ['tasks', 'edit']);
   assert.deepEqual(L.header, [true, true]);
-  assert.deepEqual(L.bar, { dir: 'column', left: true, icons: 4 });
+  assert.deepEqual(L.tasks, ['Design', 'Simulate', 'Emulate', 'Implement', 'Program']);
+  assert.deepEqual(L.pages, { dir: 'row', above: true, icons: await page.eval(() => document.querySelectorAll('#left-tabs .tab').length) });
   assert.ok(L.tabsOnTop, 'document tabs above the editor');
   assert.ok(L.consoleTabsOnTop, 'Console / Errors / Warnings above the log');
-  assert.ok(L.empty, 'empty state when no document is open');
+  assert.deepEqual(L.empty, [true, 'Design'], 'the task\'s empty state when no document is open');
   assert.equal(L.project, null, 'no project chip in the header (#1042)');
   assert.doesNotMatch(L.titlebar, /Silinx|\d+\.\d+\.\d+/, 'no product and version in the header (#987)');
-  // without a project only Program (iMPACT) can run
-  assert.deepEqual(L.steps, [['Check', true], ['Simulate', true], ['Implement', true], ['Emulate', true], ['Program', false]]);
-  assert.deepEqual(L.hiddenIcons.sort(), ['asm', 'impact', 'run', 'wave'], 'icons covered by the labelled steps are hidden (Cut / Copy / Paste shown: they reach every editor, #677)');
   assert.equal(L.classicTitle, false);
-  // a project: the empty state goes away with the first document (its name is in Design: no header chip, #1042)
+  // a project: Design's empty state goes away with its first document
   await makeProject(env, { name: 'ModernPj', template: 'blinky' });
   await page.openProject('ModernPj');
-  await page.waitFor(() => window.Silinx.docs.length > 0);
-  assert.equal(await page.eval(() => document.getElementById('ws-empty').getClientRects().length), 0);
-  // the activity bar is reachable with the keyboard
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor, [], { what: 'the editor' });
+  assert.equal(await page.eval(() => document.getElementById('task-empty').getClientRects().length), 0);
+  // Design's pages are reachable with the keyboard
   await page.eval(() => document.querySelector('#left-tabs .tab[data-page=files]').focus());
   await page.key('Enter');
   assert.equal(await page.eval(() => document.querySelector('#left-tabs .tab.active').dataset.page), 'files');
@@ -75,49 +77,24 @@ uiTest('modern interface by default: header with search, activity bar, tabs on t
   assert.equal(await page.eval(() => document.querySelector('.left-page[data-page=design]').hidden), false);
 }, O);
 
-// the start page's sentence on lines of even length: its last word never alone on a line ("file." under
-// "…any command or"), in English and in Portuguese, at the window's width and at a narrow one
-const lastWordAlone = (page) => page.eval(() => {
-  const p = document.querySelector('#ws-empty p');
-  const text = p.firstChild;
-  const words = [...text.textContent.matchAll(/\S+/g)];
-  const top = (m) => { const r = document.createRange(); r.setStart(text, m.index); r.setEnd(text, m.index + m[0].length); return Math.round(r.getBoundingClientRect().top); };
-  const [prev, last] = [words[words.length - 2], words[words.length - 1]];
-  return { lines: new Set(words.map(top)).size, alone: top(last) !== top(prev), wrap: getComputedStyle(p).textWrap };
-});
-uiTest('start page: its sentence\'s lines balanced, the last word never alone on a line; in Portuguese too', E, async (page) => {
-  await page.waitFor(() => document.querySelector('#ws-empty p')?.getClientRects().length, [], { what: 'the start page' });
-  for (const lang of ['en', 'pt']) {
-    await page.eval(async (l) => (await import('/js/i18n.js')).setLanguage(l), lang);
-    for (const width of [null, '300px']) {
-      await page.eval((w) => { document.querySelector('#ws-empty p').style.maxWidth = w || ''; }, width);
-      const r = await lastWordAlone(page);
-      assert.match(r.wrap, /balance/, `${lang} ${width}`);
-      assert.equal(r.alone, false, `${lang} ${width || 'window'}: ${JSON.stringify(r)}`);
-    }
-  }
-  await page.eval(() => { document.querySelector('#ws-empty p').style.maxWidth = ''; });
-  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-}, O);
-
 uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered after a reload', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   let subs = await subMenu(page, 'View', 'Interface');
-  // (Tasks in every build, #1131; modern the default)
-  assert.deepEqual(subs, [{ label: 'Modern', checked: true }, { label: 'Classic', checked: false }, { label: 'Tasks', checked: false }]);
+  // (Modern, the Tasks layout, and Classic: #1149)
+  assert.deepEqual(subs, [{ label: 'Modern', checked: true }, { label: 'Classic', checked: false }]);
   await subMenu(page, 'View', 'Interface', 'Classic');
   await page.waitFor(() => document.documentElement.dataset.ui === 'classic');
   const C = await page.eval(() => {
     const r = (id) => document.getElementById(id).getBoundingClientRect();
     const shown = (id) => document.getElementById(id).getClientRects().length > 0;
     return {
-      title: shown('title-text'), search: shown('top-actions'), steps: document.querySelector('.m-steps').getClientRects().length,
+      title: shown('title-text'), search: shown('top-actions'), tasks: document.getElementById('task-switch')?.getClientRects().length ?? 0,
       tabsBelow: r('doc-tabs').top > r('workspace').top, leftTabsBelow: r('left-tabs').top > r('left-pages').top,
       icons: [...document.querySelectorAll('#toolbar .tb-btn')].filter((b) => !b.getClientRects().length).length,
       stored: localStorage.getItem('silinx.ui'),
     };
   });
-  assert.deepEqual(C, { title: true, search: false, steps: 0, tabsBelow: true, leftTabsBelow: true, icons: 0, stored: 'classic' });
+  assert.deepEqual(C, { title: true, search: false, tasks: 0, tabsBelow: true, leftTabsBelow: true, icons: 0, stored: 'classic' });
   // no Theme menu in the classic look (light only)
   assert.ok(!(await page.openMenu('View')).some((x) => x.label === 'Theme'));
   await page.closeMenus();
@@ -125,9 +102,9 @@ uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered af
   await page.reload();
   assert.deepEqual(await ui(page), { ui: 'classic', theme: 'light' });
   subs = await subMenu(page, 'View', 'Interface');
-  assert.deepEqual(subs.map((s) => s.checked), [false, true, false]);
+  assert.deepEqual(subs.map((s) => s.checked), [false, true]);
   await subMenu(page, 'View', 'Interface', 'Modern');
-  await page.waitFor(() => document.documentElement.dataset.ui === 'modern');
+  await page.waitFor(() => document.documentElement.dataset.ui === 'modern' && document.documentElement.dataset.layout === 'tasks' && document.getElementById('task-switch'));
   assert.ok((await page.openMenu('View')).some((x) => x.label === 'Theme'));
   await page.closeMenus();
 }, O);
@@ -261,31 +238,6 @@ uiTest('command palette: Ctrl+K, search, arrow keys, Enter runs a command or ope
   await page.key('Escape');
 }, O);
 
-uiTest('design-flow buttons: Check, Simulate and Emulate act on the selected / top module, also while implementing', E, async (page) => {
-  await makeProject(env, { name: 'FlowPj', template: 'blinky' });
-  await page.openProject('FlowPj');
-  await page.waitFor(() => !document.querySelector('#toolbar .m-step').disabled, [], { what: 'Check enabled' });
-  const step = async (label) => page.click('#toolbar .m-step', { text: label });
-  await step('Check');
-  await page.waitConsole(/Process "Check Syntax" completed successfully/);
-  await page.waitFor(() => !window.Silinx.busy);
-  await step('Simulate');
-  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'isim'), [], { what: 'ISim open', timeout: 20000 });
-  await page.waitFor(() => !window.Silinx.busy);
-  await step('Emulate');
-  await page.waitFor(() => window.Silinx.docs.some((d) => /^Board Emulator/.test(d.title)), [], { what: 'emulator open', timeout: 20000 });
-  // while an implementation runs only Implement waits (one ISE build at a time); the others still work
-  const states = () => page.eval(() => [...document.querySelectorAll('#toolbar .m-step')].map((b) => [b.textContent, b.disabled]));
-  await page.eval(() => { window.Silinx.busy = true; });
-  await page.waitFor(() => [...document.querySelectorAll('#toolbar .m-step')].find((b) => b.textContent === 'Implement').disabled, [], { what: 'Implement disabled while implementing' });
-  assert.deepEqual(await states(), [['Check', false], ['Simulate', false], ['Implement', true], ['Emulate', false], ['Program', false]]);
-  await page.eval(() => { document.getElementById('console-log').innerHTML = ''; });
-  await step('Check');
-  await page.waitConsole(/Process "Check Syntax" completed successfully/);
-  await page.eval(() => { window.Silinx.busy = false; });
-  await page.waitFor(() => !document.querySelectorAll('#toolbar .m-step')[2].disabled, [], { what: 'Implement enabled again' });
-}, O);
-
 uiTest('Portuguese: the modern header, buttons, empty state and palette are translated', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   await page.eval(TEXTS);
@@ -293,21 +245,21 @@ uiTest('Portuguese: the modern header, buttons, empty state and palette are tran
   await subMenu(page, 'View', 'Language', 'Português');
   await page.waitFor(() => document.documentElement.lang === 'pt');
   const pt = await page.eval(() => window.__uiTexts(document.getElementById('app')));
-  assert.deepEqual(untranslated(en, pt), []);
+  // (the first task's name, Design, is the same in Portuguese: #1046)
+  assert.deepEqual(untranslated(en, pt).filter((t) => !/^@?Design$/.test(t)), []);
   const T = await page.eval(() => ({
     search: document.querySelector('.m-search-text').textContent,
-    steps: [...document.querySelectorAll('#toolbar .m-step')].map((b) => b.textContent),
-    empty: document.querySelector('#ws-empty p').textContent,
-    // the start page's one key: the command search (no Save, nothing to save there; Undo goes without saying)
-    keys: [...document.querySelectorAll('#ws-empty .ws-keys > span')].map((k) => k.querySelector('span').textContent),
+    tasks: [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.textContent.trim()),
+    empty: document.querySelector('#task-empty p').textContent,
     theme: document.getElementById('theme-btn').getAttribute('title'),
   }));
   assert.deepEqual(T, {
-    search: 'Procurar comandos e ficheiros…', steps: ['Verificar', 'Simular', 'Implementar', 'Emular', 'Programar'], 
-    empty: 'Abra uma fonte no painel Projeto, ou procure qualquer comando ou ficheiro.', keys: ['Procurar comandos e ficheiros'], theme: 'Alternar entre tema claro e escuro',
+    // ('Design' in Portuguese too, #1046)
+    search: 'Procurar comandos e ficheiros…', tasks: ['Design', 'Simular', 'Emular', 'Implementar', 'Programar'],
+    empty: 'Abra uma fonte no painel Projeto, ou verifique o projeto.', theme: 'Alternar entre tema claro e escuro',
   });
   const subs = await subMenu(page, 'Ver', 'Interface');
-  assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Clássica', 'Tarefas']);
+  assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Clássica']);
   // the palette in Portuguese: found by the Portuguese and by the English name
   await page.key('k', { modifiers: CTRL });
   await page.waitForSelector('.pal-overlay');
