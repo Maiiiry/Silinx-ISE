@@ -164,9 +164,12 @@ test('#1137 schematic drawing: every symbol turned and mirrored, its pin names i
       for (const t of [...svg.matchAll(/<text class="pwidth[^"]*"[^>]*>[^<]*<\/text>/g)].map((m) => m[0])) {
         const box = textBox(t), w = t.replace(/<[^>]*>/g, '');
         if (box.x0 < sb.x - 1 || box.x1 > sb.x + sb.w + 1 || box.y0 < sb.y - 1 || box.y1 > sb.y + sb.h + 1) bad.push(`${what}: width ${w} out of the box`);
-        // (on a lead up or down, its own, which it breaks: no other one)
-        const own = attrs(t).class === 'pwidth on' ? (l) => l[0].x === l[1].x && Math.abs(l[0].x - +attrs(t).x) < 0.5 : () => false;
+        // (on its own lead, which it breaks: no other one, #1174)
+        const at = { x: +attrs(t).x, y: +attrs(t).y - 3 };
+        const own = (l) => (l[0].x === l[1].x ? Math.abs(l[0].x - at.x) < 0.5 && at.y >= Math.min(l[0].y, l[1].y) && at.y <= Math.max(l[0].y, l[1].y)
+          : Math.abs(l[0].y - at.y) < 0.5 && at.x >= Math.min(l[0].x, l[1].x) && at.x <= Math.max(l[0].x, l[1].x));
         if (leads.some((l) => !own(l) && crosses(box, l))) bad.push(`${what}: width ${w} on a lead`);
+        if (!leads.some(own)) bad.push(`${what}: width ${w} not on its lead`);
       }
       for (const t of names) {
         const box = textBox(t), name = t.replace(/<[^>]*>/g, '');
