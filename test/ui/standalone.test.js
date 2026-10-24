@@ -117,14 +117,14 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   // the project lives in localStorage
   assert.ok(await page.eval(() => Object.keys(localStorage).some((k) => (localStorage.getItem(k) || '').includes('"Solo"'))));
   // behavioural simulation of the test bench in the ISim view
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'simulation ran', timeout: 30000 });
   assert.ok(await page.eval(() => window.Silinx.active.view.state.rows.find((r) => r.name === 'clk').sig.wave.t.length) > 50);
   // a project that synthesizes with XST needs Xilinx ISE: a clear message, no crash
   await page.eval(async () => { window.Silinx.project.synthTool = 'xst'; await window.SilinxApp.saveProjectJson(); });
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.menu('Process', 'Implement Top Module');
   await page.waitConsole(/This project synthesizes with XST, which needs Xilinx ISE 14\.7: not available in the browser edition\./, { timeout: 15000 });
   await page.waitFor(() => !window.Silinx.busy);
@@ -198,7 +198,7 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.project?.name === 'Web' && window.Silinx.project.top);
   assert.ok(await page.eval(() => window.SilinxApp.openMode()), 'the browser edition synthesizes with Silinx');
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
   await page.waitConsole(/=== SILINX DONE ===/, { timeout: 120000 });
   await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
@@ -390,7 +390,7 @@ uiTest('browser edition: Stop during Generate Programming File stops the flow, a
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.project?.name === 'Stop' && window.Silinx.project.top);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
   await page.waitConsole(/=== SILINX STEP synth ===/, { timeout: 60000 });
   await page.menu('Process', 'Stop');
@@ -423,7 +423,7 @@ uiTest('browser edition: a simulation model stays generated after another run of
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.project?.name === 'Models' && window.Silinx.project.top);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitDialog('Emulate Post-Synthesis Model');
   await page.dialogButton('Generate and Emulate');
@@ -492,7 +492,7 @@ uiTest('standalone edition (file://) in a user\'s browser (Chrome without --allo
   await page.waitFor(() => window.Silinx.project?.name === 'SoloPlain' && window.Silinx.project.top);
   // the flow in its worker, down to the bitstream (the old code: "the Silinx toolchain could not start in
   // this browser: the worker failed")
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
   await page.waitConsole(/=== SILINX DONE ===|could not start in this browser/, { timeout: 120000 });
   await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
@@ -546,11 +546,11 @@ uiTest('#280 browser edition: Generate Programming File again, the design unchan
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.project?.name === 'Again' && window.Silinx.project.top);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   const run = async () => {
     const before = (await page.consoleText()).length;
     await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
-    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the flow', timeout: 120000 });
+    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(window.__console().slice(b)), [before], { what: 'the flow', timeout: 120000 });
     return (await page.consoleText()).slice(before);
   };
   let log = await run();
@@ -576,7 +576,7 @@ uiTest('#967 browser edition: what Implement needs is downloaded when a project 
   const run = async () => {
     const before = (await page.consoleText()).length;
     await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
-    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the flow', timeout: 120000 });
+    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(window.__console().slice(b)), [before], { what: 'the flow', timeout: 120000 });
     await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished' });
     return (await page.consoleText()).slice(before);
   };
@@ -610,7 +610,7 @@ uiTest('#967 browser edition: what Implement needs is downloaded when a project 
   assert.ok(keys.some((k) => k.includes('/dev/assets/dev-0000000/')));
   assert.equal(versioned().filter((p) => p.endsWith('yosys.core.wasm')).length, 1, 'Yosys downloaded once');
   // the first Implement: nothing of them fetched, Yosys said kept
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   served.length = 0;
   let log = await run();
   assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
@@ -622,7 +622,7 @@ uiTest('#967 browser edition: what Implement needs is downloaded when a project 
   await boot();
   await page.waitFor(() => window.Silinx.project?.name === 'Kept');
   await page.eval(() => { window.Silinx.synthDone = null; });   // (the synthesis run again: Yosys loaded)
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   served.length = 0;
   log = await run();
   assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
@@ -635,7 +635,7 @@ uiTest('#967 browser edition: what Implement needs is downloaded when a project 
   await boot();
   await page.waitFor(() => window.Silinx.project?.name === 'Kept');
   await page.eval(() => { window.Silinx.synthDone = null; });
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   served.length = 0;
   log = await run();
   assert.match(log, /Downloading Yosys, the synthesis tool \(WebAssembly, about 17 MB: once, then kept by this browser\)…/);
@@ -701,9 +701,9 @@ uiTest('#1051 the site installable as an app: its manifest, icons and service wo
     await boot();
     await page.waitFor(() => window.Silinx.project?.name === 'Away');
     assert.equal(await page.eval(() => document.title), `Away — Silinx ISE ${versionLabel(build)}`);
-    await page.click('input[name=view][value=impl]');
+    await page.setView('impl');
     await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
-    await page.waitFor(() => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText), [], { what: 'the flow', timeout: 120000 });
+    await page.waitFor(() => /Process "Generate Programming File" (completed successfully|failed)/.test(window.__console()), [], { what: 'the flow', timeout: 120000 });
     await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished' });
     const log = await page.consoleText();
     assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
@@ -803,7 +803,7 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   // the build's files go into the project's build/ folder, as the full application writes them
   await page.eval(() => window.SilinxApp.openProject('InBrowser').then(() => window.SilinxApp.showLeftPage('design')));
   await page.waitFor(() => window.Silinx.project?.name === 'InBrowser' && window.Silinx.project.top);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
   await page.waitConsole(/Bitstream downloaded: top\.bit/, { timeout: 120000 });
   await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
@@ -834,7 +834,7 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   await page.eval(() => localStorage.setItem('__fakefs.permission', 'granted'));
   await boot();
   await page.waitFor(() => window.Silinx.project?.name === 'InBrowser' && window.Silinx.project.top, [], { what: 'reopened from the folder' });
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.waitFor((ids) => ids.every((id) => window.SilinxApp.S.status[id]), [IMPL], { what: 'process states restored' });
   assert.deepEqual(await status(), builtStatus);
   assert.equal(await summary(), built);
@@ -929,7 +929,7 @@ async function newSiteProject(page, name, example) {
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor((n) => window.Silinx.project?.name === n && window.Silinx.project.top, [name]);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
 }
 
 uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain in the browser and writes the placer\'s pins into the UCF (#118)', E, async (page) => {
@@ -1097,7 +1097,7 @@ uiTest('browser edition: Generate Post-Synthesis Simulation Model in the browser
   assert.match(log, /=== SILINX STEP postsynth ===/);
   assert.match(log, /Synthesizing 'top' with the generics the test bench 'tb_top' gives: div = 2, debounce = 2/);
   assert.match(log, /Post-Synthesis simulation model: build\/netgen\/synthesis\/top_synthesis\.vhd/);
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
@@ -1113,7 +1113,7 @@ uiTest('browser edition: Generate Post-Synthesis Simulation Model in the browser
 
 uiTest('browser edition: Simulate Post-Synthesis Model with no model: "Generate and Simulate" generates it in the browser and the simulation starts (#490)', E, async (page) => {
   await newSiteProject(page, 'WebGenSim', 'blinky');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   const start = (await page.consoleText()).length;
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });

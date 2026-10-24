@@ -207,7 +207,7 @@ uiTest('Example gates (New Project…): the schematic of the gates, synchronized
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent), 'Read-only, generated from gates.sch.json', 'in sync: read-only (#1176)');
   assert.equal(await readWs(env, 'Gates', 'src/gates.vhd'), await shipped('src/gates.vhd'));
   // Simulate Behavioral Model of tb_gates: all 16 inputs checked, both outputs right
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_gates');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 30000, what: 'Simulation finished OK' });
@@ -260,7 +260,7 @@ uiTest('Example traffic (New Project…), the second example: the state diagram 
   }
   // Simulate Behavioral Model of tb_traffic (longer than ISim's first run: run all): the lamps and the
   // display checked on every clock cycle
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_traffic');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
@@ -450,9 +450,9 @@ uiTest('Add Copy of Source: new files, association, overwrite confirmation (No k
   await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'syn_only'), [], { what: 'syn_only in the Implementation view' });
   await page.click('#left-tabs .tab[data-page=design]');
   await page.waitFor(() => document.querySelector('input[name=view][value=sim]')?.getClientRects().length > 0, [], { what: 'Design page shown' });
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.waitFor(() => ![...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'syn_only') && [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'tb_buf2'), [], { what: 'syn_only hidden in the Simulation view' });
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.click('#left-tabs .tab[data-page=files]');
   await page.waitFor(() => [...document.querySelectorAll('#files-page tr')].some((r) => r.cells[0]?.textContent === 'src/syn_only.v' && r.cells[1]?.textContent === 'Implementation'), [], { what: 'Files view: Implementation' });
   await page.click('#left-tabs .tab[data-page=design]');

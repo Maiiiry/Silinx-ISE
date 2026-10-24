@@ -75,7 +75,7 @@ uiTest('a project with a module named with a reserved word: warned when it is op
   const before = (await page.consoleText()).length;
   await page.treeRow('#hier', 'Wire');
   await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
-  await page.waitFor((b) => /Process "Check Syntax" (failed|completed)/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'Check Syntax', timeout: 60000 });
+  await page.waitFor((b) => /Process "Check Syntax" (failed|completed)/.test(window.__console().slice(b)), [before], { what: 'Check Syntax', timeout: 60000 });
   const log = (await page.consoleText()).slice(before);
   assert.match(log, /Process "Check Syntax" completed successfully with 1 warning\(s\)/, log);
   assert.deepEqual(log.split('\n').filter((l) => /^(WARNING|ERROR)\b/.test(l)), [W]);

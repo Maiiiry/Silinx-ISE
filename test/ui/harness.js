@@ -421,10 +421,10 @@ class PageBase {
   }
   async waitNoDialog(opts) { return this.waitFor(() => !document.querySelector('.dlg-overlay'), [], { what: 'all dialogs closed', ...opts }); }
   /** Lines of the Console panel. */
-  consoleText() { return this.eval(() => document.getElementById('console-log').innerText); }
+  consoleText() { return this.eval(() => window.__console()); }
   async waitConsole(re, opts) {
     const src = re.source, flags = re.flags;
-    return this.waitFor((s, f) => new RegExp(s, f).test(document.getElementById('console-log').innerText), [src, flags], { what: `console ${re}`, ...opts });
+    return this.waitFor((s, f) => new RegExp(s, f).test(window.__console()), [src, flags], { what: `console ${re}`, ...opts });
   }
   /** Open a project through the app (fast path for tests that are not about opening projects). */
   async openProject(name) {
@@ -432,8 +432,20 @@ class PageBase {
     // (and the app's start-up checks done: their lines, e.g. 'ISE not available', written before a test reads the console)
     await this.waitFor((n) => window.Silinx.project?.name === n && document.querySelector('#hier .row') && window.Silinx.startupChecked, [name], { what: `project ${name} open` });
   }
-  /** Click a row of the Design hierarchy / processes by its label. */
+  /** The Design pane's view, Implementation or Simulation: its radio button; the modern interface has no views (its
+   *  layout by tasks, #1149): the app's view set as the radio would. */
+  async setView(view) {
+    if (await this.eval((v) => !!document.querySelector(`input[name=view][value=${v}]`)?.getClientRects().length, view)) return this.click(`input[name=view][value=${view}]`);
+    await this.eval((v) => window.SilinxApp.setView(v), view);
+  }
+  /** Click a row of the Design hierarchy / processes by its label. In the modern interface (its layout by tasks, #1149)
+   *  a row its task does not show is acted on as its click would: a module of the hierarchy selected (opened on a
+   *  double-click), a process's row clicked where the Processes list has it. */
   async treeRow(container, label, { dbl = false, exact = false, right = false } = {}) {
+    if (['#hier', '#procs'].includes(container) && await this.eval(() => document.documentElement.dataset.layout === 'tasks')) {
+      const done = await this.tasksTreeRow(container, label, { dbl, exact, right });
+      if (done) return;
+    }
     const idx = await this.waitFor((c, l, ex) => {
       const rows = [...document.querySelectorAll(`${c} .row`)].filter((r) => r.getClientRects().length);
       const i = rows.findIndex((r) => { const t = r.querySelector('.lbl')?.textContent?.trim() || ''; return ex ? t === l : t === l || t.startsWith(l); });
@@ -446,6 +458,28 @@ class PageBase {
     if (dbl) return this.dblclick(sel, { index: absolute });
     if (right) return this.rightClick(sel, { index: absolute });
     return this.click(sel, { index: absolute });
+  }
+  // (the modern interface: a row shown is clicked as it is; one not shown acted on; false: none, waited for as before)
+  async tasksTreeRow(container, label, { dbl, exact, right }) {
+    const shown = await this.eval((c, l, ex) => [...document.querySelectorAll(`${c} .row`)].some((r) => r.getClientRects().length && ((t) => (ex ? t === l : t === l || t.startsWith(l)))(r.querySelector('.lbl')?.textContent?.trim() || '')), container, label, exact);
+    if (shown || right) return false;
+    return this.waitFor((c, l, ex, d) => {
+      const match = (t) => (ex ? t === l : t === l || t.startsWith(l));
+      const A = window.SilinxApp, S = A.S;
+      if (c === '#procs') {
+        const row = [...document.querySelectorAll('#procs .row')].find((r) => match(r.querySelector('.lbl')?.textContent?.trim() || ''));
+        if (!row) return false;
+        row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        if (d) row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        return true;
+      }
+      if (S.project && match(S.project.name)) { A.select({ type: 'project' }); return true; }
+      const m = S.modules.find((x) => match(x.name));
+      if (m) { A.select({ type: 'module', module: m.name, file: m.file }); if (d) A.openFile(m.file, m.line); return true; }
+      const f = S.project?.files.find((x) => match(x.path.split('/').pop()));
+      if (f) { A.select({ type: 'file', file: f.path }); if (d) A.openFile(f.path); return true; }
+      return false;
+    }, [container, label, exact, dbl], { what: `tree row '${label}' in ${container} (the modern interface)` });
   }
 }
 
@@ -727,6 +761,8 @@ function initScripts({ updateCheck, build }) {
     // a development build's data (core/version.js BUILD, which the single file's build defines): its Development
     // menu (#707) on the local server
     ...(build ? [`window.__SILINX_BUILD__ = ${JSON.stringify(build)};`] : []),
+    // the Console's lines, every one: the modern interface's message centre hides those of the other tasks (#1149)
+    "window.__console = () => [...(document.getElementById('console-log')?.children || [])].map((l) => l.textContent).join('\\n');",
     // SILINX_UI_INTERFACE=classic: run the tests in the Xilinx ISE interface (the default is the modern one)
     ...(process.env.SILINX_UI_INTERFACE ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(process.env.SILINX_UI_INTERFACE)}); } catch (e) {}`] : []),
   ];

@@ -18,7 +18,7 @@ const E = () => env;
 uiTest('ISim: Simulate Behavioral Model runs the test bench; waveforms and objects have values; run more from the command line', E, async (page) => {
   await makeProject(env, { name: 'SimPj', template: 'blinky' });
   await page.openProject('SimPj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view);
@@ -109,7 +109,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   // the filters: every source by default (no task to follow)
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => [b.textContent, b.getAttribute('aria-pressed')])),
     [['All', 'true'], ['Design', 'false'], ['Simulation', 'false'], ['Emulator', 'false'], ['Synthesis', 'false'], ['Implementation', 'false'], ['Board', 'false']]);
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
@@ -136,7 +136,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => document.querySelector('#mc-cmd .mc-prompt').textContent === '›', [], { what: 'the palette\'s line' });
   // the emulator: its line under Emulator, its Messages box not in its window
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Emulate Behavioral Model (RTL)', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'the emulator', timeout: 60000 });
   assert.ok(!(await page.eval(() => !!document.querySelector('.doc:not([hidden]) .emu-log')?.getClientRects().length)), 'the Messages box not shown');
@@ -580,7 +580,7 @@ end Structure;
   await widget(page, 'SW0 = sw<0>');
   await waitLed(page, 0, true);
   // the simulation of the same netlist asks too
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitDialog('Simulate Post-Synthesis Model');
@@ -615,13 +615,13 @@ endmodule
   assert.deepEqual(await page.eval(() => window.Silinx.modules.map((m) => m.name).sort()), ['tb_top', 'top']);
   await page.treeRow('#hier', 'top');
   await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
-  await page.waitFor(() => /Process "Check Syntax" (completed successfully|failed)/.test(document.getElementById('console-log').innerText), [], { what: 'Check Syntax done' });
-  const log = await page.eval(() => document.getElementById('console-log').innerText.split('Started : "Check Syntax"').pop());
+  await page.waitFor(() => /Process "Check Syntax" (completed successfully|failed)/.test(window.__console()), [], { what: 'Check Syntax done' });
+  const log = await page.eval(() => window.__console().split('Started : "Check Syntax"').pop());
   // no 'module/entity BUFG not found', and no warning (d, read only at the FDCE's clock edge, is used)
   assert.match(log, /Process "Check Syntax" completed successfully\s*$/);
   assert.doesNotMatch(log, /not found|WARNING/);
   assert.equal(await page.eval(() => document.getElementById('console-errors').innerText.trim()), 'No messages.');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
@@ -658,7 +658,7 @@ end sim;
 `;
   await makeProject(env, { name: 'TextIo', board: 'basys2', top: 'add', files: { 'src/add.vhd': TOP, 'sim/tb_add.vhd': TB, 'vectors.txt': '3 4\n15 15\n9 1\n' }, roles: { 'sim/tb_add.vhd': 'sim' } });
   await page.openProject('TextIo');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_add');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });

@@ -17,7 +17,7 @@ const consoleLines = (page) => page.eval(() => [...document.querySelectorAll('.d
 uiTest('#920 SSim: the Processes pane, the simulation\'s tab, its console and prompt; ssim force and isim force; Portuguese', E, async (page) => {
   await makeProject(env, { name: 'SSimPj', template: 'blinky' });
   await page.openProject('SSimPj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'SSim Simulator', { exact: true });
   assert.ok(!(await procLabels(page)).some((l) => /ISim/.test(l)), (await procLabels(page)).join());

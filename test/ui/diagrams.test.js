@@ -878,7 +878,7 @@ uiTest('#303 a schematic with two drivers on a net: its old HDL file is not simu
   const run = async (proc, re) => {
     const before = (await page.consoleText()).length;
     await page.treeRow('#procs', proc, { dbl: true, exact: true });
-    await page.waitFor((b, r) => new RegExp(r).test(document.getElementById('console-log').innerText.slice(b)), [before, re.source], { what: proc, timeout: 60000 });
+    await page.waitFor((b, r) => new RegExp(r).test(window.__console().slice(b)), [before, re.source], { what: proc, timeout: 60000 });
     return (await page.consoleText()).slice(before);
   };
   const WHY = "src/s.vhd is not up to date: src/s.sch.json cannot generate it, it has errors: net 'y' has 2 drivers (U1.O, U2.O). Fix src/s.sch.json (its HDL is then generated again).";
@@ -888,13 +888,13 @@ uiTest('#303 a schematic with two drivers on a net: its old HDL file is not simu
   assert.match(log, /Process "Check Syntax" failed \(1 error\(s\)/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '(1)');
   // the simulation: stopped by its Check Syntax, not run on the old HDL
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 's');
   log = await run('Simulate Behavioral Model', /Process "Check Syntax" failed|Launching SSim/);
   assert.ok(log.includes(WHY), log);
   assert.doesNotMatch(log, /Launching SSim/);
   // fixed in the editor (U2 deleted): its HDL generated again, the check passes
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.eval(() => window.SilinxApp.openSch('src/s.sch.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/s.sch.json' && document.querySelector('.doc:not([hidden]) g.sym[data-id="S2"]'), [], { what: 'schematic editor' });
   await page.click('.doc:not([hidden]) g.sym[data-id="S2"] .hitbox, .doc:not([hidden]) g.sym[data-id="S2"]');

@@ -60,7 +60,7 @@ const waveOf = (page, path) => page.eval((p) => { const w = window.Silinx.active
 uiTest('ISim Wave window: zoom, markers, radix, force constant / clock / remove, dividers, add to wave (recursive), copy path, restart, go to source', E, async (page) => {
   await makeProject(env, { name: 'WavePj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('WavePj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
@@ -241,7 +241,7 @@ const typeDuringRun = (page, run, cmds) => page.eval((r, cs, type) => {
 uiTest('ISim command line: commands given before ISim\'s first run starts or during a run wait for it and run in turn, none lost; Break cancels the waiting ones (#215)', E, async (page) => {
   await makeProject(env, { name: 'RunQueuePj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB_FAST }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('RunQueuePj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   // typed as soon as ISim's command line is there, before its first run (1 us) has started, when ISim
   // looks ready (not running): they wait for that run (the CI failure of #215: 'run all' lost)
@@ -292,7 +292,7 @@ uiTest('ISim command line: commands given before ISim\'s first run starts or dur
 uiTest('ISim Wave window (#341): New Group, open / close, Rename Group, drag into and out of it, state, Ungroup, Delete, Portuguese', E, async (page) => {
   await makeProject(env, { name: 'GroupPj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('GroupPj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });

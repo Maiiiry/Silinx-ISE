@@ -137,7 +137,7 @@ endmodule
 `;
 const openTbw = (page, name) => newSourceWizardOf(page, 'Test Bench', name, 'Test Bench Wizard');
 const simulateAll = async (page, tb) => {
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', tb);
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });

@@ -373,7 +373,7 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views
   await page.click('#task-bar [data-act="main"]');
   await page.waitConsole(/Elaborating top module <tb_top>/);
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
-  assert.match(await page.eval(() => document.getElementById('console-log').innerText), /Started : "Behavioral Check Syntax"/);
+  assert.match(await page.eval(() => window.__console()), /Started : "Behavioral Check Syntax"/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
   // the UCF from its group: in Edit (the tree scrolled to its end: its last row clear of the horizontal scroll bar
   // the long rows of blinky's modules give it, which the headless browser draws over the pane)
