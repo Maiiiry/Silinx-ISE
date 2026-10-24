@@ -489,8 +489,14 @@ class PageBase {
   }
   // (the modern interface: a row shown is clicked as it is; one not shown acted on; false: none, waited for as before)
   async tasksTreeRow(container, label, { dbl, exact, right }) {
-    const shown = await this.eval((c, l, ex) => [...document.querySelectorAll(`${c} .row`)].some((r) => r.getClientRects().length && ((t) => (ex ? t === l : t === l || t.startsWith(l)))(r.querySelector('.lbl')?.textContent?.trim() || '')), container, label, exact);
-    if (shown || right) return false;
+    const isShown = () => this.eval((c, l, ex) => [...document.querySelectorAll(`${c} .row`)].some((r) => r.getClientRects().length && ((t) => (ex ? t === l : t === l || t.startsWith(l)))(r.querySelector('.lbl')?.textContent?.trim() || '')), container, label, exact);
+    if (await isShown()) return false;
+    // (the hierarchy: Design's page; its row there clicked as it is)
+    if (container === '#hier') {
+      const inTree = await this.eval((l, ex) => [...document.querySelectorAll('#hier .row')].some((r) => ((t) => (ex ? t === l : t === l || t.startsWith(l)))(r.querySelector('.lbl')?.textContent?.trim() || '')), label, exact);
+      if (inTree) { await this.leftTab('design'); return false; }
+    }
+    if (right) return false;
     return this.waitFor((c, l, ex, d) => {
       const match = (t) => (ex ? t === l : t === l || t.startsWith(l));
       const A = window.SilinxApp, S = A.S;
