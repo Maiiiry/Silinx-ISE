@@ -270,6 +270,10 @@ export function mountProps(ctx) {
     const n = nl()?.wireNet.get(w.id);
     propBody.append(h('div', { class: 'se-ptitle', text: `Wire${n ? ` · net ${n.name}` : ''}` }));
     propBody.append(field('Draw as bus', chk(w.bus, v => { if (v) w.bus = true; else delete w.bus; })));
+    // (its own curve, #1144: dropped, the curve derived from its path again)
+    if (Array.isArray(w.curve) && doc().wireStyle === 'curved') {
+      propBody.append(h('div', { class: 'se-pbtns' }, h('button', { class: 'btn', type: 'button', text: 'Reset curve', title: 'Drop this wire\'s own curve: drawn again from its rectilinear path', onclick: () => edit(() => { delete doc().wires.find(x => x.id === w.id)?.curve; }) })));
+    }
     if (n) propBody.append(field('Rename net', inp(n.auto ? '' : n.name, async v => {
       if (refused(v)) return false;
       if (!await joinByName(String(v).trim(), n)) return false;

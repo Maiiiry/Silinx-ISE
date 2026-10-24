@@ -1,18 +1,20 @@
 // The schematic editor's tools (#405: out of mountSchEditor): the tool in use and its options (a net name, an I/O
 // marker's name and direction), a symbol placed, a wire drawn (routed square, nudged clear of other wires, pins and
-// bodies, #948, its ends connecting, a short between two named nets refused, #754), a net name attached to a wire, an I/O marker added; the points a wire can connect to.
+// bodies, #948, its ends connecting, a short between two named nets refused, #754; curved, #1144: through the points
+// clicked, its rectilinear path routed between its ends), a net name attached to a wire, an I/O marker added; the points a wire can connect to.
 // mountTools(ctx) is called by mountSchEditor where this code was.
 import { SYMBOLS, defaultParams, symbolDef, symbolPins, rotSize, freePortName, normalizeDoc, parseNetName, splitWiresAt, renameNet, netShort,
 } from '/core/schdoc.js';
 import { h } from './dom.js';
 import { reservedError } from '/core/reserved.js';
-import { nudgeWire } from '/core/schpath.js';
+import { nudgeWire, routePath, wireGrid, cleanPath } from '/core/schpath.js';
+import { setCurve } from '/core/schcurve.js';
 import { clone, snap, onSeg, segDist, cleanPts } from './sch-editor.js';
 
 /** { setTool, renderOpts, startPlace, placeAt, connPoints, pinNear, snapPoint, routeTo, finishWire, wireClick, netClick, ioClick } of a
  *  schematic editor (doc(), nl(), sel(), tool(), placing(), wireDraw(), …: its current ones; set({ tool, placing, wireDraw }) changes them). */
 export function mountTools(ctx) {
-  const { doc, nl, sel, modules, view, hoverPin, destroyed, tool, placing, wireDraw, set, readOnly, canvas, optBox, container, edit, flash, shortNote,
+  const { doc, nl, sel, modules, view, hoverPin, destroyed, tool, placing, wireDraw, curve, set, readOnly, canvas, optBox, container, edit, flash, shortNote,
     nextId, nextInstName, promptBox, renderPalette, render, renderOverlay, renderProps, updateToolbar, updateStatus, joinByName, renamed } = ctx;
 
   function setTool(t) {
@@ -75,14 +77,16 @@ export function mountTools(ctx) {
     for (const c of connPoints()) { const d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d <= bd) { bd = d; best = c; } }
     return best;
   }
+  // the wire under pt: { w, i (its segment) } or, curved (#1144), { w, at (the point of its path answering pt) }
   function wireNear(pt, tol = 5 / Math.max(0.3, view().s)) {
+    if (curve.curved()) return curve.wireAt(pt, tol);
     for (const w of doc().wires) for (let i = 0; i + 1 < w.points.length; i++) if (segDist(pt, w.points[i], w.points[i + 1]) <= tol) return { w, i };
     return null;
   }
   function snapPoint(pt) { const p = hoverPin() || null; return p ? { x: p.x, y: p.y } : { x: snap(pt.x), y: snap(pt.y) }; }
   // orthogonal route from a to b
   function routeTo(a, b, wd) {
-    if (a.x === b.x || a.y === b.y) return [b];
+    if (a.x === b.x || a.y === b.y || curve.curved()) return [b];   // (curved, #1144: the point itself)
     let first = 'h';
     const pts = wd.pts;
     if (pts.length >= 2) { const p = pts[pts.length - 2]; first = p.y === a.y ? 'v' : 'h'; }
@@ -90,11 +94,23 @@ export function mountTools(ctx) {
     else first = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? 'h' : 'v';
     return first === 'h' ? [{ x: b.x, y: a.y }, b] : [{ x: a.x, y: b.y }, b];
   }
+  // curved (#1144): the wire's rectilinear path routed between the ends of the points drawn (clicked, or a stroke's)
+  function curvedPath(knots) {
+    const a = knots[0], b = knots[knots.length - 1];
+    if (a.x === b.x && a.y === b.y) return [a];
+    let pts = null;
+    try { pts = routePath(wireGrid(doc(), { modules: modules() }), a, b); } catch (err) { console.error(err); }
+    return pts || cleanPath([a, { x: b.x, y: a.y }, b]);
+  }
   function finishWire() {
     if (!wireDraw()) return;
+    // (curved, #1144: the points drawn through kept as the wire's own curve)
+    let knots = wireDraw().knots || (curve.curved() ? wireDraw().pts.filter((p, i, a) => !i || p.x !== a[i - 1].x || p.y !== a[i - 1].y) : null);
     // (nudged onto a clear path where it would run along another wire, over a pin or through a body, #948)
-    const pts = nudgeWire(doc(), cleanPts(wireDraw().pts), { modules: modules() });
+    const pts = knots ? curvedPath(knots) : nudgeWire(doc(), cleanPts(wireDraw().pts), { modules: modules() });
+    if (knots && knots.length < 2) knots = null;
     set({ wireDraw: null });
+    const wire = id => (knots ? setCurve({ id, points: pts }, knots.slice(1, -1)) : { id, points: pts });
     // the wire connects at its ends only (#678): an end on another wire's segment or bend splits that
     // wire there (a T-junction), unless it is on a pin or a marker (connected to that one); what the
     // wire passes over stays apart
@@ -102,13 +118,15 @@ export function mountTools(ctx) {
     if (pts.length < 2) { renderOverlay(); return; }
     // a wire between two named nets is refused, as in ISE (#754): rename one of them, or give both the same name
     const trial = clone(doc());
-    splitWiresAt(trial, ends); trial.wires.push({ id: nextId('W', trial.wires), points: pts });
+    splitWiresAt(trial, ends); trial.wires.push(wire(nextId('W', trial.wires)));
     const short = netShort(doc(), normalizeDoc(trial), { modules: modules() });
     if (short) { shortNote('The wire', short); renderOverlay(); return; }
-    edit(() => { splitWiresAt(doc(), ends); doc().wires.push({ id: nextId('W', doc().wires), points: pts }); }, { keepProps: true });
+    edit(() => { splitWiresAt(doc(), ends); doc().wires.push(wire(nextId('W', doc().wires))); }, { keepProps: true });
   }
   function wireClick(pt, dbl) {
-    const p = snapPoint(pt);
+    // (curved, #1144: on a wire's curve, the point of its path answering it)
+    const cw = curve.curved() && !hoverPin() ? curve.wireAt(pt) : null;
+    const p = cw ? cw.at : snapPoint(pt);
     if (!wireDraw()) {
       const near = pinNear(pt);
       set({ wireDraw: { pts: [p], startSide: near?.pin?.side || (near?.port ? (near.port.dir === 'in' ? 'E' : 'W') : null) } });
@@ -121,14 +139,14 @@ export function mountTools(ctx) {
     wireDraw().pts.push(...routeTo(last, p, wireDraw()));
     // end on a pin / marker / another wire
     const onPin = pinNear(pt);
-    const onWire = doc().wires.some(w => w.points.some((q, i) => i + 1 < w.points.length && onSeg(p, q, w.points[i + 1])));
+    const onWire = !!cw || doc().wires.some(w => w.points.some((q, i) => i + 1 < w.points.length && onSeg(p, q, w.points[i + 1])));
     if (onPin || onWire) finishWire(); else renderOverlay();
   }
   async function netClick(pt) {
     const hit = wireNear(pt);
     if (!hit) { flash('Click on a wire to attach the net name'); return; }
     const a = hit.w.points[hit.i], b = hit.w.points[hit.i + 1];
-    const at = a.x === b.x ? { x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), snap(pt.y))) } : { x: Math.max(Math.min(a.x, b.x), Math.min(Math.max(a.x, b.x), snap(pt.x))), y: a.y };
+    const at = hit.at || (a.x === b.x ? { x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), snap(pt.y))) } : { x: Math.max(Math.min(a.x, b.x), Math.min(Math.max(a.x, b.x), snap(pt.x))), y: a.y });
     let name = netNameInput.value.trim();
     if (!name) name = await promptBox(pt, 'Net name', nl()?.wireNet.get(hit.w.id)?.auto ? '' : (nl()?.wireNet.get(hit.w.id)?.name || ''));
     if (!name) return;
@@ -147,10 +165,12 @@ export function mountTools(ctx) {
   }
   async function ioClick(pt) {
     const near = pinNear(pt);
-    const p = near ? { x: near.x, y: near.y } : { x: snap(pt.x), y: snap(pt.y) };
+    // (curved, #1144: on a wire's curve, at the point of its path answering it)
+    const cw = !near && curve.curved() ? curve.wireAt(pt) : null;
+    const p = near ? { x: near.x, y: near.y } : cw ? cw.at : { x: snap(pt.x), y: snap(pt.y) };
     if (near?.port) { flash('There is already an I/O marker here'); return; }
     let dir = ioDirSel.value, width = 1, suggest = '';
-    const net = near?.pin ? nl()?.pinNet.get(`${near.sym.id}/${near.pin.name}`) : nl()?.wireNet.get(wireNear(p, 0.5)?.w.id);
+    const net = near?.pin ? nl()?.pinNet.get(`${near.sym.id}/${near.pin.name}`) : nl()?.wireNet.get(cw ? cw.w.id : wireNear(p, 0.5)?.w.id);
     if (near?.pin) { width = near.pin.width || net?.width || 1; if (dir === 'auto') dir = near.pin.dir === 'out' ? 'out' : near.pin.dir === 'inout' ? 'inout' : 'in'; }
     else if (net) { width = net.width; if (dir === 'auto') dir = net.drivers.length ? 'out' : 'in'; }
     // (on empty space: a marker of 1 bit, an input unless chosen, with the next free name, wired later, #680)

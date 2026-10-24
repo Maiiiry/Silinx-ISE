@@ -43,6 +43,7 @@ import { mountSchUi } from './sch-ui.js';
 import { mountSchDom } from './sch-dom.js';
 import { mountSchCheck } from './sch-check.js';
 import { mountSchOptions } from './sch-options.js';
+import { mountSchCurve } from './sch-curve.js';
 
 export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
@@ -141,9 +142,11 @@ export function mountSchEditor(container, opts = {}) {
   const { hopsBox, keepBox, keepConn, namesBox, showHops, showNames } = mountSchOptions({ render: (...a) => render(...a) });
   const btn = (act, icon, title) => h('button', { type: 'button', class: 'se-btn', 'data-act': act, title, html: ICON[icon] });
   const sep = () => h('span', { class: 'se-sep' });
+  // Curved wires (#1144, sch-curve.js): the schematic drawn with curves (saved with it), or the technical drawing
+  const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => view, readOnly, edit: (...a) => edit(...a), render: (...a) => render(...a), renderProps: (...a) => renderProps(...a), snapshot: (...a) => snapshot(...a), pushUndo: (...a) => pushUndo(...a), changed: (...a) => changed(...a) });
   // (the toolbar's buttons and their clicks: sch-toolbar.js)
   const { optBox } = mountSchToolbar({
-    container, btn, canSim, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
+    container, btn, canSim, curvedBox: curve.box, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
     fit: (...a) => fit(...a), hopsBox, infoTarget: (...a) => infoTarget(...a), keepBox,
     leaveSim: (...a) => leaveSim(...a), live: () => live, mirrorSel: (...a) => mirrorSel(...a), namesBox,
     openInfo: (...a) => openInfo(...a), readOnly, redo: (...a) => redo(...a), rotateSel: (...a) => rotateSel(...a),
@@ -196,7 +199,7 @@ export function mountSchEditor(container, opts = {}) {
   function refreshNetlist() { try { nl = netlist(doc, { modules }); } catch (e) { console.error(e); nl = null; } }
   const { renderSheet, render, renderOverlay, updateToolbar, updateStatus } = mountRender({
     state: () => ({ doc, nl, sel, tool, placing, drag, wireDraw, cursor, hoverPin, lastDiags, live, modules, view, destroyed, showHops: showHops(), showNames: showNames() }),
-    refreshNetlist, uidE, readOnly, sheetG, contentG, overlayG, tb, status, undoStack, redoStack,
+    curve, refreshNetlist, uidE, readOnly, sheetG, contentG, overlayG, tb, status, undoStack, redoStack,
     routeTo: (...a) => routeTo(...a), snapPoint: (...a) => snapPoint(...a), bandRect,
     infoTarget: (...a) => infoTarget(...a) });
 
@@ -217,7 +220,7 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- tools (sch-tools.js)
   const { setTool, renderOpts, startPlace, placeAt, connPoints, pinNear, snapPoint, routeTo, finishWire, wireClick, netClick, ioClick } = mountTools({
     doc: () => doc, nl: () => nl, sel: () => sel, modules: () => modules, view: () => view, hoverPin: () => hoverPin, destroyed: () => destroyed,
-    tool: () => tool, placing: () => placing, wireDraw: () => wireDraw,
+    tool: () => tool, placing: () => placing, wireDraw: () => wireDraw, curve,
     set: (o) => { if ('tool' in o) tool = o.tool; if ('placing' in o) placing = o.placing; if ('wireDraw' in o) wireDraw = o.wireDraw; },
     readOnly, canvas, optBox, container, edit, flash: (...a) => flash(...a), shortNote, nextId, nextInstName,
     promptBox: (...a) => promptBox(...a), renderPalette, render, renderOverlay, renderProps,
@@ -255,7 +258,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!add) sel.clear();
     for (const s of doc.symbols) { const b = symbolBox(s, modules); if (b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h) sel.add(`sym:${s.id}`); }
     for (const p of doc.ports) { const b = portBox(p); if (rectsTouch(b, r) && inside(p, r)) sel.add(`port:${p.id}`); }
-    for (const w of doc.wires) if (w.points.every(p => inside(p, r))) sel.add(`wire:${w.id}`);
+    for (const w of doc.wires) if (curve.curved() ? curve.inBand(w, r) : w.points.every(p => inside(p, r))) sel.add(`wire:${w.id}`);
     for (const l of doc.labels) if (inside(l, r)) sel.add(`label:${l.id}`);
   }
 
@@ -263,7 +266,7 @@ export function mountSchEditor(container, opts = {}) {
   const itemAt = target => { const g = target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
   let spaceDown = false;
   const { finishMove, onMove, onUp } = mountSchMouse({
-    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed,
+    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, curve,
     cursor: () => cursor, destroyed: () => destroyed, doc: () => doc, drag: () => drag, finishSegMove, finishWire,
     flash: (...a) => flash(...a), hoverPin: () => hoverPin, ioClick, itemAt, keepConn, live: () => live,
     modules: () => modules, netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render,

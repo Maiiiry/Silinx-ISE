@@ -7,14 +7,15 @@
 // Document format (version 1, all coordinates in sheet pixels on a GRID = 10 px grid):
 //   { version: 3, name, lang: 'vhdl'|'verilog', sheet: { w, h },
 //     symbols: [{ id, type, x, y, rot: 0|90|180|270, mirror: bool, name, params: {...}, hdl?: string }],
-//     wires:   [{ id, points: [{x,y},...], bus?: bool }],
+//     wires:   [{ id, points: [{x,y},...], bus?: bool, curve?: [{u,v}] }],   // curve: its own drawn curve (#1144, core/schcurve.js)
 //     labels:  [{ id, x, y, net }],          // net name attached to the wire point (x,y)
 //     ports:   [{ id, name, dir: 'in'|'out'|'inout', width, x, y, type?, side? }],   // I/O markers
 //              (side: where the marker's body is from its connection point, W N E S; by default W for
 //              an input, E for an output or a bidirectional port, #296)
 //     hdl?:    { lang, context, generics: [{ name, type, default }], decls, arch },  // verbatim HDL
 //     generatedFile?: 'src/name.vhd',
-//     description?: 'text' }                // shown on the sheet, a comment in the generated HDL
+//     description?: 'text',                 // shown on the sheet, a comment in the generated HDL
+//     wireStyle?: 'curved' }                // the wires drawn as curves (#1144); else the technical drawing
 //
 // (x, y) of a symbol is the top-left corner of its (rotated) bounding box; rotation is clockwise.
 // Connectivity is geometric, at the ends only (#678): wire end points, pins and I/O markers at the
@@ -25,6 +26,7 @@
 import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
 import { BLOCK_MARK, blockMarkOf, declaredIn, generateHdl, isBlockSymbol } from './schdoc-hdl.js';
 import { mergeNetWires } from './schdoc-place.js';
+import { normalizeCurve, splitCurve } from './schcurve.js';
 import {
   modulesFromLibrary, schematicFromHdl
 } from './schdoc-from-hdl.js';
@@ -95,6 +97,9 @@ export function normalizeDoc(d, { modules } = {}) {
     for (const p of w.points) { const q = { x: snap(+p.x || 0), y: snap(+p.y || 0) }; const l = pts[pts.length - 1]; if (!l || l.x !== q.x || l.y !== q.y) pts.push(q); }
     const o = { id: w.id, points: pts };
     if (w.bus) o.bus = true;
+    // (its own curve, #1144: drawn when the schematic is drawn with curves)
+    const c = normalizeCurve(w.curve);
+    if (c) o.curve = c;
     uid(o, 'W'); return o;
   }).filter(w => w.points.length >= 2);
   doc.labels = (Array.isArray(doc.labels) ? doc.labels : []).filter(l => l && l.net).map(l => { const o = { id: l.id, x: snap(+l.x || 0), y: snap(+l.y || 0), net: String(l.net).trim() }; uid(o, 'L'); return o; });
@@ -113,6 +118,8 @@ export function normalizeDoc(d, { modules } = {}) {
   let k = 0;
   for (const s of doc.symbols) if (!s.name) { do k++; while (names.has(`U${k}`)); s.name = `U${k}`; names.add(s.name); }
   if (doc.hdl && typeof doc.hdl !== 'object') delete doc.hdl;
+  // (drawn with curves, #1144; else the technical drawing)
+  if (doc.wireStyle !== 'curved') delete doc.wireStyle;
   delete doc.importDiagnostics;
   if (before678) {
     const mods = normModules(modules);
@@ -453,9 +460,13 @@ export function splitWiresAt(doc, pts, ids = null) {
       const head = P.slice(0, i + 1), tail = P.slice(i + 1);
       if (!same(head[head.length - 1])) head.push({ x: p.x, y: p.y });
       if (!same(tail[0])) tail.unshift({ x: p.x, y: p.y });
-      w.points = head;
       const t = { id: nid(), points: tail };
       if (w.bus) t.bus = true;
+      // (its own curve shared between the two, #1144)
+      const hc = { points: head };
+      splitCurve(w, hc, t, p);
+      w.points = head;
+      if (hc.curve) w.curve = hc.curve;
       doc.wires.splice(j + 1, 0, t);
       added.push({ id: t.id, from: w.id });
     }
