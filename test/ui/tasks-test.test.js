@@ -46,11 +46,11 @@ uiTest('#1016 Tasks ▸ Edit: the Test tab after Design, its test benches; added
     await page.click('#task-switch .task-btn[data-task="edit"]');
     // the tab after Design's, its name the tooltip; Design in front
     assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#left-tabs .tab')].map((t) => [t.dataset.page, t.title])),
-      [['start', 'Start'], ['design', 'Design'], ['test', 'Test'], ['files', 'Files'], ['libraries', 'Libraries']]);
+      [['start', 'Start'], ['design', 'Design'], ['test', 'Test'], ['files', 'Files'], ['libraries', 'Libraries'], ['procs', 'Processes']]);   // (Processes: Implement's, #1160)
     assert.deepEqual(await rows(page, '#hier'), ['TasksTestTab', 'xc3s250e-4-cp132', 'and2']);
     // no test bench: said, the wizard offered
     await page.click('#left-tabs .tab[data-page="test"]');
-    assert.deepEqual(await testPage(page), { tabs: ['start', 'design', 'test', 'files', 'libraries'], active: 'test', shown: true, caption: 'Test Benches',
+    assert.deepEqual(await testPage(page), { tabs: ['start', 'design', 'test', 'files', 'libraries', 'procs'], active: 'test', shown: true, caption: 'Test Benches',
       rows: [], none: 'The project has no test bench yet.', button: 'New Test Bench (Wizard)…' });
     assert.ok(!(await vis(page, '#hier')), 'the Design page hidden');
     // its context menu: a test bench added
@@ -64,7 +64,7 @@ uiTest('#1016 Tasks ▸ Edit: the Test tab after Design, its test benches; added
     await page.dialogButton('Finish');
     await page.waitNoDialog();
     await page.waitFor(() => window.Silinx.project.simTop === 'tb_and2' && document.querySelector('#test-tree .row'), [], { what: 'the new test bench' });
-    assert.deepEqual(await testPage(page), { tabs: ['start', 'design', 'test', 'files', 'libraries'], active: 'test', shown: true, caption: 'Test Benches',
+    assert.deepEqual(await testPage(page), { tabs: ['start', 'design', 'test', 'files', 'libraries', 'procs'], active: 'test', shown: true, caption: 'Test Benches',
       rows: ['tb_and2', 'uut - and2'], none: null, button: 'New Test Bench (Wizard)…' });
     assert.ok(!(await page.eval(() => [...document.querySelectorAll('#hier .lbl')].some((l) => /tb_and2|Test Benches/.test(l.textContent)))), 'not in Design');
     // opened from it (the wizard opened it: closed first)

@@ -168,6 +168,8 @@ html[data-layout="tasks"][data-task="impl"] #design-panel { display: none; }
 html[data-layout="tasks"][data-task="impl"] #proc-panel { display: flex; flex: 1; height: auto !important; }
 /* (Emulate on Board and Configure Target Device are the Emulate and Program tasks', not Implement's: #923) */
 html[data-layout="tasks"][data-task="impl"] #procs li:is([data-proc="emulate"], [data-proc="config"]) { display: none; }
+/* (nor the top's drawing to view or edit: Design's, #1160) */
+html[data-layout="tasks"][data-task="impl"] #procs li:is([data-proc="sch-open"], [data-proc="wiz-open"]) { display: none; }
 /* its page: the Design Summary as cards */
 /* (a wrapping row, not a grid: a grid left a table's caption out of its height, and the cards overlapped: #923) */
 html[data-layout="tasks"] #workspace > .doc > .page:has(> .summary-table) { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; padding: 16px; }
@@ -201,7 +203,7 @@ html[data-layout="tasks"] .doc[data-task="prog"] > .page:not(.settings-open) > .
 /* ------------------------------------------------------------------ the activity bar is Edit's (#876) */
 /* Start, Design, Files and Libraries are Edit's pages: Simulate and Emulate have their document's own side panel,
    Program none (no left column); Implement its Processes, whichever page Edit left in front */
-html[data-layout="tasks"]:not([data-task="edit"]) #left-tabs { display: none; }
+html[data-layout="tasks"]:not([data-task="edit"], [data-task="impl"]) #left-tabs { display: none; }
 html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"], [data-task="prog"]) :is(#left, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
 html[data-layout="tasks"][data-task="prog"] #task-bar [data-act="side"] { display: none; }
 html[data-layout="tasks"][data-task="impl"] .left-page[data-page="design"] { display: flex !important; }
@@ -209,25 +211,30 @@ html[data-layout="tasks"][data-task="impl"] .left-page:not([data-page="design"])
 
 /* ------------------------------------------------------------------ Edit's pages: tabs at the top of its side panel (#984) */
 /* no column of their own: a row above the hierarchy (the open page's icon and name, the others' icon, their name the
-   tooltip); folded, neither; on a narrow screen, the drawer's top row */
-html[data-layout="tasks"][data-task="edit"] #left { flex-direction: column; }
-html[data-layout="tasks"][data-task="edit"] #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: 36px;
+   tooltip); folded, neither; on a narrow screen, the drawer's top row. Implement's Processes under such a tab, its only
+   one (#1160); no panel's heading under the tabs (#1159, #1160) */
+html[data-layout="tasks"] #left-pages .ise-panel > .caption { display: none; }
+html[data-layout="tasks"]:not([data-task="impl"]) #task-procs-tab { display: none; }
+html[data-layout="tasks"][data-task="impl"] #left-tabs .tab:not(#task-procs-tab) { display: none; }
+html[data-layout="tasks"][data-task="impl"] #task-procs-tab { flex: 1 1 auto; justify-content: flex-start; background: var(--m-accent-soft); color: var(--m-accent); font-weight: 600; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left { flex-direction: column; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: 36px;
   padding: 4px 6px; gap: 2px; border-right: none; border-bottom: 1px solid var(--m-border); }
-html[data-layout="tasks"][data-task="edit"] #left-tabs .tab { flex: 0 0 auto; flex-direction: row; gap: 6px; padding: 0 9px; }
-html[data-layout="tasks"][data-task="edit"] #left-tabs .tab.active { flex: 1 1 auto; justify-content: flex-start; }
-html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-ico, html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-ico svg { width: 17px; height: 17px; }
-html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-lbl { max-width: none; font-size: 12px; }
-html[data-layout="tasks"][data-task="edit"] #left-tabs .tab:not(.active) .tab-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab { flex: 0 0 auto; flex-direction: row; gap: 6px; padding: 0 9px; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab.active { flex: 1 1 auto; justify-content: flex-start; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab-ico, html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab-ico svg { width: 17px; height: 17px; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab-lbl { max-width: none; font-size: 12px; }
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs .tab:not(.active, #task-procs-tab) .tab-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (min-width: 1025px) {
-  html[data-layout="tasks"][data-task="edit"][data-side="folded"] #left { display: none; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"])[data-side="folded"] #left { display: none; }
 }
 @media (max-width: 1024px) {
-  html[data-layout="tasks"][data-task="edit"] #left { width: 0 !important; min-width: 0; }
-  html[data-layout="tasks"][data-task="edit"] #left-tabs { position: absolute; top: 0; left: 0; z-index: 1; width: min(344px, calc(100vw - 56px));
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left { width: 0 !important; min-width: 0; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs { position: absolute; top: 0; left: 0; z-index: 1; width: min(344px, calc(100vw - 56px));
     background: var(--m-surface-2); }
-  html[data-layout="tasks"][data-task="edit"] #left-pages { left: 0; top: 36px; width: min(344px, calc(100vw - 56px)); }
-  html[data-layout="tasks"][data-task="edit"]:not([data-drawer="open"]) #left-tabs { display: none; }
-  html[data-layout="tasks"][data-task="edit"] #drawer-scrim { left: 0; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-pages { left: 0; top: 36px; width: min(344px, calc(100vw - 56px)); }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]):not([data-drawer="open"]) #left-tabs { display: none; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #drawer-scrim { left: 0; }
 }
 
 /* ------------------------------------------------------------------ Edit's Test page (#1016, web/js/tasks-test.js) */
