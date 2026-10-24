@@ -173,8 +173,10 @@ export async function renderStartPage() {
   const projects = await api.projects().catch(() => []);
   const recentHere = recent().filter(r => projects.some(p => p.name === r));
   // (an export: the open project's, disabled with none; menus.js loaded when used)
-  const exportZip = kind => S.project ? () => import('./menus.js').then(m => m.exportProjectZip(kind)) : null;
-  const command = ([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), f ? h('a', { onclick: f }, l) : h('span', { class: 'disabled' }, l));
+  // (the page is the same whether a project is open or not, so that a late drawing keeps it, #494, #1222: an export
+  // disabled with none by the host's data-project, web/css/app.css)
+  const exportZip = kind => () => S.project && import('./menus.js').then(m => m.exportProjectZip(kind));
+  const command = ([l, ic, f, exp]) => h('div', { class: `entry${exp ? ' start-export' : ''}` }, icon(ic), h('a', { onclick: f }, l));
   const page = h('div', { class: 'page' },
     // New Project and Open Project: buttons at the top (#1216)
     h('div', { class: 'start-btns' },
@@ -182,9 +184,9 @@ export async function renderStartPage() {
       h('button', { class: 'btn', type: 'button', onclick: () => wiz.openProjectDialog() }, 'Open Project…')),
     // the Silinx and the Xilinx imports and exports, as the File menu has them, a line between (#1216)
     h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
-      ...[['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Export Silinx ISE Project (.zip)…', 'save', exportZip('silinx')]].map(command),
+      ...[['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Export Silinx ISE Project (.zip)…', 'save', exportZip('silinx'), true]].map(command),
       h('hr', { class: 'start-sep' }),
-      ...[['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ['Export Xilinx ISE Project (.zip)…', 'save', exportZip('xilinx')]].map(command)),
+      ...[['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ['Export Xilinx ISE Project (.zip)…', 'save', exportZip('xilinx'), true]].map(command)),
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
       projects.length ? null : h('div', { class: 'entry', style: { color: 'var(--grey-6)' } }, 'No projects yet.'),
@@ -193,6 +195,7 @@ export async function renderStartPage() {
   );
   // the last render wins: an earlier one finishing later showed the list as it was (e.g. before a Clear)
   if (n !== startRenders) return;
+  if (S.project) host.dataset.project = ''; else delete host.dataset.project;
   // kept when it is the same: a page rebuilt between a press and its release (another close's render
   // finishing late) lost the click on a recent project (#494)
   if (host.firstElementChild?.outerHTML === page.outerHTML) return;
