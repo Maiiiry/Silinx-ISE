@@ -7,6 +7,7 @@ import { buildLiveSim, level, fmtValue } from '/core/schlive.js';
 import { symbolPins, symbolBox, SYMBOLS } from '/core/schdoc.js';
 import { alongMarker, valueBoxAt } from '/core/sch-live-place.js';
 import { formatTime } from '/core/interp.js';
+import { isCurved, curveNearest, curvePointAt } from '/core/schcurve.js';
 import { t } from './i18n.js';
 import { esc } from './dom.js';
 import { mountLiveInputs } from './sch-live-inputs.js';
@@ -64,9 +65,11 @@ function liveController(ctx, live) {
       const w = wireById.get(wid);
       for (let i = 0; w && i + 1 < w.points.length; i++) {
         const a = w.points[i], b = w.points[i + 1], L = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-        if (L > bl) { bl = L; best = { a, b }; }
+        if (L > bl) { bl = L; best = { a, b, w }; }
       }
     }
+    // (curved wires, #1144: over the middle of that wire's curve)
+    if (best && isCurved(doc)) { const m = curvePointAt(best.w, 0.5), q = { x: Math.round(m.x), y: Math.round(m.y) }; best = { a: q, b: q }; }
     if (best) busLabelAt.set(net.id, best);
   }
 
@@ -266,6 +269,7 @@ function liveController(ctx, live) {
     for (const p of pins) { const d = Math.hypot(p.x - pt.x, p.y - pt.y); if (d <= bd) { bd = d; best = { pin: p }; } }
     for (const p of doc.ports) { const d = Math.hypot(p.x - pt.x, p.y - pt.y); if (d <= bd) { bd = d; best = { port: p }; } }
     if (best) return best;
+    if (isCurved(doc)) { const w = doc.wires.find(q => curveNearest(q, pt).d <= tol); return w ? { wire: w } : null; }   // (on the curves, #1144)
     for (const w of doc.wires) {
       for (let i = 0; i + 1 < w.points.length; i++) {
         const a = w.points[i], b = w.points[i + 1];
