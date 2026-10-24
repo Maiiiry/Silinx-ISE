@@ -1,24 +1,25 @@
 // The message centre (#798, #782; in every interface since #925): the bottom panel as the one place of every
 // flow's messages (web/js/tasks.js starts it; its look: web/css/messages.css).
-// - Each line of the Console says where it comes from (data-src): Check Syntax, Simulation, Emulator,
-//   Synthesis, Implementation, Board, or the application ('app'); sourceOf() reads it from the processes'
+// - Each line of the Console says where it comes from (data-src): Check Syntax (Design), Simulation, Emulation,
+//   Implementation (synthesis, implementation and programming the board: one filter, #1173), or the application
+//   ('app'); sourceOf() reads it from the processes'
 //   headers ("Started : …", "=== SILINX STEP …", iMPACT's "Programming FPGA (SRAM)..."): the lines after a
 //   header are its process's.
-// - Filters by source follow the task in front in the Tasks interface (Implement: Synthesis and Implementation)
+// - Filters by source follow the task in front in the Tasks interface (Implement: Implementation)
 //   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task).
 // - Folded (tasks.js), the panel shows its last line of the current filter.
-// - ISim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulator).
+// - ISim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulation).
 // - One command line: ISim's commands while simulating (SSim> run 1 us; Simulate in front, or an ISim window in the
 //   other interfaces; its history on ↑ / ↓), else the command palette.
 // The sources and the filters (sourceOf, filterSources) have no DOM and are unit tested (test/messages.test.js).
 
 import { h } from './ui.js';
 
-export const SOURCES = ['check', 'sim', 'emu', 'synth', 'impl', 'prog'];
+export const SOURCES = ['check', 'sim', 'emu', 'impl'];
 export const SOURCE_LABEL = { all: 'All', check: 'Design',   // (the design's checks: Check Syntax, Check Constraints, Check Schematic, #994)
-  sim: 'Simulation', emu: 'Emulator', synth: 'Synthesis', impl: 'Implementation', prog: 'Board' };
+  sim: 'Simulation', emu: 'Emulation', impl: 'Implementation' };   // (Implementation: synthesis, implementation and the board's, #1173)
 // the sources a task shows when the viewer has not picked a filter
-const TASK_SOURCES = { edit: ['check'], sim: ['sim'], emu: ['emu'], impl: ['synth', 'impl'], prog: ['prog'] };
+const TASK_SOURCES = { edit: ['check'], sim: ['sim'], emu: ['emu'], impl: ['impl'], prog: ['impl'] };
 
 /** The source of a Console line: the process a header starts, else `cur` (the lines after a header are
  *  its process's; before any, the application's). */
@@ -29,12 +30,11 @@ export function sourceOf(line, cur = 'app') {
     const p = m[1];
     if (/Check Syntax|Check Constraints|Check Schematic/.test(p)) return 'check';
     if (/^Simulate\b|^Save as Test Bench/.test(p)) return 'sim';
-    if (/^Synthesize\b|^Implement Design$|^Generate Programming File$/.test(p)) return 'synth';   // (the flow's first step; its steps say the next ones)
-    return 'impl';   // Translate, Map, Place & Route and their models, timing, power, back-annotation, the FPGA view
+    return 'impl';   // synthesis, Translate, Map, Place & Route and their models, timing, power, back-annotation, the FPGA view
   }
-  if ((m = /^=== SILINX STEP (\w+)/.exec(s))) return m[1] === 'synth' ? 'synth' : 'impl';
+  if (/^=== SILINX STEP \w+/.test(s)) return 'impl';
   if (/^(ERROR: )?Board Emulator:/.test(s)) return 'emu';
-  if (/^(Scanning JTAG chain|Programming |Verifying |Erasing |Backing up |Reloading the FPGA from the PROM)\S*.*\.\.\.$/.test(s)) return 'prog';
+  if (/^(Scanning JTAG chain|Programming |Verifying |Erasing |Backing up |Reloading the FPGA from the PROM)\S*.*\.\.\.$/.test(s)) return 'impl';   // (the board's: Implementation's, #1173)
   if (/^Project ".*" (opened|closed)|^Toolchain: |^Programmers found: |^Silinx ISE \S+ (is up to date|Project Navigator)|^Browser edition: /.test(s)) return 'app';
   return cur;
 }
