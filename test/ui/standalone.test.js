@@ -819,8 +819,9 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   const SUMMARY = '.doc:not([hidden]) .page';
   const summary = async () => {
     await page.eval(() => window.SilinxApp.openSummary());
-    await page.waitFor((s) => /Device Utilization Summary \(Silinx toolchain\)/.test(document.querySelector(s)?.innerText || ''), [SUMMARY], { what: 'Design Summary with the reports' });
-    return page.eval((s) => document.querySelector(s).innerText, SUMMARY);
+    await page.waitFor((s) => /Device Utilization Summary \(Silinx toolchain\)/.test(document.querySelector(s)?.textContent || ''), [SUMMARY], { what: 'Design Summary with the reports' });
+    // (its text as written: the modern interface's cards put their titles in capitals, #1149)
+    return page.eval((s) => { const st = document.head.appendChild(document.createElement('style')); st.textContent = '* { text-transform: none !important; }'; const t = document.querySelector(s).innerText; st.remove(); return t; }, SUMMARY);
   };
   const built = await summary();
   for (const re of [/Number of occupied Slices\s+\d+\s+2448\s+\d+%/, /Timing \(post Place & Route, Silinx toolchain estimate\)/, /All constraints met/, /Bitstream\s+build\/top\.bit/, /Routed Design \(XDL\)\s+Current/])
@@ -883,6 +884,7 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   assert.deepEqual((await startEntries(page)).map((e) => e.text), ['In this browser\'s storage.', 'Reopen Silinx-projects', 'Open Workspace Folder…']);
   // in Portuguese: the Start page, the status bar and the File menu (texts and tooltips) translated
   const texts = async () => {
+    await page.leftTab('start');
     await page.eval(TEXTS);
     await page.openMenu(0); // File (Ficheiro);
     const t = await page.eval(() => [...window.__uiTexts(document.getElementById('start-page')), ...window.__uiTexts(document.getElementById('statusbar')),
@@ -894,7 +896,9 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   await page.eval(() => localStorage.setItem('silinx.lang', 'pt'));
   await boot();
   const pt = await texts();
-  assert.ok(pt.includes('Reabrir Silinx-projects') && pt.includes('Onde Ficam os Projetos') && pt.includes('Armazenamento: este navegador'), pt.join(' | '));
+  // (the status bar's storage: the classic interface's; the modern one has no status bar, #1039, #1149)
+  const bar = !await page.eval(() => document.documentElement.dataset.layout);
+  assert.ok(pt.includes('Reabrir Silinx-projects') && pt.includes('Onde Ficam os Projetos') && (!bar || pt.includes('Armazenamento: este navegador')), pt.join(' | '));
   assert.deepEqual(untranslated(en, pt, [/^(InBrowser|Disk|Silinx-projects)$/]), []);
 }, { url: () => 'about:blank', skip: chromeOnly, timeout: 120000 });
 

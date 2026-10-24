@@ -24,15 +24,15 @@ async function tapMenu(page, menu, item) {
   await page.waitFor(() => document.querySelector('body > .menu-popup:not(.sub) .mi'), [], { what: `menu ${menu} open` });
   await page.tap('body > .menu-popup:not(.sub) > .mi', { text: item });
 }
-// the Design pane's view (Implementation / Simulation) by a tap: in portrait the pane is a drawer, opened by its button
-async function tapView(page, view) {
-  const radio = `input[name=view][value=${view}]`;
-  if (!await page.eval((s) => !!document.querySelector(s)?.closest('label')?.getClientRects().length && document.querySelector(s).closest('label').getBoundingClientRect().width > 0, radio)) {
-    await page.tap('#drawer-btn');
-    await page.waitFor((s) => document.querySelector(s)?.closest('label')?.getBoundingClientRect().width > 0, [radio], { what: 'the drawer open' });
-  }
-  await page.tap(`label:has(> ${radio})`);
-  await page.waitFor((s) => document.querySelector(s).checked, [radio], { what: `view ${view}` });
+// a task by a tap (the modern interface, its layout by tasks: the header's switcher, the bottom tab bar on a narrow
+// screen), then its action: the empty page's button, or the task's bar's (#1149)
+async function tapTask(page, task) {
+  const bar = await page.eval(() => (document.getElementById('task-tabs')?.getClientRects().length ? '#task-tabs' : '#task-switch'));
+  await page.tap(`${bar} .task-btn[data-task="${task}"]`);
+  await page.waitFor((t) => document.documentElement.dataset.task === t, [task], { what: `task ${task}` });
+}
+async function tapAction(page) {
+  await page.tap(await page.eval(() => (document.getElementById('task-empty')?.getClientRects().length ? '#task-empty .m-step' : '#task-bar .task-main')));
 }
 // a box on the screen, wholly (a button a finger reaches)
 const onScreen = (page, sel) => page.eval((s) => {
@@ -63,36 +63,38 @@ for (const orientation of ['landscape', 'portrait']) {
     assert.deepEqual(await fits(page), { page: true, over: [] }, 'a file open');
   }, { tablet: orientation });
 
-  uiTest(`#1130 tablet in ${orientation}: Simulate, the Board Emulator's switch and LEDs, Implement, the programming panel, by taps`, E, async (page) => {
+  uiTest(`#1130 tablet in ${orientation}: Simulate, Emulate (the switch and the LEDs), Implement and Program by taps on the tasks`, E, async (page) => {
     await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
     try {
       await makeProject(env, { name: `TabFlow${orientation}`, template: 'blinky' });
       await page.openProject(`TabFlow${orientation}`);
       // Simulate (the test bench): its waves
-      await tapView(page, 'sim');
-      await tapMenu(page, 'Process', 'Simulate Behavioral Model');
+      await tapTask(page, 'sim');
+      await tapAction(page);
       await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'the simulator', timeout: 60000 });
       assert.deepEqual(await fits(page), { page: true, over: [] }, 'the simulator');
       // the Board Emulator: sw(3) inverts the LEDs; tapped, they change
-      await tapView(page, 'impl');
-      await tapMenu(page, 'Tools', 'Board Emulator');
+      await tapTask(page, 'emu');
+      await tapAction(page);
       await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'the emulator', timeout: 60000 });
       assert.deepEqual(await fits(page), { page: true, over: [] }, 'the emulator');
-      const leds = () => page.eval(() => window.Silinx.active.view.outputs.leds.map((v) => (v > 0.5 ? 1 : 0)).join(''));
-      const before = await leds();
+      const before = await page.eval(() => window.Silinx.active.view.outputs.leds.map((v) => (v > 0.5 ? 1 : 0)).join(''));
       // (SW3, by the start of its tooltip "SW3 = sw<3> (pin …)")
       const sw3 = await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) [title]')].findIndex((e) => e.title.startsWith('SW3 = ')));
       assert.ok(sw3 >= 0, 'SW3 on the board');
       assert.equal(await page.eval((i) => { const r = document.querySelectorAll('.doc:not([hidden]) [title]')[i].getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }, sw3), true, 'SW3 on the screen');
       await page.tap('.doc:not([hidden]) [title]', { index: sw3 });
       await page.waitFor((b) => window.Silinx.active.view.outputs.leds.map((v) => (v > 0.5 ? 1 : 0)).join('') !== b, [before], { what: 'the LEDs inverted', timeout: 10000 });
-      // Implement Top Module (the Silinx toolchain): the bitstream
-      await tapMenu(page, 'Process', 'Implement Top Module');
+      // Implement (the Silinx toolchain): the bitstream
+      await tapTask(page, 'impl');
+      await tapAction(page);
       await page.waitFor(() => ['ok', 'warn'].includes(window.Silinx.status.bitgen), [], { what: 'Generate Programming File done', timeout: 180000 });
       await page.waitConsole(/=== SILINX DONE ===/);
-      // the programming panel: Program FPGA on the screen, for a finger
-      await tapMenu(page, 'Tools', 'iMPACT (Configure Target Device)');
+      // Program: iMPACT
+      await tapTask(page, 'prog');
+      if (await page.eval(() => !!document.getElementById('task-empty')?.getClientRects().length)) await tapAction(page);
       await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .btn.primary')].some((b) => b.textContent === 'Program FPGA'), [], { what: 'iMPACT' });
+      // the programming panel: Program FPGA on the screen, for a finger
       assert.equal(await onScreen(page, '.doc:not([hidden]) .btn.primary'), true, 'Program FPGA on the screen');
       assert.deepEqual(await fits(page), { page: true, over: [] }, 'iMPACT');
     } finally {
