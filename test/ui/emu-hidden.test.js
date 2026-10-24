@@ -29,7 +29,7 @@ end rtl;
 
 // a property of the emulator's view ('sim.now', 'held', 'paints' …)
 const emu = (page, prop) => page.eval((p) => p.split('.').reduce((o, k) => o?.[k], window.SilinxApp.findDoc('emulator').view), prop);
-const stat = (page) => page.eval(() => document.querySelector('.emu-bar .stat').textContent);
+const stat = (page) => page.eval(() => document.querySelector('.emu .stat').textContent);
 const hiddenSel = '.emu-bar select[title^="What the emulator does while it is not seen"]';
 async function openEmulator(page) {
   await page.menu('Tools', 'Board Emulator');
@@ -158,7 +158,7 @@ uiTest('board emulator: paused while hidden and while its document tab is not ac
   assert.deepEqual(untranslated(en, pt, [/^(cnt|real \(÷1\))\b/]), []);
   await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '▶ Executar' });
   await setHidden(page, true);
-  await page.waitFor(() => / · em pausa enquanto oculto$/.test(document.querySelector('.emu-bar .stat').textContent), [], { what: 'the status line in Portuguese' });
+  await page.waitFor(() => / · em pausa enquanto oculto$/.test(document.querySelector('.emu .stat').textContent), [], { what: 'the status line in Portuguese' });
   await setHidden(page, false);
   await setLang('en');
   assert.deepEqual(page.dialogs, []);
@@ -171,7 +171,7 @@ uiTest('#1106 the status line while the emulator runs: rewritten twice a second 
   await advances(page, 'running');
   // the line's rewrites over 3 s, counted where the page writes them
   const writes = await page.eval(async () => {
-    const el = document.querySelector('.emu-bar .stat');
+    const el = document.querySelector('.emu .stat');
     let n = 0;
     const mo = new MutationObserver((ms) => { n += ms.length; });
     mo.observe(el, { childList: true, characterData: true, subtree: true });
@@ -183,6 +183,6 @@ uiTest('#1106 the status line while the emulator runs: rewritten twice a second 
   assert.match(await stat(page), /^t = .+ · [\d,]+ cycles · [\d.]+ k?Hz \([\d.]+% of real time\)$/);
   // Pause: the line at once, without the rate
   await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏸ Pause' });
-  await page.waitFor(() => !/of real time/.test(document.querySelector('.emu-bar .stat').textContent), [], { what: 'the paused line', timeout: 2000 });
+  await page.waitFor(() => !/of real time/.test(document.querySelector('.emu .stat').textContent), [], { what: 'the paused line', timeout: 2000 });
   assert.match(await stat(page), /^t = .+ · [\d,]+ cycles$/);
 });

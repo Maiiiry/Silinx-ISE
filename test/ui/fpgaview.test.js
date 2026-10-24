@@ -45,6 +45,7 @@ async function routedProject(name) {
 const V = '.doc:not([hidden]) .fv';
 const idxOf = (page, inst) => page.eval(async (n) => (await (await fetch(`/api/projects/${window.Silinx.project.name}/fpga-view`)).json()).insts.findIndex((i) => i.name === n), inst);
 
+// (the classic interface's Design pane beside the FPGA view: the modern one shows it in Implement, without the tree, #1149)
 uiTest('FPGA view: chip, modules, a site\'s logic and connections, nets, clock network, zoom; hierarchy and chip select each other', E, async (page) => {
   await routedProject('FpgaPj');
   await page.openProject('FpgaPj');
@@ -172,7 +173,7 @@ uiTest('FPGA view: chip, modules, a site\'s logic and connections, nets, clock n
   assert.match(io, /Direction\s+output/);
   assert.match(io, /I\/O standard\s+LVCMOS33/);
   assert.match(io, /Drive\s+12 mA/);
-});
+}, { ui: 'classic' });
 
 uiTest('FPGA view: not placed and routed yet asks to run Implement Design (No: nothing opens); Portuguese', E, async (page) => {
   await makeProject(env, { name: 'NoRoute', files: { 'src/top.vhd': TOP, 'src/sub.vhd': SUB }, top: 'top' });
