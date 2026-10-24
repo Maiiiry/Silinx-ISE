@@ -56,34 +56,29 @@ test('applyPrefs puts data-ui and data-theme on the root; the classic look is al
   assert.equal(r.dataset.layout, undefined);
 });
 
-test('the Tasks interface (#804): the modern look and its own layout, its theme as the modern one\'s', () => {
+// #1149: the Tasks interface became the modern one (the default, in every build): its look and its layout by tasks;
+// a stored 'tasks' (the Tasks interface of before, #1131) the modern interface; no third one to choose
+test('#1149 the modern interface is the Tasks one: data-ui modern, data-layout tasks; a stored tasks read as modern', () => {
   mem.clear();
-  assert.deepEqual(M.INTERFACES, ['modern', 'classic', 'tasks']);
-  const r = fakeRoot();
-  mem.set(M.UI_KEY, 'tasks'); mem.set(M.THEME_KEY, 'dark');
-  assert.deepEqual(M.applyPrefs(r), { ui: 'tasks', theme: 'dark', shown: 'dark' });
-  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', 'tasks', 'dark']);
-  // back to the modern interface: no layout of its own
-  mem.set(M.UI_KEY, 'modern');
-  M.applyPrefs(r);
-  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', undefined, 'dark']);
-  mem.set(M.UI_KEY, 'tasks'); M.applyPrefs(r);
-  mem.set(M.UI_KEY, 'classic'); M.applyPrefs(r);
-  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['classic', undefined, 'light']);
-});
-
-// #1131: the Tasks interface in every build (a release, the local server, Node: no BUILD), modern the default
-test('#1131 the Tasks interface in a release too: set and read with no development build; modern the default', () => {
-  mem.clear();
-  assert.equal(M.getInterface(), 'modern', 'the default');
+  assert.deepEqual(M.INTERFACES, ['modern', 'classic']);
   globalThis.document = { documentElement: fakeRoot() };
-  M.setInterface('tasks');
-  assert.equal(mem.get(M.UI_KEY), 'tasks', 'stored');
-  assert.equal(M.getInterface(), 'tasks');
+  assert.equal(M.getInterface(), 'modern', 'the default');
   const r = fakeRoot();
-  assert.equal(M.applyPrefs(r).ui, 'tasks');
-  assert.deepEqual([r.dataset.ui, r.dataset.layout], ['modern', 'tasks']);
-  assert.equal('tasksAvailable' in M, false, 'no gate');
+  mem.set(M.THEME_KEY, 'dark');
+  assert.deepEqual(M.applyPrefs(r), { ui: 'modern', theme: 'dark', shown: 'dark' });
+  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', 'tasks', 'dark']);
+  for (const stored of ['tasks', 'retro']) {
+    mem.set(M.UI_KEY, stored);
+    assert.equal(M.getInterface(), 'modern', stored);
+    assert.deepEqual([M.applyPrefs(r).ui, r.dataset.ui, r.dataset.layout], ['modern', 'modern', 'tasks'], stored);
+  }
+  // the classic interface: no layout of its own; back to the modern one
+  M.setInterface('classic');
+  assert.deepEqual([mem.get(M.UI_KEY), document.documentElement.dataset.ui, document.documentElement.dataset.layout], ['classic', 'classic', undefined]);
+  M.setInterface('tasks');
+  assert.equal(mem.get(M.UI_KEY), 'classic', 'no Tasks to choose');
+  M.setInterface('modern');
+  assert.deepEqual([mem.get(M.UI_KEY), document.documentElement.dataset.ui, document.documentElement.dataset.layout], ['modern', 'modern', 'tasks']);
 });
 
 test('setInterface / setTheme store valid values and notify the listeners', () => {

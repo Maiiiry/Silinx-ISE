@@ -1,17 +1,16 @@
-// Silinx interfaces: the modern interface (default), the classic Xilinx ISE one or the Tasks one, the colour theme
-// of the modern interface (follows the system, light or dark) and the command palette (Ctrl+K / Cmd+K):
-// every menu command and every project file, searched by name.
+// Silinx interfaces: the modern interface (default) or the classic Xilinx ISE one, the colour theme of the modern
+// interface (follows the system, light or dark) and the command palette (Ctrl+K / Cmd+K): every menu command and
+// every project file, searched by name.
 //
-// The two interfaces share the same page and element ids (web/index.html): the modern one is
-// web/css/modern.css, applied under <html data-ui="modern">, with the theme in data-theme. The Tasks
-// interface (#804, web/js/tasks.js) has the modern look and a layout of its own: data-ui="modern" and
-// data-layout="tasks".
+// The two interfaces share the same page and element ids (web/index.html): the modern one is web/css/modern.css,
+// applied under <html data-ui="modern">, with the theme in data-theme, and its layout by tasks (#804, web/js/tasks.js,
+// data-layout="tasks"): the Tasks interface became the modern one (#1149).
 // The palette's matching (fuzzyScore, rankEntries, menuCommands) has no DOM and is unit tested.
 
 
 export const UI_KEY = 'silinx.ui';
 export const THEME_KEY = 'silinx.theme';
-export const INTERFACES = ['modern', 'classic', 'tasks'];
+export const INTERFACES = ['modern', 'classic'];
 export const THEMES = ['system', 'light', 'dark'];
 
 const store = () => { try { return globalThis.localStorage || null; } catch { return null; } };
@@ -23,7 +22,7 @@ export function readPref(key, allowed, def) {
 }
 function writePref(key, v) { try { store()?.setItem(key, v); } catch { /* ignore */ } }
 
-// the interface: modern (the default), classic or tasks (#804), in every build (#1131)
+// the interface: modern (the default) or classic; a stored 'tasks' (the Tasks interface of before, #1131) the modern one
 export const getInterface = () => readPref(UI_KEY, INTERFACES, 'modern');
 export const getTheme = () => readPref(THEME_KEY, THEMES, 'system');
 /** 'light' or 'dark': the theme shown for a preference (`system` follows the OS). */
@@ -40,8 +39,8 @@ export function applyPrefs(root = document.documentElement) {
   const ui = getInterface();
   const theme = getTheme();
   const shown = ui !== 'classic' ? effectiveTheme(theme, !!darkQuery()?.matches) : 'light';   // the ISE look is light only
-  root.dataset.ui = ui === 'tasks' ? 'modern' : ui;
-  if (ui === 'tasks') root.dataset.layout = 'tasks'; else delete root.dataset.layout;
+  root.dataset.ui = ui;
+  if (ui === 'modern') root.dataset.layout = 'tasks'; else delete root.dataset.layout;
   root.dataset.theme = shown;
   root.style.colorScheme = shown;
   for (const fn of [...listeners]) { try { fn({ ui, theme, shown }); } catch (e) { console.error(e); } }

@@ -174,7 +174,7 @@ test('tasks.css: its rules apply in the Tasks interface only (or to its own elem
   assert.deepEqual(css.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g), null);
 });
 
-test('index.html: the Tasks interface before the first paint (data-ui modern, data-layout tasks), its stylesheet', () => {
+test('index.html: the modern interface (the Tasks one, #1149) before the first paint (data-ui modern, data-layout tasks), its stylesheet', () => {
   const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
   assert.match(html, /<link rel="stylesheet" href="\/css\/modern.css">\n<link rel="stylesheet" href="\/css\/tasks.css">/);
   const script = html.slice(html.indexOf('<script>'), html.indexOf('</script>'));
@@ -187,10 +187,8 @@ test('index.html: the Tasks interface before the first paint (data-ui modern, da
       { documentElement: d }, { getItem: (k) => store[k] ?? null }, {}, () => ({ matches: false }));
     return attrs;
   };
-  assert.deepEqual(run('tasks'), { 'data-ui': 'modern', 'data-layout': 'tasks', 'data-theme': 'dark', 'data-drawer': 'open' });
-  assert.deepEqual(run('modern'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
+  // (the modern interface, the default, is the Tasks one, #1149: a stored tasks, or anything but classic)
+  const modern = { 'data-ui': 'modern', 'data-layout': 'tasks', 'data-theme': 'dark', 'data-drawer': 'open' };
+  for (const ui of ['modern', 'tasks', 'retro', null]) assert.deepEqual(run(ui), modern, String(ui));
   assert.deepEqual(run('classic'), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'open' });
-  assert.deepEqual(run('retro'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
-  // nothing stored: the modern interface, the default (#1131)
-  assert.deepEqual(run(null), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
 });
