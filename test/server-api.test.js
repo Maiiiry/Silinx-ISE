@@ -79,7 +79,19 @@ test('projects: create (empty + template), list, read with file tree, write, del
   await fs.writeFile(path.join(ws, 'stray.txt'), 'x');
   r = await call('GET', '/projects');
   assert.deepEqual(r.body.map(p => p.name), ['Alpha', 'Blink', 'Blink2']);
-  assert.deepEqual(r.body[1], { name: 'Blink', device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, top: 'top', board: null });
+  // (modified: when it last changed, its newest file's date, the build's outputs aside, #1156)
+  const newest = (dir) => Math.max(0, ...fss.readdirSync(dir, { withFileTypes: true }).filter((e) => e.name !== 'build' && !e.name.startsWith('.'))
+    .map((e) => (e.isDirectory() ? newest(path.join(dir, e.name)) : fss.statSync(path.join(dir, e.name)).mtimeMs)));
+  assert.deepEqual(r.body[1], { name: 'Blink', device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, top: 'top', board: null, modified: Math.round(newest(P.projectDir('Blink'))) });
+  const later = new Date(Date.now() + 60e3), latest = new Date(Date.now() + 120e3);
+  await fs.writeFile(path.join(P.projectDir('Blink'), 'src', 'later.vhd'), '-- x');
+  await fs.utimes(path.join(P.projectDir('Blink'), 'src', 'later.vhd'), later, later);
+  await fs.mkdir(path.join(P.projectDir('Blink'), 'build'), { recursive: true });
+  await fs.writeFile(path.join(P.projectDir('Blink'), 'build', 'top.bit'), 'x');
+  await fs.utimes(path.join(P.projectDir('Blink'), 'build', 'top.bit'), latest, latest);
+  assert.equal((await call('GET', '/projects')).body[1].modified, later.getTime(), 'a source written later; the build aside');
+  await fs.rm(path.join(P.projectDir('Blink'), 'src', 'later.vhd'));
+  await fs.rm(path.join(P.projectDir('Blink'), 'build'), { recursive: true });
   assert.equal((await call('GET', '/projects/Broken')).status, 404);
 
   // PUT replaces silinx.json (name forced, fileTree dropped)
