@@ -24,10 +24,10 @@ const SESSION = [
   ['Started : "Behavioral Check Syntax".', 'check'],
   ['Process "Check Syntax" completed successfully', 'check'],
   ['Board Emulator: \'pong\' (RTL, compiled) on Digilent Basys2 — 27 port bit(s) on board resources.', 'emu'],
-  ['Started : "Generate Programming File" (Silinx toolchain).', 'synth'],
-  ['Silinx implementation with the Silinx toolchain (no ISE): pong top=pong device=xc3s250ecp132-4', 'synth'],
-  ['=== SILINX STEP synth ===', 'synth'],
-  ['Netlist: build/open/pong.json (1009 cells) in 3.6 s', 'synth'],
+  ['Started : "Generate Programming File" (Silinx toolchain).', 'impl'],
+  ['Silinx implementation with the Silinx toolchain (no ISE): pong top=pong device=xc3s250ecp132-4', 'impl'],
+  ['=== SILINX STEP synth ===', 'impl'],
+  ['Netlist: build/open/pong.json (1009 cells) in 3.6 s', 'impl'],
   ['=== SILINX STEP translate ===', 'impl'],
   ['=== SILINX STEP map ===', 'impl'],
   ['  Number of occupied Slices: 243 out of 2448 10%', 'impl'],
@@ -36,10 +36,10 @@ const SESSION = [
   ['=== SILINX STEP bitgen ===', 'impl'],
   ['=== SILINX DONE ===', 'impl'],
   ['Process "Generate Programming File" completed successfully', 'impl'],
-  ['Scanning JTAG chain...', 'prog'],
-  ['Programming FPGA (SRAM)...', 'prog'],
-  ['\'1\': Programmed successfully.', 'prog'],
-  ['Programming XCF02S...', 'prog'],
+  ['Scanning JTAG chain...', 'impl'],
+  ['Programming FPGA (SRAM)...', 'impl'],
+  ['\'1\': Programmed successfully.', 'impl'],
+  ['Programming XCF02S...', 'impl'],
   ['ERROR: Board Emulator: cannot build the design', 'emu'],
   ['Silinx ISE 15.11.3 is up to date (latest release on GitHub: 15.11.3).', 'app'],   // (the update check, at any time)
 ];
@@ -56,19 +56,19 @@ test('sourceOf: the processes\' headers', () => {
     'Started : "Check Constraints" of constraints/top.ucf.': 'check',
     'Started : "Simulate Post-Place & Route Model".': 'sim',
     'Started : "Save as Test Bench".': 'sim',
-    'Started : "Synthesize - XST".': 'synth',
-    'Started : "Synthesize - Yosys (open)".': 'synth',
-    'Started : "Implement Design".': 'synth',
+    'Started : "Synthesize - XST".': 'impl',
+    'Started : "Synthesize - Yosys (open)".': 'impl',
+    'Started : "Implement Design".': 'impl',
     'Started : "Check Schematic" of gates.': 'check',   // (a schematic's, in the Tasks interface: #993)
     'Started : "Translate".': 'impl',
     'Started : "Generate Post-Synthesis Simulation Model".': 'impl',
     'Started : "Generate Text Power Report".': 'impl',
     'Started : "Back-annotate Pin Locations".': 'impl',
     '=== SILINX STEP fpgaview ===': 'impl',
-    'Verifying XCF04S...': 'prog',
-    'Erasing XCF02S...': 'prog',
-    'Backing up XCF02S...': 'prog',
-    'Reloading the FPGA from the PROM...': 'prog',
+    'Verifying XCF04S...': 'impl',
+    'Erasing XCF02S...': 'impl',
+    'Backing up XCF02S...': 'impl',
+    'Reloading the FPGA from the PROM...': 'impl',
   };
   for (const [line, src] of Object.entries(cases)) assert.equal(M.sourceOf(line, 'app'), src, line);
   // not headers: the current source goes on
@@ -76,15 +76,16 @@ test('sourceOf: the processes\' headers', () => {
   assert.equal(M.sourceOf('anything'), 'app');
 });
 
-test('filterSources: a picked filter, All, or the task\'s own sources (Implement: synthesis and implementation)', () => {
-  assert.deepEqual(M.SOURCES, ['check', 'sim', 'emu', 'synth', 'impl', 'prog']);
-  assert.deepEqual(['all', ...M.SOURCES].map((s) => M.SOURCE_LABEL[s]), ['All', 'Design', 'Simulation', 'Emulator', 'Synthesis', 'Implementation', 'Board']);
+// (#1173: synthesis, implementation and the board's lines one filter, Implementation; Emulation)
+test('filterSources: a picked filter, All, or the task\'s own sources (Implement: Implementation)', () => {
+  assert.deepEqual(M.SOURCES, ['check', 'sim', 'emu', 'impl']);
+  assert.deepEqual(['all', ...M.SOURCES].map((s) => M.SOURCE_LABEL[s]), ['All', 'Design', 'Simulation', 'Emulation', 'Implementation']);
   assert.equal(M.filterSources('all', 'sim'), null);
   assert.deepEqual(M.filterSources('emu', 'sim'), ['emu']);
   assert.deepEqual(M.filterSources(null, 'edit'), ['check']);
   assert.deepEqual(M.filterSources(null, 'sim'), ['sim']);
   assert.deepEqual(M.filterSources(null, 'emu'), ['emu']);
-  assert.deepEqual(M.filterSources(null, 'impl'), ['synth', 'impl']);
-  assert.deepEqual(M.filterSources(null, 'prog'), ['prog']);
+  assert.deepEqual(M.filterSources(null, 'impl'), ['impl']);
+  assert.deepEqual(M.filterSources(null, 'prog'), ['impl']);
   assert.equal(M.filterSources('bogus', 'nothing'), null);
 });

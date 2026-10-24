@@ -225,7 +225,7 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-switch .lbl')].map((l) => l.textContent)), ['Design', 'Simular', 'Emular', 'Implementar', 'Programar']);   // (Design: not "Projeto", the Project menu's, #1046)
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent), 'Abra uma fonte no painel Projeto, ou verifique o projeto.');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => b.textContent)),
-    ['Todas', 'Projeto', 'Simulação', 'Emulador', 'Síntese', 'Implementação', 'Placa']);
+    ['Todas', 'Projeto', 'Simulação', 'Emulação', 'Implementação']);
   // the longer labels (the menus too) fit the header: a laptop, a tablet in landscape (the switcher's labels giving
   // way once the header has measured itself, #839)
   for (const [w, hgt] of [[1280, 800], [1180, 820], [1025, 768]]) {
@@ -1093,7 +1093,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   assert.ok(!(await shown(page, '.doc:not([hidden]) .emu-log')), 'the emulator\'s Messages box hidden');
   // Implement: Synthesis and Implementation; the command line outside ISim: the command palette
   await page.click('#task-switch .task-btn[data-task="impl"]');
-  assert.deepEqual(await pressed(page), ['synth', 'impl']);
+  assert.deepEqual(await pressed(page), ['impl']);
   assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), '›');
   await page.showMessages();
   await page.click('#mc-cmd input');

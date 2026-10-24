@@ -110,7 +110,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   await page.openProject('MsgCentre');
   // the filters: every source by default (no task to follow)
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => [b.textContent, b.getAttribute('aria-pressed')])),
-    [['All', 'true'], ['Design', 'false'], ['Simulation', 'false'], ['Emulator', 'false'], ['Synthesis', 'false'], ['Implementation', 'false'], ['Board', 'false']]);
+    [['All', 'true'], ['Design', 'false'], ['Simulation', 'false'], ['Emulation', 'false'], ['Implementation', 'false']]);
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
