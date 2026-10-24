@@ -99,7 +99,7 @@ const PT = {
   'Show / hide the side panel (Design, Files, Processes)': 'Mostrar / esconder o painel lateral (Projeto, Ficheiros, Processos)',
   '☰ Properties': '☰ Propriedades', 'Show / hide the properties panel': 'Mostrar / esconder o painel das propriedades',
   '☰ Symbols': '☰ Símbolos', 'Show / hide the symbols panel': 'Mostrar / esconder o painel dos símbolos',
-  'Design': 'Projeto', 'View:': 'Vista:', 'Processes:': 'Processos:', 'Start': 'Início', 'Files': 'Ficheiros',
+  'Design': 'Projeto', 'View:': 'Vista:', 'Processes:': 'Processos:', 'Processes': 'Processos', 'Start': 'Início', 'Files': 'Ficheiros',
   'Libraries': 'Bibliotecas', 'Console': 'Consola', 'Errors': 'Erros', 'Warnings': 'Avisos', 'Ready': 'Pronto', 'Clear': 'Limpar',
   'Project Commands': 'Comandos do Projeto', 'No projects yet.': 'Ainda não há projetos.',
   'File Name': 'Nome do Ficheiro', 'Association': 'Associação', 'Behavioral': 'Comportamental',

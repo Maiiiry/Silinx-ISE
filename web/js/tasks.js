@@ -287,8 +287,8 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty'];   // (their ids)
-const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries' };
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab'];   // (their ids)
+const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Processes' };
 function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
@@ -320,6 +320,9 @@ function build() {
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
   buildTestPage(app, newBench);
+  // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
+  $('left-tabs').append(h('div', { id: 'task-procs-tab', class: 'tab', 'data-page': 'procs', role: 'tab', 'aria-selected': 'true' },
+    h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Processes')));
   for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
