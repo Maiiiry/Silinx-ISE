@@ -976,7 +976,8 @@ uiTest('#923 #1172 Tasks ▸ Implement: no Emulate processes, Configure Target D
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => document.getElementById('proc-caption')?.textContent === 'Processes: vga', [], { what: 'the top\'s processes' });
   let procs = await procRows(page);
-  assert.ok(procs.includes('Generate Programming File') && procs.includes('Generate Post-Synthesis Simulation Model'), procs.join(', '));
+  // (no Generate Post-… Simulation Model: Simulate generates them, #1265)
+  assert.ok(procs.includes('Generate Programming File') && !procs.includes('Generate Post-Synthesis Simulation Model'), procs.join(', '));
   for (const p of ['Emulate on Board', 'Emulate Behavioral Model (RTL)', 'Emulate Post-Synthesis Model']) assert.ok(!procs.includes(p), `${p} in Implement`);
   for (const p of ['Configure Target Device', 'Manage Configuration Project (iMPACT)']) assert.ok(procs.includes(p), `${p} in Implement`);
   // no card over another, its caption included, at every width from a tablet's to a lab desktop's
@@ -1257,6 +1258,36 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.equal(await page.eval(() => document.getElementById('task-procs-tab')), null);
   assert.ok((await heading()).length > 0);
+  await noWarnings(page);
+}, { build: DEV });
+
+// #1265: Implement's processes: no Generate Post-… Simulation Model (Simulate generates them); Edit Constraints (Text) in Implement
+uiTest('#1265 Tasks ▸ Implement: no Generate Post-… Simulation Model processes; Edit Constraints (Text) opens the UCF in Implement; classic keeps them', E, async (page) => {
+  await makeProject(env, { name: 'TasksImplProcs', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksImplProcs');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize') && e.getClientRects().length), [], { what: 'Implement\'s Processes' });
+  const labels = () => page.eval(() => [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent));
+  let all = await labels();
+  assert.deepEqual(all.filter((l) => /Simulation Model/.test(l)), [], all.join(' | '));
+  for (const l of ['Edit Constraints (Text)', 'Generate Text Power Report', 'Generate Post-Place & Route Static Timing', 'Back-annotate Pin Locations']) assert.ok(all.includes(l), l);
+  // Edit Constraints (Text): the UCF in Implement, its tab there
+  await page.treeRow('#procs', 'Edit Constraints (Text)', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/top.ucf' && window.Silinx.active.editor, [], { what: 'the UCF' });
+  assert.equal(await page.eval(() => document.documentElement.dataset.task), 'impl');
+  assert.ok(await page.eval(() => [...document.querySelectorAll('#doc-tabs > .tab')].some((t) => t.getClientRects().length && /top\.ucf/.test(t.textContent))), 'its tab in Implement');
+  // in Design: not its tab
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.ok(!(await page.eval(() => [...document.querySelectorAll('#doc-tabs > .tab')].some((t) => t.getClientRects().length && /top\.ucf/.test(t.textContent)))));
+  // the classic interface: its Processes keep the simulation models
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  await page.treeRow('#hier', 'top', {});
+  await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'Generate Post-Synthesis Simulation Model'), [], { what: 'classic: the models' });
+  all = await labels();
+  for (const m of ['Post-Synthesis', 'Post-Translate', 'Post-Map', 'Post-Place & Route']) assert.ok(all.includes(`Generate ${m} Simulation Model`), m);
   await noWarnings(page);
 }, { build: DEV });
 

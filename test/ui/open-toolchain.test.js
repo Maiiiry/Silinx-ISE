@@ -89,12 +89,15 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
   assert.deepEqual(procs.filter((p) => p.disabled || /Needs Xilinx ISE/.test(p.title)).map((p) => p.label), []);
-  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Post-Synthesis Simulation Model',
-    'Generate Post-Translate Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Post-Place & Route Simulation Model', 'Generate Text Power Report']) assert.ok(procs.find((x) => x.label === l), l);
+  // (the simulation models' processes: the classic interface's; the modern one's Implement has none, Simulate generates them, #1265)
+  const models = await page.eval(() => document.documentElement.dataset.layout !== 'tasks');
+  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Text Power Report',
+    ...(models ? ['Generate Post-Synthesis Simulation Model', 'Generate Post-Translate Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Post-Place & Route Simulation Model'] : [])]) assert.ok(procs.find((x) => x.label === l), l);
+  if (!models) assert.ok(!procs.some((x) => /^Generate Post-.+ Simulation Model$/.test(x.label)), 'no simulation models in the modern interface\'s Implement');
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
-  assert.ok(ptProcs.some((p) => p.label === 'Gerar Modelo de Simulação Pós-Place & Route' && !p.disabled));
+  assert.ok(ptProcs.some((p) => p.label === (models ? 'Gerar Modelo de Simulação Pós-Place & Route' : 'Gerar Relatório de Consumo (Texto)') && !p.disabled));
   await setLang('en');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
@@ -460,6 +463,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
 
+// (the classic interface: its Processes panel's Generate … Simulation Model, the modern one's Implement has none, #1265)
 uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simulate Post-Synthesis Model: the test bench passes on the netlist (#120)', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPostSyn', template: 'blinky' });
@@ -490,11 +494,12 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   assert.doesNotMatch(out, /ERROR/);
   assert.match(await page.consoleText(), /with the post-synthesis netlist of 'top'/);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
-}, { timeout: 300000 });
+}, { ui: 'classic', timeout: 300000 });
 
 // #121: the Post-Translate and Post-Map Simulation Models in the Silinx toolchain: the processes enabled (in
 // Portuguese too), each generates its model (the console's lines, no warning), and the test bench passes on the
 // post-map netlist (Simulate Post-Map Model); Simulate Post-Translate Model offers to generate its model
+// (the classic interface: its Processes panel's Generate … Simulation Model, the modern one's Implement has none, #1265)
 uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of blinky, then Simulate Post-Map Model: the test bench passes on the packed design', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPostMap', template: 'blinky' });
@@ -537,11 +542,12 @@ uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of b
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Map)');
   assert.match(await page.consoleText(), /with the post-map netlist of 'top'/);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
-}, { timeout: 420000 });
+}, { ui: 'classic', timeout: 420000 });
 
 // #122: the Post-Place & Route Simulation Model in the Silinx toolchain: the process enabled (in Portuguese too);
 // it writes the model and its SDF; Simulate Post-Place & Route Model runs it with the SDF's delays (the console
 // says so) and the test bench passes, with no timing violation
+// (the classic interface: its Processes panel's Generate … Simulation Model, the modern one's Implement has none, #1265)
 uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, then Simulate Post-Place & Route Model with its SDF', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPostPar', template: 'blinky' });
@@ -578,7 +584,7 @@ uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, 
   assert.doesNotMatch(out, /ERROR|Error|Timing violation/);
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Place & Route)');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
-}, { timeout: 480000 });
+}, { ui: 'classic', timeout: 480000 });
 
 // #490: Simulate Post-Synthesis Model with no model yet: a dialog offers to generate it ("Generate and
 // Simulate"); Cancel (or Escape) runs nothing; in Portuguese; Enter generates it and the simulation starts
