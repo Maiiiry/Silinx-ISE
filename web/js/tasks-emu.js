@@ -42,7 +42,7 @@ function placeProcesses(emu) {
   tree.className = 'task-emu-tree';
   const box = document.createElement('div');
   box.className = 'emu-box task-emu-procs';
-  box.innerHTML = '<div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Processes</span></span></div>';
+  box.innerHTML = '<div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Emulate</span></span></div>';   // (the task's name, as Implement's, #1212)
   box.append(tree);
   side.prepend(box);
   import('./processes.js').then(m => m.renderProcessTree(tree, m.emulateProcesses()));
