@@ -28,6 +28,7 @@
 import { h } from './ui.js';
 import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
+import { layoutToggled } from './layout-fit.js';
 import { messagesTask, initMessages } from './messages.js';
 import { benchSelect, editBench, modelSelect, newBench, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
@@ -136,6 +137,8 @@ const current = () => state.task;
 const arr = (t = current()) => arrangement(t, state.tasks[t], isNarrow());
 /** Changes the current task's arrangement (`patch`: side, console, max), kept. */
 function arrange(patch) { Object.assign(state.tasks[current()], patch); keep(); apply(); }
+// by the user: the side panel, the messages or the document maximized toggled (a drawing in front: Full View, #1203)
+function toggle(patch) { arrange(patch); layoutToggled(); }
 
 /** The task in front (`t`), its arrangement and its document; `fromDoc`: its document is already in front. */
 export function setTask(t, { fromDoc = false } = {}) {
@@ -307,9 +310,9 @@ function build() {
       { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
   $('task-bar').addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
-    else if (act === 'console') arrange({ console: !arr().console });
-    else if (act === 'max') arrange({ max: !arr().max });
+    if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else toggle({ side: !arr().side }); }
+    else if (act === 'console') toggle({ console: !arr().console });
+    else if (act === 'max') toggle({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
   });
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
@@ -358,8 +361,8 @@ export function initTasks(a) {
   initCheckMessages(on, () => { if (!arr().console) arrange({ console: true }); }, (...a) => app.log(...a));
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
-  $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) arrange({ side: true }); });
-  $('console-tabs').addEventListener('click', () => { if (on() && !arr().console) arrange({ console: true }); });
+  $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) toggle({ side: true }); });
+  $('console-tabs').addEventListener('click', () => { if (on() && !arr().console) toggle({ console: true }); });
   // new errors open the messages (Check Syntax shows the Errors tab)
   let errs = 0;
   new MutationObserver(() => {
@@ -368,9 +371,9 @@ export function initTasks(a) {
     errs = n;
   }).observe($('err-count'), { childList: true, characterData: true, subtree: true });
   // maximize: a document's tab double-clicked, or Ctrl/Cmd+Shift+Enter
-  $('doc-tabs').addEventListener('dblclick', e => { if (on() && e.target.closest('.tab') && !e.target.closest('.tclose')) arrange({ max: !arr().max }); });
+  $('doc-tabs').addEventListener('dblclick', e => { if (on() && e.target.closest('.tab') && !e.target.closest('.tclose')) toggle({ max: !arr().max }); });
   addEventListener('keydown', e => {
-    if (on() && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter' && !document.querySelector('.dlg-overlay')) { e.preventDefault(); arrange({ max: !arr().max }); }
+    if (on() && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter' && !document.querySelector('.dlg-overlay')) { e.preventDefault(); toggle({ max: !arr().max }); }
   });
   // a document brought to the front that was already in front, behind another task (Design, after the project opened):
   // its task forward (the tabs' observer sees no change then, #1191)

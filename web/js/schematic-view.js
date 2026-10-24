@@ -10,6 +10,7 @@ import { esc } from './dom.js';
 import { mountSchRender } from './schematic-render.js';
 import { mountSchHover } from './schematic-hover.js';
 import { mountSchExport } from './schematic-export.js';
+import { onLayoutToggled } from './layout-fit.js';
 
 export const SVGNS = 'http://www.w3.org/2000/svg';
 const FONT = '11px Arial, Helvetica, sans-serif';
@@ -701,6 +702,8 @@ export function mountSchematic(container, opts = {}) {
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onResize) : null;
   ro?.observe(container);
   addEventListener('resize', onResize);
+  // the side panel, the messages or the document maximized toggled: Full View (#1203)
+  const offLayout = onLayoutToggled(container, () => fit());
 
   // ---------------- export (schematic-export.js)
   const { exportSvg } = mountSchExport({
@@ -710,7 +713,7 @@ export function mountSchematic(container, opts = {}) {
   function destroy() {
     destroyed = true; token++;
     clearTimeout(tipTimer);
-    ro?.disconnect();
+    ro?.disconnect(); offLayout();
     removeEventListener("resize", onResize);
     container.innerHTML = '';
     container.classList.remove('sch-view', 'sch-lod', 'panning');
