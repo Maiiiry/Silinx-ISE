@@ -603,7 +603,7 @@ const startPage = (page) => page.eval(() => {
   return {
     buttons: btns.map((b) => b.textContent), top: p.querySelector('.page').firstElementChild === p.querySelector('.start-btns'),
     halves: w.length === 2 && Math.abs(w[0] - w[1]) < 1 && btns.every((b) => b.scrollWidth <= b.clientWidth),
-    commands: [...box.children].slice(1).map((e) => (e.tagName === 'HR' ? '—' : `${e.textContent}${e.querySelector('a') ? '' : ' (disabled)'}`)),
+    commands: [...box.children].slice(1).map((e) => (e.tagName === 'HR' ? '—' : `${e.textContent}${getComputedStyle(e.querySelector('a')).pointerEvents === 'none' ? ' (disabled)' : ''}`)),
   };
 });
 uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silinx and Xilinx imports and exports in Project Commands', E, async (page) => {
@@ -612,6 +612,17 @@ uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silin
   await page.waitFor(() => document.querySelectorAll('#start-page .start-btns .btn').length === 2, [], { what: 'the Start page' });
   assert.deepEqual(await startPage(page), { buttons: ['New Project…', 'Open Project…'], top: true, halves: true, commands: [
     'Import Silinx ISE Project (.zip)…', 'Export Silinx ISE Project (.zip)… (disabled)', '—', 'Import Xilinx ISE Project (.zip)…', 'Export Xilinx ISE Project (.zip)… (disabled)'] });
+  // drawn again with a project open (a late drawing while one opens): the same page kept, only its host's attribute
+  // changes, so that a click pressed before is not lost (#494, #1222)
+  assert.deepEqual(await page.eval(async () => {
+    const A = window.SilinxApp, host = document.getElementById('start-page'), before = host.firstElementChild;
+    A.S.project = { name: 'Late', files: [] };
+    await A.renderStartPage();
+    const r = [host.firstElementChild === before, host.hasAttribute('data-project')];
+    A.S.project = null;
+    await A.renderStartPage();
+    return [...r, host.firstElementChild === before, host.hasAttribute('data-project')];
+  }), [true, true, true, false]);
   // the buttons: their dialogs
   await page.click('#start-page .start-btns .btn', { text: 'Open Project…' });
   await page.waitDialog('Open Project');
@@ -625,7 +636,7 @@ uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silin
   await makeProject(env, { name: 'StartZip', template: 'blinky', board: 'basys2' });
   await page.openProject('StartZip');
   await page.leftTab('start');
-  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].some((a) => a.textContent === 'Export Silinx ISE Project (.zip)…'), [], { what: 'the exports enabled' });
+  await page.waitFor(() => document.getElementById('start-page').hasAttribute('data-project'), [], { what: 'the exports enabled' });
   assert.deepEqual((await startPage(page)).commands, ['Import Silinx ISE Project (.zip)…', 'Export Silinx ISE Project (.zip)…', '—', 'Import Xilinx ISE Project (.zip)…', 'Export Xilinx ISE Project (.zip)…']);
   await page.click('#start-page .entry a', { text: 'Export Silinx ISE Project (.zip)…' });
   await waitDownload(page, 'StartZip-silinx.zip');
