@@ -453,8 +453,8 @@ Object.assign(PT, {
   
   // Design Summary, File menu, project / import dialogs, toolchain, About, shortcuts
   'Device Utilization Summary (not yet implemented)': 'Resumo da Utilização do Dispositivo (ainda não implementado)',
-  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Tools ▸ Toolchain Settings).':
-    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese/implementação requer o Xilinx ISE 14.7 (Ferramentas ▸ Definições da Toolchain).',
+  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Toolchain Settings (the gear in the toolbar)).':
+    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese/implementação requer o Xilinx ISE 14.7 (Definições da Toolchain (a roda dentada da barra de ferramentas)).',
   'Print…': 'Imprimir…', 'Print': 'Imprimir', 'project name': 'nome do projeto', 'new project name': 'nome do novo projeto', 'file name': 'nome do ficheiro',
   'Device': 'Dispositivo', 'Top': 'Topo', 'Board': 'Placa', 'Last Used': 'Último uso', '.zip file:': 'Ficheiro .zip:',
   'Import a whole Silinx project from a .zip made with File ▸ Export Silinx ISE Project (silinx.json and every project file: sources, ASM charts, schematics, constraints, simulation files).':
@@ -477,8 +477,8 @@ Object.assign(PT, {
   'Timing (post Place & Route, Silinx toolchain estimate)': 'Temporização (após Posicionar e Encaminhar, estimativa da toolchain Silinx)',
   'Synthesis Report (Yosys)': 'Relatório de Síntese (Yosys)', 'Placed Design (XDL)': 'Projeto Posicionado (XDL)', 'Routed Design (XDL)': 'Projeto Encaminhado (XDL)',
   'Static Timing Report': 'Relatório de Temporização Estática',
-  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (no ISE): Tools ▸ Toolchain Settings.':
-    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain Silinx (sem ISE): Ferramentas ▸ Definições da Toolchain.',
+  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (no ISE): Toolchain Settings (the gear in the toolbar).':
+    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain Silinx (sem ISE): Definições da Toolchain (a roda dentada da barra de ferramentas).',
   // board emulator
   'Real time': 'Tempo real', 'Engine:': 'Motor:', 'Compiled (real speed)': 'Compilado (velocidade real)', 'Event-driven (debugging)': 'Por eventos (depuração)',
   'The simulator that runs the design: compiled (its netlist, at the board\'s real speed) or event-driven (the behavioural RTL, with X values and the design\'s messages: for debugging)':
@@ -540,8 +540,8 @@ PT_PATTERNS.unshift(
     (m, p, w) => `Gerá-lo agora com "${t(p)}"? Quando terminar sem erros, ${PT_THEN[w]}.`],
   [/^"(.+)" needs the Xilinx ISE toolchain: it is not available with the Silinx toolchain \(choose an ISE mode in Toolchain Settings\)\.$/,
     (m, p) => `"${t(p)}" requer a toolchain Xilinx ISE: não está disponível com a toolchain Silinx (escolha um modo ISE nas Definições da Toolchain).`],
-  [/^"(.+)" needs the Xilinx ISE toolchain, which is not available \(configure it in Tools ▸ Toolchain Settings\)\.$/,
-    (m, p) => `"${t(p)}" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Ferramentas ▸ Definições da Toolchain).`],
+  [/^"(.+)" needs the Xilinx ISE toolchain, which is not available \(configure it in Toolchain Settings \(the gear in the toolbar\)\)\.$/,
+    (m, p) => `"${t(p)}" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Definições da Toolchain (a roda dentada da barra de ferramentas)).`],
   // Program FPGA with no programming file, or one older than the sources (#1024): implement the design first
   [/^There is no programming file of '(.+)' yet\.$/, "Ainda não há ficheiro de programação de '$1'."],
   [/^The programming file of '(.+)' is older than the sources\.$/, "O ficheiro de programação de '$1' é mais antigo do que as fontes."],

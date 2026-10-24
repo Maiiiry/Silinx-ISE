@@ -99,6 +99,7 @@ uiTest('another script\'s failed promise (an extension\'s, a host\'s) is not sai
   assert.ok(!diags.some((m) => /sseError|foreign-997/.test(m)), diags.join('\n'));
 });
 
+// (#1217: the modern interface has no Project, Process and Tools menus; its Sync with .xise in File)
 uiTest('every menu opens and every enabled item acts or opens its dialog', E, async (page) => {
   await makeProject(env, { name: 'MenuPj', template: 'blinky' });
   await page.eval(() => {
@@ -117,7 +118,16 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); ed.replaceSelection('-- edited by the menu test\n'); });
   // File ▸ Close Project is tested with the projects; Print needs a diagram (diagram tests)
   const SKIP = new Set(['Close Project']);
-  const MENUS = ['Edit', 'File', 'View', 'Project', 'Process', 'Tools', 'Help', 'Window'];
+  const modern = await page.eval(() => document.documentElement.dataset.layout === 'tasks');
+  const GONE = ['Project', 'Process', 'Tools'];
+  const shownMenus = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
+  assert.deepEqual(GONE.filter((m) => shownMenus.includes(m)), modern ? [] : GONE, `the menu bar: ${shownMenus}`);
+  // (in Portuguese too: the menus hidden by their name, not their label)
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  const pt = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
+  assert.deepEqual(['Projeto', 'Processo', 'Ferramentas'].filter((m) => pt.includes(m)), modern ? [] : ['Projeto', 'Processo', 'Ferramentas'], `in Portuguese: ${pt}`);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  const MENUS = ['Edit', 'File', 'View', ...(modern ? [] : GONE), 'Help', 'Window'];
   const acted = [], idle = [], disabled = [], log = [];
   for (const m of MENUS) {
     const items = await page.openMenu(m);
@@ -176,14 +186,16 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   // the processes ran on a valid design: the simulator and the emulator opened
   const windows = log.filter((l) => l.startsWith('Window ▸')).map((l) => l.slice(9, l.indexOf(':')));
   // (SSim's module: the test bench, or in the modern interface the module its Simulate chose, #1149)
-  for (const w of ['SSim (', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.some((x) => x === w || (w.endsWith('(') && x.startsWith(w))), `Window menu lists ${w}: ${windows}`);
+  // (the modern interface: they open from the processes and the toolbar, not from a menu, #1217)
+  for (const w of modern ? ['Design Summary'] : ['SSim (', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.some((x) => x === w || (w.endsWith('(') && x.startsWith(w))), `Window menu lists ${w}: ${windows}`);
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
     'Project ▸ New Source…', 'Project ▸ Add Copy of Source…', 'Project ▸ Design Properties…',
     'Process ▸ Implement Top Module', 'Process ▸ Check Syntax', 'Process ▸ Simulate Behavioral Model',
     'Tools ▸ ASM State Machine Editor…', 'Tools ▸ I/O Pin Planning', 'Tools ▸ iMPACT (Configure Target Device)', 'Tools ▸ Board Emulator', 'Tools ▸ RTL Schematic',
-    'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents']) {
+    'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents',
+    'File ▸ Sync with .xise'].filter((m) => (modern ? !GONE.some((g) => m.startsWith(`${g} ▸`)) : m !== 'File ▸ Sync with .xise'))) {
     assert.ok(acted.some((a) => a.startsWith(must)), `${must} acted (acted: ${acted.join(', ')}; disabled: ${disabled.join(', ')})`);
   }
   // no Project ▸ Sync with .xise (#1248): it only wrote the .xise, File ▸ Export Xilinx ISE Project gives ISE the project

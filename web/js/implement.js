@@ -247,7 +247,7 @@ async function runImplInner(mod, steps, opts, pjName) {
     const tc = S.toolchain || await api.toolchain();
     if (!tc.ise.available) {
       log(`Xilinx ISE toolchain not available (${tc.ise.mode} mode): ${tc.ise.reason}`, 'warn');
-      log('The build directory and run.sh are still generated so they can be run on a machine with ISE 14.7. Configure it in Tools > Toolchain Settings.', 'info');
+      log('The build directory and run.sh are still generated so they can be run on a machine with ISE 14.7. Configure it in Toolchain Settings (the gear in the toolbar).', 'info');
     }
     if (synthUpToDate) { S.status.synth = S.synthDone.status; renderProcesses(); }
     const { job } = await api.implement(S.project.name, { steps, generateOnly: !tc.ise.available, ...(synthUpToDate && { synthUpToDate }) });

@@ -43,6 +43,9 @@ html[data-layout="tasks"] #topbar:is([data-fit="icons"], [data-fit="tight"]) .ta
 
 /* ------------------------------------------------------------------ the Design pane: one tree, no views (#799) */
 html[data-layout="tasks"] :is(#design-panel .view-select, #left-split, #proc-panel) { display: none; }
+/* no Project, Process and Tools menus (#1217): their commands are the pages' buttons, the processes, the toolbar and the
+   right-click menus (and the command palette); Sync with .xise in File */
+html[data-layout="tasks"] #menubar .item:is([data-menu="Project"], [data-menu="Process"], [data-menu="Tools"]) { display: none; }
 /* the Design page's New Source and Add Copy of Source, above the tree, half of the panel each (#1210); the Files
    page's Add to Project and Add Copy to Project (#1214) */
 html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
