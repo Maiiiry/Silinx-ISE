@@ -18,13 +18,12 @@ import { checkFileSyntax, checkSyntax, markStale, renderProcesses, saveAll } fro
 import { openSchematic, runSimulation } from './viewers.js';
 import { renameDialog } from './rename.js';
 import { openWizardModule, wizardLabelOf } from './wizard-modules.js';
-import { t, onLanguageChange } from './i18n.js';
 
 const $ = id => document.getElementById(id);
-// the Tasks interface (#799): one tree, no views: the design (as the Implementation view shows it), then the
-// constraints, a group; the test benches Simulate's (its Simulation and Instances, #1161)
+// the Tasks interface (#799): one tree, no views: the design (as the Implementation view shows it); the test
+// benches Simulate's (its Simulation and Instances, #1161); no constraints in any interface (the Files page and the top
+// module's User Constraints processes have them, #1250)
 const oneTree = () => document.documentElement.dataset.layout === 'tasks';
-onLanguageChange(() => { if (oneTree() && S.project) renderHierarchy(); });   // (its groups' names: the tree is not translated)
 
 export function renderHierarchy() {
   const host = $('hier');
@@ -81,18 +80,12 @@ export function renderHierarchy() {
   };
   for (const r of roots) addModule(devItem.ul, r, null, 0, r);
 
-  // packages, constraints, ASM charts and other files
+  // packages, ASM charts and other files
   for (const p of lib.packages.values()) {
     const fi = S.project.files.find(f => f.path === p.file);
     if (!inView(fi?.role, sim)) continue;
     const it = treeItem({ label: p.name, meta: `(${p.file.split('/').pop()})`, ico: 'vhdl', key: `pkg:${p.name}`, onSelect: () => select({ type: 'file', file: p.file }), onOpen: () => openFile(p.file, p.loc?.line), onContext: e => fileContextMenu(e, p.file) });
     it.setLeaf(); devItem.ul.append(it.li);
-  }
-  // (one tree: the constraints a group)
-  const group = (label, ico, key) => { const g = treeItem({ label, ico, open: true, key }); root.ul.append(g.li); return g.ul; };
-  if (!sim && pj.constraints && S.fileTree?.includes(pj.constraints)) {
-    const it = treeItem({ label: pj.constraints.split('/').pop(), ico: 'ucf', key: 'ucf', onSelect: () => select({ type: 'ucf', file: pj.constraints }), onOpen: () => openFile(pj.constraints), onContext: e => fileContextMenu(e, pj.constraints) });
-    it.setLeaf(); (one ? group(t('Constraints'), 'ucf', 'group:ucf') : devItem.ul).append(it.li);
   }
   for (const f of (S.fileTree || []).filter(f => /\.sch\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const owned = null;

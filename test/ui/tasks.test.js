@@ -344,7 +344,7 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
 // (its Simulation and Instances, #1161); Check checks the selected module
 const hierRows = (page) => page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.getClientRects().length)
   .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => b.textContent)].join(' ')));
-uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views; Check of the selected module', E, async (page) => {
+uiTest('#799 Tasks ▸ Edit: one design tree (the design, no constraints: #1250), no views; Check of the selected module', E, async (page) => {
   await makeProject(env, { name: 'TasksTree', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -357,28 +357,17 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views
   assert.ok(at('TasksTree') === 0 && at('xc3s250e-4-cp132') === 1 && at('top') === 2, rows.join(' | '));
   assert.ok(rows.includes('u_speed - speed_ctrl ASM VHDL'), 'a drawing\'s badge first, its HDL last');
   assert.ok(at('Test Benches') === -1 && at('tb_top') === -1, rows.join(' | '));   // (Simulate's, #1161)
-  assert.ok(at('Constraints') > at('top') && at('top.ucf') === at('Constraints') + 1, rows.join(' | '));
+  assert.ok(at('Constraints') === -1 && !rows.some((r) => /\.ucf\b/.test(r)), rows.join(' | '));   // (#1250)
   // Check of the selected module, no error
   await page.treeRow('#hier', 'top', { exact: true });
   await page.click('#task-bar [data-act="main"]');
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
-  // the UCF from its group: in Edit (the tree scrolled to its end: its last row clear of the horizontal scroll bar
-  // the long rows of blinky's modules give it, which the headless browser draws over the pane)
-  await page.click('#left-tabs .tab[data-page="design"]');
-  await page.eval(() => { const h = document.getElementById('hier'); h.scrollTop = h.scrollHeight; });
-  await page.treeRow('#hier', 'top.ucf', { dbl: true, exact: true });
-  await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('top.ucf'), [], { what: 'the UCF' });
-  assert.equal((await state(page)).task, 'edit');
-  // in Portuguese: the groups' names
-  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((l) => l.textContent === 'Restrições'), [], { what: 'Portuguese' });
-  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  // the classic interface: its views and Processes again, no groups
+  // the classic interface: its views and Processes again, no constraints either
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.ok(await shown(page, '#design-panel .view-select') && await shown(page, '#proc-panel'));
-  assert.ok(!(await hierRows(page)).some((r) => r === 'Test Benches' || r === 'Constraints'));
+  assert.ok(!(await hierRows(page)).some((r) => r === 'Test Benches' || r === 'Constraints' || /\.ucf\b/.test(r)));
   await noWarnings(page);
 }, { build: DEV });
 
