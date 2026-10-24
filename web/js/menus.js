@@ -80,7 +80,6 @@ export function setupMenus() {
       { label: 'Interface', submenu: [
         { label: 'Modern', checked: getInterface() === 'modern', action: () => setInterface('modern') },
         { label: 'Classic', checked: getInterface() === 'classic', action: () => setInterface('classic') },
-        { label: 'Tasks', checked: getInterface() === 'tasks', action: () => setInterface('tasks') },
       ] },
       // the classic ISE look is light only
       getInterface() !== 'classic' ? { label: 'Theme', submenu: [
