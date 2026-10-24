@@ -55,7 +55,7 @@ const PT = {
   'Implementation': 'Implementação', 'Simulation': 'Simulação',
   'Design Summary': 'Resumo do Projeto', 'Add Source…': 'Adicionar Fonte…', 'Add Copy of Source…': 'Adicionar Cópia de Fonte…',
   'Set as Top Module': 'Definir como Módulo de Topo', 'Set as Simulation Top': 'Definir como Topo de Simulação',
-  'Design Properties…': 'Propriedades do Projeto…', 'Sync with .xise': 'Sincronizar com .xise',
+  'Design Properties…': 'Propriedades do Projeto…',
   'Implement Top Module': 'Implementar Módulo de Topo', 'Run': 'Executar', 'Check Syntax': 'Verificar Sintaxe',
   'Simulate Behavioral Model': 'Simular Modelo Comportamental', 'ASM State Machine Editor…': 'Editor de Máquinas de Estados ASM…',
   'I/O Pin Planning': 'Planeamento de Pinos de E/S', 'iMPACT (Configure Target Device)': 'iMPACT (Configurar Dispositivo)',
@@ -309,7 +309,7 @@ const PT = {
   'More…': 'Mais…', 'Place Symbol': 'Colocar Símbolo', 'Datasheet of the symbol: pins, parameters, truth table, equivalent HDL': 'Folha de características do símbolo: pinos, parâmetros, tabela de verdade, HDL equivalente',
   // misc
   'Error': 'Erro', 'Warning': 'Aviso', 'Note': 'Nota', 'Failure': 'Falha', 'Running': 'Em curso', 'Running...': 'Em curso...', 'Other': 'Outro',
-  'not available': 'indisponível', 'not found': 'não encontrado', 'see log': 'ver registo', 'Exported .xise': '.xise exportado',
+  'not available': 'indisponível', 'not found': 'não encontrado', 'see log': 'ver registo',
 
   // the Tasks interface (web/js/tasks.js, #804): View ▸ Interface ▸ Tasks, the task switcher, the task's bar
   'Tasks': 'Tarefas', 'Task': 'Tarefa', 'Show or hide the side panel': 'Mostrar ou esconder o painel lateral',

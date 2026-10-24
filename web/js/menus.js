@@ -98,7 +98,6 @@ export function setupMenus() {
       S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => (S.sel?.module ? setTop(S.sel.module, false) : viewSel() && setViewAsTop(viewSel())),
         disabled: () => (S.sel?.module ? S.sel.module === S.project?.top : !viewSel() || (topOfView(viewSel()) && topOfView(viewSel()) === S.project?.top)) },
       { label: 'Design Properties…', action: () => wiz.projectProperties(), disabled: hasPj },
-      api.standalone ? null : { label: 'Sync with .xise', action: () => api.syncXise(S.project.name, 'export').then(() => toast('Exported .xise', 'ok')).catch(e => alertDlg('Sync with .xise', e.message, 'error')), disabled: hasPj },
     ] },
     { label: 'Process', items: () => [
       { label: 'Implement Top Module', icon: icon('run'), action: () => S.project?.top && runImpl(S.project.top, ['synth', 'translate', 'map', 'par', 'bitgen']), disabled: () => !S.project?.top || S.busy },

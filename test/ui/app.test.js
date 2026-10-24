@@ -180,12 +180,14 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
-    'Project ▸ New Source…', 'Project ▸ Add Copy of Source…', 'Project ▸ Design Properties…', 'Project ▸ Sync with .xise',
+    'Project ▸ New Source…', 'Project ▸ Add Copy of Source…', 'Project ▸ Design Properties…',
     'Process ▸ Implement Top Module', 'Process ▸ Check Syntax', 'Process ▸ Simulate Behavioral Model',
     'Tools ▸ ASM State Machine Editor…', 'Tools ▸ I/O Pin Planning', 'Tools ▸ iMPACT (Configure Target Device)', 'Tools ▸ Board Emulator', 'Tools ▸ RTL Schematic',
     'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents']) {
     assert.ok(acted.some((a) => a.startsWith(must)), `${must} acted (acted: ${acted.join(', ')}; disabled: ${disabled.join(', ')})`);
   }
+  // no Project ▸ Sync with .xise (#1248): it only wrote the .xise, File ▸ Export Xilinx ISE Project gives ISE the project
+  assert.ok(![...acted, ...disabled, ...idle].some((a) => a.includes('.xise')), `a .xise entry: ${[...acted, ...disabled].join(', ')}`);
   // both exports were downloaded
   const fs = await import('node:fs/promises');
   const files = await fs.readdir(page.downloadDir);
