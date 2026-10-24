@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, joinRule, blockRamOutputJoins } from '../research/s3e-device/observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from '../research/s3e-device/model.mjs';
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
-import { pinCensus } from '../research/s3e-device/pins.mjs';
-import { ram, multCascade, dcmPins, iobDdr, iobClk2 } from '../research/s3e-device/gen-obspins.mjs';
+import { pinCensus, renamePads } from '../research/s3e-device/pins.mjs';
+import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads } from '../research/s3e-device/gen-obspins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -512,4 +512,36 @@ test('gen-obspins: designs that use every pin of the block RAMs, multipliers, DC
   assert.equal(new Set(regs).size, regs.length);
   assert.equal(regs.length, 92 - 17);
   for (const d of [designs.wide, designs.narrow, designs.mult, designs.dcm, designs.iob, ...designs.clk2]) assert.deepEqual(read(d.v), [[], []]);
+});
+
+// #3, the pins of the I/O tiles with no pad in the CP132: the FT256 bonds them (another package of the same die)
+test('observedPads, renamePads: another package\'s pads, each the k-th I/O site of its tile by its I pin\'s wire (#3, the I/O tiles\' pins)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  // ISE's FT256 routes: a pad of TIOIS_X22Y35 on I2_PINWIRE (its third I/O site, PAD37 in the CP132's report), one of
+  // LIOIS_X0Y12 on I0_PINWIRE (NOPAD149), its register's clock; the output pad A12 with no I pin; a VCC site
+  const ft = {
+    sites: [{ site: 'A13', tile: 'TIOIS_X22Y35', type: 'IBUF' }, { site: 'C1', tile: 'LIOIS_X0Y12', type: 'IOB' }, { site: 'A12', tile: 'TIOIS_X22Y35', type: 'IOB' }, { site: 'VCC_X24Y37', tile: 'TIOIS_X22Y35', type: 'VCC' }],
+    pins: [
+      { site: 'A13', pin: 'I', dir: 'o', tile: 'TIOIS_X22Y35', wire: 'I2_PINWIRE' },
+      { site: 'C1', pin: 'I', dir: 'o', tile: 'LIOIS_X0Y12', wire: 'I0_PINWIRE' },
+      { site: 'C1', pin: 'ICLK1', dir: 'i', tile: 'LIOIS_X0Y12', wire: 'ICLK10' },
+      { site: 'A12', pin: 'O1', dir: 'i', tile: 'TIOIS_X22Y35', wire: 'IOIS_G3_B2' },
+      { site: 'VCC_X24Y37', pin: 'VCCOUT', dir: 'o', tile: 'TIOIS_X22Y35', wire: 'IOIS_VCC_WIRE' },
+    ],
+  };
+  assert.deepEqual(observedPads(ft), [{ name: 'A13', tile: 'TIOIS_X22Y35', inputOnly: false, pos: 2 }, { name: 'C1', tile: 'LIOIS_X0Y12', inputOnly: false, pos: 0 }]);
+  const r = renamePads(ft, dev);
+  assert.deepEqual(r.dropped, ['A12']);
+  assert.deepEqual(r.pins.map(p => `${p.site}.${p.pin}`), ['PAD37.I', 'NOPAD149.I', 'NOPAD149.ICLK1', 'VCC_X24Y37.VCCOUT']);
+  // the renamed facts as the CP132's description has them
+  for (const p of r.pins) assert.equal(dev.sitePin(p.site, p.pin)?.wire, p.wire, `${p.site}.${p.pin}`);
+  // the device's own pads: the same place rule (B8, the clock pad: the first site of the input-only tile TIBUFS_X13Y35)
+  const pads = devicePads(dev);
+  assert.equal(pads.length, 92);
+  assert.deepEqual(pads.find(p => p.name === 'B8'), { name: 'B8', tile: 'TIBUFS_X13Y35', inputOnly: true, pos: pads.find(p => p.name === 'B8').pos });
+  for (const p of pads) assert.equal(dev.sitePin(p.name, 'I').wire, `I${p.pos}_PINWIRE`, p.name);
+  // the I/O designs on another package's pads: the pads given, no device needed
+  const d = iobDdr(null, 'B8', 'xc3s250eft256-4', [{ name: 'B8', tile: 'TIBUFS_X13Y35', inputOnly: true, pos: 2 }, ...observedPads(ft), ...Array.from({ length: 16 }, (_, i) => ({ name: `X${i}`, tile: 'T', inputOnly: false, pos: 0 }))]);
+  assert.match(d.ucf, /^NET "clk" LOC = "B8" ;$/m);
+  assert.match(d.v, /^\/\/ xc3s250eft256-4: /);
 });

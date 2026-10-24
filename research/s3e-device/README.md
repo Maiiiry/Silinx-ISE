@@ -507,9 +507,30 @@ pin on the to-wire its PIPs end on, when the sink is the net's one sink in its t
 | IOB, DIFFM, DIFFS | 16 of 29 | DIFFI_IN, DIFFO_\*, PADOUT, PCI_\* (differential and PCI); IDDRIN / ODDRIN / ODDROUT (DDR_ALIGNMENT C0 / C1, which the open flow refuses); T (map drives the tristate through T1) |
 | IBUF, DIFFMI, DIFFSI | 5-7 of 29 | the same, and the output and tristate pins an input-only site does not use |
 
-By tile type, each pin is observed only in the I/O tile types that have a bonded pad in the CP132: 32 of 261 for IOB,
-133 / 144 for DIFFM / DIFFS. The I/O tiles with no pad in the CP132 are reached as in round 8, from the FT256 or from
-their unbonded sites, by a DRC test of the pin's wire. That is the next step, then the irregular tiles.
+By tile type, each pin was observed only in the I/O tile types and positions with a bonded pad in the CP132 (26 of the
+54 I/O tile type and site position pairs).
+
+### The I/O tiles with no pad (2026-10-24)
+
+The same die in its FT256 (round 8): `gen-obspins.mjs --pads obs-ft256.json` writes the I/O designs (`iobddr`,
+`iobclk2-0/1/2`) on the pads of the FT256 observation, each pad's place in its tile from its I pin's wire
+(`observedPads`). ISE implements the four designs for `xc3s250e-ft256-4` with no error. `prototype.mjs pins obs.json
+obs-ft256.json` renames the FT256's pads to the CP132 description's sites (`renamePads`: the k-th I/O site of its tile by
+`Ik_PINWIRE`; the slices', block RAMs' and VCC sites' names are the same in every package): **23 753 pin facts, every
+one right** (6244 from the FT256), so the renaming holds too.
+
+**35 of the 54 (I/O tile type, position) pairs are observed.** The 19 others are sites that no package of the XC3S250E
+bonds: the third IOB of the `_PCI`, `_BRK` and `_CLK_PCI` I/O tiles, the first two of the left and right input-only
+tiles. No design can place on them from HDL, and neither can the open flow. Round 8b drove its tests from such sites
+(an IBUF on `NOPADk`): its 79 join verdicts from IBUF sources confirm their I pin's wire (`Ik_PINWIRE`, as the shipped
+graph has it), 3 of the 19 positions among them. The rest stay unmeasured, of no use to the open flow. Next (#3): the
+irregular tiles.
+
+```
+PART=xc3s250eft256-4 node gen-obspins.mjs pinsft --pads obs-ft256.json && PART=xc3s250e-ft256-4 impl-remote.sh iobddr iobclk2-0 iobclk2-1 iobclk2-2
+PART=xc3s250eft256-4 node prototype.mjs observe obs-ft256.json inputs/top.xdl pinsft/*/top.xdl
+node prototype.mjs pins obs.json obs-ft256.json
+```
 
 ```
 node gen-obspins.mjs pins && impl-remote.sh ramwide ramnarrow multcasc dcmpins iobddr iobclk2-0 iobclk2-1 iobclk2-2
