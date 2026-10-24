@@ -248,8 +248,13 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   const w = (await getDoc(page)).wires.find(x => x.id === 'W3');
   assert.ok(near(curveAbs(w)[1], P(280, 260), 2), JSON.stringify(curveAbs(w)));
   assert.deepEqual(w.points, w3.points);
-  await page.tap(`${ED} .se-btn[data-act=wire]`);
-  await page.waitFor((ed) => document.querySelector(`${ed} .se-btn[data-act=wire]`).classList.contains('on'), [ED], { what: 'Add Wire by a tap' });
+  const tapped = await page.tap(`${ED} .se-btn[data-act=wire]`);
+  try {
+    await page.waitFor((ed) => document.querySelector(`${ed} .se-btn[data-act=wire]`).classList.contains('on'), [ED], { what: 'Add Wire by a tap' });
+  } catch (e) {
+    const seen = await page.eval((ed, x, y) => { const b = document.querySelector(`${ed} .se-btn[data-act=wire]`), r = b.getBoundingClientRect(); return { rect: [r.left, r.top, r.width, r.height], at: document.elementFromPoint(x, y)?.outerHTML.slice(0, 160), tool: b.closest('.sch-editor').querySelector('[data-tool]')?.dataset.tool, tb: b.parentElement.scrollWidth + '/' + b.parentElement.clientWidth }; }, ED, tapped.x, tapped.y);
+    throw new Error(`${e.message}: tapped ${JSON.stringify(tapped)} ${JSON.stringify(seen)}`);
+  }
   await strokeWire(page, 'touch', P(360, 400), P(480, 300));
   const d = await getDoc(page);
   assert.deepEqual(nets(netlist(d)), [...NETS0, 'S3.O port:P4'].sort());
