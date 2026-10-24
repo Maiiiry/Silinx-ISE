@@ -43,15 +43,17 @@ uiTest('#680 schematic: I/O markers placed on empty space (the next free name), 
   assert.deepEqual(await prompt(page), { label: 'Input port name', value: 'in1' });
   await page.key('Enter');
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().ports.length === 1, [], { what: 'in1 placed' });
-  // an output (chosen in the options): out1 proposed, renamed by the user
-  await page.eval((ed) => { const s = [...document.querySelectorAll(`${ed} select.se-optin`)].find((x) => x.querySelector('option[value=inout]')); s.value = 'out'; s.dispatchEvent(new Event('change')); }, ED);
+  // another on empty space: an input too (no direction to choose in the toolbar, #1180), named out1 by the user; wired to
+  // the inverter's output below, it becomes an output (#1109)
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} .se-opts`).childElementCount, ED), 0, 'no options');
   await page.click(await at(page, Y.x, Y.y));
   await page.waitFor(() => document.activeElement?.matches('.se-prompt input'), [], { what: 'port name prompt focused' });
-  assert.deepEqual(await prompt(page), { label: 'Output port name', value: 'out1' });
+  assert.deepEqual(await prompt(page), { label: 'Input port name', value: 'in2' });
+  await page.eval(() => { const i = document.querySelector('.se-prompt input'); i.value = 'out1'; i.dispatchEvent(new Event('input')); });
   await page.key('Enter');
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().ports.length === 2, [], { what: 'out1 placed' });
   let d = await getDoc(page);
-  assert.deepEqual(d.ports.map((p) => [p.name, p.dir, p.width, p.x, p.y]), [['in1', 'in', 1, A.x, A.y], ['out1', 'out', 1, Y.x, Y.y]]);
+  assert.deepEqual(d.ports.map((p) => [p.name, p.dir, p.width, p.x, p.y]), [['in1', 'in', 1, A.x, A.y], ['out1', 'in', 1, Y.x, Y.y]]);
   assert.deepEqual(d.wires, []);
   // the editor's problems: both markers unconnected (warnings, no error)
   assert.deepEqual(await problems(page), ['warning: input pin I of XLXI_1 (inv) is not connected', "warning: I/O marker 'in1' is not connected", "warning: I/O marker 'out1' is not connected"]);
@@ -63,6 +65,7 @@ uiTest('#680 schematic: I/O markers placed on empty space (the next free name), 
   await page.click(await at(page, O.x, O.y));
   await page.click(await at(page, Y.x, Y.y));
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.length === 2, [], { what: 'second wire' });
+  assert.deepEqual((await getDoc(page)).ports.map((p) => [p.name, p.dir]), [['in1', 'in'], ['out1', 'out']]);
   assert.deepEqual(await problems(page), []);
   // the HDL generated from it: the two ports, the inverter between them
   await page.waitFor(async () => /out1 <= not in1;/.test(await (await fetch('/api/projects/VoidPj/file?path=src%2Fvd.vhd')).text()), [], { what: 'the HDL follows the schematic', timeout: 15000 });
@@ -73,11 +76,10 @@ uiTest('#680 schematic: I/O markers placed on empty space (the next free name), 
     await page.click(`${ED} .se-btn[data-act=io]`);
     await page.waitFor((ed) => /^Adicionar Marcador de E\/S:/.test(document.querySelector(`${ed} .se-status .hint`).textContent), [ED], { what: 'the hint in Portuguese' });
     assert.equal(await hint(page), 'Adicionar Marcador de E/S: clique na ponta de um fio, num pino ou num espaço vazio para adicionar um marcador de porto (um fio até à sua ponta liga-o depois).');
-    await page.eval((ed) => { const s = [...document.querySelectorAll(`${ed} select.se-optin`)].find((x) => x.querySelector('option[value=inout]')); s.value = 'inout'; s.dispatchEvent(new Event('change')); }, ED);
     await page.click(await at(page, (A.x + Y.x) / 2, A.y + 40));
     await page.waitFor(() => document.activeElement?.matches('.se-prompt input'), [], { what: 'port name prompt focused' });
-    await page.waitFor(() => document.querySelector('.se-prompt label')?.textContent === 'Nome do porto bidirecional', [], { what: 'the prompt in Portuguese' });
-    assert.deepEqual(await prompt(page), { label: 'Nome do porto bidirecional', value: 'io1' });
+    await page.waitFor(() => document.querySelector('.se-prompt label')?.textContent === 'Nome do porto de entrada', [], { what: 'the prompt in Portuguese' });
+    assert.deepEqual(await prompt(page), { label: 'Nome do porto de entrada', value: 'in2' });
     await page.key('Escape');
     await page.waitFor(() => !document.querySelector('.se-prompt'), [], { what: 'prompt closed' });
     d = await getDoc(page);

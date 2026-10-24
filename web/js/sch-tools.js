@@ -28,12 +28,10 @@ export function mountTools(ctx) {
     if (t !== 'place') renderPalette();
   }
   const netNameInput = h('input', { type: 'text', class: 'se-optin', placeholder: 'net name' });
-  const ioNameInput = h('input', { type: 'text', class: 'se-optin', placeholder: 'auto' });
-  const ioDirSel = h('select', { class: 'se-optin' }, h('option', { value: 'auto', text: 'Auto direction' }), h('option', { value: 'in', text: 'Input' }), h('option', { value: 'out', text: 'Output' }), h('option', { value: 'inout', text: 'Bidirectional' }));
   function renderOpts() {
     optBox.innerHTML = '';
     if (tool() === 'net') optBox.append(h('label', { text: 'Name:' }), netNameInput);
-    else if (tool() === 'io') optBox.append(h('label', { text: 'Name:' }), ioNameInput, ioDirSel);
+    // (Add I/O Marker: no options, its name asked, its direction its pins', #1109, #1180)
     else if (tool() === 'place' && placing()) optBox.append(h('span', { class: 'se-placing', text: `Placing ${placing().type === 'module' ? placing().params.module : (placing().preset || SYMBOLS[placing().type]?.title || placing().type)}` }));
   }
   function startPlace(it) {
@@ -169,22 +167,20 @@ export function mountTools(ctx) {
     const cw = !near && curve.curved() ? curve.wireAt(pt) : null;
     const p = near ? { x: near.x, y: near.y } : cw ? cw.at : { x: snap(pt.x), y: snap(pt.y) };
     if (near?.port) { flash('There is already an I/O marker here'); return; }
-    let dir = ioDirSel.value, width = 1, suggest = '';
+    let dir = 'auto', width = 1, suggest = '';
     const net = near?.pin ? nl()?.pinNet.get(`${near.sym.id}/${near.pin.name}`) : nl()?.wireNet.get(cw ? cw.w.id : wireNear(p, 0.5)?.w.id);
     if (near?.pin) { width = near.pin.width || net?.width || 1; if (dir === 'auto') dir = near.pin.dir === 'out' ? 'out' : near.pin.dir === 'inout' ? 'inout' : 'in'; }
     else if (net) { width = net.width; if (dir === 'auto') dir = net.drivers.length ? 'out' : 'in'; }
-    // (on empty space: a marker of 1 bit, an input unless chosen, with the next free name, wired later, #680)
+    // (on empty space: a marker of 1 bit, an input (its properties change it), with the next free name, wired later, #680)
     if (dir === 'auto') dir = 'in';
     const taken = new Set(doc().ports.map(q => q.name.toLowerCase()));
     if (net && !net.auto && !net.ports.length && !taken.has(net.name.toLowerCase())) suggest = net.name;
     if (!near?.pin && !net) suggest = freePortName(doc(), dir);
-    let name = ioNameInput.value.trim();
-    if (!name || taken.has(name.toLowerCase())) name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, name || suggest);
+    const name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, suggest);
     if (!name) return;
     if (taken.has(name.toLowerCase())) { flash(`An I/O marker named '${name}' already exists`); return; }
     if (reservedError(name)) { flash(`${reservedError(name)}: choose another name.`); return; }   // (#679)
     edit(() => { if (!near) splitWiresAt(doc(), [p]); doc().ports.push({ id: nextId('P', doc().ports), name, dir, width, x: p.x, y: p.y }); }, { keepProps: true });
-    if (ioNameInput.value.trim()) { const m = /^(.*?)(\d+)$/.exec(name); ioNameInput.value = m ? `${m[1]}${+m[2] + 1}` : ''; }
   }
 
   return { setTool, renderOpts, startPlace, placeAt, connPoints, pinNear, snapPoint, routeTo, finishWire, wireClick, netClick, ioClick };
