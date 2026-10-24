@@ -1,4 +1,4 @@
-// UI (#1144): Curved wires. The toolbar's checkbox draws the schematic's wires as smooth curves (core/schcurve.js
+// UI (#1144): Curved wires (hopping where they cross, #1163). The toolbar's checkbox draws the schematic's wires as smooth curves (core/schcurve.js
 // curveD: the reference), saved with it and undone by Undo; the selected wire's handles dragged (the mouse, a finger),
 // its curve grabbed and pulled, a handle removed by a double click, Reset curve; a wire drawn by clicks through the
 // points clicked, by a stroke of any shape keeping it, its rectilinear path routed between its ends (core/schpath.js
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, chromeOnly, waitDownload } from './harness.js';
 import { newDoc, netlist, generateHdl } from '../../core/schdoc.js';
 import { routePath, wireGrid } from '../../core/schpath.js';
-import { curveD, curveAbs, curveKnots, curvePointAt, sampleCurve } from '../../core/schcurve.js';
+import { curveD, curveAbs, curveKnots, curvePointAt, sampleCurve, curveCrossings, curveHopD } from '../../core/schcurve.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -308,3 +308,46 @@ uiTest('#1144 Tasks ▸ Design: Curved wires in Portuguese, a stroke by a finger
   await page.key('Escape');
   assert.deepEqual(warnings(page), []);
 }, { skip: chromeOnly, build: DEV });
+
+uiTest('#1163 schematic: Curved wires hop where they cross (Hop-overs ticked); off, plain curves; printed as drawn; the document the same', E, async (page) => {
+  // a -> y bowed up through (250, 180), crossed by b -> z straight down x = 250
+  const doc = newDoc('hops', 'vhdl');
+  doc.wireStyle = 'curved';
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 100, y: 200 }, { id: 'P2', name: 'y', dir: 'out', width: 1, x: 400, y: 200 },
+    { id: 'P3', name: 'b', dir: 'in', width: 1, x: 250, y: 100 }, { id: 'P4', name: 'z', dir: 'out', width: 1, x: 250, y: 300 });
+  doc.wires.push({ id: 'W1', points: [P(100, 200), P(400, 200)], curve: [{ u: 0.5, v: -20 }] }, { id: 'W2', points: [P(250, 100), P(250, 300)] });
+  await makeProject(env, { name: 'CurvedHops', files: { 'src/hops.sch.json': JSON.stringify(doc) } });
+  await page.openProject('CurvedHops');
+  await page.eval(() => { try { localStorage.removeItem('xl.sch.hops'); } catch { /* none */ } });
+  await page.eval(() => window.SilinxApp.openSch('src/hops.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .port`).length === 4, [ED], { what: 'drawn' });
+  const d0 = await getDoc(page);
+  const x = curveCrossings(d0);
+  assert.equal(x.length, 1);
+  assert.equal(x[0].wire, 'W1', 'the flatter one hops');
+  const HOP = [['W1', curveHopD(d0.wires[0], [x[0].s])], ['W2', curveD(d0.wires[1])]];
+  assert.match(HOP[0][1], / A5,5 0 0 1 /);
+  // on by default: W1 hops over W2 (its hit area the plain curve)
+  assert.deepEqual(await drawn(page), HOP);
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} g.wire[data-id="W1"] .whit`).getAttribute('d'), ED), curveD(d0.wires[0]));
+  // printed as drawn
+  await page.menu('File', 'Print…');
+  await page.waitDialog('Print — Schematic');
+  await page.dialogButton('Save SVG');
+  const fs = await import('node:fs/promises');
+  const svg = await fs.readFile(await waitDownload(page, 'Schematic_src_hops.sch.json.svg'), 'utf8');
+  assert.ok(svg.includes(`d="${HOP[0][1]}"`), 'the hop printed');
+  await page.key('Escape');
+  await page.waitNoDialog();
+  // Hop-overs off: plain curves; on again: the hop
+  await page.click(`${ED} .se-hops input`);
+  await page.waitFor((ed) => !/ A5,5/.test(document.querySelector(`${ed} g.wire[data-id="W1"] .wline`).getAttribute('d')), [ED], { what: 'no hop' });
+  assert.deepEqual(await drawn(page), d0.wires.map(w => [w.id, curveD(w)]));
+  await page.click(`${ED} .se-hops input`);
+  await page.waitFor((ed) => / A5,5/.test(document.querySelector(`${ed} g.wire[data-id="W1"] .wline`).getAttribute('d')), [ED], { what: 'the hop' });
+  assert.deepEqual(await drawn(page), HOP);
+  assert.deepEqual(await getDoc(page), d0, 'the document the same');
+  assert.deepEqual(messages(netlist(d0)), [], 'no warnings');
+  await page.eval(() => { try { localStorage.removeItem('xl.sch.hops'); } catch { /* none */ } });
+  assert.deepEqual(warnings(page), []);
+});
