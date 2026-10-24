@@ -484,3 +484,21 @@ test('the global clock pads\' dedicated paths to the top and bottom buffers (#2)
     assert.deepEqual(reach(known.allowPip), all, part);
   }
 });
+
+test('a clock into the fabric (#957): every DCM output\'s and every top / bottom global buffer\'s switch into its tile\'s output multiplexer known, on the four devices', () => {
+  const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
+  assert.deepEqual(t.DCM_BL_CENTER.features['DCM_CLK0->OMUX0'], ['6,60']);
+  const re = /^(DCM_(CLK0|CLK90|CLK180|CLK270|CLK2X|CLK2X180|CLKDV|CLKFX|CLKFX180)->OMUX\d+|CLK[TB]_GCLK_MAIN\d->CLK[TB]_TO_OMUX\d)$/;
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const dev = loadDeviceCache(part), known = knownRouting(loadDb(part, { graph: dev }));
+    const missing = [];
+    for (let k = 0; k < dev.tileNames.length; k++) {
+      const tp = dev.templates[dev.tileTemplate[k]];
+      for (let i = 0; i < tp.from.length; i++) {
+        const [a, b] = dev.pipWires(k, i);
+        if (re.test(`${a}->${b}`) && !known.allowPip(dev.tileNames[k], a, b)) missing.push(`${dev.tileNames[k]} ${a}->${b}`);
+      }
+    }
+    assert.deepEqual(missing, [], part);
+  }
+});
