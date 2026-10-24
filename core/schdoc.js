@@ -27,6 +27,7 @@ import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
 import { BLOCK_MARK, blockMarkOf, declaredIn, generateHdl, isBlockSymbol } from './schdoc-hdl.js';
 import { mergeNetWires } from './schdoc-place.js';
 import { normalizeCurve, splitCurve } from './schcurve.js';
+import { widenMuxes } from './schdoc-upgrade.js';
 import {
   modulesFromLibrary, schematicFromHdl
 } from './schdoc-from-hdl.js';
@@ -40,7 +41,7 @@ export {
   findMod, freePortName, gateVariant, int, normModules, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef,
   symbolParams, symbolPins, symbolTypeName, turnSide, xform, xformSide
 };
-export { constWidth } from './schdoc-symbols.js';
+export { constWidth, MUX_BODY_W, MUX_OLD_BODY_W, MUX_SEL_X } from './schdoc-symbols.js';
 export {
   modulesFromLibrary, schematicFromHdl
 };
@@ -55,7 +56,9 @@ export const GRID = 10;
 // 2 (#301): the M4_1's and DEMUX's select bits on pins of their own (a document of version 1 keeps its bus S)
 // 3 (#678): connections at the wires' ends only (a document of version 2 has its wires split where
 // they connected in their middle: a pin, a marker, a wire end or a bend on them)
-export const DOC_VERSION = 3;
+// 4 (#1136): the multiplexers as wide as the DEMUX (a document of version 3 has them widened, their outputs'
+// connections moved with them: core/schdoc-upgrade.js)
+export const DOC_VERSION = 4;
 
 export const snap = v => Math.round(v / GRID) * GRID;
 export const r10 = v => Math.ceil(v / GRID) * GRID;
@@ -73,6 +76,7 @@ export function normalizeDoc(d, { modules } = {}) {
   const doc = d && typeof d === 'object' ? clone(d) : newDoc();
   const before301 = !(+doc.version >= 2);
   const before678 = !(+doc.version >= 3);
+  const before1136 = !(+doc.version >= 4);
   doc.version = DOC_VERSION;
   doc.name = String(doc.name || 'schematic');
   doc.lang = doc.lang === 'verilog' ? 'verilog' : 'vhdl';
@@ -121,10 +125,14 @@ export function normalizeDoc(d, { modules } = {}) {
   // (drawn with curves, #1144; else the technical drawing)
   if (doc.wireStyle !== 'curved') delete doc.wireStyle;
   delete doc.importDiagnostics;
+  // (a document of version 2 whose module symbols are not known yet stays at version 2, converted when they are:
+  // its multiplexers then too)
+  const mods = normModules(modules);
+  const stays2 = before678 && doc.symbols.some(s => symbolDef(s, mods).missing);
+  if (before1136 && !stays2) widenMuxes(doc, mods);
   if (before678) {
-    const mods = normModules(modules);
     joinOnWires(doc, mods);
-    if (doc.symbols.some(s => symbolDef(s, mods).missing)) doc.version = 2;
+    if (stays2) doc.version = 2;
   }
   return doc;
 }
@@ -225,7 +233,7 @@ class DSU {
 //         wires: [ids], labels: [ids], ports: [ids], drivers: [endpoints] }
 export function netlist(docIn, { modules = {} } = {}) {
   modules = normModules(modules);
-  const doc = docIn && +docIn.version >= 3 ? docIn : normalizeDoc(docIn, { modules });
+  const doc = docIn && +docIn.version >= DOC_VERSION ? docIn : normalizeDoc(docIn, { modules });
   const ci = doc.lang === 'vhdl';
   const nk = s => (ci ? String(s).toLowerCase() : String(s));
   // a signal declared in the HDL kept in the schematic (its declarations, a schematic made from HDL)

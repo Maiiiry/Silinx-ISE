@@ -182,6 +182,8 @@
 .sch-editor svg .stext { font-size: 9px; fill: var(--se-pin); }
 .sch-editor svg .pname { font-size: 9px; fill: var(--se-pin); }
 .sch-editor svg .pwidth { font-size: 8px; fill: var(--se-pin); }
+/* (on a lead up or down, the lead broken under it, #1139) */
+.sch-editor svg .pwidth.on { paint-order: stroke; stroke: var(--sch-bg, #fff); stroke-width: 3px; }
 .sch-editor svg .iomark { fill: var(--se-symbol-fill); stroke: var(--se-symbol); stroke-width: 1.3; }
 .sch-editor svg .iomark.bus { stroke-width: 2.2; }
 .sch-editor svg .ioname { font-size: 11px; font-weight: bold; }

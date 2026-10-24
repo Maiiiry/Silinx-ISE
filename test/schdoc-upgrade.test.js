@@ -1,0 +1,145 @@
+// A schematic of version 3 brought to version 4 (core/schdoc-upgrade.js, #1136): its multiplexers 70 px wide, as the
+// DEMUX, every connection kept. The schematics of before are drawn here from the multiplexer's geometry of before
+// (written out below, not read from the code: 40 px for M2_1 / M4_1, 60 for M8_1, 80 for M16_1), turned and mirrored,
+// with a wire from each pin outward; after the conversion, each pin is on its own wire's net, the HDL unchanged.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { DOC_VERSION, normalizeDoc, netlist, symbolDef, symbolPins, generateHdl } from '../core/schdoc.js';
+import { copySchematic, pasteSchematic } from '../core/schclip.js';
+
+const N = { mux2: 2, mux4: 4, mux8: 8, mux16: 16 };
+// the multiplexer of before, its pins in local coordinates: { w, h, pins: [{ name, x, y, side }] }
+function oldMux(type, en = false) {
+  const n = N[type], k = Math.log2(n), bh = n * 20 + 20 + (en ? 20 : 0), h = bh + 10, bw = Math.max(40, 20 * k), cx = 20 + bw / 2;
+  const pins = [...Array(n).keys()].map((i) => ({ name: `D${i}`, x: 0, y: 20 + 20 * i, side: 'W' }));
+  if (en) pins.push({ name: 'E', x: 0, y: 20 + 20 * n, side: 'W' });
+  for (let i = 0; i < k; i++) pins.push({ name: k === 1 ? 'S0' : `S${k - 1 - i}`, x: cx - 10 * (k - 1) + 20 * i, y: h, side: 'S' });
+  pins.push({ name: 'O', x: bw + 40, y: bh / 2, side: 'E' });
+  return { w: bw + 40, h, pins };
+}
+// (x, y) of a symbol: the top-left corner of its turned box; mirrored first, then turned clockwise
+function place(sym, def, x, y) {
+  let px = sym.mirror ? def.w - x : x, py = y;
+  if (sym.rot === 90) [px, py] = [def.h - py, px];
+  else if (sym.rot === 180) [px, py] = [def.w - px, def.h - py];
+  else if (sym.rot === 270) [px, py] = [py, def.w - px];
+  return { x: sym.x + px, y: sym.y + py };
+}
+const OUT = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+function turned(sym, side) {
+  let [dx, dy] = OUT[side];
+  if (sym.mirror) dx = -dx;
+  if (sym.rot === 90) [dx, dy] = [-dy, dx]; else if (sym.rot === 180) [dx, dy] = [-dx, -dy]; else if (sym.rot === 270) [dx, dy] = [dy, -dx];
+  return [dx, dy];
+}
+// a schematic of version 3: the multiplexer and a wire from each pin outward (40 px), each wire's far end an I/O marker
+function before(type, rot, mirror, en = false) {
+  const m = { id: 'M', type, x: 400, y: 300, rot, mirror, name: 'U1', params: { width: 1, en } };
+  const def = oldMux(type, en);
+  const wires = [], ports = [];
+  for (const p of def.pins) {
+    const a = place(m, def, p.x, p.y), [dx, dy] = turned(m, p.side), b = { x: a.x + 40 * dx, y: a.y + 40 * dy };
+    wires.push({ id: `w_${p.name}`, points: [a, b] });
+    ports.push({ id: `p_${p.name}`, name: `n_${p.name}`.toLowerCase(), dir: p.name === 'O' ? 'out' : 'in', width: 1, x: b.x, y: b.y });
+  }
+  return { version: 3, name: 'old', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, symbols: [m], wires, labels: [], ports };
+}
+const ORIENTS = [0, 90, 180, 270].flatMap((rot) => [false, true].map((mirror) => [rot, mirror]));
+
+test('#1136 a schematic of before: its multiplexers widened, turned and mirrored, every pin on its wire\'s net', () => {
+  for (const type of Object.keys(N)) {
+    for (const [rot, mirror] of ORIENTS) {
+      for (const en of [false, true]) {
+        const what = `${type}${en ? 'E' : ''} rot ${rot}${mirror ? ' mirrored' : ''}`;
+        const old = before(type, rot, mirror, en), d = normalizeDoc(old);
+        assert.equal(d.version, DOC_VERSION, what);
+        const def = symbolDef(d.symbols[0]);
+        assert.equal(def.body.w, type === 'mux16' ? 80 : 70, what);
+        // the data, enable and select pins where they were; the output where its wire now ends
+        const was = oldMux(type, en);
+        for (const p of symbolPins(d.symbols[0], {}, def)) {
+          const o = was.pins.find((q) => q.name === p.name);
+          if (p.name !== 'O') assert.deepEqual([p.x, p.y], Object.values(place(old.symbols[0], was, o.x, o.y)), `${what}: ${p.name} kept`);
+        }
+        const nl = netlist(d);
+        for (const p of was.pins) {
+          const net = nl.pinNet.get(`M/${p.name}`);
+          assert.ok(net, `${what}: ${p.name} connected`);
+          assert.equal(net, nl.wireNet.get(`w_${p.name}`), `${what}: ${p.name} on its wire`);
+          assert.equal(net, nl.portNet.get(`p_${p.name}`), `${what}: ${p.name} to its marker`);
+        }
+        assert.deepEqual(nl.diagnostics.filter((x) => x.severity !== 'info'), [], what);
+        // converted once: a second normalization leaves it as it is
+        assert.deepEqual(normalizeDoc(d), d, `${what}: once`);
+      }
+    }
+  }
+});
+
+test('#1136 the output\'s connections moved with it: its marker on it, a run across it, a pin on it; a run shortened to nothing', () => {
+  const m = { id: 'M', type: 'mux2', x: 100, y: 100, rot: 0, mirror: false, name: 'U1', params: { width: 8 } };
+  // (before: O at (180, 130); after: (210, 130))
+  const base = { version: 3, name: 'old', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, labels: [] };
+  // an I/O marker right on the output, and a net name there
+  let d = normalizeDoc({ ...base, symbols: [m], wires: [], ports: [{ id: 'P', name: 'q', dir: 'out', width: 8, x: 180, y: 130 }], labels: [{ id: 'L', x: 180, y: 130, net: 'q' }] });
+  assert.deepEqual([d.ports[0].x, d.ports[0].y, d.labels[0].x, d.labels[0].y], [210, 130, 210, 130]);
+  { const nl = netlist(d); assert.equal(nl.pinNet.get('M/O'), nl.portNet.get('P')); }
+  // a wire leaving it downwards: a run from there to the new output, a bus as the pin
+  d = normalizeDoc({ ...base, symbols: [m], wires: [{ id: 'W1', points: [{ x: 180, y: 130 }, { x: 180, y: 200 }] }], ports: [{ id: 'P', name: 'q', dir: 'out', width: 8, x: 180, y: 200 }] });
+  assert.deepEqual(d.wires.map((w) => [w.points.map((p) => `${p.x},${p.y}`).join(' '), !!w.bus]), [['180,130 180,200', false], ['180,130 210,130', true]]);
+  { const nl = netlist(d); assert.equal(nl.pinNet.get('M/O'), nl.portNet.get('P')); }
+  // another symbol's input right on it: joined by a run
+  const buf = { id: 'B', type: 'buf', x: 180, y: 120, rot: 0, mirror: false, name: 'U2', params: { width: 8 } };
+  d = normalizeDoc({ ...base, symbols: [m, buf], wires: [], ports: [] });
+  assert.deepEqual(d.wires.map((w) => w.points.map((p) => `${p.x},${p.y}`).join(' ')), ['180,130 210,130']);
+  { const nl = netlist(d); assert.equal(nl.pinNet.get('M/O'), nl.pinNet.get('B/I')); }
+  // a wire of 30 px along the lead: the output now at its far end, the wire gone, the marker there on the output
+  d = normalizeDoc({ ...base, symbols: [m], wires: [{ id: 'W1', points: [{ x: 180, y: 130 }, { x: 210, y: 130 }] }], ports: [{ id: 'P', name: 'q', dir: 'out', width: 8, x: 210, y: 130 }] });
+  assert.deepEqual(d.wires, []);
+  { const nl = netlist(d); assert.equal(nl.pinNet.get('M/O'), nl.portNet.get('P')); }
+});
+
+test('#1136 the HDL of a schematic of before the same after its conversion; a document of version 4 left as it is', () => {
+  for (const [rot, mirror] of ORIENTS) {
+    const old = before('mux4', rot, mirror), d = normalizeDoc(old);
+    const hdl = generateHdl(d).code;
+    assert.match(hdl, /O => n_o/, `rot ${rot}`);
+    // the same HDL as the same design drawn now (the multiplexer of now, its wires to the same markers)
+    const now = normalizeDoc(d);
+    assert.equal(generateHdl(now).code, hdl);
+  }
+  const d4 = normalizeDoc({ version: 4, name: 'new', lang: 'vhdl', symbols: [{ id: 'M', type: 'mux2', x: 100, y: 100, rot: 90, mirror: true, params: {} }],
+    wires: [{ id: 'W1', points: [{ x: 0, y: 0 }, { x: 0, y: 50 }] }], ports: [], labels: [] });
+  assert.deepEqual([d4.symbols[0].x, d4.symbols[0].y, d4.wires[0].points], [100, 100, [{ x: 0, y: 0 }, { x: 0, y: 50 }]]);
+});
+
+test('#1136 a schematic of version 2 with a module not known yet: its multiplexers kept until it is converted with the modules', () => {
+  const old = { ...before('mux2', 0, false), version: 2 };
+  old.symbols.push({ id: 'X', type: 'module', x: 800, y: 100, rot: 0, mirror: false, name: 'U9', params: { module: 'sub' } });
+  const d = normalizeDoc(old);
+  assert.equal(d.version, 2);
+  assert.deepEqual([d.symbols[0].x, d.wires.some((w) => w.points.some((p) => p.x === 480 && p.y === 330))], [400, true]);
+  const modules = { sub: { name: 'sub', lang: 'vhdl', ports: [{ name: 'a', dir: 'in', width: 1 }] } };
+  const c = normalizeDoc(d, { modules });
+  assert.equal(c.version, DOC_VERSION);
+  const nl = netlist(c, { modules });
+  assert.equal(nl.pinNet.get('M/O'), nl.portNet.get('p_O'));
+});
+
+test('#1136 copy and paste: a multiplexer pasted as copied (the clipboard says its document version); one copied before widened', () => {
+  const d = normalizeDoc(before('mux2', 90, false));
+  const clip = copySchematic(d, { symbols: ['M'], wires: d.wires.map((w) => w.id), ports: d.ports.map((p) => p.id) });
+  assert.equal(clip.docVersion, DOC_VERSION);
+  const into = normalizeDoc({ version: DOC_VERSION, name: 'b', lang: 'vhdl', symbols: [], wires: [], ports: [], labels: [] });
+  pasteSchematic(into, clip);
+  assert.deepEqual(into.symbols.map((s) => [s.x, s.y]), d.symbols.map((s) => [s.x, s.y]));
+  const nl = netlist(into);
+  for (const p of ['D0', 'D1', 'S0', 'O']) assert.ok(nl.pinNet.get(`${into.symbols[0].id}/${p}`), p);
+  // a clipboard of before (no docVersion): its multiplexer converted, its output's wire with it
+  const oldClip = { version: 1, lang: 'vhdl', from: 'old', ...before('mux2', 0, false) };
+  delete oldClip.name;
+  const into2 = normalizeDoc({ version: DOC_VERSION, name: 'c', lang: 'vhdl', symbols: [], wires: [], ports: [], labels: [] });
+  pasteSchematic(into2, oldClip);
+  const n2 = netlist(into2), o = n2.pinNet.get(`${into2.symbols[0].id}/O`);
+  assert.ok(o?.endpoints.some((e) => e.kind === 'port'));
+});

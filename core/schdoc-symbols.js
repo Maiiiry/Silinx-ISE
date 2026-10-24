@@ -72,6 +72,12 @@ SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', hidden: true, description: '8:1
 SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', hidden: true, description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
 // the multiplexers' number of data inputs
 export const MUX_INPUTS = { mux2: 2, mux4: 4, mux8: 8, mux16: 16 };
+// the multiplexers' body width (#1136: the DEMUX's, 70 px; M16_1's 80, room for its 4 select bits), and where their
+// select bits are centred: the middle of the body they had before, 40 px wide for M2_1 / M4_1, 60 for M8_1, 80 for
+// M16_1 (k select bits)
+export const MUX_OLD_BODY_W = k => Math.max(40, 20 * k);
+export const MUX_BODY_W = k => Math.max(70, MUX_OLD_BODY_W(k));
+export const MUX_SEL_X = k => 20 + MUX_OLD_BODY_W(k) / 2;
 SYMBOLS.demux = {
   // (one entry, DEMUX, the enable E, the select bits and the select bus its parameters, #313, #334; drawn DEMUX1_4…)
   category: 'Mux', title: 'DEMUX', description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
@@ -314,12 +320,13 @@ export function symbolDef(sym, modules = {}) {
       : [...Array(k).keys()].map(i => ({ name: `S${k - 1 - i}`, dir: 'in', x: cx - 10 * (k - 1) + 20 * i, y: h, side: 'S', width: 1 })));
   if (MUX_INPUTS[t]) {
     // (the enable E: a data row more, on the left below the data inputs, as the Xilinx M2_1E … M16_1E)
-    // (the body wider with the select bits, 20 apart: 40 for M2_1 / M4_1, 60 for M8_1, 80 for M16_1)
-    const n = MUX_INPUTS[t], k = Math.log2(n), en = !!p.en, bh = n * 20 + 20 + (en ? 20 : 0), h = bh + 10, bw = Math.max(40, 20 * k);
+    // (the body 70 px wide, as the DEMUX's, #1136, M16_1's 80; the select bits, 20 apart, where they were on the narrower body
+    // of before, MUX_SEL_X, so that a schematic of before keeps them: only its output moves, schdoc-upgrade.js)
+    const n = MUX_INPUTS[t], k = Math.log2(n), en = !!p.en, bh = n * 20 + 20 + (en ? 20 : 0), h = bh + 10, bw = MUX_BODY_W(k);
     const pins = [];
     for (let i = 0; i < n; i++) pins.push({ name: `D${i}`, dir: 'in', x: 0, y: 20 + 20 * i, side: 'W', width: W });
     if (en) pins.push({ name: 'E', dir: 'in', x: 0, y: 20 + 20 * n, side: 'W', width: 1 });
-    pins.push(...selPins(k, 20 + bw / 2, h));
+    pins.push(...selPins(k, MUX_SEL_X(k), h));
     pins.push({ name: 'O', dir: 'out', x: bw + 40, y: bh / 2, side: 'E', width: W });
     return { w: bw + 40, h, shape: 'mux', title: `M${n}_1${en ? 'E' : ''}`, body: { x: 20, y: 0, w: bw, h: bh }, pins };
   }

@@ -136,12 +136,11 @@ export function bodySvg(sym, def) {
 
 // readable texts, positioned in sheet coordinates
 // the width of a bus pin by its lead, 10 px in from its end: inside the symbol's box in every orientation (#1139),
-// above a lead across, beside a lead up or down, turned to read upwards (narrow: clear of the next pin, 20 px away)
+// above a lead across; on a lead up or down, upright, the lead broken under it (its halo: clear of the next pin)
 function pinWidth(p) {
   const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
-  if (v[0]) return `<text class="pwidth" x="${p.x + 10 * v[0]}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`;
-  const x = p.x + 9, y = p.y + 10 * v[1];
-  return `<text class="pwidth" x="${x}" y="${y}" transform="rotate(-90 ${x} ${y})" text-anchor="middle">${p.width}</text>`;
+  return v[0] ? `<text class="pwidth" x="${p.x + 10 * v[0]}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`
+    : `<text class="pwidth on" x="${p.x}" y="${p.y + 10 * v[1] + 3}" text-anchor="middle">${p.width}</text>`;
 }
 // the symbol's type under it (above it turned 180°, beside it turned 90° / 270°), as ISE draws it (#172)
 function typeUnder(sym, def, box, center, name) {
