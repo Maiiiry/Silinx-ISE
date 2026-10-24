@@ -70,11 +70,13 @@ uiTest('#1026 Tasks ▸ Simulate: the simulator\'s icons in the wave window\'s l
   await simulateBench(page, 'TasksSimToolbar');
   assert.equal(await toolbarAt(page), 'caption');
   assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-wcfg')) && !(await shown(page, '.doc:not([hidden]) .isim-cursor-info')), 'no name, no cursor text');
-  // one line: the wave window at the top of the simulator, its icons shown and working
+  // one line: the wave window at the top of the simulator (under the tabs), its icons shown and working
   const L = await page.eval(() => {
     const root = document.querySelector('.doc:not([hidden]) .isim'), r = (s) => root.querySelector(s).getBoundingClientRect();
     const btns = [...root.querySelectorAll('.isim-wavewin > .caption .tb-btn')];
-    return { top: Math.round(r('.isim-wavewin').top - r('.isim-main').top), main: Math.round(r('.isim-main').top - root.getBoundingClientRect().top),
+    // (the wave window under the simulations' tabs, which are to the right of the side panel: #1259)
+    const tabs = document.getElementById('doc-tabs').getBoundingClientRect();
+    return { top: Math.round(r('.isim-wavewin').top - Math.max(r('.isim-main').top, tabs.height ? tabs.bottom : 0)), main: Math.round(r('.isim-main').top - root.getBoundingClientRect().top),
       shown: btns.filter((b) => b.getClientRects().length && b.getBoundingClientRect().width > 0).length, all: btns.length,
       caption: Math.round(r('.isim-wavewin > .caption').height), titles: btns.map((b) => b.title) };
   });
@@ -205,3 +207,52 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances
   await page.waitFor(() => !document.documentElement.dataset.layout, [], { what: 'classic' });
   assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
 });
+
+// #1259: the side panel from the top of the work area, as Design's and Implement's; the simulations' tabs to its right
+uiTest('#1259 Tasks ▸ Simulate: the side panel from the top, the simulations\' tabs to its right above the waves; folded: the tabs from the left', E, async (page) => {
+  const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');
+  await makeProject(env, { name: 'TasksSimSide', template: 'blinky', files: { 'sim/tb_two.vhd': tb.replaceAll('tb_top', 'tb_two') }, roles: { 'sim/tb_two.vhd': 'sim' } });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimSide');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await choose(page, 'task-bench', 'tb_two');
+  await simShown(page, 'tb_two', 'Behavioral');
+  await page.showSide();
+  const box = () => page.eval(() => {
+    const r = (e) => { const b = e.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), r: Math.round(b.right), b: Math.round(b.bottom) }; };
+    const d = document.querySelector('.doc:not([hidden]) .isim'), vis = (e) => !!e && e.getClientRects().length > 0;
+    const left = d.querySelector('.isim-left');
+    return { center: r(document.getElementById('center')), tabs: r(document.getElementById('doc-tabs')), side: vis(left) ? r(left) : null,
+      split: vis(left) ? r(d.querySelector('.isim-split-main')) : null, head: vis(left) ? r(d.querySelector('.task-sim-tabs')) : null, waves: r(d.querySelector('.isim-wavewin')) };
+  });
+  // open: the side panel and its header at the top, the tabs from its splitter to the right edge, the waves below them
+  let b = await box();
+  assert.deepEqual([b.side.y, b.head.y], [b.center.y, b.center.y], JSON.stringify(b));
+  assert.deepEqual([b.tabs.y, b.tabs.x, b.tabs.r], [b.center.y, b.split.r, b.center.r], JSON.stringify(b));
+  assert.deepEqual([b.waves.y, b.waves.x], [b.tabs.b, b.split.r], JSON.stringify(b));
+  // the side panel wider (its splitter): the tabs follow it
+  await page.eval(() => {
+    const s = document.querySelector('.doc:not([hidden]) .isim-split-main'), at = s.getBoundingClientRect();
+    const o = { bubbles: true, button: 0, pointerId: 1, isPrimary: true, clientX: at.x + 2, clientY: at.y + 200 };
+    s.dispatchEvent(new PointerEvent('pointerdown', o)); s.dispatchEvent(new MouseEvent('mousedown', o));
+    for (const t of [window, document]) { t.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: at.x + 82 })); t.dispatchEvent(new MouseEvent('mousemove', { ...o, clientX: at.x + 82 })); }
+    window.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: at.x + 82 })); document.dispatchEvent(new MouseEvent('mouseup', { ...o, clientX: at.x + 82 }));
+  });
+  await page.waitFor((w) => document.querySelector('.doc:not([hidden]) .isim-left').getBoundingClientRect().width > w + 40, [b.side.r - b.side.x], { what: 'the side panel wider' });
+  await page.waitFor(() => Math.round(document.getElementById('doc-tabs').getBoundingClientRect().x) === Math.round(document.querySelector('.doc:not([hidden]) .isim-split-main').getBoundingClientRect().right), [], { what: 'the tabs after it' });
+  // folded: the tabs and the waves from the left edge
+  await page.click('#task-view [data-act=side]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded');
+  await page.waitFor(() => Math.round(document.getElementById('doc-tabs').getBoundingClientRect().x) === Math.round(document.getElementById('center').getBoundingClientRect().x), [], { what: 'the tabs from the left' });
+  b = await box();
+  assert.equal(b.side, null);
+  assert.deepEqual([b.waves.x, b.waves.y], [b.center.x, b.tabs.b], JSON.stringify(b));
+  // the classic interface: the tabs under the waves' document as before (not moved)
+  await setInterface(page, 'classic');
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => getComputedStyle(document.getElementById('doc-tabs')).position), 'static');
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
