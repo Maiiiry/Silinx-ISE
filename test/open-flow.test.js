@@ -186,6 +186,9 @@ test('the open flow replicates a flip-flop of many loads on the critical path, a
 // slow and fast slew, pull-ups and pull-downs: the FG320 pads' settings, stage F).
 const FEATURES = {
   feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  // a global clock and a DCM output read as data (#957: the clock tiles' GCLK_MAINk -> TO_OMUXj, the DCMs' DCM_<output> ->
+  // OMUXk into general routing, measured)
+  feat_clock_data: [/^pack \(\d+ slices\)/m, 'DCM', [/^ {2}pip CLKT_X13Y35 CLKT_GCLK_MAIN\d -> CLKT_TO_OMUX\d ,$/m, /^ {2}pip DCM_TL_CENTER_X13Y34 DCM_CLK0 -> OMUX\d+ ,$/m]],
   // four clocks, each on a block RAM's port B and a multiplier's registers (#2: the clock pins from every global line;
   // before, only line 4 reached a CLKB or a multiplier's CLK, and the placer refused the design)
   feat_bram_clocks: [/^pack \(\d+ slices\)/m, 'RAMB16', [/^ {2}pip BRAM1_SMALL_X\d+Y\d+ GCLK[0-35-7] -> BRAM_CLK3 ,$/m, /^ {2}pip BRAM2_SMALL_X\d+Y\d+ GCLK[0-35-7] -> BRAM_CLK0 ,$/m]],

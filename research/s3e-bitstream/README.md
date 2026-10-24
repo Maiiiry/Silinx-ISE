@@ -62,6 +62,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `gen-dcmomux.mjs`, `measure-dcmomux.sh` | #2: the DCMs' output multiplexer (`DCM_<output> -> OMUXk`); designs with every output of every DCM through each line, its BUFG LOC'd on the line's buffer, implemented by ISE and measured by PIP drop (`--list`: the pairs and the unknown ones) |
 | `gen-bramclk.mjs`, `gen-clkpad.mjs`, `measure-bramclk.sh` | #2: the block RAMs' and multipliers' clock pins from every global line (`GCLKk -> BRAM_CLKj`) and the global clock pads' dedicated paths to the top and bottom buffers (`CKIk -> GCLKj`); designs implemented by ISE, measured by PIP drop (`--list`: the pairs and the unknown ones) |
+| `gen-clkdata.mjs`, `measure-clkdata.sh` | #957: a clock into the fabric (`DCM_<output> -> OMUXk`, `CLK[TB]_GCLK_MAINk -> CLK[TB]_TO_OMUXj`): the unknown switches added as branches to designs ISE routed, measured by PIP drop |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `ll-splitters.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters (CLKH_LL's; the others', #709); the other DCMs' settings as mirror images of the top-left one's |
 
@@ -1150,6 +1151,26 @@ pins the lines of … reach"). And of the sixteen dedicated paths from the globa
   routing, with a warning, #56); feat_dcm_bufgin's clock goes on B7 / D9 and BUFGMUX_X1Y10 (before B8 / C8). Checked
   against ISE: the clock fixtures on the four devices (feat_dcm_bufgin, feat_clocks12), feat_constmult on M4, feat_dcm,
   feat_dcm_pads, feat_side_clock: byte-identical, DRC 0 errors, 0 warnings.
+
+### A clock into the fabric (2026-10-24, #957)
+
+A DCM output or a global clock read as data leaves its tile through the output multiplexer: the DCM tiles'
+`DCM_<output> -> OMUXk` (other than the four lines to the global buffers, #862) and the clock tiles'
+`CLKT_GCLK_MAINk -> CLKT_TO_OMUXj` (CLKB's). The database had a few of them (those ISE's routes happened to take), 636
+were unknown: 288 on the XC3S250E's DCM and clock tiles, 348 on the XC3S1200E's side DCMs.
+
+- **Designs:** #862's, which ISE routed (every DCM's outputs on global buffers), with each unknown switch added to the
+  net that already drives its from-wire, as a branch that leads nowhere (bitgen programs every PIP of a net with
+  pins), each output line of a tile once per design (`gen-clkdata.mjs`: 32 designs); two more ISE designs for the
+  bottom DCMs' outputs none of #862's used (BR: CLK2X, CLK90, CLKDV, CLKFX; BL: CLK2X; four bottom buffers each).
+- **Measured** (`measure-clkdata.sh`): every PIP removed by codewords (`gen-pipdrop.mjs`, 714 xdl + bitgen runs),
+  `ana-pipdrop.mjs`, `pips-to-db.mjs`. Kept in `measured/learn-19clk-data-pips.json`: the 636 switches, one or two
+  bits each (`DCM_CLK0 -> OMUX0` `6,60`), none against a switch the database had.
+- **Result:** every DCM output's and every top and bottom buffer's switch into its tile's output multiplexer is known on
+  the four devices. The 36 measured designs are byte-identical to ISE's bitgen; `feat_clock_data` (a global clock and a
+  DCM output read as data) and the DCM and clock fixtures (feat_dcm, feat_dcm2, feat_dcm_fx, feat_dcm_phase,
+  feat_clkwiz, feat_clocks12) are byte-identical, DRC 0 errors, 0 warnings. (Main routed such a design already, on the
+  few switches it knew: the router now has every line, and ISE's own routings of these designs are byte-identical.)
 
 ### The PIPs a tile does not have (2026-10-13, #74)
 

@@ -1,0 +1,5 @@
+# the Basys2 clock (B8)
+NET "clk" LOC = "B8" | IOSTANDARD = LVCMOS33 ;
+NET "clk" PERIOD = 20 ns ;
+NET "d<*>" IOSTANDARD = LVCMOS33 ;
+NET "q<*>" IOSTANDARD = LVCMOS33 ;
