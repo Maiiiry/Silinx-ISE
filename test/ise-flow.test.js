@@ -65,7 +65,7 @@ test('docker mode: the whole flow (incl. optional steps) runs, steps are tracked
   assert.equal(j.result.mode, 'docker');
   assert.ok(j.lines.some(l => /^Bitstream: .*top\.bit$/.test(l)));
   const dlog = await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8');
-  assert.match(dlog, /run --rm --platform linux\/amd64 -v .*:\/work -w \/work/);
+  assert.match(dlog, /run --rm --pull=never --platform linux\/amd64 -v .*:\/work -w \/work/);
   assert.match(dlog, /-e ISE_SETTINGS=\/opt\/Xilinx\/14.7\/ISE_DS\/settings64.sh silinx\/ise:14.7 bash run.sh synth postsynth/);
 
   const rep = j.result.reports;
@@ -258,8 +258,8 @@ test('ssh mode with a docker image on the remote host: the flow runs in that ima
   assert.ok(fss.existsSync(path.join(dir, 'build', 'top.syr')), 'results downloaded');
   const log = await fs.readFile(process.env.FAKE_SSH_LOG, 'utf8');
   assert.match(log, /^dev@mini rm -rf silinx-build\/FlowDock && mkdir -p silinx-build\/FlowDock && tar -C silinx-build\/FlowDock -xf -$/m);
-  assert.match(log, /^dev@mini export PATH="\$PATH:\/usr\/local\/bin:\/opt\/homebrew\/bin"; cd silinx-build\/FlowDock && docker run --rm -v "\$PWD":\/work -w \/work -e ISE_SETTINGS=\/opt\/Xilinx\/14.7\/ISE_DS\/settings64.sh xilinx\/ise:14.7 bash run.sh synth$/m);
-  assert.match(await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8'), /^run --rm -v .*silinx-build\/FlowDock:\/work -w \/work -e ISE_SETTINGS=\S+ xilinx\/ise:14.7 bash run.sh synth$/m);
+  assert.match(log, /^dev@mini export PATH="\$PATH:\/usr\/local\/bin:\/opt\/homebrew\/bin"; cd silinx-build\/FlowDock && docker run --rm --pull=never -v "\$PWD":\/work -w \/work -e ISE_SETTINGS=\/opt\/Xilinx\/14.7\/ISE_DS\/settings64.sh xilinx\/ise:14.7 bash run.sh synth$/m);
+  assert.match(await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8'), /^run --rm --pull=never -v .*silinx-build\/FlowDock:\/work -w \/work -e ISE_SETTINGS=\S+ xilinx\/ise:14.7 bash run.sh synth$/m);
 });
 
 test('ssh mode: not configured / remote dir rejected', { skip: POSIX_ONLY }, async () => {

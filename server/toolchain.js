@@ -76,8 +76,46 @@ export const FILE_ONLY = ['docker.command', 'docker.extraArgs', 'ssh.sshArgs', '
 /** A settings script ISE's way: …/settings64.sh or …/settings32.sh ('' = auto-detect). */
 const SETTINGS = /(^|[\\/])settings(32|64)\.sh$/;
 
+/** A docker image name: no option (a leading '-'), no space or shell character. */
+const IMAGE = /^[\w.\/:@][\w.\/:@-]*$/;
+
 const at = (o, key) => key.split('.').reduce((v, k) => (v && typeof v === 'object' ? v[k] : undefined), o);
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const bad = msg => Object.assign(new Error(msg), { status: 400 });
+
+/** This computer's settings script, set through the API: an existing file outside the workspace
+ *  (whose files the API writes), owned by root or this user and writable by nobody else, its folders too. */
+async function checkLocalSettings(file) {
+  if (!path.isAbsolute(file)) throw bad('local.settings must be an absolute path');
+  let real;
+  try { real = await fs.realpath(file); } catch { throw bad(`local.settings: ${file} does not exist`); }
+  const { workspaceDir } = await import('./projects.js');
+  let ws = path.resolve(workspaceDir());
+  try { ws = await fs.realpath(ws); } catch { /* no workspace yet */ }
+  if (real === ws || real.startsWith(ws + path.sep)) throw bad('local.settings cannot be a file of the workspace');
+  if (!(await fs.stat(real)).isFile()) throw bad(`local.settings: ${file} is not a file`);
+  if (typeof process.getuid !== 'function') return;   // Windows: no owners and modes to check
+  const me = process.getuid();
+  for (let p = real, leaf = true; ; p = path.dirname(p), leaf = false) {
+    const st = await fs.stat(p);
+    const sticky = !leaf && (st.mode & 0o1000);
+    if ((st.uid !== 0 && st.uid !== me) || ((st.mode & 0o022) && !sticky))
+      throw bad(`local.settings: ${p} may be changed by other users (it must belong to root or to you, and be writable by its owner only)`);
+    if (p === path.dirname(p)) break;
+  }
+}
+
+/** A settings script in the docker image or on the ssh host: an absolute path, not in the folder
+ *  the build is copied to (whose files come from the project). */
+function checkRemoteSettings(cfg) {
+  const d = cfg.docker.settings ? path.posix.normalize(String(cfg.docker.settings)) : '';
+  if (d && (!d.startsWith('/') || d === '/work' || d.startsWith('/work/'))) throw bad('docker.settings must be an absolute path outside /work (the build folder)');
+  const s = cfg.ssh.settings ? path.posix.normalize(String(cfg.ssh.settings)).toLowerCase() : '';
+  const base = path.posix.normalize(String(cfg.ssh.remoteDir || 'silinx-build').replace(/^~\/?/, '') || 'silinx-build').replace(/\/$/, '').toLowerCase();
+  if (base === '.' || base === '/') throw bad('ssh.remoteDir must name a folder of its own for the builds');
+  if (s && (!s.startsWith('/') || (base.startsWith('/') ? s.startsWith(base + '/') : s.includes(`/${base}/`))))
+    throw bad('ssh.settings must be an absolute path outside ssh.remoteDir (the build folder)');
+}
 
 /** Validate + persist a (partial) config, merged over the current one. fromApi: a change asked
  *  through the HTTP API (the FILE_ONLY settings may only be sent unchanged). */
@@ -96,12 +134,20 @@ export async function saveConfig(partial, { fromApi = false } = {}) {
     }
   }
   const cfg = modeAlias(merge(current, partial));
+  // the settings scripts run as the user who started the server: through the API (any process of
+  // this computer may call it) only one that the project's files cannot be; a changed value only
+  if (fromApi) {
+    const changed = key => { const v = at(partial, key); return v !== undefined && !same(v, at(current, key)); };
+    if (changed('local.settings') && cfg.local.settings) await checkLocalSettings(String(cfg.local.settings));
+    if (['docker.settings', 'ssh.settings', 'ssh.remoteDir'].some(changed)) checkRemoteSettings(cfg);
+  }
+  if (cfg.docker.image && !IMAGE.test(cfg.docker.image)) throw Object.assign(new Error('docker.image contains invalid characters'), { status: 400 });
   if (!MODES.includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (${MODES.join('|')})`), { status: 400 });
   if (!ISE_MODES.includes(cfg.open.iseMode)) throw Object.assign(new Error(`invalid open.iseMode '${cfg.open.iseMode}' (${ISE_MODES.join('|')})`), { status: 400 });
   for (const k of ['extraArgs']) if (!Array.isArray(cfg.docker[k])) throw Object.assign(new Error(`docker.${k} must be an array of strings`), { status: 400 });
   if (!Array.isArray(cfg.ssh.sshArgs)) throw Object.assign(new Error('ssh.sshArgs must be an array of strings'), { status: 400 });
   if (cfg.ssh.host && !/^[A-Za-z0-9._@:\-[\]]+$/.test(cfg.ssh.host)) throw Object.assign(new Error('ssh.host contains invalid characters'), { status: 400 });
-  if (cfg.ssh.image && !/^[\w./:@-]+$/.test(cfg.ssh.image)) throw Object.assign(new Error('ssh.image contains invalid characters'), { status: 400 });
+  if (cfg.ssh.image && !IMAGE.test(cfg.ssh.image)) throw Object.assign(new Error('ssh.image contains invalid characters'), { status: 400 });
   if (cfg.ssh.user && !/^[A-Za-z0-9._-]+$/.test(cfg.ssh.user)) throw Object.assign(new Error('ssh.user contains invalid characters'), { status: 400 });
   // only the user may read it (the ssh host and user, the identity file's path)
   await fs.mkdir(configDir(), { recursive: true, mode: 0o700 });

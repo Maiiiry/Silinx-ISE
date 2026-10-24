@@ -167,7 +167,7 @@ shift
 dir=
 while [ $# -gt 0 ]; do
   case "$1" in
-    --rm) shift ;;
+    --rm|--pull=*) shift ;;
     -v) dir="\${2%:/work}"; shift 2 ;;
     --platform|-w|-e|--user) shift 2 ;;
     *) shift; break ;;

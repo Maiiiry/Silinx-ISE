@@ -310,6 +310,18 @@ test('devices DB and toolchain configuration', async () => {
     assert.equal(r.status, 403, JSON.stringify(body));
     assert.match(r.body.error, new RegExp(`^${Object.keys(body)[0]}\\.?\\w* can only be set in .*config\\.json$`));
   }
+  // a settings script the API itself can write (a file of a project), or a docker image given as an option
+  await call('POST', '/projects', { name: 'TcScript' });
+  assert.equal((await call('PUT', '/projects/TcScript/file?path=settings64.sh', 'echo hi\n')).status, 200);
+  for (const [body, re] of [
+    [{ mode: 'local', local: { settings: path.join(process.env.SILINX_WORKSPACE, 'TcScript', 'settings64.sh') } }, /^local.settings cannot be a file of the workspace$/],
+    [{ mode: 'ssh', ssh: { settings: '/home/me/silinx-build/TcScript/settings64.sh' } }, /^ssh.settings must be an absolute path outside ssh.remoteDir/],
+    [{ mode: 'docker', docker: { image: '--privileged' } }, /^docker.image contains invalid characters$/],
+  ]) {
+    r = await call('PUT', '/toolchain', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.match(r.body.error, re);
+  }
   r = await call('PUT', '/toolchain', { ...(await call('GET', '/toolchain')).body.config, ssh: { host: 'box.lan', user: 'me', sshArgs: [] } });
   assert.equal(r.status, 200);
   assert.equal(r.body.config.docker.command, 'docker');

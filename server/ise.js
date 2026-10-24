@@ -149,7 +149,8 @@ export function generateXst({ top, device, impl = {}, includeDirs = [] }) {
   // User extras: impl.xstOptions = { "keep_hierarchy": "Yes", ... }; never the options that name
   // the files, folders, device or top Silinx sets (silinx.json may come from an imported project)
   for (const [k, v] of Object.entries(impl.xstOptions || {})) {
-    if (!/^[a-z_0-9]+$/i.test(k) || /[\r\n]/.test(String(v))) throw Object.assign(new Error(`invalid XST option '${k}'`), { status: 400 });
+    // a value is one word: a space would start another option, after the ones Silinx sets
+    if (!/^[a-z_0-9]+$/i.test(k) || !/^[^\s\-"'][^\s"']*$/.test(String(v))) throw Object.assign(new Error(`invalid XST option '${k}'`), { status: 400 });
     if (XST_FIXED.has(k.toLowerCase())) throw Object.assign(new Error(`XST option '${k}' is set by Silinx and cannot be changed`), { status: 400 });
     const i = opts.findIndex(o => o[0] === k);
     if (i >= 0) opts[i] = [k, v]; else opts.push([k, v]);
@@ -553,7 +554,8 @@ export function runLocal(job, cfg, det, gen, steps, onLine) {
 
 export function runDocker(job, cfg, gen, steps, onLine) {
   const d = cfg.docker;
-  const args = ['run', '--rm'];
+  // never pull: the image must be one this computer already has (Silinx never pulls images)
+  const args = ['run', '--rm', '--pull=never'];
   if (d.platform) args.push('--platform', d.platform);
   args.push('-v', `${gen.buildDir}:/work`, '-w', '/work');
   // Linux: run as the calling user so build outputs are not owned by root (the Silinx ISE
@@ -617,7 +619,7 @@ export function remoteFlowCommand(cfg, rdir, steps) {
   if (s.image) {
     // a non-interactive ssh shell may lack Docker Desktop's /usr/local/bin (macOS) on PATH
     const env = s.settings ? `-e ISE_SETTINGS=${shQuote(s.settings)} ` : '';
-    return `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd ${rq} && docker run --rm -v "$PWD":/work -w /work ${env}${shQuote(s.image)} bash run.sh ${args}`;
+    return `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd ${rq} && docker run --rm --pull=never -v "$PWD":/work -w /work ${env}${shQuote(s.image)} bash run.sh ${args}`;
   }
   const settings = s.settings ? `ISE_SETTINGS=${shQuote(s.settings)} ` : '';
   return `cd ${rq} && ${settings}bash run.sh ${args}`;
