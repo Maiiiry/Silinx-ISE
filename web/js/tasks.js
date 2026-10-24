@@ -376,6 +376,8 @@ export function initTasks(a) {
   addEventListener('keydown', e => {
     if (on() && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter' && !document.querySelector('.dlg-overlay')) { e.preventDefault(); arrange({ max: !arr().max }); }
   });
+  // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171)
+  addEventListener('silinx:project-opened', () => { if (on()) { setTask('edit'); app.showLeftPage('design'); } });
   // the documents: opened, closed, brought to the front
   new MutationObserver(followActive).observe($('doc-tabs'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   new MutationObserver(refreshDots).observe($('procs'), { childList: true, subtree: true });

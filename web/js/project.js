@@ -62,6 +62,9 @@ async function openProjectNow(name) {
   if (api.standalone) setTimeout(() => S.project?.name === name && import('./open-flow-browser.js').then(m => m.prepareBrowserFlow(S.project.device)).catch(() => {}), prepareDelay());
   // where the user was in this project; the Design Summary the first time
   if (!await restoreViewState(name)) openSummary({ background: true });
+  // (said once its documents are in place, the tasks they brought to the front followed: the Tasks layout opens it
+  // in Design, #1171)
+  setTimeout(() => { if (S.project?.name === name) dispatchEvent(new CustomEvent('silinx:project-opened', { detail: name })); }, 0);
 }
 
 // The modules named with a reserved word of VHDL or Verilog (#679), said when the project is opened

@@ -1247,3 +1247,30 @@ uiTest('#1159 #1160 Tasks: no heading under the side panel\'s tabs; Implement\'s
   assert.ok((await heading()).length > 0);
   await noWarnings(page);
 }, { build: DEV });
+
+// #1171: a project opens in Design (its Design page), whatever task its documents (the Design Summary: Implement's)
+// or the last session left in front: opened from the app, or again at start-up after a reload
+uiTest('#1171 Tasks: a project opens in Design, its Design page; at start-up too', E, async (page) => {
+  await makeProject(env, { name: 'TasksOpenA', template: 'blinky' });
+  await makeProject(env, { name: 'TasksOpenB', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  const where = () => page.eval(() => [document.documentElement.dataset.task, document.querySelector('#left-tabs .tab.active')?.dataset.page]);
+  await page.openProject('TasksOpenA');
+  await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
+  assert.deepEqual(await where(), ['edit', 'design']);
+  // Implement in front, its Design Summary, and the Files page: another project opens in Design
+  await page.click('#left-tabs .tab[data-page=files]');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => window.Silinx.active?.id === 'summary', [], { what: 'the Design Summary' });
+  await page.openProject('TasksOpenB');
+  await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
+  assert.deepEqual(await where(), ['edit', 'design']);
+  // Implement in front again, a reload: the project opened again at start-up, in Design
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => window.Silinx.active?.id === 'summary', [], { what: 'the Design Summary' });
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksOpenB' && window.Silinx.docs.some((d) => d.id === 'summary') && document.documentElement.dataset.task === 'edit', [], { what: 'the project open in Design', timeout: 30000 });
+  assert.deepEqual(await where(), ['edit', 'design']);
+  await noWarnings(page);
+}, { build: DEV });
