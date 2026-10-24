@@ -99,7 +99,7 @@ uiTest('another script\'s failed promise (an extension\'s, a host\'s) is not sai
   assert.ok(!diags.some((m) => /sseError|foreign-997/.test(m)), diags.join('\n'));
 });
 
-// (#1217: the modern interface has no Project, Process and Tools menus; its Sync with .xise in File)
+// (#1217: the modern interface has no Project, Process and Tools menus)
 uiTest('every menu opens and every enabled item acts or opens its dialog', E, async (page) => {
   await makeProject(env, { name: 'MenuPj', template: 'blinky' });
   await page.eval(() => {
@@ -194,8 +194,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
     'Project ▸ New Source…', 'Project ▸ Add Copy of Source…', 'Project ▸ Design Properties…',
     'Process ▸ Implement Top Module', 'Process ▸ Check Syntax', 'Process ▸ Simulate Behavioral Model',
     'Tools ▸ ASM State Machine Editor…', 'Tools ▸ I/O Pin Planning', 'Tools ▸ iMPACT (Configure Target Device)', 'Tools ▸ Board Emulator', 'Tools ▸ RTL Schematic',
-    'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents',
-    'File ▸ Sync with .xise'].filter((m) => (modern ? !GONE.some((g) => m.startsWith(`${g} ▸`)) : m !== 'File ▸ Sync with .xise'))) {
+    'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents'].filter((m) => !modern || !GONE.some((g) => m.startsWith(`${g} ▸`)))) {
     assert.ok(acted.some((a) => a.startsWith(must)), `${must} acted (acted: ${acted.join(', ')}; disabled: ${disabled.join(', ')})`);
   }
   // no Project ▸ Sync with .xise (#1248): it only wrote the .xise, File ▸ Export Xilinx ISE Project gives ISE the project
