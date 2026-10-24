@@ -185,6 +185,9 @@ html[data-layout="tasks"] .emu-board-wrap > .stat { align-self: flex-start; colo
 /* its side panel: the top's Processes (ISE's names and states), not the tree */
 html[data-layout="tasks"][data-task="impl"] #design-panel { display: none; }
 html[data-layout="tasks"][data-task="impl"] #proc-panel { display: flex; flex: 1; height: auto !important; }
+/* no top module: why the list is empty, and Set Top Module… (#1224) */
+html[data-layout="tasks"] .task-no-top { margin: 8px 10px; padding: 10px 12px; border: 1px solid var(--m-border); border-radius: 8px; background: var(--m-surface-2); color: var(--m-fg); font-size: 12px; }
+html[data-layout="tasks"] .task-no-top p { margin: 0 0 8px; }
 /* (Emulate on Board is the Emulate task's, not Implement's: #923; Configure Target Device Implement's, #1172) */
 html[data-layout="tasks"][data-task="impl"] #procs li[data-proc="emulate"] { display: none; }
 /* (nor the top's drawing to view or edit: Design's, #1160) */
