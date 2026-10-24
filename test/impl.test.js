@@ -223,9 +223,9 @@ test('ssh mode with a docker image on the remote host: command, validation, stat
   assert.equal(tc.DEFAULT_CONFIG.ssh.image, '');
   const ssh = { settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh', image: 'xilinx/ise:14.7' };
   assert.equal(ise.remoteFlowCommand({ ssh }, 'silinx-build/p', ['synth', 'map']),
-    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd silinx-build/p && docker run --rm -v "$PWD":/work -w /work -e ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh xilinx/ise:14.7 bash run.sh synth map`);
+    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd silinx-build/p && docker run --rm --pull=never -v "$PWD":/work -w /work -e ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh xilinx/ise:14.7 bash run.sh synth map`);
   assert.equal(ise.remoteFlowCommand({ ssh: { ...ssh, settings: '' } }, 'b/p', ['synth']),
-    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd b/p && docker run --rm -v "$PWD":/work -w /work xilinx/ise:14.7 bash run.sh synth`);
+    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd b/p && docker run --rm --pull=never -v "$PWD":/work -w /work xilinx/ise:14.7 bash run.sh synth`);
   // no image: run.sh with the ISE installed on the host, as before
   assert.equal(ise.remoteFlowCommand({ ssh: { ...ssh, image: '' } }, 'b/p', ['synth']), 'cd b/p && ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh bash run.sh synth');
   assert.equal(ise.remoteFlowCommand({ ssh: { settings: '', image: '' } }, 'b/p', ['synth']), 'cd b/p && bash run.sh synth');
@@ -447,6 +447,67 @@ test('toolchain config save/validate', async () => {
   const st = tc.iseStatus({ ...cfg, mode: 'docker' }, { ise: {}, helpers: { docker: null } });
   assert.equal(st.available, false);
   await tc.saveConfig({ mode: 'local' });
+});
+
+test('toolchain config through the API: the settings scripts the project files cannot be, the images', async () => {
+  const ws = path.join(tmp, 'ws');
+  process.env.SILINX_WORKSPACE = ws;
+  try {
+    const api = p => tc.saveConfig(p, { fromApi: true });
+    // this computer's script: an absolute path to an existing file, not one of the workspace
+    await fs.mkdir(path.join(ws, 'x'), { recursive: true });
+    await fs.writeFile(path.join(ws, 'x', 'settings64.sh'), 'echo hi\n');
+    await assert.rejects(api({ mode: 'local', local: { settings: path.join(ws, 'x', 'settings64.sh') } }), /^Error: local.settings cannot be a file of the workspace$/);
+    await assert.rejects(api({ mode: 'local', local: { settings: path.join(ws, 'x', '..', 'x', 'settings64.sh') } }), /cannot be a file of the workspace/);
+    await assert.rejects(api({ mode: 'local', local: { settings: 'x/settings64.sh' } }), /^Error: local.settings must be an absolute path$/);
+    await assert.rejects(api({ mode: 'local', local: { settings: path.join(tmp, 'none', 'settings64.sh') } }), /^Error: local.settings: .* does not exist$/);
+    const ise = path.join(tmp, 'ISE_DS');
+    await fs.mkdir(ise, { recursive: true });
+    await fs.writeFile(path.join(ise, 'settings64.sh'), '');
+    if (typeof process.getuid === 'function') {
+      // writable by others (the file or a folder above it): refused
+      await fs.chmod(path.join(ise, 'settings64.sh'), 0o666);
+      await assert.rejects(api({ mode: 'local', local: { settings: path.join(ise, 'settings64.sh') } }), /may be changed by other users/);
+      await fs.chmod(path.join(ise, 'settings64.sh'), 0o644);
+      await fs.chmod(ise, 0o777);
+      await assert.rejects(api({ mode: 'local', local: { settings: path.join(ise, 'settings64.sh') } }), /local.settings: \S*ISE_DS may be changed by other users/);
+      await fs.chmod(ise, 0o755);
+    }
+    const real = await fs.realpath(tmp);   // the folders above the test's own (e.g. macOS's /var/folders) may be shared
+    const st = await fs.stat(path.dirname(real)).catch(() => null);
+    if (typeof process.getuid !== 'function' || (st && !(st.mode & 0o022))) {
+      assert.equal((await api({ mode: 'local', local: { settings: path.join(ise, 'settings64.sh') } })).local.settings, path.join(ise, 'settings64.sh'));
+    }
+    // a value sent unchanged (the dialog sends every field) is not checked again; '' = auto-detect
+    await tc.saveConfig({ local: { settings: path.join(ws, 'x', 'settings64.sh') } });
+    assert.equal((await api({ mode: 'local', local: { settings: path.join(ws, 'x', 'settings64.sh') } })).mode, 'local');
+    assert.equal((await api({ local: { settings: '' } })).local.settings, '');
+    // in the image or on the ssh host: absolute, not in the folder the build is copied to
+    for (const s of ['/work/settings64.sh', '/work/../work/src/settings64.sh', 'opt/settings64.sh'])
+      await assert.rejects(api({ mode: 'docker', docker: { image: 'my/ise:14.7', settings: s } }), /^Error: docker.settings must be an absolute path outside \/work \(the build folder\)$/);
+    assert.equal((await api({ mode: 'docker', docker: { image: 'my/ise:14.7', settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh' } })).docker.settings, '/opt/Xilinx/14.7/ISE_DS/settings64.sh');
+    for (const s of ['/home/me/silinx-build/y/src/settings64.sh', '/Users/Me/Silinx-Build/y/settings64.sh', '/home/me/./silinx-build/y/settings64.sh', 'silinx-build/y/settings64.sh'])
+      await assert.rejects(api({ mode: 'ssh', ssh: { host: 'h', remoteDir: 'silinx-build', settings: s } }), /^Error: ssh.settings must be an absolute path outside ssh.remoteDir \(the build folder\)$/);
+    await assert.rejects(api({ mode: 'ssh', ssh: { host: 'h', remoteDir: '/srv/b', settings: '/srv/b/y/settings64.sh' } }), /ssh.settings must be an absolute path outside ssh.remoteDir/);
+    await assert.rejects(api({ mode: 'ssh', ssh: { host: 'h', remoteDir: '.', settings: '/home/me/y/settings64.sh' } }), /^Error: ssh.remoteDir must name a folder of its own for the builds$/);
+    // moving the build folder over the script is refused too
+    await api({ mode: 'ssh', ssh: { host: 'h', remoteDir: 'silinx-build', settings: '/opt/ise/settings64.sh' } });
+    await assert.rejects(api({ ssh: { remoteDir: 'opt/ise' } }), /ssh.settings must be an absolute path outside ssh.remoteDir/);
+    assert.equal((await api({ ssh: { remoteDir: 'builds/silinx' } })).ssh.remoteDir, 'builds/silinx');
+    // the images: no option, no shell character
+    for (const image of ['--privileged', '-v', 'x y', 'a;b'])
+      await assert.rejects(api({ mode: 'docker', docker: { image } }), /^Error: docker.image contains invalid characters$/);
+    await assert.rejects(api({ mode: 'ssh', ssh: { host: 'h', image: '--privileged' } }), /^Error: ssh.image contains invalid characters$/);
+    assert.equal((await api({ mode: 'docker', docker: { image: 'registry.example:5000/silinx/ise:14.7@sha256:ab' } })).docker.image, 'registry.example:5000/silinx/ise:14.7@sha256:ab');
+  } finally {
+    delete process.env.SILINX_WORKSPACE;
+    await tc.saveConfig({ mode: 'local', local: { settings: '' }, docker: { image: '', settings: tc.DEFAULT_SETTINGS }, ssh: { host: '', image: '', remoteDir: 'silinx-build', settings: tc.DEFAULT_SETTINGS } });
+  }
+});
+
+test('docker run never pulls an image (here and on the ssh host)', async () => {
+  const ssh = { settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh', image: 'xilinx/ise:14.7' };
+  assert.match(ise.remoteFlowCommand({ ssh }, 'b/p', ['synth']), / docker run --rm --pull=never -v /);
 });
 
 // ------------------------------------------------------------------------------------------
