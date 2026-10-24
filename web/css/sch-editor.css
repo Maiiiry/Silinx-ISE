@@ -322,7 +322,11 @@
 .sch-editor.read-only .se-toolbar [data-act="undo"], .sch-editor.read-only .se-toolbar [data-act="redo"] { display: none; }
 
 .sch-editor .se-keep, .sch-editor .se-names, .sch-editor .se-hops, .sch-editor .se-curved { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
-.sch-editor.read-only .se-keep, .sch-editor.read-only .se-curved { display: none; }
+.sch-editor.read-only .se-keep { display: none; }
+/* a read-only view's note at the end of its toolbar, as the generated HDL's (#1193) */
+.sch-editor .se-toolbar .gen-banner { margin-left: 8px; padding: 1px 8px; background: #fff4ce; border: 1px solid #e6d690; border-radius: 3px; color: #5a4a00; white-space: nowrap; }
+.sch-editor .se-toolbar .gen-banner.out-of-sync { background: #fdecea; border-color: #e0a0a0; color: #900; }
+.sch-editor .se-toolbar .gen-banner a { color: #0645ad; cursor: pointer; text-decoration: underline; }
 .sch-editor.read-only:not(.ro-sim) [data-act="sim"] { display: none; }   /* a truth table's schematic simulates (#946) */
 
 /* ------------------------------------------------------------------ live simulation (sch-live.js) */

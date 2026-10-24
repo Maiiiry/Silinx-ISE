@@ -18,13 +18,16 @@ import { clone, onSeg } from './sch-editor.js';
  *  cancelKnot, removeKnot } of a schematic editor (doc(), sel(), view(): its current ones). */
 export function mountSchCurve(ctx) {
   const { doc, sel, view, live, readOnly, edit, render, renderProps, snapshot, pushUndo, changed, contentG } = ctx;
-  const curved = () => isCurved(doc());
+  // (a read-only view, #1193: drawn with curves or not by the viewer's choice, the schematic untouched)
+  let viewCurved = null;
+  const curved = () => (readOnly && viewCurved !== null ? viewCurved : isCurved(doc()));
   // the toolbar's Curved wires (sch-toolbar.js), kept as the schematic is by updateToolbar
   const box = h('input', { type: 'checkbox', checked: curved() });
   box.addEventListener('change', () => { setCurved(box.checked); box.checked = curved(); });
   // Curved wires ticked or not: an edit of the schematic (saved with it, undone by Undo)
   function setCurved(on) {
     if (on === curved()) return;
+    if (readOnly) { viewCurved = on; render(); return; }
     const set = () => { if (on) doc().wireStyle = 'curved'; else delete doc().wireStyle; };
     // (in Try it too, where nothing else is edited: how the wires are drawn, not what they connect, #1175)
     if (live?.() && !readOnly) { const before = snapshot(); set(); pushUndo(before); changed(); render(); return; }

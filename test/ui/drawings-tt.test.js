@@ -63,7 +63,7 @@ uiTest('Truth tables\' module: a new table, its HDL following it, read-only (#11
   // its schematic: a view generated from the table
   await page.eval(() => window.SilinxApp.openTtSchematic('src/maj3.tt.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'ttsch:src/maj3.tt.json' && window.Silinx.active.viewer, [], { what: 'schematic opened' });
-  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .tt-sch-bar').textContent), /^Schematic \(read-only\): generated from maj3\.tt\.json$/);
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-banner').textContent), /^Read-only, generated from maj3\.tt\.json$/);   // (at the end of its toolbar, #1193)
   const sch = await page.eval(() => window.Silinx.active.viewer.getDoc());
   assert.deepEqual(netlist(sch).diagnostics, []);
   assert.ok(sch.symbols.length > 0);

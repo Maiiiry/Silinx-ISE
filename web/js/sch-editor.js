@@ -336,6 +336,8 @@ export function mountSchEditor(container, opts = {}) {
 
   return {
     getDoc: () => clone(normalizeDoc(doc)),
+    /** A note at the end of the toolbar (a read-only view's "Read-only, generated from …", #1193), or none. */
+    setBanner(node) { tb.querySelector('.se-banner')?.remove(); if (node) { node.classList.add('se-banner'); tb.append(node); } },
     undo: () => undo(), redo: () => redo(),
     canUndo: () => undoStack.length > 0 && !live, canRedo: () => redoStack.length > 0 && !live,
     // Edit ▸ Cut / Copy / Paste / Delete (#677)
