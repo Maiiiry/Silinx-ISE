@@ -1185,3 +1185,21 @@ uiTest('#1102 Tasks ▸ Simulate: the test bench\'s Edit button has its label ce
   assert.equal(off.text, 'Edit');
   assert.ok(Math.abs(off.dx) <= 1 && Math.abs(off.dy) <= 1, JSON.stringify(off));
 }, { build: DEV });
+
+// #1162: Implement's Processes for a project with no top module, opened after one with its processes and states: none of
+// the last project's
+uiTest('#1162 Tasks ▸ Implement: a project with no top opened after another shows none of its processes', E, async (page) => {
+  await makeProject(env, { name: 'ImplFull', template: 'blinky' });
+  await makeProject(env, { name: 'ImplEmpty' });
+  await tasksInterface(page);
+  await page.openProject('ImplFull');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize')), [], { what: 'the top\'s processes' });
+  await page.eval(() => { window.SilinxApp.S.status.synth = 'ok'; window.SilinxApp.renderProcesses(); });
+  await page.openProject('ImplEmpty');
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  assert.deepEqual(await page.eval(() => ({ caption: document.getElementById('proc-caption').textContent, rows: [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent), states: document.querySelectorAll('#procs .status svg').length })),
+    { caption: 'Processes: ', rows: ['Design Summary/Reports'], states: 0 });
+  await page.eval(() => localStorage.removeItem('silinx.ui'));
+}, { build: DEV });

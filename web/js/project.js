@@ -21,6 +21,7 @@ function resetProjectState() {
   S.diagsCleared++;   // (the start-up checks' lines coming later: not in the tabs, #339)
   S.status = {}; S.sel = null; S.selKey = null; S.selProc = null; S.diags = []; S.outOfSync = {}; S.staleHdl = {}; S.staleSeen = new Map(); S.ucfText = null; S.hdlClash = {}; S.hdlClashWarned = new Set();
   renderDiagnostics();
+  renderProcesses();   // (not the last project's processes and states, until a state of this one is restored: #1162)
 }
 function blockedByRun(what) {
   if (!S.busy && !S.currentJob) return false;
