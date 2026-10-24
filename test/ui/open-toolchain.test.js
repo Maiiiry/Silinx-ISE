@@ -99,6 +99,7 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
 
+// (the Design Summary's tables and the Processes panel: the classic interface's; the modern one's cards, its Implement: tasks.test.js #802, #1149)
 uiTest('open mode: Generate Programming File of blinky without ISE; the Processes icons, the Design Summary, the FPGA view', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenImpl', template: 'blinky' });
@@ -133,7 +134,7 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
   await page.treeRow('#procs', 'View Implemented Design (FPGA)', { dbl: true, exact: true });
   await page.waitFor(() => window.SilinxApp.findDoc('fpgaview'), [], { what: 'FPGA view', timeout: 60000 });
   assert.equal(await page.eval(() => window.SilinxApp.S.active.title), 'FPGA (top)');
-});
+}, { ui: 'classic' });
 
 uiTest('open mode: a device without a bit database or without a shipped description fails clearly (no offer to build it, #8)', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
@@ -414,10 +415,12 @@ async function viewerTexts(page) {
   await page.key('a', { modifiers: 2 });
   await page.waitFor(() => / objects selected$/.test(document.querySelector('.doc:not([hidden]) .se-ptitle')?.textContent || ''), [], { what: 'all selected' });
   runs.push(await both());
-  // the Check panel
-  await page.click('.doc:not([hidden]) .se-toolbar [data-act=check]');
-  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .se-diags').hidden, [], { what: 'Check panel' });
-  runs.push(await both());
+  // the Check panel (the classic interface's: the modern one writes the check in its console, #993, #1149)
+  if (!await page.eval(() => document.documentElement.dataset.layout)) {
+    await page.click('.doc:not([hidden]) .se-toolbar [data-act=check]');
+    await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .se-diags').hidden, [], { what: 'Check panel' });
+    runs.push(await both());
+  }
   return { kinds, untranslated: [...new Set(runs.flatMap((r) => untranslated(r.en, r.pt, [/^\w+ : \w+$/, /^Flip-Flops$/, /^@Buffer$/])))], pt: new Set(runs.flatMap((r) => r.pt)), en: new Set(runs.flatMap((r) => r.en)) };
 }
 
@@ -436,11 +439,14 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   assert.deepEqual(rtl.untranslated, []);
   for (const s of ['Propriedades', '<--Todos os Símbolos-->', '@Inversor', '@Porta AND de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)', 'Abrir top.vhd', 'Fio · rede clk', "Rede 'clk', 1 bit",
     'Módulo prescaler', 'Parâmetros', 'vazio = valor por omissão do módulo', 'Pinos (3)', 'Índice do MSB', 'Marcador de E/S', 'Bidirecional', 'Nome de Rede',
-    'um por linha: nome[largura] (acrescente "clock" para um pino de relógio)', 'nome[largura]', 'Verificar Esquemático: 0 erro(s), 0 aviso(s)', 'Nenhum erro ou aviso encontrado.'])
+    'um por linha: nome[largura] (acrescente "clock" para um pino de relógio)', 'nome[largura]',
+    // (the Check panel's: the classic interface's, #1149)
+    ...(await page.eval(() => document.documentElement.dataset.layout) ? [] : ['Verificar Esquemático: 0 erro(s), 0 aviso(s)', 'Nenhum erro ou aviso encontrado.'])])
     assert.ok(rtl.pt.has(s), `${s}: ${[...rtl.pt].join(' | ')}`);
   // texts starting with a number (which the language check takes for numbers) are translated too
   assert.ok([...rtl.pt].some((s) => /^\d+ objetos selecionados$/.test(s)), [...rtl.pt].join(' | '));
-  assert.ok([...rtl.pt].some((s) => /^\d+ símbolos, \d+ redes · 0 erro\(s\), 0 aviso\(s\)$/.test(s)), [...rtl.pt].join(' | '));
+  // (the check's count in the status bar: after the classic interface's Check, #1149)
+  if (!await page.eval(() => document.documentElement.dataset.layout)) assert.ok([...rtl.pt].some((s) => /^\d+ símbolos, \d+ redes · 0 erro\(s\), 0 aviso\(s\)$/.test(s)), [...rtl.pt].join(' | '));
   // Technology Schematic of the same design (the Silinx toolchain's synthesis)
   await page.setView('impl');
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
@@ -918,6 +924,7 @@ uiTest('#280 open mode: Generate Programming File after a change of the pins onl
 
 // #282: the synthesis's Optimization Effort with the Silinx toolchain: Normal (the default) synthesizes once,
 // High also tries the mappings for speed; Process Properties says so, in English and in Portuguese
+// (the Design Summary's tables and the Processes panel: the classic interface's; the modern one's cards, its Implement: tasks.test.js #802, #1149)
 uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes once, High tries the mappings for speed; Process Properties says so; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenEffort', template: 'blinky' });
@@ -972,4 +979,4 @@ uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes onc
   await page.waitFor(async () => (await (await fetch('/api/projects/OpenEffort')).json()).impl.optLevel === 1, [], { what: 'Normal saved' });
   log = await run('Implement Design');
   assert.ok(!/is up to date/.test(log) && log.includes(NORMAL), log.slice(0, 2000));
-}, { timeout: 300000 });
+}, { timeout: 300000, ui: 'classic' });

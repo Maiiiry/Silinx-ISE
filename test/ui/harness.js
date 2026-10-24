@@ -453,6 +453,11 @@ class PageBase {
       await this.click('#task-switch .task-btn[data-task="edit"]');
       await this.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
     }
+    // (a narrow screen: the tabs are the drawer's top row, opened by its button)
+    if (!await this.eval((n) => !!document.querySelector(`#left-tabs .tab[data-page=${n}]`)?.getClientRects().length, name) && await this.eval(() => !!document.getElementById('drawer-btn')?.getClientRects().length)) {
+      await this.click('#drawer-btn');
+      await this.waitFor((n) => !!document.querySelector(`#left-tabs .tab[data-page=${n}]`)?.getClientRects().length, [name], { what: 'the drawer open' });
+    }
     await this.click(`#left-tabs .tab[data-page=${name}]`);
   }
   /** The Design pane's view, Implementation or Simulation: its radio button; the modern interface has no views (its
