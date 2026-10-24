@@ -342,12 +342,13 @@ class PageBase {
     debug(`menu ${label}`);
     await this.closeMenus();
     // a menu the modern interface does not show (#1217): its items as its definition has them, no popup
-    const def = typeof label === 'string' && await this.eval((m) => {
+    const def = typeof label === 'string' && await this.eval(async (m) => {
       const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
       if (!e || e.getClientRects().length) return null;
-      const menu = window.SilinxApp.S.menus.find((x) => x.label === m);
+      const { t } = await import('/js/i18n.js');
+      const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
       return (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-')
-        .map((x) => ({ label: x.label, disabled: !!(typeof x.disabled === 'function' ? x.disabled() : x.disabled), submenu: !!x.submenu }));
+        .map((x) => ({ label: t(x.label), disabled: !!(typeof x.disabled === 'function' ? x.disabled() : x.disabled), submenu: !!x.submenu }));
     }, label);
     if (def) return def;
     const items = await this.eval(() => [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()));
@@ -406,22 +407,23 @@ class PageBase {
   }
   /** File ▸ Open Project… style: open the menu and click the item. */
   async menu(menuLabel, itemLabel) {
-    // a menu the modern interface does not show (Project, Process, Tools: #1217): its command run as the command
-    // palette runs it, from the menus' definitions
-    const hidden = await this.eval((m) => { const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m); return !!e && !e.getClientRects().length; }, menuLabel);
-    if (hidden) {
-      const r = await this.eval((m, l) => {
-        const menu = window.SilinxApp.S.menus.find((x) => x.label === m);
-        const it = (typeof menu.items === 'function' ? menu.items() : menu.items).filter(Boolean).find((x) => x.label === l);
-        if (!it) return 'missing';
-        if (typeof it.disabled === 'function' ? it.disabled() : it.disabled) return 'disabled';
-        it.action();
-        return 'ran';
-      }, menuLabel, itemLabel);
-      if (r === 'missing') throw new Error(`no item '${itemLabel}' in menu '${menuLabel}'`);
-      if (r === 'disabled') throw new Error(`menu item '${menuLabel} ▸ ${itemLabel}' is disabled`);
-      return;
-    }
+    // a menu the modern interface does not show (Project, Process, Tools: #1217): its command run as a menu click runs
+    // it (runAction), from the menus' definitions (by the menu's name, whatever the language; an item by its label or
+    // its translation)
+    const r = await this.eval(async (m, l) => {
+      const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
+      if (!e || e.getClientRects().length) return 'shown';
+      const { t } = await import('/js/i18n.js'), { runAction } = await import('/js/ui.js');
+      const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
+      const it = (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-').find((x) => x.label === l || t(x.label) === l);
+      if (!it) return 'missing';
+      if (typeof it.disabled === 'function' ? it.disabled() : it.disabled) return 'disabled';
+      runAction(it.label, it.action);
+      return 'ran';
+    }, menuLabel, itemLabel);
+    if (r === 'missing') throw new Error(`no item '${itemLabel}' in menu '${menuLabel}'`);
+    if (r === 'disabled') throw new Error(`menu item '${menuLabel} ▸ ${itemLabel}' is disabled`);
+    if (r === 'ran') return;
     const items = await this.openMenu(menuLabel);
     const idx = items.findIndex((i) => i.label === itemLabel);
     if (idx < 0) throw new Error(`no item '${itemLabel}' in menu '${menuLabel}' (${items.map((i) => i.label).join(' | ')})`);
@@ -527,6 +529,10 @@ class PageBase {
       if (inTree) { await this.leftTab('design'); return false; }
     }
     if (right) return false;
+    // (a process Implement does not list, its Processes the top's whatever is selected, #1208: read in Design)
+    if (container === '#procs' && !await isShown() && await this.eval(() => document.documentElement.dataset.task === 'impl')) {
+      await this.click('#task-switch .task-btn[data-task="edit"]');
+    }
     return this.waitFor((c, l, ex, d) => {
       const match = (t) => (ex ? t === l : t === l || t.startsWith(l));
       const A = window.SilinxApp, S = A.S;
