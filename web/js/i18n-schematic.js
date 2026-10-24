@@ -29,6 +29,14 @@ export const SCH_PT = {
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   // a net name another net has (#689)
   'Hop-overs': 'Saltos', 'Draw a small arc where two wires cross without connecting': 'Desenhar um pequeno arco onde dois fios se cruzam sem se ligarem',
+  // curved wires (#1144)
+  'Curved wires': 'Fios curvos',
+  'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)': 'Desenhar os fios como curvas suaves de qualquer forma em vez dos cantos retos do desenho técnico (as ligações, as redes e o HDL iguais)',
+  'Curved wires: click a wire, then drag the wire or its handles to reshape it (double-click a handle to remove it). Drag a symbol to move it, its wires following.':
+    'Fios curvos: clique num fio e arraste o fio ou as suas pegas para lhe mudar a forma (duplo clique numa pega remove-a). Arraste um símbolo para o mover, os seus fios acompanham-no.',
+  'Add Wire (curved): click to start, click to add points the curve passes through, click on a pin/wire or double-click to finish; or draw a stroke of any shape from a pin/wire to another.':
+    'Adicionar Fio (curvo): clique para começar, clique para juntar pontos por onde a curva passa, clique num pino/fio ou faça duplo clique para terminar; ou desenhe um traço de qualquer forma de um pino/fio até outro.',
+  'Reset curve': 'Repor curva', 'Drop this wire\'s own curve: drawn again from its rectilinear path': 'Descartar a curva própria deste fio: desenhado de novo a partir do seu percurso retilíneo',
   'Net name already used': 'Nome de rede já usado', 'Connect by name': 'Ligar pelo nome',
   'Connect this net to it by name? They become one net, without a wire drawn between them.': 'Ligar esta rede a ela pelo nome? Passam a ser uma só rede, sem um fio desenhado entre elas.',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',

@@ -1,6 +1,6 @@
 // The schematic editor's toolbar (#405: out of mountSchEditor in sch-editor.js): its tools and buttons (Select, Wire,
 // Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Undo / Redo, the zooms, Symbol Info, Hop-overs,
-// Names, Check, Try it, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
+// Names, Curved wires (#1144), Check, Try it, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
 import { PROPS_KEY, SYMBOLS_KEY, panelToggle } from './narrow.js';
 import { h } from './dom.js';
 import { undoButton } from './ui.js';
@@ -9,7 +9,7 @@ import { ICON } from './sch-editor.js';
 /** { optBox } of mountSchEditor (live(): its current values). */
 export function mountSchToolbar(ctx) {
   const {
-    container, btn, canSim, deleteSel, enterSim, fit, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
+    container, btn, canSim, curvedBox, deleteSel, enterSim, fit, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
     openInfo, readOnly, redo, rotateSel, runCheck, sep, setTool, tb, undo, zoomAt
   } = ctx;
 
@@ -19,6 +19,8 @@ export function mountSchToolbar(ctx) {
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
+    h('label', { class: 'se-curved', title: 'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)' },
+      curvedBox, h('span', { text: 'Curved wires' })),
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
@@ -37,7 +39,7 @@ export function mountSchToolbar(ctx) {
     let prevSep = true;                                   // a separator at the start is not needed
     let lastSep = null;
     for (const el of tb.children) {
-      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
+      if (el.classList.contains('se-keep') || el.classList.contains('se-curved') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
       if (el.classList.contains('se-sep')) { if (prevSep) el.style.display = 'none'; else { prevSep = true; lastSep = el; } }
       else { prevSep = false; lastSep = null; }
     }

@@ -203,6 +203,12 @@
 /* overlay */
 .sch-editor svg .ghost { opacity: .55; pointer-events: none; }
 .sch-editor svg .wire-ink { fill: none; stroke: var(--se-highlight); stroke-width: 3; stroke-opacity: .35; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.sch-editor svg .wire .wline.curved { stroke-linecap: round; }
+/* curved wires (#1144): the selected wire's handles, its knots (a wider target for a finger) */
+.sch-editor svg .chandle { cursor: move; }
+.sch-editor svg .chandle .chit { fill: transparent; stroke: none; }
+.sch-editor svg .chandle .cdot { fill: #fff; stroke: var(--se-select); stroke-width: 1.4; }
+.sch-editor svg .chandle:hover .cdot { fill: var(--se-select); }
 .sch-editor svg .wire-preview { fill: none; stroke: var(--se-highlight); stroke-width: 1.4; stroke-dasharray: 4 3; pointer-events: none; }
 .sch-editor svg .pinhover { fill: none; stroke: var(--se-highlight); stroke-width: 1.5; pointer-events: none; }
 .sch-editor svg .xhair { stroke: #888; stroke-width: .8; pointer-events: none; }
@@ -311,8 +317,8 @@
 .sch-editor.read-only .se-toolbar [data-act="rotate"], .sch-editor.read-only .se-toolbar [data-act="mirror"], .sch-editor.read-only .se-toolbar [data-act="delete"],
 .sch-editor.read-only .se-toolbar [data-act="undo"], .sch-editor.read-only .se-toolbar [data-act="redo"] { display: none; }
 
-.sch-editor .se-keep, .sch-editor .se-names, .sch-editor .se-hops { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
-.sch-editor.read-only .se-keep { display: none; }
+.sch-editor .se-keep, .sch-editor .se-names, .sch-editor .se-hops, .sch-editor .se-curved { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
+.sch-editor.read-only .se-keep, .sch-editor.read-only .se-curved { display: none; }
 .sch-editor.read-only:not(.ro-sim) [data-act="sim"] { display: none; }   /* a truth table's schematic simulates (#946) */
 
 /* ------------------------------------------------------------------ live simulation (sch-live.js) */
@@ -336,7 +342,7 @@
 .sch-editor .lv-err[hidden] { display: none; }
 .sch-editor.sim-mode .se-left { opacity: .45; pointer-events: none; }
 .sch-editor.sim-mode .se-toolbar .se-btn:not([data-act="sim"]):not([data-act="zin"]):not([data-act="zout"]):not([data-act="fit"]):not([data-act="view"]):not([data-act="check"]),
-.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep, .sch-editor.sim-mode .se-toolbar .se-lang { opacity: .35; pointer-events: none; }
+.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep, .sch-editor.sim-mode .se-toolbar .se-curved, .sch-editor.sim-mode .se-toolbar .se-lang { opacity: .35; pointer-events: none; }
 .sch-editor.sim-mode .se-canvas { cursor: default; }
 /* wires by value: 1 bright green, 0 dark green, X/U red, Z blue, no value grey */
 .sch-editor.sim-mode svg .wire.lv-1 .wline { stroke: #00c800; stroke-width: 2; }
