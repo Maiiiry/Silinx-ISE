@@ -13,6 +13,7 @@ export const icons = {
   cut: S('<circle cx="4.5" cy="12" r="2.3" fill="none" stroke="#333" stroke-width="1.4"/><circle cx="11.5" cy="12" r="2.3" fill="none" stroke="#333" stroke-width="1.4"/><path d="M5.8 10L11 1.5M10.2 10L5 1.5" stroke="#555" stroke-width="1.4"/>'),
   copy: S('<rect x="5" y="1.5" width="9" height="10" fill="#fff" stroke="#555"/><rect x="2" y="4.5" width="9" height="10" fill="#fff" stroke="#555"/>'),
   paste: S('<rect x="2" y="2.5" width="10" height="12" rx="1" fill="#c79a52" stroke="#7a5a26"/><rect x="5" y="1" width="4" height="3" fill="#ddd" stroke="#666"/><rect x="7" y="6" width="7.5" height="9" fill="#fff" stroke="#555"/>'),
+  print: S('<rect x="4" y="1.5" width="8" height="4" fill="#fff" stroke="#555"/><rect x="1.5" y="5.5" width="13" height="6" rx="1" fill="#c8ccd2" stroke="#555"/><rect x="4" y="9.5" width="8" height="5" fill="#fff" stroke="#555"/><path d="M5.5 11.5h5M5.5 13h3.5" stroke="#888"/>'),
   find: S('<circle cx="6.5" cy="6.5" r="4.3" fill="#dff0ff" stroke="#2b5797" stroke-width="1.6"/><path d="M9.6 9.6L14.5 14.5" stroke="#2b5797" stroke-width="2.4"/>'),
   run: S('<path d="M3 2l11 6-11 6z" fill="#21a121" stroke="#0d6b0d"/>'),
   stop: S('<rect x="3" y="3" width="10" height="10" fill="#d33" stroke="#900"/>'),

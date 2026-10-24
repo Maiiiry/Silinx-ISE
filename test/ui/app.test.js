@@ -736,10 +736,33 @@ uiTest('Design Summary: once closed it reopens from the Processes panel whatever
   assert.ok(!await page.eval(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'No processes for the selected item')));
   await page.treeRow('#hier', 'tb_top', {});
   await reopenFromProcesses('test bench');
-  // the toolbar button
-  await close();
-  await page.click('#toolbar .tb-btn[data-cmd=summary]');
-  await page.waitFor(() => window.Silinx.active?.id === 'summary');
+});
+
+// #1251, #1252: the toolbar's Print (as File ▸ Print…: a drawing in front), no Design Summary, RTL Schematic or Pin Planning
+uiTest('toolbar: Print, enabled with a drawing in front, opens its print preview; no Design Summary, View RTL Schematic or I/O Pin Planning', E, async (page) => {
+  const cmds = () => page.eval(() => [...document.querySelectorAll('#toolbar .tb-btn')].map((b) => b.dataset.cmd));
+  const printOff = () => page.eval(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled);
+  const list = await cmds();
+  assert.ok(list.indexOf('print') === list.indexOf('open') + 1, list.join(' '));
+  for (const gone of ['summary', 'schematic', 'pins']) assert.ok(!list.includes(gone), `${gone}: ${list.join(' ')}`);
+  assert.equal(await page.eval(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').title), 'Print');
+  assert.equal(await printOff(), true, 'no document: Print off');
+  await makeProject(env, { name: 'TbPrint', template: 'blinky' });
+  await page.openProject('TbPrint');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor, [], { what: 'the editor' });
+  await page.waitFor(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled, [], { what: 'HDL in front: Print off' });
+  await page.eval(() => window.SilinxApp.openAsm('src/speed_ctrl.asm.json'));
+  await page.waitFor(() => window.Silinx.active?.asmEditor && !document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled, [], { what: 'a drawing in front: Print on' });
+  await page.click('#toolbar .tb-btn[data-cmd=print]');
+  await page.waitDialog('Print — ASM chart speed_ctrl');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  // in Portuguese: its tip
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').title === 'Imprimir', [], { what: 'Imprimir' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
 uiTest('a reload comes back to where the user was: the open documents, the one in front, the left pane, the Design view (#160)', E, async (page) => {

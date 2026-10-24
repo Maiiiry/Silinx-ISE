@@ -41,7 +41,7 @@ export function setupMenus() {
       ...(api.standalone ? storageMenuItems() : []),
       { label: 'Close Project', action: () => closeProject(), disabled: hasPj },
       '-',
-      { label: 'Print…', action: () => printActive(), shortcut: 'Ctrl+P', disabled: () => !(S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor) },
+      { label: 'Print…', action: () => printActive(), shortcut: 'Ctrl+P', disabled: () => !printable() },
       '-',
       { label: 'Recent Projects', submenu: [
         ...recent().map(r => ({ label: r, action: () => openProject(r) })),
@@ -152,6 +152,7 @@ export function setupToolbar() {
   tb.append(
     btn('newProject', 'New Project', () => wiz.newProjectWizard()),
     btn('open', 'Open Project', () => wiz.openProjectDialog()),
+    btn('print', 'Print', () => printActive(), printable),   // as File ▸ Print… (#1251)
     h('div', { class: 'tb-sep' }),
     btn('undo', 'Undo', () => undoAny(), () => undoesProject() || !!docEditor(S.active)),   // as Edit ▸ Undo (enabled as it is, #1192)
     btn('redo', 'Redo', () => redoAny(), () => redoesProject() || !!docEditor(S.active)),   // as Edit ▸ Redo
@@ -162,9 +163,6 @@ export function setupToolbar() {
     btn('paste', 'Paste', () => pasteAny(), canPasteAny),
     btn('find', 'Find', () => S.active?.editor?.exec('findPersistent')),
     h('div', { class: 'tb-sep' }),
-    btn('summary', 'Design Summary', () => S.project && openSummary()),
-    btn('schematic', 'View RTL Schematic', () => S.sel?.module && openSchematic(S.sel.module)),
-    btn('pins', 'I/O Pin Planning', () => S.project && openPinPlanner(S.sel?.module)),
     btn('asm', 'New ASM State Diagram', () => S.project && wiz.newSourceWizard({ type: 'asm' })),
     h('div', { class: 'tb-sep' }),
     btn('run', 'Implement Top Module', () => S.project?.top && !S.busy && runImpl(S.project.top, ['synth', 'translate', 'map', 'par', 'bitgen'])),
@@ -197,7 +195,7 @@ export function setupToolbar() {
 // enable / disable the labelled buttons of the modern toolbar (cheap: run on clicks and changes)
 export function refreshSteps() {
   for (const b of document.querySelectorAll('#toolbar .m-step')) b.disabled = !b._enabled();
-  for (const b of document.querySelectorAll('#toolbar .tb-btn:is([data-cmd=cut], [data-cmd=copy], [data-cmd=paste], [data-cmd=undo], [data-cmd=redo])')) b.disabled = !b._enabled();
+  for (const b of document.querySelectorAll('#toolbar .tb-btn:is([data-cmd=cut], [data-cmd=copy], [data-cmd=paste], [data-cmd=undo], [data-cmd=redo], [data-cmd=print])')) b.disabled = !b._enabled();
 }
 
 // Command palette: every enabled menu command and every project file
@@ -206,6 +204,8 @@ export function showPalette() {
   return openPalette({ commands: menuCommands(S.menus), files });
 }
 
+// a drawing in front: what Print prints (File ▸ Print…, the toolbar's Print)
+const printable = () => !!(S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor);
 // Print the diagram of the active document (ASM chart or schematic)
 export function printActive() {
   const d = S.active;
