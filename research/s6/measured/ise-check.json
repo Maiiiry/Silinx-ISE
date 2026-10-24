@@ -14,6 +14,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "blinky-nexys3": {
@@ -24,6 +33,15 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,
@@ -44,6 +62,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "clock-nexys3": {
@@ -54,6 +81,15 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,
@@ -73,6 +109,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "gates-nexys3": {
@@ -82,6 +127,15 @@
      "WARNING:PhysDesignRules:10": 5
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,
@@ -102,6 +156,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "pong-nexys3": {
@@ -112,6 +175,15 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,
@@ -128,6 +200,19 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 1,
+     "messages": {
+      "WARNING:PhysDesignRules:2410": 1
+     }
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:2410": 1
+    },
     "drc": {
      "errors": 0,
      "warnings": 1,
@@ -153,6 +238,19 @@
       "WARNING:PhysDesignRules:2410": 1
      }
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:2410": 1
+    },
+    "drc": {
+     "errors": 0,
+     "warnings": 1,
+     "messages": {
+      "WARNING:PhysDesignRules:2410": 1
+     }
+    }
    }
   },
   "traffic-atlys": {
@@ -163,6 +261,15 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,
@@ -183,6 +290,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "vga-atlys": {
@@ -198,6 +314,15 @@
      "warnings": 0,
      "messages": {}
     }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
    }
   },
   "vga-nexys3": {
@@ -208,6 +333,15 @@
      "WARNING:PhysDesignRules": 1
     },
     "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   },
+   "routed": {
+    "xdl2ncd": "ok",
+    "messages": {},
     "drc": {
      "errors": 0,
      "warnings": 0,

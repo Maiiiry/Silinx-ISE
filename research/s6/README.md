@@ -172,6 +172,19 @@ implementation of stopwatch has too (`ise-place-check.sh`, `summarize-ise-check.
 The first round taught the last two rules above: ISE refuses a power net without a source, and an A6 tied high that
 the O6 equation does not name (PhysDesignRules:1709).
 
+### The router (#730, 2026-10-24)
+
+`core/fpga/s6/route.js` (PathFinder, as the Spartan-3E router), `route-nets.js` (the general interconnect, which
+the global clocks never take; the route-through sites; the TIEOFFs), `route-output.js` (the routed XDL, its
+XDL_DUMMY instances: the I/O logic an input or output passes through, ILOGIC2 D -> FABRICOUT and OLOGIC2 D1 -> OQ, a
+clock region's BUFH, the TIEOFFs), `route-check.js` (the rules against the graph). Every example routes completely
+on both parts in 3 to 5 passes and under 3 s; against ISE's routing of the same netlists (`compare-route.mjs`,
+`measured/route-compare.json`) it takes 1.0 to 1.2 times the switches per connection, more singles: ISE also swaps
+a LUT's inputs to the pin its route reaches best, which the Silinx router does not yet. ISE reads every example's
+routed XDL on both boards and its DRC finds no error and no warning but stopwatch's 9K block RAM note
+(`measured/ise-check.json`). The first round found a route through the net's own slice by a LUT in use (D4 -> D,
+PhysDesignRules:2066): out of its own slice a net takes only COUT -> DMUX.
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -240,5 +253,6 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `bits6.mjs` | Reads a Spartan-6 `.bit`: its header and the UG380 packets (16-bit words) |
 | `compare-place.mjs` | The placer against ISE's placement of the same netlists (night 1): `measured/place-compare.json` |
 | `place-xdl.mjs` | The examples placed (and with `--route`, routed) as XDL, for ISE's check |
+| `compare-route.mjs` | The router against ISE's routing of the same netlists (night 1): `measured/route-compare.json` |
 | `ise-place-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `par -k` and `drc` of the placed XDL, `drc` of the routed one |
 | `summarize-ise-check.mjs` | That check's logs as `measured/ise-check.json` (the messages by id and count) |

@@ -1,7 +1,7 @@
 // The examples placed by the Spartan-6 placer (#729), as XDL for ISE's check (research/s6/ise-place-check.sh):
-// <out>/<example>-<board>/placed.xdl.
+// <out>/<example>-<board>/placed.xdl, and with --route (#730) routed.xdl too.
 //
-//   node research/s6/place-xdl.mjs <out> [--seed 1] [example …]
+//   node research/s6/place-xdl.mjs <out> [--seed 1] [--route] [example …]
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeXdl } from '../../core/xdl.js';
@@ -13,8 +13,9 @@ import { S6_BOARDS, s6Device, s6Example } from '../../test/s6-lib.mjs';
 
 const args = process.argv.slice(2);
 const out = args[0];
-if (!out) { console.error('usage: node research/s6/place-xdl.mjs <out> [--seed 1] [example …]'); process.exit(1); }
+if (!out) { console.error('usage: node research/s6/place-xdl.mjs <out> [--seed 1] [--route] [example …]'); process.exit(1); }
 const seed = args.includes('--seed') ? +args[args.indexOf('--seed') + 1] : 1;
+const route = args.includes('--route');
 const names = args.slice(1).filter(a => EXAMPLE_ORDER.includes(a));
 for (const { board, part } of S6_BOARDS) {
   const { device, sites } = s6Device(part);
@@ -27,6 +28,12 @@ for (const { board, part } of S6_BOARDS) {
     const dir = path.join(out, `${name}-${board}`);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'placed.xdl'), writeXdl({ ...x, comment: `${name} on the ${board} (${part}), placed by the Silinx toolchain (seed ${seed})` }));
+    if (route) {
+      const { routeS6, routedXdlS6 } = await import('../../core/fpga/s6/route.js');
+      const rr = routeS6(x, device);
+      if (rr.failed.length || rr.stats.overused) console.log(`${board} ${name}: unrouted ${rr.failed.join(', ')}, ${rr.stats.overused} shared nodes`);
+      fs.writeFileSync(path.join(dir, 'routed.xdl'), writeXdl({ ...routedXdlS6(x, device, rr), comment: `${name} on the ${board} (${part}), placed and routed by the Silinx toolchain (seed ${seed})` }));
+    }
     console.log(`${board} ${name}: ${dir}`);
   }
 }
