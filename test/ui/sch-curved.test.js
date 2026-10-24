@@ -89,6 +89,11 @@ async function strokeWire(page, how, from, to) {
   const d0 = await getDoc(page);
   const want = routePath(wireGrid(d0), from, to);
   const ink = wave(from, to);
+  // (both ends on the canvas, not under a panel)
+  for (const p of [from, to]) {
+    const q = await at(page, p);
+    assert.equal(await page.eval((ed, x, y) => !!document.elementFromPoint(x, y)?.closest(`${ed} svg`), ED, q.x, q.y), true, `${how}: ${JSON.stringify(p)} on the canvas`);
+  }
   await stroke(page, how, ink);
   await page.waitFor((n) => window.Silinx.active.schEditor.getDoc().wires.length === n, [d0.wires.length + 1], { what: `${how}: the wire made` });
   const w = (await getDoc(page)).wires.at(-1);
@@ -237,10 +242,10 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   assert.ok(near(curveAbs(w)[1], P(280, 260), 2), JSON.stringify(curveAbs(w)));
   assert.deepEqual(w.points, w3.points);
   await page.tap(`${ED} .se-btn[data-act=wire]`);
-  await strokeWire(page, 'touch', P(60, 300), P(300, 400));
+  await strokeWire(page, 'touch', P(360, 400), P(480, 300));
   const d = await getDoc(page);
-  assert.deepEqual(nets(netlist(d)), [...NETS0, 'S3.I port:P3'].sort());
-  assert.deepEqual(messages(netlist(d)), ["warning: I/O marker 'z' is not connected"], 'z not wired yet: its warning only');
+  assert.deepEqual(nets(netlist(d)), [...NETS0, 'S3.O port:P4'].sort());
+  assert.deepEqual(messages(netlist(d)), ['warning: input pin I of U3 (inv) is not connected', "warning: I/O marker 'b' is not connected"], 'b and U3.I not wired yet: their warnings only');
   assert.deepEqual(warnings(page), []);
 }, { skip: chromeOnly, tablet: 'landscape' });
 
