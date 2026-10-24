@@ -154,8 +154,8 @@ export function setupToolbar() {
     btn('newProject', 'New Project', () => wiz.newProjectWizard()),
     btn('open', 'Open Project', () => wiz.openProjectDialog()),
     h('div', { class: 'tb-sep' }),
-    btn('undo', 'Undo', () => undoAny()),   // as Edit ▸ Undo
-    btn('redo', 'Redo', () => redoAny()),   // as Edit ▸ Redo
+    btn('undo', 'Undo', () => undoAny(), () => undoesProject() || !!docEditor(S.active)),   // as Edit ▸ Undo (enabled as it is, #1192)
+    btn('redo', 'Redo', () => redoAny(), () => redoesProject() || !!docEditor(S.active)),   // as Edit ▸ Redo
     h('div', { class: 'tb-sep' }),
     // as Edit ▸ Cut / Copy / Paste (#677), enabled as they are
     btn('cut', 'Cut', () => cutAny(), () => canCopyAny() && canDeleteAny()),
@@ -198,7 +198,7 @@ export function setupToolbar() {
 // enable / disable the labelled buttons of the modern toolbar (cheap: run on clicks and changes)
 export function refreshSteps() {
   for (const b of document.querySelectorAll('#toolbar .m-step')) b.disabled = !b._enabled();
-  for (const b of document.querySelectorAll('#toolbar .tb-btn:is([data-cmd=cut], [data-cmd=copy], [data-cmd=paste])')) b.disabled = !b._enabled();
+  for (const b of document.querySelectorAll('#toolbar .tb-btn:is([data-cmd=cut], [data-cmd=copy], [data-cmd=paste], [data-cmd=undo], [data-cmd=redo])')) b.disabled = !b._enabled();
 }
 
 // Command palette: every enabled menu command and every project file

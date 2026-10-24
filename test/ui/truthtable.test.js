@@ -131,7 +131,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, linked VHDL module followi
   const badge = (mod, text) => page.eval((m, x) => { const r = [...document.querySelectorAll('#hier .row')].find((e) => e.querySelector('.lbl').textContent === m); [...r.querySelectorAll('.badge')].find((b) => b.textContent === x).click(); }, mod, text);
   await badge('maj3', 'Schematic');
   await page.waitFor(() => window.Silinx.active?.id === 'ttsch:src/maj3.tt.json' && window.Silinx.active.viewer, [], { what: 'schematic opened' });
-  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .tt-sch-bar').textContent), /^Schematic \(read-only\): generated from maj3\.tt\.json$/);
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-banner').textContent), /^Read-only, generated from maj3\.tt\.json$/);   // (at the end of its toolbar, #1193)
   let sch = await ttSchematic(page, 'src/maj3.tt.json');
   assert.deepEqual(netlist(sch).diagnostics, []);
   // (the table's, as core/logic.js draws it: AND, OR and NOT gates)
@@ -543,7 +543,7 @@ end rtl;
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-nand b, ${t} .tt-nor b, ${t} .tt-nand .tt-cost`)].map((b) => b.textContent), T), ['Forma NAND', '8 porta(s), 3 delas inversora(s)', 'Forma NOR']);
   // the Design pane's badges and the schematic's bar
   assert.deepEqual(await page.eval(() => [...[...document.querySelectorAll('#hier .row')].find((r) => r.querySelector('.lbl').textContent === 'u_fa - fa').querySelectorAll('.badge')].map((b) => b.textContent)), ['Tabela', 'Esquemático', 'VHDL']);
-  assert.equal(await page.eval(() => window.Silinx.docs.find((d) => d.id === 'ttsch:src/fa.tt.json').el.querySelector('.tt-sch-bar').textContent), 'Esquemático (só de leitura): gerado a partir de fa.tt.json');
+  assert.equal(await page.eval(() => window.Silinx.docs.find((d) => d.id === 'ttsch:src/fa.tt.json').el.querySelector('.se-banner').textContent), 'Só de leitura, gerado a partir de fa.tt.json');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-ops`).textContent, T), "Operadores: / ' ~ (NOT), · . * (AND), ⊕ ^ ou xor (XOR), xnor, + (OR)");
   await setLang('en');
 });

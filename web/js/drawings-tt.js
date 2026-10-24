@@ -148,17 +148,17 @@ export async function openTtSchematic(ttPath) {
   openDoc({
     id, title: `${ttPath.split('/').pop().replace(/\.tt\.json$/i, '')} (Schematic)`, icon: 'schematic',
     create(el, d) {
-      const bar = h('div', { class: 'doc-toolbar tt-sch-bar' });
       const host = h('div', { class: 'doc-body' });
-      el.append(bar, host);
+      el.append(host);
       // (not editable, but simulated in place: its inputs clicked, its outputs those of the table, #946)
       const ed = mountSchEditor(host, { doc: first.doc, readOnly: true, simulate: true });
       d.viewer = ed;
+      // (where it comes from at the end of its toolbar, as the generated HDL's banner, #1193)
       d.showTt = ({ doc, errors }) => {
-        bar.innerHTML = '';
-        bar.append(h('span', { class: 'rtl-ro' }, 'Schematic (read-only): generated from '), h('a', { onclick: () => openTt(ttPath) }, ttPath.split('/').pop()));
-        if (errors) bar.append(h('span', { class: 'tt-err' }, ` — the truth table has errors: ${errors.join('; ')}`));
-        else ed.setDoc(doc);
+        const link = h('a', { onclick: () => openTt(ttPath) }, ttPath.split('/').pop());
+        ed.setBanner(errors ? h('span', { class: 'gen-banner read-only out-of-sync' }, 'Read-only, not in sync with ', link, ` — the truth table has errors: ${errors.join('; ')}`)
+          : h('span', { class: 'gen-banner read-only' }, 'Read-only, generated from ', link));
+        if (!errors) ed.setDoc(doc);
       };
       d.showTt(first);
       return { destroy: () => ed.destroy?.() };

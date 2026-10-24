@@ -81,7 +81,7 @@ async function notEditable(page, before) {
 uiTest('Truth Table schematic: Simulate in the read-only view, outputs as the table for every input, not editable, in Portuguese (#946)', E, async (page) => {
   await makeProject(env, { name: 'TtLive', files: { 'src/fadd.tt.json': JSON.stringify(ADDER, null, 2) } });
   await openTtSch(page, 'TtLive');
-  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .tt-sch-bar').textContent), 'Schematic (read-only): generated from fadd.tt.json');
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-banner').textContent), 'Read-only, generated from fadd.tt.json');   // (at the end of its toolbar, #1193)
   const before = await simulateTable(page);
   await notEditable(page, before);
 
