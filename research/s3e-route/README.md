@@ -982,6 +982,59 @@ in geometric mean (about 1 % over the 60), 18 faster (the clock example 7.508 �
 verilog-i2c-master +1.0 %: the two placements' periods within the static timing's error of trce). Every DRC 0 errors and
 0 warnings, xdl2ncd no warning, every `.bit` byte-identical to ISE's bitgen (CRC on and off).
 
+### Where the critical path's routing goes now, and a third placement at High (#651, 2026-10-24)
+
+Measured on main 21de106 (the corpus's 53 designs of 1500 LUTs at most and the T80 in their I/O wrapper on the
+XC3S1200E, the 7 examples on their boards; the app's place and route of the same netlists, `placeRouteBest`). By
+Silinx's static timing against ISE's trce of the last Quality run (2026-10-20), the critical path is now **6.6 % shorter
+than ISE's at Normal** in geometric mean (38 designs timed by both) and 8.7 % at High. Of the five designs this issue
+named, three are faster than ISE at Normal (verilog-uart 0.92×, itc99-b08 0.96×, iwls05-i2c 0.97×), vtr-diffeq1 is at
+1.02× and the T80 at 1.17×; the slowest against ISE are vtr-stereovision3 (1.37×: a level of logic more), itc99-b05 and
+b10 (1.2×), the T80, vtr-ch-intrinsics and itc99-b12 (1.14-1.17×).
+
+The critical paths' routing, split by `crit-path.mjs` (sums over the 61 designs at both efforts, ns): 368.6 of routing
+= **299.6 placement floor (81 %)** + 24.3 contention + 44.6 the router's choice. Of the contention, the connections
+that miss a CLB's fast connect (0.105 ns) because another net holds the LUT input it reaches are 11 ns in all (3 %;
+vtr-ch-intrinsics 0.61, the T80 0.64, spi-fpga-slave 0.45). The router's share is mostly a few nets of many loads all
+critical (verilog-uart: a comparator's carry-out of 37 loads, the critical one at 1.59 ns where 0.45 is free; making it
+direct slows the others).
+
+Tried, measured on the same netlists (period by Silinx's analysis, geometric mean over the 57 timed designs per effort;
+one design moves by ±2-5 % with any change of its placement, so a variant is known to about ±0.5 %):
+
+| change | Normal | High | time | kept |
+|---|---:|---:|---:|---|
+| register replication from 4 loads (8) | −0.14 % | −0.03 % | ×1.07 | no |
+| replication of up to 16 cells (8) | 0 | 0 | | no |
+| replication from criticality 0.95 (0.98) | −0.03 % | −0.01 % | | no |
+| the placer's estimate + 0.05 / 0.09 / 0.15 ns × log2(loads) | −0.17 / +0.71 / +0.49 % | +0.17 / +0.74 / +0.35 % | | no |
+| the placer's effort 2 / 4 (1) | −0.16 / −0.56 % | −0.33 / −0.61 % | ×1.4 / ×2.6 | no |
+| at High, a third placement, routed | | −0.90 % | ×1.51 | |
+| at High, 4 placements, the 2 of the shortest estimates routed | | −0.80 % (some slower) | ×1.28 | no |
+| **at High, a third placement, routed when its estimate is shorter than one of the first two's** | | **−0.81 %** (none slower) | **×1.20** | **yes** |
+
+The routed delay over the placer's table grows with the net's loads (critical connections: +0.03 ns at 1 load, +0.15 at
+4-7, +0.40 at 16-31, +0.68 at 64 and more, about 0.09 ns × log2(loads)); at one to three loads the table is right within
+1.1-1.3× at every offset. Adding that term to the placer's estimate changes every placement (the criticalities move)
+but not for the better. More moves per temperature gain little: the annealing has converged, what is left is the
+variance between seeds. Choosing among placements before routing them: over seeds 1-6 of the 57 designs, the placer's
+estimate ranks the routed periods with a Spearman correlation of 0.38 only; a routing without the timing passes and the
+polish ranks them better (0.66) but costs 60 % of a whole routing. So the estimate is used only to skip the routing of a
+third placement that is unlikely to win: at High (`HIGH_EXTRA`, `placeRouteBest`'s `extra`), seeds 1 and 2 placed and
+routed as before, seed 3 placed and routed when its estimate is shorter than the longer of the first two's (37 of 57
+designs in the simulation over seeds 1-6, 90 % of the third seed's gain for 70 % of its cost).
+
+**ISE's check** (on the Mac mini, the 19 changed routings at High, main against the change): trce's period **2.17 %
+shorter** in geometric mean (about 0.7 % over the 57), 16 faster (itc99-b06 −6.3 %, verilog-lfsr-crc −6.0 %, itc99-b09
+−5.2 %, iwls05-usb-phy −3.9 %, itc99-b12 −3.7 %, the stopwatch example and itc99-b08 −3.5 %, fpu-multiplier −3.2 %,
+verilog-uart −2.7 %), 3 slower (spi-fpga-master +4.1 %, epfl-priority +2.8 %, t80 +0.2 %: within the static timing's
+error of trce). Every DRC 0 errors and 0 warnings, xdl2ncd no warning, every `.bit` byte-identical to ISE's bitgen (CRC
+on and off).
+
+What is left of the gap with ISE's routing is the placement floor of a single annealing (Normal's one placement of a
+design above 500 slices: the T80) and the nets of many critical loads, which only a different netlist (#652) or a
+replication of their driver (a carry chain's output cannot be copied today) removes.
+
 ## The XC3S1200E's long-line splitters (#23, 2026-10-21)
 
 The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:

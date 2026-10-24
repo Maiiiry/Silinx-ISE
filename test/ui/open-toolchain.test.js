@@ -963,6 +963,8 @@ uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes onc
   // Normal, it synthesizes again
   log = await run('Implement Design');
   assert.ok(/Process "Synthesize - Yosys" is up to date/.test(log), log.slice(0, 2000));
+  // Place & Route at High (#651): three placements, the third routed when its estimate is promising, said
+  assert.match(log, /Optimization Effort High: 3 placements \(seeds 1, 2, 3\): \d+\.\d{3} ns, \d+\.\d{3} ns, (\d+\.\d{3} ns|not routed \(estimated slower\)); seed [123] kept\./);
   await props();
   await page.eval(() => { const s = document.querySelectorAll('.dlg-overlay select')[1]; s.value = '1'; s.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.dialogButton('OK');

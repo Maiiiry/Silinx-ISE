@@ -20,7 +20,7 @@ import { knownRouting } from '../core/fpga/bitgen.js';
 import { analyzeTiming, delayTable } from '../core/fpga/timing.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
 import { loadDb } from '../core/fpga/bitdb-node.js';
-import { placeRoute, placeRouteBest, RETRY_SEEDS, HIGH_TRIES, NORMAL_TRIES, effortTries } from '../core/fpga/place-route.js';
+import { placeRoute, placeRouteBest, placeOnly, RETRY_SEEDS, HIGH_TRIES, NORMAL_TRIES, HIGH_EXTRA, effortTries, effortExtra } from '../core/fpga/place-route.js';
 
 const PART = 'xc3s250ecp132-4';
 // a flip-flop (s) that selects 64 registers spread over the chip, on the critical path: replicated
@@ -80,6 +80,17 @@ test('placeRoute: the placer with the delay table and the clock / global buffer 
   assert.deepEqual({ ...seen[0][2], placeMs: 0 }, { seed: 2, try: 0, replication: null, placeMs: 0 });
   assert.deepEqual(seen[1][2], { seed: 2, try: 0, replication: null });
   assert.equal(seen[1][1], sta.period);
+  // #651: the placement alone (placeOnly) is placeRoute's, and placeRoute routes it as given (not placed again)
+  const only = placeOnly(packed, device, known, { seed: 2 });
+  assert.equal(only.seed, 2);
+  assert.ok(only.placeMs >= 0);
+  assert.equal(writeXdl(placedXdl(packed, only.placement)), placedText);
+  assert.equal(only.placement.delay, pl.delay);
+  const again = placeRoute(packed, device, known, { seed: 2, placed: only });
+  assert.equal(again.placement, only.placement);
+  assert.equal(again.placeMs, only.placeMs);
+  assert.equal(writeXdl(again.routed.design), writeXdl(routed.design));
+  assert.equal(again.period, sta.period);
 });
 
 // #662: after the routing is legal, the critical path's connections one at a time, each one's own branch
@@ -256,7 +267,8 @@ test('placeRouteBest: no placement routed completely for nodes left shared: the 
   assert.deepEqual(run(() => 'shared', { retries: 0 }).calls.length, 1);
 });
 
-// #651: the placements of the flows: two at High, two at Normal for a design of 500 slices at most, one for a larger one
+// #651: the placements of the flows: two at High (and one more, routed when its estimate is promising, below), two at
+// Normal for a design of 500 slices at most, one for a larger one
 test('effortTries: two placements at High, at Normal two up to NORMAL_TRIES.maxSlices slices and one above (#651)', () => {
   assert.equal(HIGH_TRIES, 2);
   assert.deepEqual(NORMAL_TRIES, { tries: 2, maxSlices: 500 });
@@ -265,6 +277,52 @@ test('effortTries: two placements at High, at Normal two up to NORMAL_TRIES.maxS
   assert.deepEqual([501, 960, 4656].map(n => effortTries('normal', n)), [1, 1, 1]);
   // (no effort given: Normal's)
   assert.deepEqual([effortTries(undefined, 100), effortTries(undefined, 600)], [2, 1]);
+});
+
+// #651: at High one placement more (seed 3), routed only when the placer's estimate of its critical path (placement.delay)
+// is shorter than the longest of the first two's; kept when its routing is faster. A fake placer and router: seed ->
+// [estimate, routed period].
+test('placeRouteBest: the extra placements, routed only when their estimate is shorter than one of the first ones\' (#651)', () => {
+  assert.equal(HIGH_EXTRA, 1);
+  assert.deepEqual(['high', 'normal', undefined].map(effortExtra), [1, 0, 0]);
+  const run = (table, opts = {}) => {
+    const placed = [], routed = [];
+    const placeFn = (packed, device, known, { seed }) => { placed.push(seed); return { seed, placeMs: 0, placement: { delay: table[seed][0] } }; };
+    const placeRouteFn = (packed, device, known, { seed, placed: pre, info }) => {
+      routed.push([seed, info.try, !!pre]);
+      const [est, period] = table[seed];
+      return { seed, packed, placement: pre ? pre.placement : { delay: est }, sta: Number.isFinite(period) ? {} : null, period,
+        routed: { overused: Number.isFinite(period) ? 0 : 2, errors: [], failed: [] } };
+    };
+    const r = placeRouteBest(null, {}, null, {}, { delays: {}, replicate: false, tries: 2, extra: 1, placeFn, placeRouteFn, ...opts });
+    return { r, placed, routed };
+  };
+  // the third's estimate shorter than the second's (the longer of the two): routed (its placement, not placed again), and kept
+  let { r, placed, routed } = run({ 1: [10, 12], 2: [11, 13], 3: [10.5, 11.5] });
+  assert.deepEqual(placed, [3]);
+  assert.deepEqual(routed, [[1, 0, false], [2, 1, false], [3, 2, true]]);
+  assert.deepEqual([r.seed, r.period, r.unrouted], [3, 11.5, []]);
+  // routed, slower: the faster of the first two kept
+  ({ r } = run({ 1: [10, 12], 2: [11, 13], 3: [10.5, 14] }));
+  assert.deepEqual([r.seed, r.period, r.unrouted], [1, 12, []]);
+  // its estimate no shorter than both (equal to the longer): placed, not routed, said in unrouted
+  ({ r, placed, routed } = run({ 1: [10, 12], 2: [11, 13], 3: [11, 9] }));
+  assert.deepEqual(placed, [3]);
+  assert.deepEqual(routed.map(x => x[0]), [1, 2]);
+  assert.deepEqual([r.seed, r.unrouted], [1, [3]]);
+  // the first ones not routed completely (nodes left shared): the retries start after the extra placement
+  ({ r, routed } = run({ 1: [10, Infinity], 2: [11, Infinity], 3: [12, 9], 4: [9, Infinity], 5: [9, 14] }));
+  assert.deepEqual(routed, [[1, 0, false], [2, 1, false], [4, 3, false], [5, 4, false]]);
+  assert.deepEqual([r.seed, r.retried, r.unrouted], [5, 2, [3]]);
+  // extra 0 (Normal; the default): no placement more
+  ({ r, placed } = run({ 1: [10, 12], 2: [11, 13] }, { extra: 0 }));
+  assert.deepEqual([placed, r.unrouted], [[], []]);
+  ({ r, placed } = run({ 1: [10, 12], 2: [11, 13] }, { extra: undefined }));
+  assert.deepEqual([placed, r.unrouted], [[], []]);
+  // the placer's error on the extra placement: thrown, as on the first ones
+  assert.throws(() => placeRouteBest(null, {}, null, {}, { delays: {}, replicate: false, tries: 1, extra: 1,
+    placeRouteFn: () => ({ seed: 1, placement: { delay: 1 }, sta: {}, period: 2, routed: { overused: 0, errors: [], failed: [] } }),
+    placeFn: () => { throw new Error('place: no room'); } }), /no room/);
 });
 
 test('the XC3S1200E\'s long-line splitters (#23, #709): the router takes one where it is faster, the placer\'s delay table leaves them out; bitgen gives it its direction', { timeout: 300000 }, async () => {
