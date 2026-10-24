@@ -44,6 +44,7 @@ import { mountSchDom } from './sch-dom.js';
 import { mountSchCheck } from './sch-check.js';
 import { mountSchOptions } from './sch-options.js';
 import { mountSchCurve } from './sch-curve.js';
+import { onLayoutToggled } from './layout-fit.js';
 
 export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
@@ -325,6 +326,8 @@ export function mountSchEditor(container, opts = {}) {
     ro = new ResizeObserver(() => { if (!fitted) { const r = svg.getBoundingClientRect(); if (r.width > 20 && r.height > 20) { fitted = true; fit(); } } });
     ro.observe(canvas);
   }
+  // the side panel, the messages or the document maximized toggled: Full View (#1203)
+  const offLayout = onLayoutToggled(canvas, () => fit());
 
   // ---------------- init
   renderSheet();
@@ -378,7 +381,7 @@ export function mountSchEditor(container, opts = {}) {
     symbolInfo: target => openInfo(target || infoTarget()),
     get symbolInfoDialog() { return infoDlg; },
     destroy() {
-      infoDlg?.close(); offLang();
+      infoDlg?.close(); offLang(); offLayout();
       live?.destroy(); live = null;
       destroyed = true;
       clearTimeout(changeTimer);
