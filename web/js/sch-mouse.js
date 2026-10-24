@@ -29,8 +29,14 @@ export function mountSchMouse(ctx) {
     setCursor(pt);
     if (e.button === 1 || spaceDown()) { e.preventDefault(); setDrag({ kind: 'pan', cx: e.clientX, cy: e.clientY, tx: view().tx, ty: view().ty }); canvas.classList.add('panning'); return; }
     if (e.button !== 0) return;
-    // live simulation: the inputs are controls, the rest of the sheet pans
-    if (live()) { if (!live().pointerDown(e, itemAt(e.target))) setDrag({ kind: 'pan', cx: e.clientX, cy: e.clientY, tx: view().tx, ty: view().ty }); return; }
+    // live simulation: the inputs are controls; another symbol is selected (its Symbol Info, #1175); the rest of the
+    // sheet pans
+    if (live()) {
+      const it = itemAt(e.target);
+      if (live().pointerDown(e, it)) return;
+      if (it?.kind === 'sym') { e.preventDefault(); setSel(new Set([`sym:${it.id}`])); render(); return; }
+      setDrag({ kind: 'pan', cx: e.clientX, cy: e.clientY, tx: view().tx, ty: view().ty }); return;
+    }
     if (tool() === 'place') { placeAt(pt); return; }
     if (tool() === 'wire') {
       // (a press on a pin, a marker or a wire, no wire being drawn: a click, or the start of a stroke, #1052)

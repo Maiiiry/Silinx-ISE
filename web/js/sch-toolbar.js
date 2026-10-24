@@ -19,12 +19,13 @@ export function mountSchToolbar(ctx) {
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
-    h('label', { class: 'se-curved', title: 'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)' },
-      curvedBox, h('span', { text: 'Curved wires' })),
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
-    sep(), h('label', { class: 'se-hops', title: 'Draw a small arc where two wires cross without connecting' }, hopsBox, h('span', { text: 'Hop-overs' })),
+    // (Curved wires, how the wires are drawn, before Hop-overs, #1175)
+    sep(), h('label', { class: 'se-curved', title: 'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)' },
+      curvedBox, h('span', { text: 'Curved wires' })),
+    h('label', { class: 'se-hops', title: 'Draw a small arc where two wires cross without connecting' }, hopsBox, h('span', { text: 'Hop-overs' })),
     h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Try it: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Try it</span>` }),   // (not "Simulate": the design flow's, the waves, #992)

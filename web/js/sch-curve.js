@@ -17,7 +17,7 @@ import { clone, onSeg } from './sch-editor.js';
 /** { box, curved, setCurved, wireD, hops, hopD, previewD, wireAt, labelAt, wireText, handlesSvg, inBand, beginKnot, moveKnot, endKnot,
  *  cancelKnot, removeKnot } of a schematic editor (doc(), sel(), view(): its current ones). */
 export function mountSchCurve(ctx) {
-  const { doc, sel, view, readOnly, edit, render, renderProps, snapshot, pushUndo, changed, contentG } = ctx;
+  const { doc, sel, view, live, readOnly, edit, render, renderProps, snapshot, pushUndo, changed, contentG } = ctx;
   const curved = () => isCurved(doc());
   // the toolbar's Curved wires (sch-toolbar.js), kept as the schematic is by updateToolbar
   const box = h('input', { type: 'checkbox', checked: curved() });
@@ -25,7 +25,10 @@ export function mountSchCurve(ctx) {
   // Curved wires ticked or not: an edit of the schematic (saved with it, undone by Undo)
   function setCurved(on) {
     if (on === curved()) return;
-    edit(() => { if (on) doc().wireStyle = 'curved'; else delete doc().wireStyle; });
+    const set = () => { if (on) doc().wireStyle = 'curved'; else delete doc().wireStyle; };
+    // (in Try it too, where nothing else is edited: how the wires are drawn, not what they connect, #1175)
+    if (live?.() && !readOnly) { const before = snapshot(); set(); pushUndo(before); changed(); render(); return; }
+    edit(set);
   }
   // a wire's line as an SVG path (curved), or null (the technical drawing: its polyline)
   const wireD = w => (curved() ? curveD(w) : null);

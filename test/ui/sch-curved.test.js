@@ -351,3 +351,28 @@ uiTest('#1163 schematic: Curved wires hop where they cross (Hop-overs ticked); o
   await page.eval(() => { try { localStorage.removeItem('xl.sch.hops'); } catch { /* none */ } });
   assert.deepEqual(warnings(page), []);
 });
+
+// #1175: the toolbar's Curved wires before Hop-overs; in Try it, Curved wires (how the wires are drawn) and Symbol Info
+// (a symbol that is not an input selected by a click) stay enabled, the circuit still running
+uiTest('#1175 Curved wires before Hop-overs; in Try it, Curved wires and Symbol Info enabled', E, async (page) => {
+  await open(page, 'CurvedTry');
+  const order = await page.eval((ed) => [...document.querySelector(`${ed} .se-toolbar`).children].map((e) => e.className.match(/se-(curved|hops|names)/)?.[1] || e.dataset.act).filter(Boolean), ED);
+  assert.deepEqual(order.slice(order.indexOf('info')), ['info', 'curved', 'hops', 'names', 'check', 'sim']);
+  await page.click(`${ED} .se-btn[data-act=sim]`);
+  await page.waitFor((ed) => document.querySelector(ed).classList.contains('sim-mode') && window.Silinx.active.schEditor.isLive?.() !== false, [ED], { what: 'Try it' });
+  // (not greyed out by Try it: it takes clicks; Symbol Info still disabled with nothing selected)
+  const usable = (sel) => page.eval((ed, s) => getComputedStyle(document.querySelector(`${ed} ${s}`)).pointerEvents !== 'none', ED, sel);
+  assert.deepEqual([await usable('.se-curved'), await usable('.se-btn[data-act=info]'), await usable('.se-btn[data-act=rotate]')], [true, true, false]);
+  // Curved wires ticked in Try it: the wires drawn as curves, the schematic says so, Try it still on
+  await page.click(`${ED} .se-curved input`);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wireStyle === 'curved', [], { what: 'curved' });
+  assert.ok((await drawn(page)).some(([, d]) => d !== 'poly'), 'a curve drawn');
+  assert.ok(await page.eval((ed) => document.querySelector(ed).classList.contains('sim-mode'), ED));
+  // a gate clicked: selected, Symbol Info shows it
+  await page.click(`${ED} svg .sym[data-id="S2"] .hitbox`);
+  await page.waitFor((ed) => !document.querySelector(`${ed} .se-btn[data-act=info]`).disabled, [ED], { what: 'Symbol Info enabled' });
+  await page.click(`${ED} .se-btn[data-act=info]`);
+  await page.waitFor(() => !!window.Silinx.active.schEditor.symbolInfoDialog, [], { what: 'Symbol Info open' });
+  await page.eval(() => window.Silinx.active.schEditor.symbolInfoDialog.close());
+  assert.ok(await page.eval((ed) => document.querySelector(ed).classList.contains('sim-mode'), ED), 'still trying it');
+});
