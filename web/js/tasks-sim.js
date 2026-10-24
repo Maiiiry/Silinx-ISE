@@ -13,7 +13,8 @@
 import { h } from './ui.js';
 
 /** ISim's toolbar in its wave window's line, where its name ("Default.wcfg") and the cursor's text were (`tasks`: the
- *  Tasks interface, #1026; web/css/tasks.css hides them), else back under its title bar, as ISim made it. */
+ *  Tasks interface, #1026; web/css/tasks.css hides them), its stimuli bar under it (#1270), else both back under its title
+ *  bar, as ISim made them. */
 export function placeSimToolbar(tasks) {
   for (const root of document.querySelectorAll('#workspace .isim')) {
     watchSide(root.querySelector('.isim-left'));
@@ -21,6 +22,10 @@ export function placeSimToolbar(tasks) {
     if (!tb || !cap) continue;
     if (tasks && tb.parentElement !== cap) cap.prepend(tb);
     else if (!tasks && tb.parentElement === cap) root.querySelector('.isim-title').after(tb);
+    // its stimuli bar (#336) under that line, in the wave window: the simulations' tabs are over the document's top (#1270)
+    const bar = root.querySelector('.isim-stimbar');
+    if (bar && tasks && bar.previousElementSibling !== cap) cap.after(bar);
+    else if (bar && !tasks && bar.previousElementSibling !== tb) tb.after(bar);
   }
 }
 
