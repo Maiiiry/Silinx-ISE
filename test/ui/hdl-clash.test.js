@@ -329,7 +329,8 @@ uiTest('#231 regression, a Petri net whose HDL file is removed from the project 
   await removeInFiles(page, 'src/ctl.vhd');
   await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
   await page.treeRow('#hier', 'ctl', { right: true, exact: true });
-  assert.deepEqual(await menuLabels(page), ['Open', 'Set as Top Module', 'Rename…', 'Generate HDL File…', 'Remove from Project']);
+  // (ctl the top: Unset as Top Module, #1220)
+  assert.deepEqual(await menuLabels(page), ['Open', 'Unset as Top Module', 'Rename…', 'Generate HDL File…', 'Remove from Project']);
   await page.click('body > .menu-popup .mi', { text: 'Generate HDL File…' });
   await page.waitDialog('Generate HDL File');
   assert.match(await topText(page), /src\/ctl\.vhd, the HDL file of ctl\.pn\.json, was removed from the project\.\n\nMake it again from ctl\.pn\.json and put it back in the project\? Its current contents will be lost\./);
