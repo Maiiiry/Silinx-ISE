@@ -269,7 +269,8 @@ uiTest('#839 Tasks in a development build: with the Development menu, in Portugu
     // (the current task's label down to a tablet in landscape; at the narrowest width the current label at most, or icons
     // with their tips: with no project chip, #1042, the current label may still fit)
     if (w >= 1180) assert.ok(f.labels.includes('edit'), `${w} px: the current task's label`);
-    else assert.ok(['current', 'icons', 'tight'].includes(f.fit) && f.labels.length <= 1, `${w} px: the current label at most (${f.fit}; how short the header is depends on the system's fonts)`);
+    // (#1217: with no Project, Process and Tools menus every label may fit there too)
+    else assert.ok((f.fit === '' && f.labels.length === 4) || (['current', 'icons', 'tight'].includes(f.fit) && f.labels.length <= 1), `${w} px: every label, or the current label at most (${f.fit}; how short the header is depends on the system's fonts)`);
     assert.deepEqual(await noOverflow(page), { page: true, over: [] }, `${w} px`);
   }
   // narrower: the other tasks' labels give way; their names in their tips (the width it happens at depends on the
@@ -280,8 +281,9 @@ uiTest('#839 Tasks in a development build: with the Development menu, in Portugu
     await page.waitFor(() => { const t = document.getElementById('topbar'); return t.scrollWidth <= t.clientWidth; }, [], { what: `the header fits at ${w} px`, timeout: 3000 });
     if ((await fit(page)).fit === 'current') { current = w; break; }
   }
-  assert.ok(current, 'a width where only the current task\'s label shows');
-  assert.deepEqual((await fit(page)).labels, ['edit']);
+  // (#1217: with no Project, Process and Tools menus every label may fit down to the narrow layout: none then)
+  if (current) assert.deepEqual((await fit(page)).labels, ['edit']);
+  else assert.deepEqual((await fit(page)).labels, ['edit', 'sim', 'emu', 'impl'], 'every label down to 1040 px');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.title)), ['Design', 'Simular', 'Emular', 'Implementar']);
   // with room again (a lab desktop): every label
   await page.setViewport(1920, 1080);
