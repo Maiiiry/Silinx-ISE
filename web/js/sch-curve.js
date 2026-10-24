@@ -1,19 +1,20 @@
 // The schematic editor's curved wires (#1144, core/schcurve.js): with Curved wires ticked (the schematic's wireStyle),
 // every wire drawn as a smooth curve between its ends: its own curve when it has one, else one derived from its
-// rectilinear path; the net names and bus names on the curves; a wire's curve found under the pointer (the point of its
-// rectilinear path answering it: where a wire ends on it, or a name or a marker is put, connects); the selected wire's
-// handles (its knots), dragged to reshape it, a press on the curve itself grabbing it there, a double click on a
-// handle removing it (redrawn in place while dragged: the element under the finger kept, so that its touch sequence
-// ends where it began); a wire drawn by clicks or by a stroke keeping the points it was drawn through.
+// rectilinear path, hopping where they cross (#1163); the net names and bus names on the curves; a wire's curve found
+// under the pointer (the point of its rectilinear path answering it: where a wire ends on it, or a name or a marker is
+// put, connects); the selected wire's handles (its knots), dragged to reshape it, a press on the curve itself grabbing
+// it there, a double click on a handle removing it (redrawn in place while dragged: the element under the finger
+// kept, so that its touch sequence ends where it began); a wire drawn by clicks or by a stroke keeping the points it
+// was drawn through.
 // mountSchCurve(ctx) is called by mountSchEditor.
 import {
-  isCurved, curveD, curveKnots, curveNearest, curvePointAt, curveToPath, pathFraction, sampleCurve, setCurve,
+  isCurved, curveD, curveHopD, curveCrossings, curveKnots, curveNearest, curvePointAt, curveToPath, pathFraction, sampleCurve, setCurve,
 } from '/core/schcurve.js';
 import { GRID } from '/core/schdoc.js';
 import { esc, h } from './dom.js';
 import { clone, onSeg } from './sch-editor.js';
 
-/** { box, curved, setCurved, wireD, previewD, wireAt, labelAt, wireText, handlesSvg, inBand, beginKnot, moveKnot, endKnot,
+/** { box, curved, setCurved, wireD, hops, hopD, previewD, wireAt, labelAt, wireText, handlesSvg, inBand, beginKnot, moveKnot, endKnot,
  *  cancelKnot, removeKnot } of a schematic editor (doc(), sel(), view(): its current ones). */
 export function mountSchCurve(ctx) {
   const { doc, sel, view, readOnly, edit, render, renderProps, snapshot, pushUndo, changed, contentG } = ctx;
@@ -28,6 +29,13 @@ export function mountSchCurve(ctx) {
   }
   // a wire's line as an SVG path (curved), or null (the technical drawing: its polyline)
   const wireD = w => (curved() ? curveD(w) : null);
+  // hop-overs on the curves (#1163): wire id -> the lengths along its curve where it hops; its path with them
+  function hops() {
+    const m = new Map();
+    for (const c of curveCrossings(doc())) { let l = m.get(c.wire); if (!l) m.set(c.wire, l = []); l.push(c.s); }
+    return m;
+  }
+  const hopD = (w, s) => curveHopD(w, s);
   // the wire being drawn through the points pts (its ends the first and the last)
   function previewD(pts) {
     if (pts.length < 2) return '';
@@ -137,5 +145,5 @@ export function mountSchCurve(ctx) {
   }
   const nearestF = (S, p) => { let bi = 0, bd = Infinity; S.forEach((q, i) => { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; bi = i; } }); return bi / (S.length - 1); };
 
-  return { box, curved, setCurved, wireD, previewD, wireAt, labelAt, wireText, handlesSvg, inBand, beginKnot, moveKnot, endKnot, cancelKnot, removeKnot };
+  return { box, curved, setCurved, wireD, hops, hopD, previewD, wireAt, labelAt, wireText, handlesSvg, inBand, beginKnot, moveKnot, endKnot, cancelKnot, removeKnot };
 }

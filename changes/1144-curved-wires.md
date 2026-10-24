@@ -17,6 +17,6 @@ In detail:
   wire by clicks keeps the points clicked and a stroke (#1052) its simplified shape, their rectilinear path routed
   between their ends (#948); a wire ended on a curve, a net name or an I/O marker put on one connects at the point of
   the path answering it; the selected wire's handles dragged, its curve grabbed and pulled (a knot added), a handle
-  removed by a double click, Reset curve in its Properties; net and bus names on the curves; no hop-overs (the
-  curves cross plainly), junction dots as before; printed as drawn. The short of two named nets is refused as before
+  removed by a double click, Reset curve in its Properties; net and bus names on the curves; hop-overs on the
+  curves (#1163), junction dots as before; printed as drawn. The short of two named nets is refused as before
   (#754, #806). Older files open as they were (the technical drawing).

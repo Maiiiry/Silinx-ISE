@@ -40,7 +40,8 @@ export function mountRender(ctx) {
     // wires (Hop-overs: the crossings of each, by segment, #692)
     let hops = null;
     const cv = curve, curved = cv.curved();
-    // (curved wires, #1144: no hops, the curves cross plainly)
+    // (curved wires, #1144: their hops where their curves cross, #1163)
+    const curveHops = showHops && curved ? cv.hops() : null;
     if (showHops && !curved) {
       hops = new Map();
       for (const c of wireCrossings(doc)) { let m = hops.get(c.wire); if (!m) hops.set(c.wire, m = new Map()); let l = m.get(c.seg); if (!l) m.set(c.seg, l = []); l.push(c.x); }
@@ -50,7 +51,7 @@ export function mountRender(ctx) {
       const bus = w.bus || (busW.get(w.id) || 1) > 1;
       const cls = `wire${bus ? ' bus' : ''}${sel.has(`wire:${w.id}`) ? ' sel' : ''}`;
       const d = cv.wireD(w);
-      if (d) { parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><path class="whit" d="${d}"/><path class="wline curved" d="${d}"/></g>`); continue; }
+      if (d) { parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><path class="whit" d="${d}"/><path class="wline curved" d="${curveHops?.has(w.id) ? cv.hopD(w, curveHops.get(w.id)) : d}"/></g>`); continue; }
       const line = hops?.has(w.id) ? `<path class="wline" d="${hopPath(w, hops.get(w.id))}"/>` : `<polyline class="wline" points="${pts}"/>`;
       parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><polyline class="whit" points="${pts}"/>${line}</g>`);
     }

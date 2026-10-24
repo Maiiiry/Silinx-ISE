@@ -154,6 +154,39 @@ test('copied and pasted (#677): a wire\'s curve with it, moved with the wire', (
   assert.deepEqual(C.curveAbs(w), [P(240, 80)]);
 });
 
+test('hop-overs on curves (#1163): two curves crossing, the flatter hops; none at a wire\'s end, a T or a shared end', () => {
+  // W1 a bow from (0, 100) to (200, 100) through (100, 70); W2 straight down x = 100: they cross at (100, 70)
+  const W1 = C.setCurve({ id: 'W1', points: [P(0, 100), P(200, 100)] }, [P(100, 70)]), W2 = { id: 'W2', points: [P(100, 0), P(100, 200)] };
+  const x = C.curveCrossings({ wires: [W1, W2] });
+  assert.equal(x.length, 1);
+  assert.equal(x[0].wire, 'W1', 'the flatter one hops');
+  assert.ok(near(x[0], P(100, 70), 0.6), JSON.stringify(x[0]));
+  // its path: from its first end to its last, one arc of the hop's radius, up (left to right), around the crossing
+  const d = C.curveHopD(W1, [x[0].s]);
+  assert.ok(d.startsWith('M0,100 L') && d.endsWith(' L200,100'), d);
+  const arcs = [...d.matchAll(/L([\d.]+),([\d.]+) A5,5 0 0 (\d) ([\d.]+),([\d.]+)/g)];
+  assert.equal(arcs.length, 1, d);
+  const [, ax, ay, sweep, bx, by] = arcs[0].map(Number);
+  assert.equal(sweep, 1);
+  assert.ok(Math.abs(ax - 95) < 0.6 && Math.abs(bx - 105) < 0.6 && Math.abs(ay - 70.2) < 1 && Math.abs(by - 70.2) < 1, arcs[0][0]);
+  // the same wire drawn right to left: the arc's sweep the other way (still up)
+  const back = C.setCurve({ id: 'W1', points: [P(200, 100), P(0, 100)] }, [P(100, 70)]);
+  assert.match(C.curveHopD(back, C.curveCrossings({ wires: [back, W2] }).map(c => c.s)), / A5,5 0 0 0 /);
+  // no hop: a curve ended on another's middle (a T), two wires with a shared end, curves apart
+  const T = { id: 'W3', points: [P(100, 300), P(100, 400)] }, base = C.setCurve({ id: 'W4', points: [P(0, 300), P(200, 300)] }, [P(100, 300)]);
+  assert.deepEqual(C.curveCrossings({ wires: [base, T] }), [], 'a T');
+  assert.deepEqual(C.curveCrossings({ wires: [{ id: 'A', points: [P(0, 0), P(100, 100)] }, { id: 'B', points: [P(100, 100), P(0, 200)] }] }), [], 'a shared end');
+  assert.deepEqual(C.curveCrossings({ wires: [W1, { id: 'F', points: [P(300, 0), P(300, 200)] }] }), [], 'apart');
+  // a curve crossing two others: two hops; two crossings closer than a hop: the second left out
+  const W5 = { id: 'W5', points: [P(120, 0), P(120, 200)] };
+  const two = C.curveCrossings({ wires: [W1, W2, W5] }).filter(c => c.wire === 'W1');
+  assert.equal(two.length, 2);
+  assert.equal([...C.curveHopD(W1, two.map(c => c.s)).matchAll(/ A5,5 /g)].length, 2);
+  assert.equal([...C.curveHopD(W1, [100, 104]).matchAll(/ A5,5 /g)].length, 1, 'overlapping hops: one');
+  // the plain curve where there is no hop
+  assert.equal(C.curveHopD(W1, []).includes(' A'), false);
+});
+
 // ------------------------------------------------------------------ a drawing only: the same netlist, HDL and .sch
 // the document drawn with curves: the style ticked, every wire a curve of its own (a wave of a few knots)
 function curvedCopy(doc) {

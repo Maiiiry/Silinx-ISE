@@ -194,3 +194,60 @@ export function simplify(pts, tol) {
   }
   return pts.filter((_, i) => keep[i]).map(p => ({ x: r1(p.x), y: r1(p.y) }));
 }
+
+// ------------------------------------------------------------------ hop-overs on curves (#1163)
+/** The radius of a hop (sheet px), as the technical drawing's (#692). */
+export const HOP_R = 5;
+// a curve as a polyline and its cumulative lengths, its bounding box
+function track(w, n) {
+  const S = sampleCurve(w, n), L = lengths(S);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of S) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+  return { w, S, L, box: { x0, y0, x1, y1 } };
+}
+// where segments ab and cd cross (inside both), as their fractions t (of ab) and u (of cd), or null
+function cross(a, b, c, d) {
+  const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y, den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / den, u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / den;
+  return t >= 0 && t < 1 && u >= 0 && u < 1 ? { t, u } : null;
+}
+/** Where two wires' curves cross without connecting (#1163): [{ wire, s, x, y }], the wire that hops (the more
+ *  horizontal of the two there, as the horizontal one in the technical drawing, #692) and the length along its
+ *  curve. Not within a hop of either wire's end (a pin, a junction, a wire ended on another). A view only. */
+export function curveCrossings(doc, n = 12) {
+  const T = doc.wires.map(w => track(w, n)), out = [], near = HOP_R + 2;
+  const nearEnd = (k, s) => s < near || T[k].L[T[k].L.length - 1] - s < near;
+  for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
+    const A = T[i], B = T[j];
+    if (A.box.x1 < B.box.x0 || B.box.x1 < A.box.x0 || A.box.y1 < B.box.y0 || B.box.y1 < A.box.y0) continue;
+    for (let p = 0; p + 1 < A.S.length; p++) for (let q = 0; q + 1 < B.S.length; q++) {
+      const c = cross(A.S[p], A.S[p + 1], B.S[q], B.S[q + 1]);
+      if (!c) continue;
+      const sa = A.L[p] + c.t * (A.L[p + 1] - A.L[p]), sb = B.L[q] + c.u * (B.L[q + 1] - B.L[q]);
+      if (nearEnd(i, sa) || nearEnd(j, sb)) continue;
+      const flat = (P, k) => { const dx = P[k + 1].x - P[k].x, dy = P[k + 1].y - P[k].y; return Math.abs(dx) / (Math.hypot(dx, dy) || 1); };
+      const x = A.S[p].x + c.t * (A.S[p + 1].x - A.S[p].x), y = A.S[p].y + c.t * (A.S[p + 1].y - A.S[p].y);
+      const aHops = flat(A.S, p) >= flat(B.S, q);
+      out.push({ wire: (aHops ? A : B).w.id, s: aHops ? sa : sb, x: r1(x), y: r1(y) });
+    }
+  }
+  return out;
+}
+/** The wire's curve as an SVG path with a hop (an arc of HOP_R) at each length s along it (curveCrossings's): the
+ *  curve as a fine polyline, the arc bulging up (to the left going down). Hops overlapping another or an end left out. */
+export function curveHopD(w, hops, n = 16) {
+  const S = sampleCurve(w, n), L = lengths(S), tot = L[L.length - 1], p = q => `${r1(q.x)},${r1(q.y)}`;
+  const at = s => pointAt(S, s / tot);
+  let d = `M${p(S[0])}`, k = 1, last = 0;
+  for (const s of [...hops].sort((a, b) => a - b)) {
+    if (s - HOP_R < last || s + HOP_R > tot) continue;
+    while (k < S.length - 1 && L[k] < s - HOP_R) d += ` L${p(S[k++])}`;
+    const a = at(s - HOP_R), b = at(s + HOP_R);
+    d += ` L${p(a)} A${HOP_R},${HOP_R} 0 0 ${b.x > a.x || (b.x === a.x && b.y > a.y) ? 1 : 0} ${p(b)}`;
+    while (k < S.length - 1 && L[k] <= s + HOP_R) k++;
+    last = s + HOP_R;
+  }
+  for (; k < S.length; k++) d += ` L${p(S[k])}`;
+  return d;
+}
