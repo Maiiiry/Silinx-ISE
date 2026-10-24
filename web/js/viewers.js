@@ -278,7 +278,8 @@ async function runSimulationInner(mod, model, stale) {
       const benches = () => S.modules.filter(m => m.role === 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b));
       const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, wcfg: wcfgFiles(mod), onOpenSource: ref => ref?.file && openFile(ref.file, ref.line),
         benches, onBench: name => { const d = findDoc(`isim:${name}`); if (d) openDoc({ id: d.id }); else runSimulation(name); } });
-      return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => view.refresh?.(), 0) };
+      // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
+      return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0) };
     },
   });
 }
