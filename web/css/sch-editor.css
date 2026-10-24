@@ -343,8 +343,9 @@
 .sch-editor .lv-err { color: var(--se-danger); font-weight: bold; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sch-editor .lv-err[hidden] { display: none; }
 .sch-editor.sim-mode .se-left { opacity: .45; pointer-events: none; }
-.sch-editor.sim-mode .se-toolbar .se-btn:not([data-act="sim"]):not([data-act="zin"]):not([data-act="zout"]):not([data-act="fit"]):not([data-act="view"]):not([data-act="check"]),
-.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep, .sch-editor.sim-mode .se-toolbar .se-curved, .sch-editor.sim-mode .se-toolbar .se-lang { opacity: .35; pointer-events: none; }
+/* (Try it: the drawing's options and Symbol Info stay, #1175) */
+.sch-editor.sim-mode .se-toolbar .se-btn:not([data-act="sim"]):not([data-act="zin"]):not([data-act="zout"]):not([data-act="fit"]):not([data-act="view"]):not([data-act="check"]):not([data-act="info"]),
+.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep, .sch-editor.sim-mode .se-toolbar .se-lang { opacity: .35; pointer-events: none; }
 .sch-editor.sim-mode .se-canvas { cursor: default; }
 /* wires by value: 1 bright green, 0 dark green, X/U red, Z blue, no value grey */
 .sch-editor.sim-mode svg .wire.lv-1 .wline { stroke: #00c800; stroke-width: 2; }
