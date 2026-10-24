@@ -8,12 +8,12 @@ import { reservedModuleDiags } from '/core/reserved.js';
 import * as wiz from './wizards.js';
 import { designDiags, sevWord } from './diaghelp.js';
 import { S, flushDoc, openFile, openFpgaView, openImpact, openPinPlanner, openSummary, openUcf,
-  status, withPrimitives } from './app.js';
+  status, viewRoots, withPrimitives } from './app.js';
 import { log, showConsolePage, setDiagnostics } from './console.js';
 import { SYNTH_OPEN, backAnnotatePins, checkUcfFile, generateSimModel, postParTiming, runImpl, stopProcesses,
   synthOpen, textPowerReport, worst } from './implement.js';
 import { isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch, openTt } from './drawings.js';
-import { inView, testBench } from './design.js';
+import { inView, setTop, testBench } from './design.js';
 import { openWizardModule, wizardProcessOf } from './wizard-modules.js';
 import { openEmulator, openSchematic, openTechSchematic, runSimulation } from './viewers.js';
 
@@ -158,8 +158,29 @@ export function renderProcesses() {
   const { sel, view } = procsShown();
   $('proc-caption').textContent = `Processes: ${sel.module || (sel.file ? sel.file.split('/').pop() : '')}`;
   renderProcessTree(host, processDefs(sel, view));
+  // Implement with no top module: why the list is empty, and a button to set one (#1224)
+  if (implTop() && S.project && !S.project.top) host.append(noTopNote());
   // (Emulate's list in the Tasks interface: the states and the selection the same, #1204)
   for (const el of document.querySelectorAll('.task-emu-tree')) renderProcessTree(el, emulateProcesses());
+}
+
+function noTopNote() {
+  return h('div', { class: 'task-no-top' },
+    h('p', {}, 'No top module is set: the design is implemented from its top module, so set one to see its processes.'),
+    h('button', { class: 'btn', type: 'button', onclick: () => chooseTop() }, 'Set Top Module…'));
+}
+/** Set Top Module…: the top chosen among the design's modules, the hierarchy's roots first (#1224). */
+export async function chooseTop() {
+  const roots = viewRoots(false);
+  const names = [...new Set([...roots, ...S.modules.filter(m => m.kind !== 'package' && m.role !== 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b))])];
+  if (!names.length) return toast('The project has no module that can be the top yet', 'info');
+  const sel = h('select', { style: { width: '100%' } }, ...names.map(n => h('option', { value: n, 'data-no-i18n': true }, n)));
+  const r = await dialog({
+    title: 'Set Top Module', width: 420,
+    body: h('div', {}, h('label', {}, 'The module the design is implemented from:'), sel),
+    buttons: [{ label: 'OK', primary: true, value: true }, { label: 'Cancel', value: null }],
+  });
+  if (r) await setTop(sel.value, false);
 }
 
 /** The tree of the processes `defs` drawn in `host`: each with its state, run by a double-click, its menu. */
