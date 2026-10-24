@@ -2,6 +2,7 @@
 // screen to sheet, the zoom about a point, the fit to the drawing, a point centred, and the print.
 import { h } from './dom.js';
 import { portBox, symbolBox } from '/core/schdoc.js';
+import { isCurved, sampleCurve } from '/core/schcurve.js';
 import { printDiagram, svgSnapshot } from './print.js';
 import { r1 } from './sch-svg.js';
 import { snap } from './sch-editor.js';
@@ -33,7 +34,8 @@ export function mountSchView(ctx) {
     const add = b => { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + (b.w || 0)); y1 = Math.max(y1, b.y + (b.h || 0)); };
     for (const s of doc().symbols) { const b = symbolBox(s, modules()); add({ ...b, y: b.y - 14, h: b.h + 14 }); }
     for (const p of doc().ports) add(portBox(p));
-    for (const w of doc().wires) for (const p of w.points) add(p);
+    // (curved, #1144: all of each curve)
+    for (const w of doc().wires) for (const p of isCurved(doc()) ? sampleCurve(w, 8) : w.points) add(p);
     for (const l of doc().labels) add({ x: l.x, y: l.y - 12, w: 8 * l.net.length, h: 12 });
     if (!Number.isFinite(x0)) return null;
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };

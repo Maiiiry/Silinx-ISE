@@ -15,6 +15,7 @@ const E = () => env;
 // an inverter U1 at (200, 100) with its output wired 100 to the right (W1); two short wires named a (W2) and b (W3)
 const MOUNT = async () => {
   const { mountTools } = await import('/js/sch-tools.js');
+  const { mountSchCurve } = await import('/js/sch-curve.js');
   const { normalizeDoc, symbolPins, netlist } = await import('/core/schdoc.js');
   const canvas = document.createElement('div'), optBox = document.createElement('span'), container = document.createElement('div');
   document.body.append(canvas, optBox, container);
@@ -28,7 +29,9 @@ const MOUNT = async () => {
   const calls = [];
   const rec = (name) => (...a) => { calls.push([name, ...a.filter((x) => typeof x !== 'object')]); };
   let prompt = '';
-  const t = mountTools({ doc: () => doc, nl: () => nl, sel: () => sel, modules: () => modules, view: () => ({ s: 1 }), hoverPin: () => null,
+  // (curved wires, #1144: the editor's, on this document)
+  const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => ({ s: 1 }), readOnly: false, edit: (fn) => fn(), render: () => {}, renderProps: () => {}, snapshot: () => '', pushUndo: () => {}, changed: () => {} });
+  const t = mountTools({ curve, doc: () => doc, nl: () => nl, sel: () => sel, modules: () => modules, view: () => ({ s: 1 }), hoverPin: () => null,
     destroyed: () => false, tool: () => tool, placing: () => placing, wireDraw: () => wireDraw,
     set: (o) => { if ('tool' in o) tool = o.tool; if ('placing' in o) placing = o.placing; if ('wireDraw' in o) wireDraw = o.wireDraw; },
     readOnly: false, canvas, optBox, container,
@@ -122,4 +125,29 @@ uiTest('#405 schematic tools: a net name attached (counted up), an I/O marker on
   assert.deepEqual(out.ports, ['A:in:1:0,0']);
   assert.deepEqual(out.ioCalls, ['prompt Input port name ', 'edit', 'prompt Input port name in1']);
   assert.deepEqual(out.again, ['flash There is already an I/O marker here']);
+});
+
+uiTest('#1144 schematic tools: Curved wires: a wire clicked through points keeps them as its curve, its path routed between its ends; ended on a curve, it splits that wire there', E, async (page) => {
+  await page.eval(MOUNT);
+  const out = await page.eval(async () => {
+    const C = await import('/core/schcurve.js');
+    const { routePath, wireGrid } = await import('/core/schpath.js');
+    const { t, I, state } = window.__t;
+    const r = {};
+    state().doc.wireStyle = 'curved';
+    t.setTool('wire');
+    const want = routePath(wireGrid(state().doc), { x: I.x, y: I.y }, { x: 150, y: 400 });
+    t.wireClick({ x: I.x, y: I.y });
+    t.wireClick({ x: I.x - 60, y: I.y + 100 });
+    r.drawing = state().wireDraw.pts.map((p) => [p.x - I.x, p.y - I.y]);
+    // ended on W2 (net a), on its curve (here its straight line): a T there
+    t.wireClick({ x: 151, y: 401 });
+    const d = state().doc, w = d.wires.at(-1);
+    r.wire = [state().wireDraw, JSON.stringify(w.points) === JSON.stringify(want), C.curveAbs(w).map((p) => [p.x - I.x, p.y - I.y])];
+    r.split = d.wires.filter((x) => x.points.some((p) => p.x === 150 && p.y === 400)).length;
+    return r;
+  });
+  assert.deepEqual(out.drawing, [[0, 0], [-60, 100]], 'the points clicked, not routed square');
+  assert.deepEqual(out.wire, [null, true, [[-60, 100]]]);
+  assert.equal(out.split, 3, 'W2\'s two pieces and the new wire');
 });

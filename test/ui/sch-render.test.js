@@ -15,6 +15,7 @@ const E = () => env;
 // a net name) to nothing; an AND2 U2 with no wire (its 3 pins unconnected)
 const MOUNT = async () => {
   const { mountRender } = await import('/js/sch-render.js');
+  const { mountSchCurve } = await import('/js/sch-curve.js');
   const { normalizeDoc, symbolPins, netlist } = await import('/core/schdoc.js');
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
@@ -33,14 +34,16 @@ const MOUNT = async () => {
   const st = { doc, nl: null, sel: new Set(['wire:W3', 'sym:S1']), tool: 'select', placing: null, drag: null, wireDraw: null, cursor: { x: 123, y: 456 },
     hoverPin: null, lastDiags: null, live: null, modules: {}, view: { s: 1.5 }, destroyed: false, showHops: true, showNames: false };
   const undoStack = [], redoStack = ['x'];
-  const r = mountRender({ state: () => st, refreshNetlist: () => { st.nl = netlist(st.doc); }, uidE: 7, readOnly: false,
+  // (curved wires, #1144: the editor's, on this state)
+  const curve = mountSchCurve({ doc: () => st.doc, sel: () => st.sel, view: () => st.view, readOnly: false, edit: (fn) => fn(), render: () => {}, renderProps: () => {}, snapshot: () => '', pushUndo: () => {}, changed: () => {} });
+  const r = mountRender({ curve, state: () => st, refreshNetlist: () => { st.nl = netlist(st.doc); }, uidE: 7, readOnly: false,
     sheetG: svg.querySelector('.se-sheet'), contentG: svg.querySelector('.se-content'), overlayG: svg.querySelector('.se-overlay'), tb, status,
     undoStack, redoStack, routeTo: (a, b) => [{ x: b.x, y: a.y }, b], snapPoint: (p) => ({ x: Math.round(p.x / 10) * 10, y: Math.round(p.y / 10) * 10 }),
     bandRect: () => ({ x: 10, y: 20, w: 30, h: 40 }), infoTarget: () => (st.sel.size ? 'x' : null) });
   const q = (s) => [...svg.querySelectorAll(s)];
   const off = (a) => tb.querySelector(`[data-act="${a}"]`).disabled;
   const on = () => [...tb.querySelectorAll('.on')].map((b) => b.dataset.act);
-  window.__r = { r, st, q, off, on, status, svg };
+  window.__r = { r, st, q, off, on, status, svg, curve };
   return true;
 };
 
@@ -115,4 +118,43 @@ uiTest('#405 schematic drawing: the overlay of each tool (a symbol placed, a wir
   assert.equal(out.preview, '0,0 120,0 120,460');
   assert.deepEqual(out.net, ['pinhover']);
   assert.deepEqual(out.band, [['band'], '30']);
+});
+
+uiTest('#1144 schematic drawing: Curved wires: each wire its curve (core/schcurve.js), no hops, the net name on the curve, the selected wire\'s handles, the box ticked, the curve previewed', E, async (page) => {
+  await page.eval(MOUNT);
+  const out = await page.eval(async () => {
+    const C = await import('/core/schcurve.js');
+    const { r, st, q, curve } = window.__r;
+    const o = {};
+    st.doc.wireStyle = 'curved';
+    C.setCurve(st.doc.wires.find((w) => w.id === 'W3'), [{ x: 200, y: 450 }]);
+    st.sel = new Set(['wire:W3']);
+    r.render();
+    o.wires = q('.se-content g[data-kind=wire]').map((g) => [g.dataset.id, g.querySelector('.wline').tagName, g.querySelector('.wline').getAttribute('d') === C.curveD(st.doc.wires.find((w) => w.id === g.dataset.id)), g.querySelector('.whit').getAttribute('d') === g.querySelector('.wline').getAttribute('d')]);
+    o.handles = q('.se-content .chandle .cdot').map((c) => [+c.getAttribute('cx'), +c.getAttribute('cy')]);
+    o.box = curve.box.checked;
+    // the net name L1 at W3's end (300, 500): on the curve's end, the same point
+    o.label = q('.se-content g[data-kind=label] .lpt').map((c) => [+c.getAttribute('cx'), +c.getAttribute('cy')]);
+    // a net name in the middle of W3's path: drawn on its curve, at the same fraction of its length
+    st.doc.labels[0].x = 200;
+    r.render();
+    const m = C.curvePointAt(st.doc.wires.find((w) => w.id === 'W3'), 0.5);
+    o.mid = q('.se-content g[data-kind=label] .lpt').map((c) => Math.hypot(+c.getAttribute('cx') - m.x, +c.getAttribute('cy') - m.y) < 0.2);
+    st.tool = 'wire'; st.wireDraw = { pts: [{ x: 0, y: 0 }, { x: 40, y: -30 }] }; st.cursor = { x: 120, y: 0 };
+    r.renderOverlay();
+    // (the points drawn and the route to the cursor, this test's routeTo: a corner)
+    o.preview = q('.wire-preview').map((e) => [e.tagName, e.getAttribute('d') === curve.previewD([{ x: 0, y: 0 }, { x: 40, y: -30 }, { x: 120, y: -30 }, { x: 120, y: 0 }])]);
+    // unticked: polylines, no handles, the box unticked
+    delete st.doc.wireStyle; st.tool = 'select'; st.wireDraw = null;
+    r.render();
+    o.plain = [q('.se-content .wline').map((e) => e.tagName), q('.se-content .chandle').length, curve.box.checked];
+    return o;
+  });
+  assert.deepEqual(out.wires, [['W1', 'path', true, true], ['W2', 'path', true, true], ['W3', 'path', true, true]]);
+  assert.deepEqual(out.handles, [[200, 450]]);
+  assert.equal(out.box, true);
+  assert.deepEqual(out.label, [[300, 500]]);
+  assert.deepEqual(out.mid, [true]);
+  assert.deepEqual(out.preview, [['path', true]]);
+  assert.deepEqual(out.plain, [['polyline', 'polyline', 'polyline'], 0, false]);
 });

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, chromeOnly, waitDownload } from './harness.js';
 import { newDoc, netlist, generateHdl } from '../../core/schdoc.js';
 import { routePath, wireGrid } from '../../core/schpath.js';
-import { curveD, curveAbs, curveKnots, curvePointAt } from '../../core/schcurve.js';
+import { curveD, curveAbs, curveKnots, curvePointAt, sampleCurve } from '../../core/schcurve.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -51,6 +51,7 @@ const getDoc = page => page.eval(() => window.Silinx.active.schEditor.getDoc());
 const drawn = page => page.eval((ed) => [...document.querySelectorAll(`${ed} svg .wire`)].map((g) => { const l = g.querySelector('.wline'); return [g.dataset.id, l.tagName === 'polyline' ? 'poly' : l.getAttribute('d')]; }), ED);
 const handles = page => page.eval((ed) => [...document.querySelectorAll(`${ed} svg .chandle .cdot`)].map((c) => ({ x: +c.getAttribute("cx"), y: +c.getAttribute("cy") })), ED);
 const box = page => page.eval((ed) => document.querySelector(`${ed} .se-curved input`).checked, ED);
+const segDist = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
 const near = (a, b, tol = 1.5) => Math.hypot(a.x - b.x, a.y - b.y) <= tol;
 
 // a stroke through the sheet points `pts` by the mouse or a finger (CDP)
@@ -140,6 +141,17 @@ uiTest('#1144 schematic: Curved wires by the mouse: ticked, handles dragged, a c
   await page.click(`${ED} [data-act=undo]`);
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find(x => x.id === 'W3').curve.length === 3, [], { what: 'undone' });
   assert.deepEqual(nets(netlist(await getDoc(page))), NETS0, 'the connections the same');
+  // U2 moved down 40 (its wires kept connected): W3's curve follows its end, its knots where they were relative to it
+  const wBefore = (await getDoc(page)).wires.find(x => x.id === 'W3');
+  await page.drag(await at(page, P(320, 200)), await at(page, P(320, 240)));
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.find(x => x.id === 'S2').y === 230, [], { what: 'U2 moved' });
+  const wMoved = (await getDoc(page)).wires.find(x => x.id === 'W3');
+  assert.deepEqual([wMoved.points[0], wMoved.points.at(-1)], [P(160, 100), P(300, 240)], 'W3 still from U1.O to U2.I');
+  assert.deepEqual(wMoved.curve, wBefore.curve, 'its curve relative to its ends the same');
+  assert.equal((await drawn(page)).find(x => x[0] === 'W3')[1], curveD(wMoved));
+  assert.deepEqual(nets(netlist(await getDoc(page))), NETS0);
+  await page.click(`${ED} [data-act=undo]`);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.find(x => x.id === 'S2').y === 190, [], { what: 'the move undone' });
 
   // a wire by clicks: from b (60, 300) through (150, 360) and (250, 330) to U3.I (300, 400)
   await page.click(`${ED} .se-btn[data-act=wire]`);
@@ -177,6 +189,9 @@ uiTest('#1144 schematic: Curved wires by the mouse: ticked, handles dragged, a c
   const svg = await fs.readFile(await waitDownload(page, 'Schematic_src_curved.sch.json.svg'), 'utf8');
   const dNow = await getDoc(page);
   for (const x of dNow.wires) assert.ok(svg.includes(`d="${curveD(x)}"`), `${x.id} printed as its curve`);
+  // (the page holds all of every curve, beyond its rectilinear path too)
+  const [vx, vy, vw, vh] = /viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg).slice(1).map(Number);
+  for (const x of dNow.wires) for (const p of sampleCurve(x)) assert.ok(p.x >= vx && p.y >= vy && p.x <= vx + vw && p.y <= vy + vh, `${x.id} ${JSON.stringify(p)} on the page`);
   await page.key('Escape');
   await page.waitNoDialog();
 
@@ -240,8 +255,16 @@ uiTest('#1144 Tasks ▸ Design: Curved wires in Portuguese, a stroke by a finger
   await page.click(`${ED} .se-btn[data-act=wire]`);
   await page.hover(await at(page, P(200, 450)));
   await page.waitFor((ed) => document.querySelector(`${ed} .hint`)?.textContent.startsWith('Adicionar Fio (curvo): clique para começar'), [ED], { what: 'the hint in Portuguese' });
-  await strokeWire(page, 'touch', P(360, 400), P(480, 300));
+  const sw = await strokeWire(page, 'touch', P(360, 400), P(480, 300));
   assert.deepEqual(nets(netlist(await getDoc(page))), [...NETS0, 'S3.O port:P4'].sort());
   assert.deepEqual(messages(netlist(await getDoc(page))), ['warning: input pin I of U3 (inv) is not connected', "warning: I/O marker 'b' is not connected"], 'b and U3.I not wired yet: their warnings only');
+  // Try it: the curves coloured by their values; a curve hovered (where it is far from its path) shows its net's value
+  await page.click(`${ED} .se-btn[data-act=sim]`);
+  await page.waitFor((ed) => /\blv-/.test(document.querySelector(`${ed} g.wire[data-id="W3"]`)?.getAttribute('class') || ''), [ED], { what: 'W3 coloured' });
+  const far = [0.2, 0.25, 0.3, 0.7, 0.75].map(f => curvePointAt(sw, f)).find(q => sw.points.every((p, i) => !i || segDist(q, sw.points[i - 1], p) > 15));
+  await page.hover(await at(page, far));
+  const name = netlist(await getDoc(page)).wireNet.get(sw.id).name;
+  await page.waitFor((ed, n) => (document.querySelector(`${ed} .lv-tip`)?.textContent || '').startsWith(`${n} = `), [ED, name], { what: 'the hover tip on the curve' });
+  await page.key('Escape');
   assert.deepEqual(warnings(page), []);
 }, { skip: chromeOnly, build: DEV });
