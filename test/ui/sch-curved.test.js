@@ -243,6 +243,13 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .chandle`).length === 2, [ED], { what: 'the handles' });
   // (a finger's target: wider than the mouse's)
   assert.equal(await page.eval((ed) => +document.querySelector(`${ed} svg .chandle .chit`).getAttribute('r'), ED), 14);
+  // (the events from here on, reported if a tap below is lost)
+  await page.eval(() => {
+    window.__ev = [];
+    for (const t of ['pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'click', 'contextmenu', 'touchstart', 'touchend', 'touchcancel']) {
+      addEventListener(t, (e) => window.__ev.push(`${t}:${e.pointerType || ''}:${e.target?.tagName || e.target}:${e.target?.isConnected}:${e.defaultPrevented}:${Math.round(e.timeStamp)}`), true);
+    }
+  });
   await page.touchDrag(await at(page, (await handles(page))[1]), await at(page, P(280, 260)));
   await page.waitFor(() => Array.isArray(window.Silinx.active.schEditor.getDoc().wires.find(x => x.id === 'W3').curve), [], { what: 'reshaped' });
   const w = (await getDoc(page)).wires.find(x => x.id === 'W3');
@@ -252,7 +259,7 @@ uiTest('#1144 schematic on a tablet: Curved wires ticked by a tap, a handle drag
   try {
     await page.waitFor((ed) => document.querySelector(`${ed} .se-btn[data-act=wire]`).classList.contains('on'), [ED], { what: 'Add Wire by a tap' });
   } catch (e) {
-    const seen = await page.eval((ed, x, y) => { const b = document.querySelector(`${ed} .se-btn[data-act=wire]`), r = b.getBoundingClientRect(); return { rect: [r.left, r.top, r.width, r.height], at: document.elementFromPoint(x, y)?.outerHTML.slice(0, 160), tool: b.closest('.sch-editor').querySelector('[data-tool]')?.dataset.tool, tb: b.parentElement.scrollWidth + '/' + b.parentElement.clientWidth }; }, ED, tapped.x, tapped.y);
+    const seen = await page.eval((ed, x, y) => { const b = document.querySelector(`${ed} .se-btn[data-act=wire]`), r = b.getBoundingClientRect(); return { rect: [r.left, r.top, r.width, r.height], at: document.elementFromPoint(x, y)?.outerHTML.slice(0, 160), tool: b.closest('.sch-editor').querySelector('[data-tool]')?.dataset.tool, tb: b.parentElement.scrollWidth + '/' + b.parentElement.clientWidth, ev: window.__ev.slice(-30) }; }, ED, tapped.x, tapped.y);
     throw new Error(`${e.message}: tapped ${JSON.stringify(tapped)} ${JSON.stringify(seen)}`);
   }
   await strokeWire(page, 'touch', P(360, 400), P(480, 300));
