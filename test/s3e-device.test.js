@@ -7,10 +7,10 @@ import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } f
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
-import { joinTestDesigns, parseJoinTests } from '../research/s3e-device/hypotheses.mjs';
+import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
 import { tileCandidates, siteCandidates, censusCandidates, ioCandidates } from '../research/s3e-device/candidates.mjs';
-import { bram, mult, pads } from '../research/s3e-device/gen-obshdl.mjs';
+import { bram, mult, pads, inputs } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
@@ -396,4 +396,40 @@ test('ioCandidates: an I/O tile\'s PIPs from the database\'s features, in the ti
   const obs = { pips: [{ tile: 'LIOIS_X0Y5', from: 'E2BEG0', to: 'IOIS_F1_B0' }, { tile: 'CLB_X1Y5', from: 'F1_B0', to: 'X0' }] };
   const c = ioCandidates(obs, tilesDb, t => tileXY(t).prefix).map(p => `${p.tile} ${p.from}->${p.to}`).sort();
   assert.deepEqual(c, ['LIOIS_X0Y5 IOIS_F1_B0->X0', 'LIOIS_X0Y5 IOIS_I0->OMUX3']);
+});
+
+test('testSources: the observed IOB inputs and block-RAM outputs; another package\'s inputs; the unbonded IOB sites of a tile with none (#3, round 8)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  // ISE's routes in the CP132: an input on LIOIS_X0Y13's PAD146 (its first IOB: I0_PINWIRE), its output pin (no source),
+  // a block RAM's DOA0
+  const obs = {
+    sites: [{ site: 'PAD146', type: 'IBUF' }, { site: 'RAMB16_X0Y0', type: 'RAMB16' }],
+    pins: [
+      { site: 'PAD146', tile: 'LIOIS_X0Y13', pin: 'I', dir: 'o', wire: 'I0_PINWIRE' },
+      { site: 'PAD146', tile: 'LIOIS_X0Y13', pin: 'O', dir: 'i', wire: 'O0_PINWIRE' },
+      { site: 'RAMB16_X0Y0', tile: 'BRAMSITE2_X3Y0', pin: 'DOA0', dir: 'o', wire: 'RAMB16_DOA0' },
+    ],
+  };
+  const list = m => [...m].flatMap(([t, xs]) => xs.map(x => `${t} ${x.site}.${x.o} ${x.siteType} ${x.wire}`)).sort();
+  assert.deepEqual(list(testSources(obs)), ['BRAMSITE2_X3Y0 RAMB16_X0Y0.DOA0 RAMB16 RAMB16_DOA0', 'LIOIS_X0Y13 PAD146.I IBUF I0_PINWIRE']);
+  // the inputs of another package's design (FT256: its pins' names) instead of the CP132's; the block RAM kept
+  const ft = { sites: [{ site: 'C1', type: 'IBUF' }], pins: [{ site: 'C1', tile: 'LIOIS_X0Y12', pin: 'I', dir: 'o', wire: 'I0_PINWIRE' }] };
+  assert.deepEqual(list(testSources(obs, { sourceObs: ft })), ['BRAMSITE2_X3Y0 RAMB16_X0Y0.DOA0 RAMB16 RAMB16_DOA0', 'LIOIS_X0Y12 C1.I IBUF I0_PINWIRE']);
+  // with the device: LIOIS_X0Y12 (no pad in any package, NOPAD149-147) takes its three IOB sites, an IBUF on each; the
+  // tile with an input observed and one that is not in the joins take none
+  const joins = [['CLB_X1Y13/OMUX_NE12', 'LIOIS_X0Y12/OMUX12'], ['LIOIS_X0Y13/OMUX12', 'CLB_X1Y14/OMUX_NE12']];
+  assert.deepEqual(list(testSources(obs, { device: dev, joins })), ['BRAMSITE2_X3Y0 RAMB16_X0Y0.DOA0 RAMB16 RAMB16_DOA0',
+    'LIOIS_X0Y12 NOPAD147.I IBUF I2_PINWIRE', 'LIOIS_X0Y12 NOPAD148.I IBUF I1_PINWIRE', 'LIOIS_X0Y12 NOPAD149.I IBUF I0_PINWIRE', 'LIOIS_X0Y13 PAD146.I IBUF I0_PINWIRE']);
+  // an observed input off the Ik_PINWIRE rule
+  const off = { ...obs, pins: [{ ...obs.pins[0], wire: 'I2_PINWIRE' }] };
+  assert.throws(() => testSources(off, { device: dev, joins }), /LIOIS_X0Y13 PAD146\.I on I2_PINWIRE, not I0_PINWIRE/);
+});
+
+test('gen-obshdl: every pad an input (round 8: the FT256), read by Silinx\'s front end (#3)', () => {
+  const v = inputs(170, 'xc3s250eft256-4');
+  assert.equal(v.ucf, '', 'the pads placed by ISE');
+  assert.match(v.v, /^module top\(input clk, input \[169:0\] i, output reg q\);\n {2}always @\(posedge clk\) q <= \^i;\nendmodule\n$/m);
+  const srcs = [{ path: 'top.v', lang: 'verilog', text: v.v }];
+  const lib = compile([...primitiveSources(srcs), ...srcs]);
+  assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
 });

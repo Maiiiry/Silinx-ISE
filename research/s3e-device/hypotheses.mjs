@@ -182,3 +182,54 @@ export function parseJoinTests(log, nets) {
   for (const n of nets) out.set(n, other.has(n) ? 'unclear' : island.has(n) ? 'no-join' : 'join');
   return out;
 }
+
+const IOB_SITE = /^(IOB|IBUF|DIFF[MS]I?)$/;
+
+/**
+ * The test sources other than slices, for joinTestDesigns' sourcesOf (#3): Map tile -> [{ site, type, siteType, tile, o,
+ * wire }], the IOBs' inputs (I) and the block RAMs' outputs (DOAk, DOBk) observed in ISE's routes (obs: prototype.mjs
+ * observe). Round 8:
+ *   sourceObs: the IOBs' inputs from that observation instead (a design of another package of the same die: an IOB's
+ *     site is its package pin, and the XC3S250E's FT256 bonds the I/O tiles the CP132 leaves without a pad);
+ *   device (a Device, with joins): an I/O tile of the joins with no input observed takes its unbonded IOB sites (bonded
+ *     2: NOPADk, bonded in no package) as sources, an IBUF on each, the I pin's wire from an observed tile of the same
+ *     type at the same site position, else Ik_PINWIRE for the tile's k-th IOB, the rule every observed one follows
+ *     (throws if one does not; a wrong name would only make xdl -xdl2ncd refuse the design).
+ */
+export function testSources(obs, { sourceObs = null, device = null, joins = [] } = {}) {
+  const typed = o => { const t = new Map(o.sites.map(x => [x.site, x.type])); return o.pins.map(p => ({ ...p, ty: t.get(p.site) })); };
+  const extra = new Map();
+  const add = x => { if (!extra.has(x.tile)) extra.set(x.tile, []); extra.get(x.tile).push(x); };
+  for (const p of [...typed(obs).filter(q => !sourceObs || !IOB_SITE.test(q.ty)), ...(sourceObs ? typed(sourceObs).filter(q => IOB_SITE.test(q.ty)) : [])]) {
+    const kind = IOB_SITE.test(p.ty) ? 'IOB' : p.ty === 'RAMB16' ? 'RAMB16' : null;
+    if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin))) continue;
+    add({ site: p.site, type: kind, siteType: p.ty, tile: p.tile, o: p.pin, wire: p.wire });
+  }
+  if (!device) return extra;
+  const R = device;
+  const sitesOf = t => {
+    const k = R.tileIndex.get(t);
+    if (k === undefined) return null;
+    const tp = R.templates[R.tileTemplate[k]];
+    return { type: tp.type, sites: R.tileSites[k].map(([name, b], i) => ({ name, bonded: b, type: tp.sites[i].type })) };
+  };
+  const byRule = (s, i) => `I${i - s.sites.findIndex(x => IOB_SITE.test(x.type))}_PINWIRE`;
+  // (the observation in the device's own package: its site names are the device's)
+  const wireAt = new Map();
+  for (const p of typed(obs)) {
+    if (!IOB_SITE.test(p.ty) || p.dir !== 'o' || p.pin !== 'I') continue;
+    const s = sitesOf(p.tile), i = s ? s.sites.findIndex(x => x.name === p.site) : -1;
+    if (i < 0) continue;
+    if (byRule(s, i) !== p.wire) throw new Error(`testSources: ${p.tile} ${p.site}.I on ${p.wire}, not ${byRule(s, i)}`);
+    wireAt.set(`${s.type}|${i}`, p.wire);
+  }
+  const ioTiles = new Set(joins.flat().map(k => k.slice(0, k.indexOf('/'))).filter(t => /IOIS|IBUFS/.test(t)));
+  for (const t of ioTiles) {
+    if (extra.has(t)) continue;
+    const s = sitesOf(t);
+    s?.sites.forEach((x, i) => {
+      if (x.bonded === 2 && IOB_SITE.test(x.type)) add({ site: x.name, type: 'IOB', siteType: 'IBUF', tile: t, o: 'I', wire: wireAt.get(`${s.type}|${i}`) || byRule(s, i) });
+    });
+  }
+  return extra;
+}

@@ -429,3 +429,43 @@ the tile where ISE accepted it.
 I/O tile (`BIBUFS/N6BEG2 -> CLB/N6MID2`) and some I/O OMUX lines, which no pad input observed reaches within the
 probed depth. Next: the probe one step deeper for those, then the sites' pins and the irregular tiles. Rounds 1-7:
 23 927 tests, no disagreement.
+
+### Round 8: the I/O tiles with no pad (2026-10-24)
+
+Probing deeper was not what the 537 joins round 7 left needed: nearly all of them already had a probed PIP into their I/O
+end. That PIP started at the tile's own site pins (`IOIS_Y0 -> OMUX12`, `IOIS_Y0 -> N6BEG1`), so a test needed a source in
+that very tile. **515 of the 537 were in 58 I/O tiles with no pad in the CP132**: no HDL design reaches them on that
+package. Two kinds of source, both ISE 14.7 on the Mac mini:
+
+- **The same die in another package.** The XC3S250E's FT256 bonds all 172 of its user I/O. `gen-obshdl.mjs --inputs 170`
+  makes every pad an input (an XOR of them all into one register, so each IOB's I pin is used), implemented by ISE for
+  `xc3s250e-ft256-4` (no warning, 37 s): IOB inputs in 103 tiles. `prototype.mjs tests` with `SOURCEOBS=obs-ft256.json`
+  takes the IOB sources from that observation (an IOB's site is its package pin) and `PART=xc3s250eft256-4` writes the
+  tests for that package. The tiles, the wires and the joins are the die's, the same in every package.
+- **The unbonded IOB sites.** 15 tiles have no pad in any package (the left column's LIOIS_X0Y3, X0Y12…). With
+  `UNBONDED=1` (`testSources`), an I/O tile of the joins with no input observed takes its unbonded IOB sites (`NOPADk`,
+  from the device report, like every site name) as sources, an IBUF on each. The I pin's wire comes from an observed tile
+  of the same type at the same position, else `Ik_PINWIRE` for the tile's k-th IOB, the rule every observed one follows.
+  ISE's DRC reports each such pad as an illegal placement (797), and its net checks, the tests' verdicts, run as usual.
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 8a, FT256 sources | 378 (14, 43 s) | 192 joins, 186 islands | **all** |
+| 8b, unbonded sources | 134 (7, 24 s) | 79 joins, 55 islands | **all** |
+
+14 more are **implied** by the joins already known (long lines whose taps the known joins link end to end), as the shipped
+graph has them. **11 stay untestable**: eight vertical long lines whose two ends are 24 rows apart (`RIOIS_X27Y2/LV0 ~
+RIOIS_X27Y26/LV0`), which no source reaches within the search's limits (3 joins, 5 PIPs; 6 and 8 add none), and three
+hexes that begin in LIOIS_X0Y3, reached only through a hex whose join no design shows. **Every I/O tile's join is now
+tested but these**. Rounds 1-8: 24 439 tests, no disagreement with the shipped graph. Next (#3): the sites' pins, then
+the irregular tiles.
+
+```
+PART=xc3s250eft256-4 node gen-obshdl.mjs hdl --inputs 170 && PART=xc3s250e-ft256-4 impl-remote.sh inputs
+PART=xc3s250eft256-4 node prototype.mjs observe obs-ft256.json hdl/inputs/top.xdl
+PART=xc3s250eft256-4 SOURCEOBS=obs-ft256.json PROBED=probe7.json DBPIPS=1 SOURCES=1 SOURCEXDL=… MAXJOINS=3 MAXDEPTH=5 \
+  node prototype.mjs tests left7.json obs.json t8 t1 … t7            # left7: the joins rounds 1-7 left
+UNBONDED=1 PROBED=probe7.json DBPIPS=1 SOURCES=1 SOURCEXDL=… MAXJOINS=3 MAXDEPTH=5 \
+  node prototype.mjs tests left8.json obs.json t8b t1 … t8           # left8: t8's untestable
+ise-remote.sh -f t8 && ise-remote.sh -f t8b && node prototype.mjs verdicts t8 t8b
+```

@@ -6,7 +6,8 @@
 //                                                               rules -> predicted joins not yet observed or tested
 //                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too)
 //   node prototype.mjs tests pred.json obs.json dir [tested-dir...]   join test designs (run: ise-remote.sh dir);
-//                                                               (SOURCES=1, DBPIPS=1, SOURCEXDL=routed.xdl,…: rounds 4-6)
+//                                                               (SOURCES=1, DBPIPS=1, SOURCEXDL=routed.xdl,…: rounds 4-6;
+//                                                               PROBED=probe.json: 7; SOURCEOBS=obs.json, UNBONDED=1: 8)
 //                                                               a tile with no slice driven from a CLB across known joins
 //   node prototype.mjs verdicts dir...                          -> dir/verdicts.json (ISE's DRC)
 //   node prototype.mjs build obs.json clb-tiles.txt out.json.gz dir...   the measured CLB array
@@ -23,7 +24,7 @@ import { parseXdl } from '../../core/xdl.js';
 import { loadDevice, PIP_BIDI } from '../../core/fpga/device.js';
 import { observeDesign, resolveAmbiguous, tileXY, wireFamily, blockRamOutputJoins } from './observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from './model.mjs';
-import { joinTestDesigns, parseJoinTests } from './hypotheses.mjs';
+import { joinTestDesigns, parseJoinTests, testSources } from './hypotheses.mjs';
 import { clbSlices } from './gen-observe.mjs';
 import { packMeasured } from './build.mjs';
 
@@ -133,17 +134,12 @@ if (cmd === 'observe') {
   const root = nodesOf(known), members = new Map();
   for (const [k, r] of root) { if (!members.has(r)) members.set(r, []); members.get(r).push(k); }
   const slicesOf = t => (t.startsWith('CLB_') ? clbSlices(t).map((site, pos) => ({ site, pos })) : []);
-  // (SOURCES=1: the IOBs' inputs and the block RAMs' outputs observed in ISE's routes as test sources too, #3)
-  const extra = new Map();
-  if (process.env.SOURCES === '1') {
-    const typeOf = new Map(obs.sites.map(x => [x.site, x.type]));
-    for (const p of obs.pins) {
-      const ty = typeOf.get(p.site), kind = /^(IOB|IBUF|DIFF[MS]I?)$/.test(ty) ? 'IOB' : ty === 'RAMB16' ? 'RAMB16' : null;
-      if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin))) continue;
-      if (!extra.has(p.tile)) extra.set(p.tile, []);
-      extra.get(p.tile).push({ site: p.site, type: kind, siteType: ty, tile: p.tile, o: p.pin, wire: p.wire });
-    }
-  }
+  // (SOURCES=1: the IOBs' inputs and the block RAMs' outputs observed in ISE's routes as test sources too, #3; SOURCEOBS,
+  // UNBONDED: round 8, testSources)
+  const extra = process.env.SOURCES === '1' ? testSources(obs, {
+    sourceObs: process.env.SOURCEOBS ? readJson(process.env.SOURCEOBS) : null, joins,
+    device: process.env.UNBONDED === '1' ? loadDevice(readJson(path.join(HERE, '../../core/fpga/devices', `${PART}.json.gz`))) : null,
+  }) : new Map();
   const r = joinTestDesigns({
     part: PART, joins, slicesOf, pinWire: (pos, pin) => pins.get(`${pos}.${pin}`)?.[0],
     pipsOf: t => [...pipsOf(dbType(t)), ...(probed.get(t) || [])].filter(([a, b, f]) => !(f & PIP_BIDI)),

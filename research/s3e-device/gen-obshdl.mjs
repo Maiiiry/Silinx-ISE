@@ -5,7 +5,11 @@
 //   mult: every MULT18X18SIO (LOC'd), every output bit into the logic;
 //   pads: as many pads as the package has, each an input into the logic (the bidirectional ones also driven, their
 //         enable from a register), placed by ISE.
+//   inputs (round 8, --inputs n): n pads, every one an input into the logic (an XOR of them all into one register), for a
+//         package that bonds the pads the others leave unbonded (the XC3S250E's FT256: its I/O tiles with no pad in the
+//         CP132), placed by ISE.
 //   PART=xc3s250ecp132-4 node gen-obshdl.mjs outdir [pads=90] [inputs=24]   (folders bram, mult, pads: top.v, top.ucf)
+//   node gen-obshdl.mjs outdir --inputs 171                                 (folder inputs)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 
@@ -75,8 +79,27 @@ endmodule
   return { v, ucf: '' };
 }
 
+/** n pads, every one an input (no register in its IOB: the XOR of them all into one register): { v, ucf }. */
+export function inputs(n, part = PART) {
+  const v = `// ${part}: ${n} pads, each an input into the logic (#3 round 8, research/s3e-device gen-obshdl.mjs)
+module top(input clk, input [${n - 1}:0] i, output reg q);
+  always @(posedge clk) q <= ^i;
+endmodule
+`;
+  return { v, ucf: '' };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const [out, npads = '90', ninputs = '24'] = process.argv.slice(2);
+  const argv = process.argv.slice(2), ii = argv.indexOf('--inputs');
+  if (ii >= 0) {
+    const { v, ucf } = inputs(+argv[ii + 1]);
+    fs.mkdirSync(`${argv[0]}/inputs`, { recursive: true });
+    fs.writeFileSync(`${argv[0]}/inputs/top.v`, v);
+    fs.writeFileSync(`${argv[0]}/inputs/top.ucf`, ucf);
+    console.log(`${PART}: ${argv[ii + 1]} inputs`);
+    process.exit(0);
+  }
+  const [out, npads = '90', ninputs = '24'] = argv;
   const dev = loadDeviceCache(PART);
   for (const [name, f] of [['bram', () => bram(dev)], ['mult', () => mult(dev)], ['pads', () => pads(+npads, +ninputs)]]) {
     const { v, ucf } = f();
