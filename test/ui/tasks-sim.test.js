@@ -169,7 +169,7 @@ uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates
 // #1161: Simulate keeps a tab per simulation (each test bench and model its own); its side panel, Simulation and
 // Instances, a tab as Design's pages, lists every test bench of the project, the one simulated opened as its instances,
 // another one simulated (in its own tab) when clicked; the classic interface's ISim as before; Design has no Test page
-uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances lists the test benches, another one simulated by a click', E, async (page) => {
+uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the test benches, another one simulated by a click', E, async (page) => {
   const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');
   await makeProject(env, { name: 'TasksSimTabs', template: 'blinky', files: { 'sim/tb_two.vhd': tb.replaceAll('tb_top', 'tb_two') }, roles: { 'sim/tb_two.vhd': 'sim' } });
   await page.setViewport(1366, 768);
@@ -186,13 +186,13 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances
       rows: [...d.querySelectorAll('.isim-tree > li > .row')].filter(vis).map((r) => r.querySelector('.lbl').textContent),
       open: [...d.querySelectorAll('.isim-tree > li')].filter((li) => li.querySelector(':scope > ul')).map((li) => li.querySelector('.lbl').textContent) };
   });
-  assert.deepEqual(await panel(), { tab: 'Simulation and Instances', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_top'] });
+  assert.deepEqual(await panel(), { tab: 'Simulation', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_top'] });
   // the other test bench clicked: simulated in its own tab, the first one kept
   await page.click('.doc:not([hidden]) .isim-tree li.task-bench .row');
   await simShown(page, 'tb_two', 'Behavioral');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#doc-tabs .tab')].filter((t) => t.getClientRects().length).map((t) => t.querySelector('.tlabel').textContent)), ['SSim (tb_top)', 'SSim (tb_two)']);
   await page.showSide();
-  assert.deepEqual(await panel(), { tab: 'Simulation and Instances', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_two'] });
+  assert.deepEqual(await panel(), { tab: 'Simulation', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_two'] });
   // and back to the first by its row: its tab again, not a new simulation
   const from = (await logText(page)).length;
   await page.click('.doc:not([hidden]) .isim-tree li.task-bench .row');
@@ -200,7 +200,7 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances
   assert.deepEqual(await started(page, from), []);
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-tabs')?.textContent === 'Simulação e Instâncias', [], { what: 'Portuguese' });
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-tabs')?.textContent === 'Simulação', [], { what: 'Portuguese' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the classic interface: Instances and Processes as before, the simulated bench only
   await setInterface(page, 'classic');

@@ -21,7 +21,7 @@ import { openWizardModule, wizardLabelOf } from './wizard-modules.js';
 
 const $ = id => document.getElementById(id);
 // the Tasks interface (#799): one tree, no views: the design (as the Implementation view shows it); the test
-// benches Simulate's (its Simulation and Instances, #1161); no constraints in any interface (the Files page and the top
+// benches Simulate's (its Simulation, #1161); no constraints in any interface (the Files page and the top
 // module's User Constraints processes have them, #1250)
 const oneTree = () => document.documentElement.dataset.layout === 'tasks';
 

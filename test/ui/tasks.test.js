@@ -868,7 +868,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
       titles: [...document.querySelectorAll('#left-tabs .tab')].map((b) => b.title),
     };
   });
-  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Implement'] });   // (no Test: Simulate's benches, #1161; Implement's tab, #1160, #1207)
+  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Implementation'] });   // (no Test: Simulate's benches, #1161; Implement's tab, #1160, #1207)
   // (no column of its own: the hierarchy from the window's left edge)
   assert.ok(await page.eval(() => document.querySelector('#hier').getBoundingClientRect().left) < 12);
   await page.click('#left-tabs .tab[data-page="files"]');
@@ -900,7 +900,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Implementar']);
+  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Implementação']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the modern interface: the activity bar as before, a column with every name, no tooltips
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
@@ -1224,8 +1224,8 @@ uiTest('#1208 Tasks ▸ Implement: the top\'s processes whatever is selected in 
 // #1159, #1160: the side panel's tabs without a heading under them (Edit's pages: Start, Design, Files, Libraries);
 // Implement's Processes under a tab of their own, as Edit's pages, with none of the top's drawing (View/Edit Schematic:
 // Design's); in Portuguese; the classic interface keeps its headings and has no such tab
-// #1207: the tab named Implement, across the panel's width
-uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implement\'s Processes under its tab, Implement, the panel\'s width, without the top\'s drawing', E, async (page) => {
+// #1207: the tab named Implementation (#1257), across the panel's width
+uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implement\'s Processes under its tab, Implementation, the panel\'s width, without the top\'s drawing', E, async (page) => {
   await makeProject(env, { name: 'TasksHeads', template: 'gates' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -1245,7 +1245,7 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
     above: document.getElementById('left-tabs').getBoundingClientRect().bottom <= document.getElementById('procs').getBoundingClientRect().top + 1,
     drawing: [...document.querySelectorAll('#procs .row')].filter((r) => r.getClientRects().length).map((r) => r.querySelector('.lbl').textContent).filter((l) => /^View\/Edit/.test(l)),
   }));
-  assert.deepEqual(await impl(), { tabs: [['procs', 'Implement']], above: true, drawing: [] });
+  assert.deepEqual(await impl(), { tabs: [['procs', 'Implementation']], above: true, drawing: [] });
   const width = await page.eval(() => { const b = document.getElementById('left-tabs'), cs = getComputedStyle(b); return [document.getElementById('task-procs-tab').getBoundingClientRect().width, b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)]; });
   assert.ok(Math.abs(width[0] - width[1]) < 1, `the tab across the panel: ${width}`);
   assert.deepEqual(await heading(), []);
@@ -1253,7 +1253,7 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
   await page.eval(() => { const A = window.SilinxApp; A.S.sel = { type: 'module', module: 'gates', file: 'src/gates.vhd', sch: 'src/gates.sch.json' }; A.renderProcesses(); });
   assert.deepEqual((await impl()).drawing, []);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await impl()).tabs, [['procs', 'Implementar']]);
+  assert.deepEqual((await impl()).tabs, [['procs', 'Implementação']]);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the classic interface: its headings, no Processes tab
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
