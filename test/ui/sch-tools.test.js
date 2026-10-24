@@ -80,7 +80,7 @@ uiTest('#405 schematic tools: the options of each tool, a wire drawn and its end
     return r;
   });
   assert.deepEqual(out.net, [['Name:', 'INPUT'], 'net']);
-  assert.deepEqual(out.io, ['Name:', 'INPUT', 'Auto directionInputOutputBidirectional']);
+  assert.deepEqual(out.io, []);   // (Add I/O Marker: no options, #1180)
   assert.deepEqual(out.wire, [[], 'wire']);
   assert.equal(out.started, 1);
   assert.deepEqual(out.routed, [[0, 0], [-60, 0], [-60, -40]]);
