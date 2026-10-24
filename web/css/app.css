@@ -172,7 +172,7 @@ table.grid tr.sel td { background: #dbe8fb; }
 .start-box { min-width: 260px; }
 .start-box h3 { font-size: 13px; color: #1e395b; border-bottom: 1px solid #c9d7ed; padding-bottom: 3px; }
 /* the first heading right under the pane's caption, as the Design pane's content (#1101) */
-#start-page .start-box:first-child h3 { margin-top: 0; }
+#start-page .start-box:first-child h3, #start-page .start-btns + .start-box h3 { margin-top: 0; }   /* (under the buttons too, #1225) */
 .start-box .entry { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
 .start-box .entry .disabled, .start-box .entry.hint { color: #888; cursor: default; }
 /* New Project and Open Project at the top of the Start page, half of it each (#1216); a line between the Silinx and
