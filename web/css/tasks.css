@@ -213,12 +213,12 @@ html[data-layout="tasks"][data-task="impl"] .left-page:not([data-page="design"])
 
 /* ------------------------------------------------------------------ Edit's pages: tabs at the top of its side panel (#984) */
 /* no column of their own: a row above the hierarchy (the open page's icon and name, the others' icon, their name the
-   tooltip); folded, neither; on a narrow screen, the drawer's top row. Implement's Processes under such a tab, its only
+   tooltip); folded, neither; on a narrow screen, the drawer's top row. Implement's Processes under such a tab, named Implement (#1207), its only
    one (#1160); no panel's heading under the tabs (#1159, #1160) */
 html[data-layout="tasks"] #left-pages .ise-panel > .caption { display: none; }
 html[data-layout="tasks"]:not([data-task="impl"]) #task-procs-tab { display: none; }
 html[data-layout="tasks"][data-task="impl"] #left-tabs .tab:not(#task-procs-tab) { display: none; }
-html[data-layout="tasks"][data-task="impl"] #task-procs-tab { flex: 1 1 auto; justify-content: flex-start; background: var(--m-accent-soft); color: var(--m-accent); font-weight: 600; }
+html[data-layout="tasks"][data-task="impl"] #left-tabs #task-procs-tab { flex: 1 1 auto; justify-content: flex-start; background: var(--m-accent-soft); color: var(--m-accent); font-weight: 600; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left { flex-direction: column; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: 36px;
   padding: 4px 6px; gap: 2px; border-right: none; border-bottom: 1px solid var(--m-border); }

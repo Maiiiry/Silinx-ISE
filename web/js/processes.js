@@ -48,17 +48,24 @@ function forOpenMode(defs) {
   };
   return defs.map(conv).filter(Boolean);
 }
-function processDefs() {
-  const defs = processDefsAll();
+// Tasks ▸ Implement: the top module's processes, whatever the Design pane has selected since (#1208)
+const implTop = () => { const d = document.documentElement.dataset; return d.layout === 'tasks' && d.task === 'impl'; };
+/** The item whose processes are shown and the view: the selection's, or in Implement the top module's. */
+function procsShown() {
+  if (!implTop()) return { sel: S.sel || {}, view: S.view };
+  const top = S.project?.top;
+  return { sel: top ? { type: 'module', module: top, file: S.modules.find(m => m.name === top)?.file } : {}, view: 'impl' };
+}
+function processDefs(sel, view) {
+  const defs = processDefsAll(sel, view);
   return openMode() ? forOpenMode(defs) : defs;
 }
-function processDefsAll() {
+function processDefsAll(sel, view) {
   if (!S.project) return [];
-  const defs = selectionProcesses();
+  const defs = selectionProcesses(sel, view);
   return defs.some(p => p.id === 'summary') ? defs : [SUMMARY_PROC, ...defs.filter(p => p.id !== 'none')];
 }
-function selectionProcesses() {
-  const sel = S.sel || {};
+function selectionProcesses(sel, view) {
   // a drawing without its HDL file (it has errors, #207): it gets it as soon as it has none (#220)
   if (sel.type === 'asm') return [{ id: 'asm-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.file) }];
   if (sel.type === 'pn') return [{ id: 'pn-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.file) }];
@@ -72,7 +79,7 @@ function selectionProcesses() {
   ];
   if (sel.type !== 'module') return [{ id: 'none', label: 'No processes for the selected item', ico: 'process', disabled: true }];
   const mod = sel.module;
-  if (S.view === 'sim') return [
+  if (view === 'sim') return [
     { id: 'isim', label: 'SSim Simulator', ico: 'sim', children: [
       { id: 'sim-check', label: 'Behavioral Check Syntax', ico: 'process', run: () => checkSyntax(mod, true) },
       { id: 'sim-run', label: 'Simulate Behavioral Model', ico: 'wave', run: () => runSimulation(mod) },
@@ -145,9 +152,9 @@ export function emulateProcesses() {
 
 export function renderProcesses() {
   const host = $('procs');
-  const sel = S.sel || {};
+  const { sel, view } = procsShown();
   $('proc-caption').textContent = `Processes: ${sel.module || (sel.file ? sel.file.split('/').pop() : '')}`;
-  renderProcessTree(host, processDefs());
+  renderProcessTree(host, processDefs(sel, view));
   // (Emulate's list in the Tasks interface: the states and the selection the same, #1204)
   for (const el of document.querySelectorAll('.task-emu-tree')) renderProcessTree(el, emulateProcesses());
 }
@@ -216,6 +223,7 @@ export async function runProcess(p) {
 // does nothing). title: the process; verb: what it does to the top ('implements', 'synthesizes', 'emulates').
 export async function topConfirmed(title, verb) {
   const top = S.project?.top, sel = S.sel?.module;
+  if (implTop()) return true;   // (Implement's processes are the top's, #1208)
   if (!top || !sel || sel.toLowerCase() === top.toLowerCase()) return true;
   return !!await dialog({
     title, width: 460,

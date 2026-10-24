@@ -162,9 +162,12 @@ function apply() {
   if (!on()) { if (document.getElementById('task-bar')) { unbuild(); placeSimToolbar(false); fitBoard(false); arrangeProgram(false); dispatchEvent(new Event('resize')); } return; }
   build();
   const t = current(), a = arr(t);
-  if (t !== shownTask) { shownTask = t; messagesTask(t); if (t === 'impl' && app) showTopProcesses(app); }
+  const changed = t !== shownTask;
+  if (changed) { shownTask = t; messagesTask(t); }
   if (t === 'sim') refreshBench(app);
   r.dataset.task = t;
+  // (Implement's Processes the top's; another task's the selection's again: drawn once the task is set, #1208)
+  if (changed && app) { if (t === 'impl') showTopProcesses(app); else app.renderProcesses(); }
   r.dataset.side = a.side ? 'open' : 'folded';
   r.dataset.console = a.console ? 'open' : 'folded';
   r.dataset.max = a.max ? 'on' : 'off';
@@ -289,7 +292,7 @@ function taskButton(t) {
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
 const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab'];   // (their ids)
-const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Processes' };
+const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implement' };
 function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
@@ -322,7 +325,7 @@ function build() {
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
   $('left-tabs').append(h('div', { id: 'task-procs-tab', class: 'tab', 'data-page': 'procs', role: 'tab', 'aria-selected': 'true' },
-    h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Processes')));
+    h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Implement')));   // (the task's name, #1207)
   for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
