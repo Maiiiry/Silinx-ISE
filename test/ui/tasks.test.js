@@ -875,7 +875,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
       titles: [...document.querySelectorAll('#left-tabs .tab')].map((b) => b.title),
     };
   });
-  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Processes'] });   // (no Test: Simulate's benches, #1161; Processes: Implement's, #1160)
+  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Implement'] });   // (no Test: Simulate's benches, #1161; Implement's tab, #1160, #1207)
   // (no column of its own: the hierarchy from the window's left edge)
   assert.ok(await page.eval(() => document.querySelector('#hier').getBoundingClientRect().left) < 12);
   await page.click('#left-tabs .tab[data-page="files"]');
@@ -907,7 +907,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Processos']);
+  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Implementar']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the modern interface: the activity bar as before, a column with every name, no tooltips
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
@@ -1199,10 +1199,39 @@ uiTest('#1162 Tasks ▸ Implement: a project with no top opened after another sh
   await page.eval(() => localStorage.removeItem('silinx.ui'));
 }, { build: DEV });
 
+// #1208: Implement's Processes are the top's, whatever the Design pane selects while Implement is in front (a drawing,
+// the UCF, the project; the tree redrawn, its selection restored); the selection's again in Design
+uiTest('#1208 Tasks ▸ Implement: the top\'s processes whatever is selected in the Design pane; the selection\'s in Design', E, async (page) => {
+  await makeProject(env, { name: 'ImplSel', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('ImplSel');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  const rows = () => page.eval(() => [...document.querySelectorAll('#procs .row')].filter((r) => r.getClientRects().length).map((r) => r.querySelector('.lbl').textContent));
+  await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize')), [], { what: 'the top\'s processes' });
+  const full = await rows();
+  assert.deepEqual(full.slice(0, 5), ['Design Summary/Reports', 'User Constraints', 'I/O Pin Planning', 'Edit Constraints (Text)', 'Check Constraints']);
+  assert.ok(full.includes('Implement Design') && full.includes('Generate Programming File'), full.join(', '));
+  for (const sel of [{ type: 'sch', file: 'src/gates.sch.json' }, { type: 'ucf', file: 'constraints/gates.ucf' }, { type: 'project' }, { type: 'device' }]) {
+    await page.eval((s) => { window.SilinxApp.S.sel = s; window.SilinxApp.renderProcesses(); }, sel);
+    assert.deepEqual(await rows(), full, sel.type);
+  }
+  // the tree redrawn, the project's row its selection
+  await page.eval(() => { const A = window.SilinxApp; A.S.selKey = 'project'; A.renderHierarchy(); A.S.sel = { type: 'project' }; A.renderProcesses(); });
+  assert.deepEqual(await rows(), full, 'tree redrawn');
+  assert.equal(await page.eval(() => document.getElementById('proc-caption').textContent), 'Processes: gates');
+  // Design: the selection's processes again (the drawing's)
+  await page.eval(() => { window.SilinxApp.S.sel = { type: 'sch', file: 'src/gates.sch.json' }; });
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent)), ['Design Summary/Reports', 'View/Edit Schematic']);
+  await noWarnings(page);
+}, { build: DEV });
+
 // #1159, #1160: the side panel's tabs without a heading under them (Edit's pages: Start, Design, Files, Libraries);
 // Implement's Processes under a tab of their own, as Edit's pages, with none of the top's drawing (View/Edit Schematic:
 // Design's); in Portuguese; the classic interface keeps its headings and has no such tab
-uiTest('#1159 #1160 Tasks: no heading under the side panel\'s tabs; Implement\'s Processes under a tab, without the top\'s drawing', E, async (page) => {
+// #1207: the tab named Implement, across the panel's width
+uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implement\'s Processes under its tab, Implement, the panel\'s width, without the top\'s drawing', E, async (page) => {
   await makeProject(env, { name: 'TasksHeads', template: 'gates' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -1214,7 +1243,7 @@ uiTest('#1159 #1160 Tasks: no heading under the side panel\'s tabs; Implement\'s
     assert.deepEqual(await heading(), [], p);
   }
   assert.equal(await shown(page, '#task-procs-tab'), false, 'not in Edit');
-  // Implement: one tab, Processes, its name shown; the processes without View/Edit Schematic
+  // Implement: one tab, Implement, its name shown, as wide as the panel; the processes without View/Edit Schematic
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize') && e.getClientRects().length), [], { what: 'Implement\'s Processes' });
   const impl = () => page.eval(() => ({
@@ -1222,14 +1251,15 @@ uiTest('#1159 #1160 Tasks: no heading under the side panel\'s tabs; Implement\'s
     above: document.getElementById('left-tabs').getBoundingClientRect().bottom <= document.getElementById('procs').getBoundingClientRect().top + 1,
     drawing: [...document.querySelectorAll('#procs .row')].filter((r) => r.getClientRects().length).map((r) => r.querySelector('.lbl').textContent).filter((l) => /^View\/Edit/.test(l)),
   }));
-  assert.deepEqual(await impl(), { tabs: [['procs', 'Processes']], above: true, drawing: [] });
+  assert.deepEqual(await impl(), { tabs: [['procs', 'Implement']], above: true, drawing: [] });
+  const width = await page.eval(() => { const b = document.getElementById('left-tabs'), cs = getComputedStyle(b); return [document.getElementById('task-procs-tab').getBoundingClientRect().width, b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)]; });
+  assert.ok(Math.abs(width[0] - width[1]) < 1, `the tab across the panel: ${width}`);
   assert.deepEqual(await heading(), []);
-  // (the top selected with its drawing, as Design's tree selects it: in the list, not shown)
+  // (the top selected with its drawing, as Design's tree selects it: Implement's list the top's, no drawing, #1208)
   await page.eval(() => { const A = window.SilinxApp; A.S.sel = { type: 'module', module: 'gates', file: 'src/gates.vhd', sch: 'src/gates.sch.json' }; A.renderProcesses(); });
-  assert.ok(await page.eval(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'View/Edit Schematic')), 'in the list');
   assert.deepEqual((await impl()).drawing, []);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await impl()).tabs, [['procs', 'Processos']]);
+  assert.deepEqual((await impl()).tabs, [['procs', 'Implementar']]);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the classic interface: its headings, no Processes tab
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
