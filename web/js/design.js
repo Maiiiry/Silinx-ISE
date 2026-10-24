@@ -3,7 +3,7 @@
 // source, and saving the project's settings (silinx.json) one save at a time.
 import { api } from './api.js';
 import { icon } from './icons.js';
-import { h, confirmDlg, popupMenu, toast, longPressMenu } from './ui.js';
+import { h, alertDlg, confirmDlg, dialog, popupMenu, toast, longPressMenu } from './ui.js';
 import * as wiz from './wizards.js';
 import { drawnModule } from '/core/view-hdl.js';
 import { S, addToProject, closeDoc, fixMissingTops, instancesOf, moduleInfo, openFile, projectUndo, syncFpgaView,
@@ -270,6 +270,8 @@ export function fileContextMenu(e, file) {
     popupMenu([
       { label: 'Add to Project', action: () => addToProject(file).then(() => log(`${file} added to the project.`, 'ok')) },
       { label: 'Open', action: () => openFile(file) },
+      '-',
+      { label: 'Delete File…', action: () => deleteFile(file) },
     ], e.clientX, e.clientY);
     return;
   }
@@ -279,8 +281,48 @@ export function fileContextMenu(e, file) {
     /\.(vhdl?|v|sv)$/i.test(file) ? { label: 'Check Syntax', action: () => checkFileSyntax(file) } : null,
     /\.ucf$/i.test(file) ? { label: 'Check Syntax', action: () => checkUcfFile(file) } : null,
     { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Delete File…', action: () => deleteFile(file) },
     { label: 'Source Properties…', action: () => wiz.sourceProperties(file), disabled: !S.project.files.some(f => f.path === file) },
   ].filter(Boolean), e.clientX, e.clientY);
+}
+// Delete File…: out of the project if it was in it, and deleted from the disk, which no Undo brings back (#1215;
+// Remove from Project keeps the file in the project folder)
+async function deleteFile(file) {
+  if (!await confirmDlg('Delete File', `Delete '${file}' from the disk?\n(It cannot be undone: Remove from Project keeps the file in the project folder.)`)) return;
+  await saveAll();
+  for (const d of [...S.docs]) if (d.path === file || String(d.id || '').endsWith(`:${file}`)) { d.dirty = false; clearTimeout(d._autosave); await closeDoc(d); }
+  return serialOp(async () => {
+    const pj = S.project;
+    pj.files = pj.files.filter(x => x.path !== file);
+    if (pj.constraints === file) pj.constraints = '';
+    pj.excluded = (pj.excluded || []).filter(f => f !== file);
+    await saveProjectJson();
+    try {
+      await api.deleteFile(pj.name, file);
+      log(`${file} deleted.`, 'ok');
+    } catch (e) { log(`ERROR: cannot delete ${file}: ${e.message}`, 'err'); }
+    await reloadProject();
+    await fixMissingTops();
+  });
+}
+/** Add to Project…: the files of the project folder that are not in the project, chosen and added (#1214). */
+export async function addFromFolderDialog() {
+  if (!S.project) return;
+  const listed = new Set(S.fileTree);
+  const free = (S.diskTree || []).filter(f => !listed.has(f)).sort((a, b) => a.localeCompare(b));
+  if (!free.length) return alertDlg('Add to Project', 'Every file of the project folder is in the project.');
+  const boxes = free.map(f => h('input', { type: 'checkbox', value: f }));
+  const r = await dialog({
+    title: 'Add to Project', width: 480,
+    body: h('div', {}, h('div', { class: 'hint' }, 'The files of the project folder that are not in the project:'),
+      h('div', { class: 'add-free-list' }, ...free.map((f, i) => h('label', { style: { display: 'block' } }, boxes[i], ` ${f}`)))),
+    buttons: [{ label: 'OK', primary: true, value: true }, { label: 'Cancel', value: null }],
+  });
+  if (!r) return;
+  for (const b of boxes.filter(x => x.checked)) {
+    await addToProject(b.value);
+    log(`${b.value} added to the project.`, 'ok');
+  }
 }
 function projectContextMenu(e) {
   popupMenu([
