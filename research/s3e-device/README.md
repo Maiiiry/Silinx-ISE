@@ -561,10 +561,43 @@ ambiguous (9432 wires, 406 550 candidates), and no test round drove a clock line
   for a CLB's GCLKk, the GCLKH rows above and below in its column (`GCLKH_GCLK_DNk`, `_UPk`). Observation cannot remove
   a wire every net contains.
 
-Next (#3): **tests of the clock joins**. The test sources are a BUFGMUX's output: its pin wire is known since step 3,
-`CLKT_GCLK_PINWIREk`. The tests go down the spine join by join, each verdict making the next one's path, as rounds 1-3
-did across the switch boxes. They are few per design, since a global line is one node across the chip. Then the edge
-(terminal) tiles and the corners.
+### Part 2: the clock joins tested (2026-10-24)
+
+A test of rounds 1-8 (a net from a source to one end, a PIP out of the other) reserves its nodes whole, and a global
+line is one node across the chip: 8 tests to a design. And DRC names a net with islands, never which PIPs. So
+`clocktests.mjs` tests by removal, on ISE's own clock nets (legal trees). For a tile's clock wire f and a row candidate
+c (a GCLKH tile's wire), the test is ISE's net N of a BUFGMUX that has both, kept to its spine and row tiles' PIPs,
+without the PIP into c, with N's PIP out of f. DRC finds an island exactly when f is driven through c; the other row
+wires' PIPs lead nowhere (antennas, expected). Every tenth test also runs as a control, with the PIP into c kept: no
+island. The nets of one design share no wire and no buffer.
+
+- **Sparser observations first** (`gen-obsclk.mjs` with p = 0.25, 12 designs, 456 s): with the intersection, the
+  hypotheses (each ambiguous clock wire with each row candidate) fell from 128 842 to 25 811, and 5733 more joins came,
+  all right. Most wires were left with two row candidates, the UP and DN wires of their band's GCLKH tile, which every
+  net through that cell has.
+- **A pilot** (36 designs): 38 verdicts, every one as the shipped graph has it, each wire with exactly one join.
+- **(A) the wires with at most two row candidates** (`MAXROW=2`): 912 designs, 6981 tests. The Mac mini rebooted
+  during the copy back (about 14:11) and 314 designs ran again once Docker was up (798 s). **(B) the others**
+  (`PICK=…`): for each wire (A) did not settle, the one candidate a rule of (A)'s joins matches (`joinRule`: the same
+  wires at the same offset), 251 designs, 1611 tests.
+
+| Tests | Designs (ISE time) | Verdicts | Against the shipped graph |
+|---|---|---|---|
+| (A) 6981 | 912 (about 2500 s) | 3535 joins, 2811 islands, 635 controls clean | **all agree** |
+| (B) 1611 | 251 (601 s) | 1464 joins, 147 controls clean | **all agree** |
+
+**4999 clock wires settled**, each with exactly one join. A GCLKH row drives its column's tiles above and below
+(`GCLKH_GCLK_UPk` / `_DNk`); the block-RAM columns' GCLKH tiles do the same. 85 more have no row driver among their
+candidates (a spine wire drives them). Left of the 5973: **619 with only spine candidates** (the rows' own inputs,
+`GCLKH_GCLK_Bk`…, fed by the spine: a test would cut the spine itself) and 270 with more than two row candidates and no
+single rule match. Next (#3): those, then the edge (terminal) tiles and the corners.
+
+```
+node gen-obsclk.mjs clkb 12 100 0.25 && impl-remote.sh clk0 … clk11
+INTERSECT=1 node prototype.mjs observe obs.json …/top.xdl clk/*/top.xdl clkb/*/top.xdl
+MAXROW=2 node clocktests.mjs tests obs.json c2 …/top.xdl && ise-remote.sh -f c2 && node clocktests.mjs verdicts c2
+PICK=c2 node clocktests.mjs tests obs.json c3 …/top.xdl && ise-remote.sh -f c3 && node clocktests.mjs verdicts c3
+```
 
 ```
 node gen-obsclk.mjs clk 6 1 && impl-remote.sh clk0 … clk5

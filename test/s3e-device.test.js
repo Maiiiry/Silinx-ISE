@@ -8,6 +8,7 @@ import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
 import { pinCensus, renamePads } from '../research/s3e-device/pins.mjs';
 import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads } from '../research/s3e-device/gen-obspins.mjs';
 import { clockDesign } from '../research/s3e-device/gen-obsclk.mjs';
+import { clockNets, clockTestDesigns, clockTile, rowTile } from '../research/s3e-device/clocktests.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -586,4 +587,42 @@ test('gen-obsclk: 8 global clocks, each on a random half of the clock cells, one
   const srcs = [{ path: 'top.v', lang: 'verilog', text: d.v }];
   const lib = compile([...primitiveSources(srcs), ...srcs]);
   assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
+});
+
+// #3, the clock network's joins tested by DRC on ISE's clock nets (clocktests.mjs)
+test('clockTestDesigns: ISE\'s clock net kept to its spine and rows, without the PIP into the candidate, the tested wire\'s PIP out; a control; one buffer a design (#3, the clock network)', () => {
+  const routed = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "u_b" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y10 ,
+  cfg " DISABLE_ATTR::LOW GCLK_BUFFER:u_b: "
+  ;
+inst "s" "SLICEL",placed CLB_X3Y4 SLICE_X4Y7 ,
+  cfg " "
+  ;
+net "g" ,
+  outpin "u_b" O ,
+  inpin "s" CLK ,
+  pip CLKT_X13Y35 CLKT_GCLK_PINWIRE1 -> CLKT_GCLK_MAIN1 ,
+  pip CLKC_X13Y17 CLKC_GCLK1 -> CLKC_GCLK_OUT_L1 ,
+  pip GCLKH_X3Y5 GCLKH_GCLK_B1 -> GCLKH_GCLK_DN1 ,
+  pip GCLKH_X3Y5 GCLKH_GCLK_B1 -> GCLKH_GCLK_UP1 ,
+  pip CLB_X3Y4 GCLK1 -> CLK_B1 ,
+  pip CLB_X3Y4 CLK_B1 -> CLK_B_PINWIRE1 ,
+  ;
+`);
+  const [n] = clockNets(routed);
+  assert.deepEqual([...n.dangling.keys()], ['CLKC_X13Y17/CLKC_GCLK1', 'GCLKH_X3Y5/GCLKH_GCLK_B1', 'CLB_X3Y4/GCLK1']);
+  assert.deepEqual([clockTile('GCLKH_X3Y5'), clockTile('CLKC_X13Y17'), clockTile('BRAM2_DN_GCLKH_FEEDTHRU_X9Y5'), clockTile('CLB_X3Y4'), rowTile('GCLKH_X3Y5'), rowTile('CLKC_X13Y17')], [true, true, true, false, true, false]);
+  const r = clockTestDesigns([['GCLKH_X3Y5/GCLKH_GCLK_DN1', 'CLB_X3Y4/GCLK1'], ['GCLKH_X3Y5/GCLKH_GCLK_UP1', 'CLB_X3Y4/GCLK1']], [routed], { controlEvery: 2 });
+  assert.deepEqual(r.untestable, []);
+  // the buffer once a design: the test of DN1 and its control, the test of UP1, three designs
+  assert.equal(r.designs.length, 3);
+  assert.deepEqual(r.designs.map(d => d.tests.map(t => [t.join[0].split('/')[1], t.control])), [[['GCLKH_GCLK_DN1', false]], [['GCLKH_GCLK_DN1', true]], [['GCLKH_GCLK_UP1', false]]]);
+  const pipsOf = d => [...d.xdl.matchAll(/^ {2}pip (\S+) (\S+) -> (\S+) ,$/gm)].map(m => `${m[1]} ${m[2]}->${m[3]}`);
+  // the spine and the rows (the CLB's clock pin's PIP left out), without the PIP into DN1, with the CLB's GCLK1 out
+  assert.deepEqual(pipsOf(r.designs[0]), ['CLKT_X13Y35 CLKT_GCLK_PINWIRE1->CLKT_GCLK_MAIN1', 'CLKC_X13Y17 CLKC_GCLK1->CLKC_GCLK_OUT_L1', 'GCLKH_X3Y5 GCLKH_GCLK_B1->GCLKH_GCLK_UP1', 'CLB_X3Y4 GCLK1->CLK_B1']);
+  assert.ok(pipsOf(r.designs[1]).includes('GCLKH_X3Y5 GCLKH_GCLK_B1->GCLKH_GCLK_DN1'), 'the control keeps it');
+  assert.match(r.designs[0].xdl, /^inst "b0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y10 ,\n {2}cfg "DISABLE_ATTR::LOW GCLK_BUFFER:u_b:" ;$/m);
+  assert.match(r.designs[0].xdl, /^net "t0" ,\n {2}outpin "b0" O ,$/m);
+  // a wire no net has with the candidate: untestable
+  assert.deepEqual(clockTestDesigns([['GCLKH_X9Y5/GCLKH_GCLK_DN1', 'CLB_X3Y4/GCLK1']], [routed]).untestable, [['GCLKH_X9Y5/GCLKH_GCLK_DN1', 'CLB_X3Y4/GCLK1']]);
 });
