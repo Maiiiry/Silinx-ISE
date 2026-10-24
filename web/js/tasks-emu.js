@@ -5,6 +5,8 @@
 // - The emulator's side column (Watch, the timing generics, the hints) is the task's side panel, shown at first (#1020):
 //   beside the board; when the width runs short, it and the VGA monitor wrap to the next row, below the board, and the
 //   task's area scrolls (web/css/tasks.css); the Design pane is not shown in Emulate.
+// - At the top of that column, its Processes (#1204): the top module's User Constraints (I/O Pin Planning, Edit
+//   Constraints (Text), Check Constraints) and Emulate on Board with its models, as in Implement (placeProcesses).
 // - The emulator's own bar stays its controls (Model, Engine, Run, Step, Power cycle, Clock), right under the task's
 //   bar; its status (the emulated time and rate) is right below the board, in place of the board's line (#1022); its
 //   Messages box is in the message centre (#798).
@@ -30,12 +32,28 @@ function placeStat(emu, wrap) {
   if (document.documentElement.dataset.layout === 'tasks') { if (stat.parentNode !== wrap) wrap.append(stat); }
   else if (stat.parentNode !== bar) bar.append(stat);
 }
+/** The Processes of Emulate at the top of an emulator's side column, once, in the Tasks interface (#1204): a tab as
+ *  the Design pane's and Simulate's, and the tree (web/js/processes.js emulateProcesses, redrawn with the Processes
+ *  panel: the same states). Hidden in the other interfaces (web/css/tasks.css). */
+function placeProcesses(emu) {
+  const side = emu.querySelector('.emu-side');
+  if (!side || side.querySelector('.task-emu-procs') || document.documentElement.dataset.layout !== 'tasks') return;
+  const tree = document.createElement('div');
+  tree.className = 'task-emu-tree';
+  const box = document.createElement('div');
+  box.className = 'emu-box task-emu-procs';
+  box.innerHTML = '<div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Processes</span></span></div>';
+  box.append(tree);
+  side.prepend(box);
+  import('./processes.js').then(m => m.renderProcessTree(tree, m.emulateProcesses()));
+}
 /** Zooms each open emulator's board to its room (`on`: the Tasks interface's Emulate; else its own size). */
 export function fitBoard(on) {
   for (const emu of document.querySelectorAll('#workspace .doc .emu')) {
     const wrap = emu.querySelector('.emu-board-wrap');
     if (!wrap) continue;
     placeStat(emu, wrap);
+    placeProcesses(emu);
     wrap.style.zoom = '';
     if (!on || !shown(emu)) continue;
     const main = emu.querySelector('.emu-main'), side = emu.querySelector('.emu-side'), bar = emu.querySelector('.emu-bar');

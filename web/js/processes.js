@@ -94,11 +94,7 @@ function selectionProcesses() {
     ] : []),
     ...(sel.wizard ? [{ id: 'wiz-open', label: wizardProcessOf(sel.file), ico: 'template', run: () => openWizardModule(sel.file) }] : []),
     SUMMARY_PROC,
-    { id: 'constraints', label: 'User Constraints', ico: 'procGroup', children: [
-      { id: 'pins', label: 'I/O Pin Planning', ico: 'pins', run: () => openPinPlanner(mod) },
-      { id: 'ucf-edit', label: 'Edit Constraints (Text)', ico: 'ucf', run: () => openUcf() },
-      { id: 'ucf-check', label: 'Check Constraints', ico: 'process', run: () => checkUcfFile() },
-    ] },
+    constraintsProcs(mod),
     { id: 'synth', label: 'Synthesize - XST', ico: 'process', onTop: 'synthesizes', run: () => runImpl(top, ['synth']), children: [
       { id: 'rtl', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
       { id: 'tech', label: 'View Technology Schematic', ico: 'schematic', onTop: 'synthesizes', run: () => openTechSchematic(top) },
@@ -122,21 +118,43 @@ function selectionProcesses() {
       ] },
     ] },
     { id: 'bitgen', label: 'Generate Programming File', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par', 'bitgen']) },
-    { id: 'emulate', label: 'Emulate on Board', ico: 'board', onTop: 'emulates', run: () => openEmulator(top), children: [
-      { id: 'emulate-rtl', label: 'Emulate Behavioral Model (RTL)', ico: 'board', onTop: 'emulates', run: () => openEmulator(top) },
-      ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `emulate-${step}`, label: `Emulate ${name} Model`, ico: 'board', onTop: 'emulates', run: () => openEmulator(top, { model: step }) })),
-    ] },
+    emulateProcs(top, 'emulates'),
     { id: 'config', label: 'Configure Target Device', ico: 'impact', run: () => openImpact(), children: [
       { id: 'impact', label: 'Manage Configuration Project (iMPACT)', ico: 'impact', run: () => openImpact() },
     ] },
   ];
 }
 
+// the User Constraints group (Implement's, and Emulate's, #1204), of module `mod`
+const constraintsProcs = mod => ({ id: 'constraints', label: 'User Constraints', ico: 'procGroup', children: [
+  { id: 'pins', label: 'I/O Pin Planning', ico: 'pins', run: () => openPinPlanner(mod) },
+  { id: 'ucf-edit', label: 'Edit Constraints (Text)', ico: 'ucf', run: () => openUcf() },
+  { id: 'ucf-check', label: 'Check Constraints', ico: 'process', run: () => checkUcfFile() },
+] });
+// Emulate on Board and its models, of the top module `top` (onTop: what it does to the top, said when another
+// module is selected; none in Emulate's own list, which is the top's)
+const emulateProcs = (top, onTop) => ({ id: 'emulate', label: 'Emulate on Board', ico: 'board', onTop, run: () => openEmulator(top), children: [
+  { id: 'emulate-rtl', label: 'Emulate Behavioral Model (RTL)', ico: 'board', onTop, run: () => openEmulator(top) },
+  ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `emulate-${step}`, label: `Emulate ${name} Model`, ico: 'board', onTop, run: () => openEmulator(top, { model: step }) })),
+] });
+/** The processes of the Tasks interface's Emulate (#1204): the top module's User Constraints and Emulate on Board. */
+export function emulateProcesses() {
+  const top = S.project?.top;
+  return top ? [constraintsProcs(top), emulateProcs(top)] : [];
+}
+
 export function renderProcesses() {
   const host = $('procs');
-  host.innerHTML = '';
   const sel = S.sel || {};
   $('proc-caption').textContent = `Processes: ${sel.module || (sel.file ? sel.file.split('/').pop() : '')}`;
+  renderProcessTree(host, processDefs());
+  // (Emulate's list in the Tasks interface: the states and the selection the same, #1204)
+  for (const el of document.querySelectorAll('.task-emu-tree')) renderProcessTree(el, emulateProcesses());
+}
+
+/** The tree of the processes `defs` drawn in `host`: each with its state, run by a double-click, its menu. */
+export function renderProcessTree(host, defs) {
+  host.innerHTML = '';
   const tree = h('ul', { class: 'tree' });
   const add = (ul, p) => {
     const li = h('li', { 'data-proc': p.id || null });   // (the Tasks interface leaves other tasks' groups out of Implement: #923)
@@ -179,7 +197,7 @@ export function renderProcesses() {
     ul.append(li);
     for (const c of p.children || []) add(sub, c);
   };
-  for (const p of processDefs()) add(tree, p);
+  for (const p of defs) add(tree, p);
   host.append(tree);
 }
 
