@@ -170,6 +170,8 @@
 .sch-editor svg .box { fill: var(--se-inst-fill); stroke: var(--se-symbol); stroke-width: 1.5; }
 .sch-editor svg .box.hdl { fill: #fbfbf0; stroke-dasharray: 6 3; }
 .sch-editor svg .box.missing { fill: #fff4f4; stroke: var(--se-danger); stroke-dasharray: 6 3; }
+/* a module's instance out of date: its module's ports changed (Update Symbol, #1183) */
+.sch-editor svg .sym.stale .box { stroke: var(--se-warn, #c77800); stroke-dasharray: 6 3; }
 .sch-editor svg .clk { fill: none; stroke: var(--se-symbol); stroke-width: 1.1; }
 .sch-editor svg .ripper { fill: var(--se-symbol); stroke: var(--se-symbol); stroke-width: 1; }
 .sch-editor svg .cbox { fill: #f4fff4; stroke: #2d7d2d; stroke-width: 1; }

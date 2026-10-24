@@ -5,6 +5,7 @@
 import {
   SYMBOLS, symbolDef, symbolParams, symbolPins, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, netByName, renameNet,
 } from '/core/schdoc.js';
+import { staleSection } from './sch-modsym.js';
 import { symbolSummary } from '/core/symdocs.js';
 import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage } from './i18n.js';
@@ -209,6 +210,8 @@ export function mountProps(ctx) {
       const init = lut && Object.entries(s.params.generics || {}).find(([k]) => k.toUpperCase() === 'INIT')?.[1];
       const fn = init ? lutFunction(init, +lut[1]) : null;
       if (fn) propBody.append(lutSection(fn));
+      // its symbol out of date (#1183): what changed, Update Symbol (sch-modsym.js)
+      propBody.append(...staleSection(s, { readOnly, doc, modules, edit, flash }));
       if (opts.onOpenModule) propBody.append(h('div', { class: 'se-pbtns' }, h('button', { class: 'btn ro-ok', type: 'button', text: readOnly ? 'Open this instance' : 'Open module source', onclick: () => opts.onOpenModule(s.params.module, { instance: s.name, symbol: clone(s) }) })));
     }
     if (s.type === 'hdlblock') {
