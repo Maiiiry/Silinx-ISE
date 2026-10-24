@@ -256,7 +256,7 @@ html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs 
 }
 
 
-/* ------------------------------------------------------------------ Simulate's side panel: Simulation and Instances (#1161) */
+/* ------------------------------------------------------------------ Simulate's side panel: Simulation (#1161, #1257) */
 /* ISim's Instances and Processes under a tab, as Design's pages (its heading none); its tree the project's test benches,
    the one simulated opened as its instances (web/js/isim-tree.js); the other benches' rows here only */
 .task-sim-tabs, .task-bench { display: none; }

@@ -301,7 +301,7 @@ function taskButton(t) {
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
 const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar'];   // (their ids)
-const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implement' };
+const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implementation' };
 function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
@@ -338,7 +338,7 @@ function build() {
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
   $('left-tabs').append(h('div', { id: 'task-procs-tab', class: 'tab', 'data-page': 'procs', role: 'tab', 'aria-selected': 'true' },
-    h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Implement')));   // (the task's name, #1207)
+    h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Implementation')));   // (#1207, #1257)
   for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
   // the Design page: New Source and Add Copy of Source above the tree (#1210; Design's only, web/css/tasks.css)
   const wizard = f => () => import('./wizards.js').then(w => w[f]());

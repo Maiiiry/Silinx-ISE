@@ -288,7 +288,7 @@ export function mountISim(container, opts = {}) {
     <div class="isim-toolbar"></div>
     <div class="isim-main">
       <div class="isim-left">
-        <div class="ise-panel isim-inst-panel"><div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Simulation and Instances</span></span></div><div class="caption">Instances and Processes</div><div class="body"><ul class="tree isim-tree"></ul></div></div>
+        <div class="ise-panel isim-inst-panel"><div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Simulation</span></span></div><div class="caption">Instances and Processes</div><div class="body"><ul class="tree isim-tree"></ul></div></div>
         <div class="isim-split-h isim-split-left"></div>
         <div class="ise-panel isim-obj-panel"><div class="caption">Objects<span class="spacer"></span><span class="isim-obj-scope"></span></div>
           <div class="body"><table class="isim-objs"><thead><tr><th class="c-chk"></th><th>Object Name</th><th>Value</th><th>Data Type</th></tr></thead><tbody></tbody></table></div></div>
