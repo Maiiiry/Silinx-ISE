@@ -42,6 +42,7 @@ import { mountSchEdits } from './sch-edits.js';
 import { mountSchUi } from './sch-ui.js';
 import { mountSchDom } from './sch-dom.js';
 import { mountSchCheck } from './sch-check.js';
+import { mountSchOptions } from './sch-options.js';
 
 export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
@@ -136,25 +137,10 @@ export function mountSchEditor(container, opts = {}) {
     mountSchDom({ container, uidE });
 
   // ---------------- toolbar
-  // moving components keeps their wires connected (re-routed), or detaches them
-  let keepConn = true;
-  try { keepConn = localStorage.getItem('xl.sch.keepConn') !== '0'; } catch { /* default */ }
-  const keepBox = h('input', { type: 'checkbox', checked: keepConn });
-  keepBox.addEventListener('change', () => { keepConn = keepBox.checked; try { localStorage.setItem('xl.sch.keepConn', keepConn ? '1' : '0'); } catch { /* ignore */ } });
+  // Keep connections, Names, Hop-overs (sch-options.js)
+  const { hopsBox, keepBox, keepConn, namesBox, showHops, showNames } = mountSchOptions({ render: (...a) => render(...a) });
   const btn = (act, icon, title) => h('button', { type: 'button', class: 'se-btn', 'data-act': act, title, html: ICON[icon] });
   const sep = () => h('span', { class: 'se-sep' });
-  // Names: the name of every instance and every net drawn, the automatic ones too
-  let showNames = false;
-  try { showNames = localStorage.getItem('xl.sch.names') === '1'; } catch { /* default */ }
-  const namesBox = h('input', { type: 'checkbox', checked: showNames });
-  namesBox.addEventListener('change', () => { showNames = namesBox.checked; try { localStorage.setItem('xl.sch.names', showNames ? '1' : '0'); } catch { /* ignore */ } render(); });
-  // Hop-overs (#692): a small arc where two wires cross without connecting (a view only: the nets, the HDL
-  // the same)
-  // hop-overs on by default (#756), off only when the user turned them off (remembered)
-  let showHops = true;
-  try { showHops = localStorage.getItem('xl.sch.hops') !== '0'; } catch { /* default */ }
-  const hopsBox = h('input', { type: 'checkbox', checked: showHops });
-  hopsBox.addEventListener('change', () => { showHops = hopsBox.checked; try { localStorage.setItem('xl.sch.hops', showHops ? '1' : '0'); } catch { /* ignore */ } render(); });
   // (the toolbar's buttons and their clicks: sch-toolbar.js)
   const { optBox } = mountSchToolbar({
     container, btn, canSim, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
@@ -209,7 +195,7 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- rendering (sch-render.js)
   function refreshNetlist() { try { nl = netlist(doc, { modules }); } catch (e) { console.error(e); nl = null; } }
   const { renderSheet, render, renderOverlay, updateToolbar, updateStatus } = mountRender({
-    state: () => ({ doc, nl, sel, tool, placing, drag, wireDraw, cursor, hoverPin, lastDiags, live, modules, view, destroyed, showHops, showNames }),
+    state: () => ({ doc, nl, sel, tool, placing, drag, wireDraw, cursor, hoverPin, lastDiags, live, modules, view, destroyed, showHops: showHops(), showNames: showNames() }),
     refreshNetlist, uidE, readOnly, sheetG, contentG, overlayG, tb, status, undoStack, redoStack,
     routeTo: (...a) => routeTo(...a), snapPoint: (...a) => snapPoint(...a), bandRect,
     infoTarget: (...a) => infoTarget(...a) });
@@ -259,7 +245,7 @@ export function mountSchEditor(container, opts = {}) {
 
   // ---------------- moving with rubber-banding wires, dragging one segment of a wire (#688): sch-move.js
   const { beginMove, applyMove, beginSegMove, applySegMove, finishSegMove } = mountMove({ doc: () => doc, setDoc: (d) => { doc = d; },
-    modules: () => modules, keepConn: () => keepConn, selected, connPoints, snapshot, pushUndo, changed, render,
+    modules: () => modules, keepConn, selected, connPoints, snapshot, pushUndo, changed, render,
     renderProps, flash: (...a) => flash(...a), nextId,
     refusedShort });
   // the selection band
@@ -279,7 +265,7 @@ export function mountSchEditor(container, opts = {}) {
   const { finishMove, onMove, onUp } = mountSchMouse({
     container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed,
     cursor: () => cursor, destroyed: () => destroyed, doc: () => doc, drag: () => drag, finishSegMove, finishWire,
-    flash: (...a) => flash(...a), hoverPin: () => hoverPin, ioClick, itemAt, keepConn: () => keepConn, live: () => live,
+    flash: (...a) => flash(...a), hoverPin: () => hoverPin, ioClick, itemAt, keepConn, live: () => live,
     modules: () => modules, netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render,
     renderOverlay, renderProps, sel: () => sel, setTool, spaceDown: () => spaceDown, svg, toSheet, tool: () => tool,
     updateStatus, view: () => view, wireClick, wireDraw: () => wireDraw, zoomAt, setCursor: (v) => { cursor = v; },
