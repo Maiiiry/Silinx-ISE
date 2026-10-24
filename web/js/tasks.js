@@ -142,7 +142,7 @@ function toggle(patch) { arrange(patch); layoutToggled(); }
 
 /** The task in front (`t`), its arrangement and its document; `fromDoc`: its document is already in front. */
 export function setTask(t, { fromDoc = false } = {}) {
-  if (!TASKS.includes(t)) return;
+  if (!TASKS.includes(t) || (t !== 'edit' && app && !app.S.project)) return;   // (no project: Design only, #1260)
   state.task = t;
   keep();
   if (!fromDoc && isNarrow() && drawerOpen()) setDrawer(false, { remember: false });   // (a task chosen: its document first)
@@ -277,7 +277,12 @@ function refreshDots() {
   if (implementationEnded(implDot, now) && on() && current() === 'impl' && app.S.project) app.openSummary();
   implDot = now;
   if (on()) arrangeProgram(true);   // (Program's iMPACT, also once its document has its task: #803)
+  // no project: Design (its Start page) only, the other tasks off; a project closed brings Design back (#1260)
+  const none = !!app && !app.S.project;
+  if (none && on() && current() !== 'edit') setTask('edit');
   for (const b of document.querySelectorAll('.task-btn')) {
+    const off = none && b.dataset.task !== 'edit';
+    if (b.disabled !== off) b.disabled = off;
     const dot = taskDot(b.dataset.task, st);
     const el = b.querySelector('.task-dot');
     if (el.dataset.state !== (dot || '')) el.dataset.state = dot || '';

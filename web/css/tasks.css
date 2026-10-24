@@ -14,6 +14,8 @@ html[data-layout="tasks"] #task-switch { display: flex; gap: 2px; padding: 3px; 
 .task-btn { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border: none; border-radius: 7px;
   background: none; color: var(--m-muted); font: inherit; font-weight: 550; white-space: nowrap; cursor: pointer; }
 .task-btn:hover { background: var(--m-hover); color: var(--m-fg); }
+.task-btn:disabled { opacity: .4; cursor: default; }   /* (no project: #1260) */
+.task-btn:disabled:hover { background: none; color: var(--m-muted); }
 .task-btn[aria-current="true"] { background: var(--m-surface); color: var(--m-accent); box-shadow: var(--m-shadow); font-weight: 650; }
 .task-btn .ico-inline { width: 16px; height: 16px; margin: 0; }
 .task-btn .ico-inline svg { width: 16px; height: 16px; }

@@ -1324,3 +1324,28 @@ uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button
   assert.equal(await page.eval(() => document.getElementById('task-view')), null);
   await noWarnings(page);
 }, { build: DEV });
+
+// #1260: no project open, Design only (its Start page): Simulate, Emulate and Implement off; a project closed brings Design back
+uiTest('#1260 Tasks: with no project, Simulate, Emulate and Implement are off and Design is in front; a project closed while Simulate is in front brings Design back', E, async (page) => {
+  await page.eval(() => localStorage.setItem('silinx.tasks', JSON.stringify({ task: 'sim' })));   // (a task kept from before)
+  await tasksInterface(page);
+  const btns = () => page.eval(() => Object.fromEntries([...document.querySelectorAll('#task-switch .task-btn')].map((b) => [b.dataset.task, !b.disabled])));
+  await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design in front' });
+  assert.deepEqual(await btns(), { edit: true, sim: false, emu: false, impl: false });
+  assert.ok(await shown(page, '#start-page .start-box'), 'the Start page');
+  // a click on an off task does nothing
+  await page.eval(() => document.querySelector('#task-switch .task-btn[data-task="impl"]').click());
+  assert.equal(await page.eval(() => document.documentElement.dataset.task), 'edit');
+  // a project: every task on
+  await makeProject(env, { name: 'TasksNoPj', template: 'blinky' });
+  await page.openProject('TasksNoPj');
+  await page.waitFor(() => [...document.querySelectorAll('#task-switch .task-btn')].every((b) => !b.disabled), [], { what: 'the tasks on' });
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.waitFor(() => document.documentElement.dataset.task === 'sim');
+  // closed while Simulate is in front: Design again, the others off
+  await page.eval(() => window.SilinxApp.closeProject());
+  await page.waitFor(() => !window.Silinx.project && document.documentElement.dataset.task === 'edit', [], { what: 'Design after the close' });
+  await page.waitFor(() => document.querySelector('#task-switch .task-btn[data-task="sim"]').disabled, [], { what: 'Simulate off' });
+  assert.deepEqual(await btns(), { edit: true, sim: false, emu: false, impl: false });
+  await noWarnings(page);
+}, { build: DEV });
