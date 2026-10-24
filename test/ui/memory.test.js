@@ -140,7 +140,7 @@ uiTest('memory: editors (HDL, ASM chart, Design Summary) opened and closed leave
 uiTest('memory: ISim and the board emulator, run and closed, leave nothing behind', E, async (page) => {
   await makeProject(env, { name: 'MemSim', template: 'blinky' });
   await page.openProject('MemSim');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await noLeak(page, 'ISim: simulate (1 us) and close', 5, async () => {
     await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
@@ -148,7 +148,7 @@ uiTest('memory: ISim and the board emulator, run and closed, leave nothing behin
     await page.waitFor(() => /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [], { what: 'initial 1 us run', timeout: 20000 });
     await closeActive(page);
   }, { warmUp: 12 });   // the simulator's and the parsers' code is compiled and optimised over its first runs (on CI: 50 KB / run after 3; 40 after 8 once the parsers grew, #189)
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await noLeak(page, 'board emulator: run and close', 5, async () => {
     await page.menu('Tools', 'Board Emulator');
     await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running' });

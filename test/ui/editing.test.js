@@ -189,11 +189,11 @@ uiTest('Design hierarchy: modules, instances, files, views; set top by right-cli
   assert.deepEqual(await rows(), ['HierPj', 'xc3s250e-4-cp132', 'top (top.vhd)', 'u_sub - sub (sub.v)', 'top.ucf']);
   assert.ok(await page.eval(() => document.querySelector('#hier .row.top-mod .lbl').textContent === 'top'));
   // Simulation view: the test bench is the root, the design under it
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'tb_top'));
   assert.deepEqual(await rows(), ['HierPj', 'Behavioral', 'tb_top (tb_top.vhd)', 'uut - top (top.vhd)', 'u_sub - sub (sub.v)']);
   assert.match(await page.eval(() => document.getElementById('proc-caption').textContent), /Processes: tb_top/);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   // collapse 'top' (twisty): stays collapsed when the tree is redrawn (e.g. after a save)
   await page.click('#hier .row[data-key="m:top"] .twisty');
   await page.waitFor(() => !document.querySelector('#hier .row[data-key="m:top/u_sub"]')?.getClientRects().length);
@@ -228,7 +228,7 @@ uiTest('processes that need no ISE: RTL schematic, constraints, pin planning, su
   // the RTL schematic pushes into an instance and comes back up
   assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .rtl-crumbs').innerText), /top : top/);
   await run('Edit Constraints (Text)', () => window.Silinx.active?.id === 'file:constraints/top.ucf');
-  await run('Check Constraints', () => /Process "Check Constraints" completed successfully/.test(document.getElementById('console-log').innerText));
+  await run('Check Constraints', () => /Process "Check Constraints" completed successfully/.test(window.__console()));
   await run('I/O Pin Planning', () => window.Silinx.active?.id === 'pins' && document.querySelectorAll('.pin-planner tr').length > 5);
   await run('Design Summary/Reports', () => window.Silinx.active?.id === 'summary' && /ProcPj Project Status/.test(document.querySelector('.doc:not([hidden])').innerText));
   await run('Manage Configuration Project (iMPACT)', () => window.Silinx.active?.id === 'impact');
@@ -252,9 +252,9 @@ uiTest('processes that need no ISE: RTL schematic, constraints, pin planning, su
   await page.waitNoDialog();
   await page.waitFor(async () => (await (await fetch('/api/projects/ProcPj')).json()).impl.optMode === 'Area');
   // Simulation view processes
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
-  await run('Behavioral Check Syntax', () => /Process "Check Syntax" completed successfully/.test(document.getElementById('console-log').innerText.split('Behavioral Check Syntax').pop()), 'behavioral check');
+  await run('Behavioral Check Syntax', () => /Process "Check Syntax" completed successfully/.test(window.__console().split('Behavioral Check Syntax').pop()), 'behavioral check');
   await run('View RTL Schematic', () => window.Silinx.active?.id === 'rtl:tb_top');
 });
 
@@ -392,7 +392,7 @@ uiTest('I/O Pin Planning and Check Constraints: escaped port names (\\opcode[0] 
   await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/bad.ucf');
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
   await page.waitConsole(/Process "Check Constraints" failed \(1 error\(s\), 1 warning\(s\)\)/);
-  const log = await page.eval(() => document.getElementById('console-log').innerText);
+  const log = await page.eval(() => window.__console());
   assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/bad.ucf" Line 1: NET "opcode[1]" is not found by ISE: XST names the port \'opcode[1]\' _opcode[1]_ in its netlist (use NET "_opcode[1]_")'), log);
   assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/bad.ucf" Line 1: 3 port bit(s) of \'top\' have no LOC: _opcode[0]_, _opcode[1]_, _res[0]_'), log);
   // I/O Pin Planning lists the ports by XST's names and writes them so
@@ -413,8 +413,8 @@ uiTest('I/O Pin Planning and Check Constraints: escaped port names (\\opcode[0] 
   await page.eval(() => window.SilinxApp.openFile('constraints/top.ucf'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/top.ucf');
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
-  await page.waitFor(() => /Process "Check Constraints" (completed|failed)/.test(document.getElementById('console-log').innerText.split('Process "Check Constraints" failed (1 error(s), 1 warning(s))').pop()));
-  const after = await page.eval(() => document.getElementById('console-log').innerText.split('Process "Check Constraints" failed (1 error(s), 1 warning(s))').pop());
+  await page.waitFor(() => /Process "Check Constraints" (completed|failed)/.test(window.__console().split('Process "Check Constraints" failed (1 error(s), 1 warning(s))').pop()));
+  const after = await page.eval(() => window.__console().split('Process "Check Constraints" failed (1 error(s), 1 warning(s))').pop());
   assert.match(after, /Process "Check Constraints" completed successfully\s*$/, after);
 });
 
@@ -444,7 +444,7 @@ uiTest('I/O Pin Planning keeps a hand-written bracket name that is not a bus bit
   await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/top.ucf');
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
   await page.waitConsole(/Process "Check Constraints" failed \(1 error\(s\), 1 warning\(s\)\)/);
-  const log = await page.eval(() => document.getElementById('console-log').innerText);
+  const log = await page.eval(() => window.__console());
   assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/top.ucf" Line 7: NET "opcode[1]" is not found by ISE: XST names the port \'opcode[1]\' _opcode[1]_ in its netlist (use NET "_opcode[1]_")'), log);
   assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/top.ucf" Line 7: 1 port bit(s) of \'top\' have no LOC: _opcode[1]_'), log);
 });
@@ -478,7 +478,7 @@ uiTest('I/O Pin Planning and Check Constraints: VHDL extended identifiers (\\Mix
   await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/bad.ucf');
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
   await page.waitConsole(/Process "Check Constraints" failed \(1 error\(s\), 1 warning\(s\)\)/);
-  const log = await page.eval(() => document.getElementById('console-log').innerText);
+  const log = await page.eval(() => window.__console());
   assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/bad.ucf" Line 1: NET "Mixed" is not found by ISE: XST names the port \'\\Mixed\\\' _Mixed_ in its netlist (use NET "_Mixed_")'), log);
   assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/bad.ucf" Line 4: 1 port bit(s) of \'top\' have no LOC: _Mixed_'), log);
 });
@@ -513,11 +513,11 @@ uiTest('#309 a signal with two drivers: ERROR:Xst:528 Multi-source in Check Synt
   assert.ok(log.includes('ERROR:Xst:528 - "src/top.vhd" Line 9: Multi-source in Unit <top> on signal <y>; this signal is connected to multiple drivers (lines 8 and 9).'), log.slice(-1500));
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '(1)');
   // Simulate Behavioral Model: its Check Syntax fails, no ISim
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   const before = (await page.consoleText()).length;
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor((b) => /Process "Check Syntax" failed|Launching SSim/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the simulation' });
+  await page.waitFor((b) => /Process "Check Syntax" failed|Launching SSim/.test(window.__console().slice(b)), [before], { what: 'the simulation' });
   assert.doesNotMatch((await page.consoleText()).slice(before), /Launching SSim/);
 });
 

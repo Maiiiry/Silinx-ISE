@@ -41,7 +41,7 @@ const next = async (page, title) => {
 };
 // run the simulation of the simulation top to the end; the ISim console text
 const simulateAll = async (page, tb) => {
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', tb);
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
@@ -143,7 +143,7 @@ uiTest('New Source ▸ Test Bench in VHDL and in Verilog, Module (HDL) in Verilo
   await page.waitForSelector('body > .menu-popup');
   assert.doesNotMatch(await page.eval(() => document.querySelector('body > .menu-popup').innerText), /Simulation Top|Top Module/);
   await page.key('Escape');
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   // the Project menu has no separate test bench wizard entry any more
   const items = await page.openMenu('Project');
   assert.ok(!items.some((i) => /Test Bench/.test(i.label)), items.map((i) => i.label).join(' | '));

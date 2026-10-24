@@ -91,7 +91,7 @@ end sim;
 uiTest('touch (#264): a finger moves the waveform viewer\'s cursor; the mouse still does', E, async (page) => {
   await makeProject(env, { name: 'TouchWave', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('TouchWave');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });

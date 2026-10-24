@@ -188,7 +188,7 @@ end sim;
 uiTest('touch (#674): in the waveform viewer two fingers scroll the time (the cursor and the selection as they were) and a pinch zooms it', E, async (page) => {
   await makeProject(env, { name: 'TouchPanWave', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('TouchPanWave');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });

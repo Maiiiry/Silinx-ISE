@@ -17,7 +17,7 @@ uiTest('the app loads without console errors and shows the Start page', E, async
     menus: [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent),
     toolbar: document.querySelectorAll('#toolbar .tb-btn').length,
     start: document.getElementById('start-page').innerText,
-    console: document.getElementById('console-log').innerText,
+    console: window.__console(),
   }));
   assert.match(s.title, /Silinx ISE/);
   assert.deepEqual(s.menus, ['File', 'Edit', 'View', 'Project', 'Process', 'Tools', 'Window', 'Help']);
@@ -37,7 +37,7 @@ const SIGNATURE = `window.__sig = () => JSON.stringify({
   docs: window.Silinx.docs.map((d) => d.id).join('|'),
   active: window.Silinx.active?.id || '',
   view: window.Silinx.view,
-  con: document.getElementById('console-log').innerText.length,
+  con: window.__console().length,
   toasts: document.querySelectorAll('.toast').length,
   palette: document.querySelectorAll('.pal-overlay').length,
   text: window.Silinx.active?.editor?.getValue?.() ?? '',
@@ -128,7 +128,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
       // Edit items act on the editor: make it the active document again
       if (m === 'Edit') await page.eval(() => { const d = window.SilinxApp.findDoc('file:src/top.vhd'); if (d && window.Silinx.active !== d) d.tab.dispatchEvent(new MouseEvent('mousedown', { button: 0 })); });
       // a checked view item: start from the other view so that it has something to do
-      if (m === 'View' && it.label === 'Implementation') { await page.closeMenus(); await page.click('input[name=view][value=sim]'); }
+      if (m === 'View' && it.label === 'Implementation') { await page.closeMenus(); await page.setView('sim'); }
       // Design Summary: from another document
       if (m === 'View' && it.label === 'Design Summary') await page.eval(() => { const d = window.SilinxApp.findDoc('summary'); if (d) window.SilinxApp.closeDoc(d); });
       // (a failure names the item before, whose effect may be in the way)
@@ -728,7 +728,7 @@ uiTest('Design Summary: once closed it reopens from the Processes panel whatever
   await page.treeRow('#hier', 'top.ucf', {});
   assert.ok(await page.eval(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'Check Constraints')), 'the UCF processes are kept');
   await reopenFromProcesses('constraints file');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await reopenFromProcesses('Simulation view, nothing selected');
   assert.ok(!await page.eval(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'No processes for the selected item')));
   await page.treeRow('#hier', 'tb_top', {});
@@ -753,7 +753,7 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.eval(() => window.SilinxApp.openImpact());
   await opened(['file:src/counter.v', 'file:src/top.vhd', 'impact']);
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.click('#left-tabs .tab[data-page=files]');
   await page.click('#doc-tabs .tlabel', { text: 'top.vhd' });
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front', timeout: 30000 });
@@ -787,11 +787,11 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   await makeProject(env, { name: 'ViewSim', template: 'blinky' });
   await page.openProject('ViewSim');
   await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'summary'), [], { what: 'the project open', timeout: 30000 });
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.menu('Tools', 'Board Emulator');
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'board emulator', timeout: 30000 });
   const docs = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => `${d.id} ${d.title}`), active: window.Silinx.active?.id }));

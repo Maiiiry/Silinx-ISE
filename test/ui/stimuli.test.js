@@ -57,7 +57,7 @@ const simulate = async (page, mod) => {
 uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus value, expected outputs checked and filled in, saved, Save as Test Bench, Portuguese', E, async (page) => {
   await makeProject(env, { name: 'StimPj', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
   await page.openProject('StimPj');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await simulate(page, 'ctr');
   await simTime(page, '1,000,000');
 
@@ -195,7 +195,7 @@ end sim;
 uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, forced over the bench, saved for the bench', E, async (page) => {
   await makeProject(env, { name: 'StimTb', top: 'ctr', files: { 'src/ctr.vhd': CTR, 'sim/tb_ctr.vhd': TB }, roles: { 'sim/tb_ctr.vhd': 'sim' } });
   await page.openProject('StimTb');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await simulate(page, 'tb_ctr');
   await simTime(page, '1,000,000');
   await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`);
@@ -275,7 +275,7 @@ async function editBits(page) {
 uiTest('#919 ISim stimuli: a bus expanded, its bits clicked one at a time (an input\'s, an expected output\'s), the bus whole again, saved, Save as Test Bench, Portuguese', E, async (page) => {
   await makeProject(env, { name: 'StimBits', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
   await page.openProject('StimBits');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await simulate(page, 'ctr');
   await simTime(page, '1,000,000');
   const P = await editBits(page);

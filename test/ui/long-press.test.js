@@ -155,7 +155,7 @@ uiTest('#263 a long press opens the right-click menu of a Design-pane row, its b
 uiTest('#263 a long press on the ISim wave window\'s canvas opens its menu (Add Marker Here …) at the press, its names and objects too; a tap or a moving press does not', E, async (page) => {
   await makeProject(env, { name: 'TouchWave', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
   await page.openProject('TouchWave');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running && /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || ''), [], { what: 'ISim run', timeout: 20000 });

@@ -79,7 +79,7 @@ uiTest('Try it on the RTL Schematic and the Technology Schematic of gates: the s
   assert.deepEqual(untranslated(en, pt, [/^@?(Hex|Decimal|Reset)$/]), []);
   await stopWithEsc(page);
   // View Technology Schematic (the Silinx toolchain's synthesis runs first): the netlist's LUTs and buffers
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'tech:gates' && window.Silinx.active.viewer?.getDoc().symbols.length > 5, [], { what: 'technology schematic', timeout: 180000 });
   assert.ok(await page.eval(() => window.Silinx.active.viewer.getDoc().symbols.some((s) => /^LUT\d$/.test(s.params?.module))), 'LUTs');

@@ -315,12 +315,12 @@ for (const theme of ['dark', 'light']) {
     await page.treeRow('#procs', 'View RTL Schematic', { dbl: true, exact: true });
     await page.waitFor(() => document.querySelector('.doc:not([hidden]) .sch-editor .se-svg [data-kind]'), [], { what: 'RTL Schematic', timeout: 30000 });
     await check('RTL Schematic');
-    await page.click('input[name=view][value=sim]');
+    await page.setView('sim');
     await page.treeRow('#hier', 'tb_top');
     await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
     await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
     await check('ISim');
-    await page.click('input[name=view][value=impl]');
+    await page.setView('impl');
     await page.menu('Tools', 'Board Emulator');
     await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'board emulator', timeout: 30000 });
     await check('board emulator');

@@ -165,7 +165,7 @@ uiTest('open mode: Generate Text Power Report of blinky without ISE: the estimat
   await makeProject(env, { name: 'OpenPower', template: 'blinky' });
   await page.openProject('OpenPower');
   await reloadToolchain(page);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   assert.deepEqual((await procLabels(page)).find((p) => p.label === 'Generate Text Power Report'), { label: 'Generate Text Power Report', disabled: false, title: '' });
   await page.treeRow('#procs', 'Generate Text Power Report', { dbl: true, exact: true });
   await page.waitConsole(DONE('Generate Text Power Report'), { timeout: 120000 });
@@ -199,7 +199,7 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
   await page.openProject('OpenPins');
   await reloadToolchain(page);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   const proc = (await procLabels(page)).find((p) => p.label === 'Back-annotate Pin Locations');
   assert.deepEqual(proc, { label: 'Back-annotate Pin Locations', disabled: false, title: '' });
   await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
@@ -250,7 +250,7 @@ uiTest('open mode: Synthesize counts the constraints\' warnings printed before i
   await makeProject(env, { name: 'OpenUcfWarn', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
   await page.openProject('OpenUcfWarn');
   await reloadToolchain(page);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'Synthesize - Yosys', { dbl: true, exact: true });
   await page.waitConsole(DONE('Synthesize - Yosys'), { timeout: 120000 });
   const text = await page.consoleText();
@@ -346,7 +346,7 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await makeProject(env, { name: 'OpenTech', template: 'blinky' });
   await page.openProject('OpenTech');
   await reloadToolchain(page);
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   assert.deepEqual((await procLabels(page)).find((p) => p.label === 'View Technology Schematic'), { label: 'View Technology Schematic', disabled: false, title: '' });
   await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight', 'u_count', 'u_display'], inside: 'u_pre',
     message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 511 cells in 5 block(s): u_display (61), u_knight (52), u_speed (216), u_count (84), u_pre (67)." });
@@ -364,7 +364,7 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   // pong: the instances of the design, and the logic of its top module by signal (blocks *_logic)
   await makeProject(env, { name: 'OpenTechPong', template: 'pong' });
   await page.openProject('OpenTechPong');
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   const pong = await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
     message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1012 cells in 19 block(s): " });
   // the cells and nets as the netlist writes them (#131): pong's lockL and pressL (Verilog names), not lockl, pressl
@@ -442,7 +442,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   assert.ok([...rtl.pt].some((s) => /^\d+ objetos selecionados$/.test(s)), [...rtl.pt].join(' | '));
   assert.ok([...rtl.pt].some((s) => /^\d+ símbolos, \d+ redes · 0 erro\(s\), 0 aviso\(s\)$/.test(s)), [...rtl.pt].join(' | '));
   // Technology Schematic of the same design (the Silinx toolchain's synthesis)
-  await page.click('input[name=view][value=impl]');
+  await page.setView('impl');
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
   await waitTech(page, 'top');
   const tech = await viewerTexts(page);
@@ -468,7 +468,7 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   assert.match(text, /Synthesizing 'top' with the generics the test bench 'tb_top' gives: div = 2, debounce = 2/);
   assert.match(text, /Post-Synthesis simulation model: build\/netgen\/synthesis\/top_synthesis\.vhd \(simulate it in the Simulation view, or emulate it on the board\)\./);
   // the Simulation view: Simulate Post-Synthesis Model of the test bench
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
@@ -516,7 +516,7 @@ uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of b
   assert.match(text, /Post-Map simulation model: build\/netgen\/map\/top_map\.vhd \(simulate it in the Simulation view, or emulate it on the board\)\./);
   assert.deepEqual(text.split('\n').filter((l) => /WARNING|ERROR/.test(l)), []);
   // the Simulation view: Simulate Post-Map Model of the test bench
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Map Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
@@ -557,7 +557,7 @@ uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, 
   assert.deepEqual(text.split('\n').filter((l) => /WARNING|ERROR/.test(l)), []);
   assert.match(await readWs(env, 'OpenPostPar', 'build/netgen/par/top_timesim.sdf'), /^\(DELAYFILE\n\(SDFVERSION "3\.0"\)\n\(DESIGN "top"\)/);
   // the Simulation view: Simulate Post-Place & Route Model of the test bench, with the SDF
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Place & Route Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
@@ -585,7 +585,7 @@ uiTest('#490 open mode: Simulate Post-Synthesis Model with no model offers "Gene
   await makeProject(env, { name: 'GenAndSim', template: 'blinky' });
   await page.openProject('GenAndSim');
   await reloadToolchain(page);
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   const ask = async () => {
     await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
@@ -846,7 +846,7 @@ uiTest('#490 a model that needs ISE: the dialog says why, without the button (an
   await check('Emular Modelo Pós-Place & Route', 'Emular Modelo Pós-Place & Route', ["Ainda não há modelo de simulação pós-place & route de 'top'.",
     '"Gerar Modelo de Simulação Pós-Place & Route" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Ferramentas ▸ Definições da Toolchain).']);
   await setLang('en');
-  await page.click('input[name=view][value=sim]');
+  await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await check('Simulate Post-Synthesis Model', 'Simulate Post-Synthesis Model', ["There is no post-synthesis simulation model of 'top' yet.",
     '"Generate Post-Synthesis Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).']);
@@ -873,7 +873,7 @@ uiTest('#280 open mode: Generate Programming File after a change of the pins onl
   const run = async (proc) => {
     const before = (await page.consoleText()).length;
     await page.treeRow('#procs', proc, { dbl: true, exact: true });
-    await page.waitFor((b, re) => new RegExp(re).test(document.getElementById('console-log').innerText.slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 }).catch(async (e) => {
+    await page.waitFor((b, re) => new RegExp(re).test(window.__console().slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 }).catch(async (e) => {
       const st = await page.eval(() => { const S = window.SilinxApp.S; return { busy: !!S.busy, job: S.currentJob || null, status: S.status, sel: S.sel, dialogs: [...document.querySelectorAll('.dlg-overlay')].map((d) => d.innerText.slice(0, 300)) }; });
       throw new Error(`${e.message}\n--- the app: ${JSON.stringify(st)}\n--- console:\n${(await page.consoleText()).split('\n').slice(-30).join('\n')}`);
     });
@@ -926,7 +926,7 @@ uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes onc
   const run = async (proc) => {
     const before = (await page.consoleText()).length;
     await page.treeRow('#procs', proc, { dbl: true, exact: true });
-    await page.waitFor((b, re) => new RegExp(re).test(document.getElementById('console-log').innerText.slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 });
+    await page.waitFor((b, re) => new RegExp(re).test(window.__console().slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 });
     return (await page.consoleText()).slice(before);
   };
   const NORMAL = 'Optimization Effort Normal: one mapping, and the mappings for speed for a design limited by its logic depth (High tries them for every design, a slower synthesis).';
