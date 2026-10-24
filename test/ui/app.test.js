@@ -815,18 +815,22 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay')), null, 'no message');
 }, { timeout: 180000 });
 
-uiTest('#1101 the Start page: "Project Commands" right under the pane\'s caption (the page\'s own padding), as the Design pane\'s content', E, async (page) => {
+// #1225: since #1216 the New Project and Open Project buttons come first, then Project Commands right under them
+uiTest('#1101 #1225 the Start page: its buttons right under the pane\'s caption (the page\'s own padding), "Project Commands" right under them, as the Design pane\'s content', E, async (page) => {
   await page.leftTab('start');
   await page.waitFor(() => document.querySelector('#start-page .start-box h3'), [], { what: 'the Start page' });
   const g = await page.eval(() => {
     // (the page's top: right under its caption; the modern interface shows none, #1159)
     const cap = { bottom: document.getElementById('start-page').getBoundingClientRect().top };
+    const btns = document.querySelector('#start-page .start-btns').getBoundingClientRect();
     const h3s = [...document.querySelectorAll('#start-page .start-box h3')];
     const pad = parseFloat(getComputedStyle(document.querySelector('#start-page > .page')).paddingTop);
-    return { first: Math.round(h3s[0].getBoundingClientRect().top - cap.bottom), pad: Math.round(pad), text: h3s[0].textContent, second: parseFloat(getComputedStyle(h3s[1]).marginTop) };
+    return { buttons: Math.round(btns.top - cap.bottom), pad: Math.round(pad), text: h3s[0].textContent, gap: Math.round(h3s[0].getBoundingClientRect().top - btns.bottom),
+      second: parseFloat(getComputedStyle(h3s[1]).marginTop) };
   });
-  assert.deepEqual([g.text, g.first], ['Project Commands', g.pad], JSON.stringify(g));
-  assert.ok(g.first <= 20, `${g.first} px`);
+  assert.deepEqual([g.text, g.buttons], ['Project Commands', g.pad], JSON.stringify(g));
+  assert.ok(g.buttons <= 20, `${g.buttons} px`);
+  assert.ok(g.gap >= 0 && g.gap <= 14, `Project Commands ${g.gap} px under the buttons`);
   assert.ok(g.second > 0, 'the next heading keeps its space above');
 });
 

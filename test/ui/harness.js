@@ -464,6 +464,11 @@ class PageBase {
    *  layout by tasks, #1149): the app's view set as the radio would. */
   async setView(view) {
     if (await this.eval((v) => !!document.querySelector(`input[name=view][value=${v}]`)?.getClientRects().length, view)) return this.click(`input[name=view][value=${view}]`);
+    // (the modern interface: Implement's Processes are the top's whatever is selected, #1208, so the Simulation's
+    // processes are read in Design)
+    if (view === 'sim' && await this.eval(() => document.documentElement.dataset.layout === 'tasks' && document.documentElement.dataset.task === 'impl')) {
+      await this.click('#task-switch .task-btn[data-task="edit"]');
+    }
     await this.eval((v) => window.SilinxApp.setView(v), view);
   }
   /** Click a row of the Design hierarchy / processes by its label. In the modern interface (its layout by tasks, #1149)
