@@ -291,7 +291,7 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-src-bar'];   // (their ids)
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-src-bar', 'task-files-bar'];   // (their ids)
 const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implement' };
 function build() {
   const $ = id => document.getElementById(id);
@@ -332,6 +332,10 @@ function build() {
   $('hier').before(h('div', { id: 'task-src-bar' },
     h('button', { class: 'btn', type: 'button', onclick: wizard('newSourceWizard') }, 'New Source…'),
     h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Add Copy of Source…')));
+  // the Files page: Add to Project (the folder's files not in the project) and Add Copy to Project (#1214)
+  $('files-page').before(h('div', { id: 'task-files-bar' },
+    h('button', { class: 'btn', type: 'button', onclick: () => import('./design.js').then(d => d.addFromFolderDialog()) }, 'Add to Project…'),
+    h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Add Copy to Project…')));
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
 }
@@ -412,6 +416,6 @@ export function initTasks(a) {
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
   setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
-    for (const b of document.querySelectorAll('#task-src-bar button')) b.disabled = !app.S.project; } }, 1000);
+    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button')) b.disabled = !app.S.project; } }, 1000);
   apply();
 }
