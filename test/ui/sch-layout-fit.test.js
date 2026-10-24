@@ -53,9 +53,9 @@ uiTest('#1203 Schematic editor: Full View when the side panel, the messages or t
   await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 2, [ED], { what: 'drawn' });
   if (await page.eval(() => document.documentElement.dataset.layout === 'tasks')) {
     const scale = async () => +(await transform(page)).match(/scale\(([\d.]+)\)/)[1];
-    for (const [what, act] of [['side panel hidden', '#task-bar [data-act="side"]'], ['side panel shown', '#task-bar [data-act="side"]'],
-      ['messages toggled', '#task-bar [data-act="console"]'], ['messages toggled back', '#task-bar [data-act="console"]'],
-      ['maximized', '#task-bar [data-act="max"]'], ['restored', '#task-bar [data-act="max"]']]) {
+    for (const [what, act] of [['side panel hidden', '#task-view [data-act="side"]'], ['side panel shown', '#task-view [data-act="side"]'],
+      ['messages toggled', '#task-view [data-act="console"]'], ['messages toggled back', '#task-view [data-act="console"]'],
+      ['maximized', '#task-view [data-act="max"]'], ['restored', '#task-view [data-act="max"]']]) {
       await zoomIn(page);
       const t = await transform(page);
       await page.click(act);

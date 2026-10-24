@@ -3,7 +3,7 @@
    the bottom of a narrow screen), the current task's documents only (data-task), the side panel and the
    messages folded or open (data-side, data-console), a maximized document (data-max). */
 
-#task-switch, #task-tabs, #task-bar, #task-empty { display: none; }
+#task-switch, #task-tabs, #task-bar, #task-view, #task-empty { display: none; }
 html[data-layout="tasks"] #ws-empty { display: none !important; }
 /* no status bar (#1039): the messages are in the message centre, the device and board in Design, the storage in File */
 html[data-layout="tasks"] #statusbar { display: none; }
@@ -50,8 +50,10 @@ html[data-layout="tasks"] #design-panel { flex: 1; }
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
 html[data-layout="tasks"] .m-steps { display: none; }
 html[data-layout="tasks"] #task-bar { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-html[data-layout="tasks"] #task-bar .tb-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
-html[data-layout="tasks"] #task-bar .tb-btn svg { width: 18px; height: 18px; }
+/* the side panel, the messages and the document maximized: in the header, after the theme's button (#1218) */
+html[data-layout="tasks"] #task-view { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
+html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn svg { width: 18px; height: 18px; }
 html[data-layout="tasks"] #task-bar .task-main { margin-left: 8px; }
 /* a task with a single document (#854): no tab bar; its module and model in the task's bar */
 html[data-layout="tasks"][data-single="on"] #doc-tabs { display: none; }
@@ -98,7 +100,7 @@ html[data-layout="tasks"][data-max="on"] :is(#left, #v-split, #h-split, #console
 /* touch: targets of 40 px or more */
 @media (pointer: coarse) {
   html[data-layout="tasks"] #task-switch .task-btn { height: 40px; }
-  html[data-layout="tasks"] #task-bar .tb-btn { width: 40px; height: 40px; }
+  html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn { width: 40px; height: 40px; }
   html[data-layout="tasks"] #task-bar .task-main { height: 40px; }
 }
 

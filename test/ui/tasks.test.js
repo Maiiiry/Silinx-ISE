@@ -73,10 +73,12 @@ uiTest('View ▸ Interface ▸ Modern: the task switcher in the header, the task
     ui: document.documentElement.dataset.ui, stored: localStorage.getItem('silinx.ui'),
     tasks: [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.textContent),
     bar: [...document.querySelectorAll('#task-bar [title]')].map((b) => b.title),
+    view: [...document.querySelectorAll('#task-view [title]')].map((b) => b.title),
   }));
   assert.deepEqual(L, {
     ui: 'modern', stored: 'modern', tasks: ['Design', 'Simulate', 'Emulate', 'Implement'],   // (no Program: Implement's, #1172)
-    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'The test bench to simulate', "Open the test bench's source", 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the test bench, #917, and the model, #800: Simulate's)
+    bar: ['Close', 'The test bench to simulate', "Open the test bench's source", 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the test bench, #917, and the model, #800: Simulate's)
+    view: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)'],   // (in the header, #1218)
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -132,7 +134,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.deepEqual(s.tabs, ['SSim (tb_top)'], 'its tab: several simulations may be open (#1161)');
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top)', 'the test bench (#800)');
   // the side panel unfolds from the task's bar, kept for Simulate
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   assert.equal((await state(page)).side, 'open');
   // back to Edit: its editor in front again, its arrangement as left
   await page.click('#task-switch .task-btn[data-task="edit"]');
@@ -164,13 +166,13 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.equal((await state(page)).max, 'off');
   await page.click('#task-switch .task-btn[data-task="edit"]');
   assert.equal((await state(page)).max, 'on', 'kept for Edit');
-  await page.click('#task-bar [data-act="max"]');
+  await page.click('#task-view [data-act="max"]');
   assert.equal((await state(page)).max, 'off');
   assert.ok(await shown(page, '#left'));
   // the messages: folded in Simulate, they open from their tabs and from the bar
   await page.click('#task-switch .task-btn[data-task="sim"]');
   assert.equal((await state(page)).console, 'folded');
-  await page.click('#task-bar [data-act="console"]');
+  await page.click('#task-view [data-act="console"]');
   assert.equal((await state(page)).console, 'open');
   assert.ok(await shown(page, '#console-body'));
   // kept per viewer, and after a reload
@@ -201,7 +203,7 @@ uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s 
   await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary'), [], { what: 'the Design Summary' });
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-tabs .task-btn[aria-current="true"]')].map((b) => b.dataset.task)), ['impl']);
   // the bar's side button opens the drawer
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.drawer === 'open', [], { what: 'the drawer open' });
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   // landscape: the header's switcher, no tab bar
@@ -410,7 +412,7 @@ uiTest('#993 Tasks ▸ Edit: Check Schematic\'s errors and warnings in the conso
   const ED = '.doc:not([hidden]) .sch-editor';
   await page.waitFor((sel) => document.querySelector(`${sel} .se-btn[data-act=check]`), [ED], { what: 'the schematic' });
   // (the messages folded first: the Check opens them)
-  if (await page.eval(() => document.documentElement.dataset.console === 'open')) await page.click('#task-bar [data-act="console"]');
+  if (await page.eval(() => document.documentElement.dataset.console === 'open')) await page.click('#task-view [data-act="console"]');
   await page.click(`${ED} .se-btn[data-act=check]`);
   await page.waitConsole(/Process "Check Schematic" failed/);
   assert.equal(await page.eval(() => document.documentElement.dataset.console), 'open');
@@ -482,7 +484,7 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   assert.ok(W.width >= W.ws - 4, `the wave window has the workspace's width: ${JSON.stringify(W)}`);
   assert.ok(W.height >= 0.55 * 768, `and most of the height: ${JSON.stringify(W)}`);
   // the side panel: ISim's Instances and Objects (not the Design pane)
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length > 0, [], { what: 'Instances and Objects' });
   assert.ok(!(await shown(page, '#left-pages')));
   // not in the other tasks
@@ -499,7 +501,7 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   // a tablet in portrait: the same (the side button folds ISim's columns, not the drawer, which Simulate has not)
   await page.setViewport(820, 1180);
   assert.ok(!(await shown(page, '#drawer-btn')));
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length, [], { what: 'the columns folded' });
   const P = await page.eval(() => [Math.round(document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect().width), Math.round(document.getElementById('workspace').getBoundingClientRect().width)]);
   assert.ok(P[0] >= P[1] - 4, `portrait: the waves have the width: ${P}`);
@@ -549,7 +551,7 @@ uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on scre
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   // a lab desktop, Watch folded: a larger board
   await page.setViewport(1920, 1080);
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap').style.zoom > 1, [], { what: 'a larger board' });
   f = await boardFit(page);
   assert.ok(f.inside && f.aim && f.side === 'folded', JSON.stringify(f));
@@ -599,7 +601,7 @@ uiTest('#1021 Tasks ▸ Emulate: the board keeps its size; the Watch and the VGA
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   // the Watch folded on the laptop: the VGA monitor still below the board
   L = await at(1280, 800);
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.eval(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   L = await emuLayout(page);
   assert.ok(L.zoom >= 1 && L.proper && L.watch === 'folded' && L.vga === 'below', JSON.stringify(L));
@@ -673,12 +675,12 @@ uiTest('#1020 Tasks ▸ Emulate: the Watch shown at first; folded, it stays fold
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   const watch = () => page.eval(() => {
     const side = document.querySelector('.doc:not([hidden]) .emu-side');
-    return { side: document.documentElement.dataset.side ?? null, pressed: document.querySelector('#task-bar [data-act="side"]')?.getAttribute('aria-pressed') ?? null,
+    return { side: document.documentElement.dataset.side ?? null, pressed: document.querySelector('#task-view [data-act="side"]')?.getAttribute('aria-pressed') ?? null,
       shown: !!side && side.getClientRects().length > 0, title: side?.querySelector('.emu-box h4')?.textContent, add: side?.querySelector('select option')?.textContent };
   });
   assert.deepEqual(await watch(), { side: 'open', pressed: 'true', shown: true, title: 'Watch', add: 'Add a signal to watch…' });
   // folded by the viewer: folded again when Emulate comes back to the front
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.click('#task-switch .task-btn[data-task="edit"]');
   await page.click('#task-switch .task-btn[data-task="emu"]');
   assert.deepEqual(await watch(), { side: 'folded', pressed: 'false', shown: false, title: 'Watch', add: 'Add a signal to watch…' });
@@ -822,7 +824,7 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   await page.eval(() => { document.getElementById('left').style.width = '820px'; });
   const L = () => page.eval(() => {
     const vis = (s) => !!document.querySelector(s)?.getClientRects().length;
-    return { bar: vis('#left-tabs'), left: vis('#left'), side: vis('#task-bar [data-act="side"]'), procs: vis('#proc-panel'), files: vis('#files-page') };
+    return { bar: vis('#left-tabs'), left: vis('#left'), side: vis('#task-view [data-act="side"]'), procs: vis('#proc-panel'), files: vis('#files-page') };
   });
   await page.click('#task-switch .task-btn[data-task="edit"]');
   assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: false });
@@ -871,28 +873,28 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   assert.deepEqual((await T()).names, ['files']);
   assert.ok(await shown(page, '#files-page'));
   // folded: neither the tabs nor the pages; the document from the window's left edge
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.side === 'folded');
   assert.ok(!(await shown(page, '#left-tabs')) && !(await shown(page, '#left')));
   assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.side === 'open');
   assert.deepEqual((await T()).row, true);
   // a narrow screen: the drawer, its tabs its top row; closed, nothing at the left
   await page.setViewport(900, 700);
   await page.waitFor(() => !document.documentElement.dataset.drawer || document.documentElement.dataset.drawer !== 'open'
     || document.querySelector('#left-pages').getClientRects().length);
-  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-bar [data-act="side"]');
+  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.drawer !== 'open');
   assert.ok(!(await shown(page, '#left-tabs')));
   assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.drawer === 'open');
   assert.deepEqual(await page.eval(() => {
     const t = document.getElementById('left-tabs').getBoundingClientRect(), p = document.getElementById('left-pages').getBoundingClientRect();
     return { left: Math.round(t.left), width: Math.round(t.width - p.width), below: Math.abs(p.top - t.bottom) < 1, pageLeft: Math.round(p.left) };
   }), { left: 0, width: 0, below: true, pageLeft: 0 });
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
@@ -1043,7 +1045,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.click('#task-empty button');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-console'), [], { what: 'ISim', timeout: 30000 });
   assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-bottom')), 'ISim\'s console hidden');
-  await page.click('#task-bar [data-act="console"]');
+  await page.click('#task-view [data-act="console"]');
   assert.deepEqual(await pressed(page), ['sim']);
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines' });
   // one command line: ISim's while simulating
@@ -1057,7 +1059,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.waitFor((b) => { const t = document.querySelector('.isim-st-time').textContent; return t !== b && /3,000,000 ps/.test(t); }, [before], { what: 'ISim ran 2 us' });
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'SSim> run 2 us' && l.dataset.src === 'sim' && l.getClientRects().length), [], { what: 'the command in the message centre' });
   // folded: the last line of the filter
-  await page.click('#task-bar [data-act="console"]');
+  await page.click('#task-view [data-act="console"]');
   const last = await page.eval(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].filter((l) => l.textContent.trim()).pop().textContent);
   assert.ok(await shown(page, '#mc-last'));
   assert.equal(await page.eval(() => document.getElementById('mc-last').textContent), last);
@@ -1066,7 +1068,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.click('#task-empty button');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
-  await page.click('#task-bar [data-act="console"]');
+  await page.click('#task-view [data-act="console"]');
   assert.deepEqual(await pressed(page), ['emu']);
   lines = await shownLines(page);
   assert.ok(lines.length && lines.every(([src]) => src === 'emu') && lines.some(([, t]) => /^Board Emulator: 'top'/.test(t)), JSON.stringify(lines));
@@ -1126,7 +1128,7 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
     return { left: Math.round(l.width - t.width), doc: Math.round(d.left - t.right) };
   });
   const sideOpen = (open) => page.eval((o) => {
-    if ((document.documentElement.dataset.side === 'open') !== o) document.querySelector('#task-bar [data-act="side"], [data-act="side"]').click();
+    if ((document.documentElement.dataset.side === 'open') !== o) document.querySelector('#task-view [data-act="side"], [data-act="side"]').click();
   }, open);
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.click('#task-empty button');
@@ -1289,5 +1291,36 @@ uiTest('#1171 #1191 Tasks: a project opens in Design, its Design page; at start-
   await page.waitFor(() => document.documentElement.dataset.task !== 'edit' && window.Silinx.active?.id === 'impact', [], { what: 'iMPACT in front' });
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(await page.eval(() => window.Silinx.active?.id), 'impact');
+  await noWarnings(page);
+}, { build: DEV });
+
+// #1218: the side panel, messages and maximize buttons in the header, right of the theme button, at its right end;
+// none in the toolbar's task bar; they still fold and maximize; classic none
+uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button', E, async (page) => {
+  await makeProject(env, { name: 'TasksView', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksView');
+  const where = () => page.eval(() => {
+    const v = document.getElementById('task-view'), th = document.getElementById('theme-btn'), top = document.getElementById('topbar');
+    const btns = [...v.querySelectorAll('.tb-btn')], r = btns.map((b) => b.getBoundingClientRect()), t = th.getBoundingClientRect();
+    return {
+      acts: btns.map((b) => b.dataset.act), inHeader: top.contains(v), afterTheme: th.nextElementSibling === v && r.every((x) => x.left >= t.right && Math.abs((x.top + x.bottom) / 2 - (t.top + t.bottom) / 2) < 2),
+      rightEnd: top.getBoundingClientRect().right - r.at(-1).right < 24, inBar: document.querySelectorAll('#task-bar [data-act=side], #task-bar [data-act=console], #task-bar [data-act=max]').length,
+    };
+  });
+  assert.deepEqual(await where(), { acts: ['side', 'console', 'max'], inHeader: true, afterTheme: true, rightEnd: true, inBar: 0 });
+  // they still act
+  await page.click('#task-view [data-act="side"]');
+  assert.equal((await state(page)).side, 'folded');
+  await page.click('#task-view [data-act="side"]');
+  await page.click('#task-view [data-act="max"]');
+  assert.equal((await state(page)).max, 'on');
+  assert.equal(await page.eval(() => document.querySelector('#task-view [data-act="max"]').getAttribute('aria-pressed')), 'true');
+  await page.click('#task-view [data-act="max"]');
+  // the classic interface: none
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.getElementById('task-view')), null);
   await noWarnings(page);
 }, { build: DEV });

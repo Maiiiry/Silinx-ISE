@@ -74,9 +74,9 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   assert.deepEqual((await procs(page)).rows.slice(0, 5), ['Restrições do Utilizador', '  Planeamento de Pinos de E/S', '  Editar Restrições (Texto)', '  Verificar Restrições', 'Emular na Placa']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // folded with the side panel
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   assert.equal((await procs(page)).shown, false, 'folded');
-  await page.click('#task-bar [data-act="side"]');
+  await page.click('#task-view [data-act="side"]');
   assert.equal((await procs(page)).shown, true);
   // the classic interface: none
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
