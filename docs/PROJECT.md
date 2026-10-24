@@ -30,7 +30,8 @@ A project is a directory under the workspace (default `~/Silinx-projects`, overr
   on MUXF5 … MUXF7, the mapping with the wider functions and the state machines Yosys leaves as written (of 8
   states or more) one-hot when that is better; Place & Route's two placements, the faster kept, for a design of 500
   slices at most) or 2 High (every mapping tried, and the state machines of 8 states or more one-hot, the best kept;
-  Place & Route's two placements, the faster kept).
+  Place & Route's two placements, the faster kept, and a third routed when the placer estimates it faster than one of
+  them).
 * Generated implementation output lives in `<project>/build/` (ISE work dir), bitstream `build/<top>.bit`.
 
 ## HTTP API (server/)

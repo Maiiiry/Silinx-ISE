@@ -15,7 +15,7 @@ import { StepError } from './open-flow-core.js';
 /** { runPostMap, runPostPar, runPostSynth, runPostTranslate } of runOpenFlow (netlist(), packed(), routedText(), synth(): its current values). */
 export function mountSimModels(ctx) {
   const {
-    io, spec, knownPips, log, netlist, packed, parTries, report, routedOrEarlier, routedText, step, synth, top, ucfText
+    io, spec, knownPips, log, netlist, packed, parTries, parExtra, report, routedOrEarlier, routedText, step, synth, top, ucfText
   } = ctx;
 
   // The design the simulation models are made of (#120, #121): synthesized with the generics the test bench
@@ -161,7 +161,7 @@ export function mountSimModels(ctx) {
       try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
       let pr;
       try {
-        pr = placeRouteBest(d.nl, p, io.device(), knownPips(), { seed: spec.seed || 1, tries: parTries(p.stats.slices), effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part } });
+        pr = placeRouteBest(d.nl, p, io.device(), knownPips(), { seed: spec.seed || 1, tries: parTries(p.stats.slices), extra: parExtra(), effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part } });
       } catch (e) { throw new StepError(`placement of the model's design failed: ${e.message}`, [], e.hint); }
       const r = pr.routed;
       if (r.errors.length || r.failed.length || r.overused) throw new StepError(`the model's design (synthesized with the test bench's generics) could not be routed: ${r.failed.length} net(s) not routed, ${r.overused || 0} routing node(s) shared`, [...r.errors, ...r.unreached.map(u => `${u.net} -> ${u.inst}.${u.pin}`)].slice(0, 50));

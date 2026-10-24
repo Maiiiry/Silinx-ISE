@@ -27,7 +27,7 @@ import { parseXdl, writeXdl } from './xdl.js';
 import { parseUcf } from './ucf.js';
 import { readYosysJson } from './fpga/netlist.js';
 import { pack } from './fpga/pack.js';
-import { placeRouteBest, effortTries } from './fpga/place-route.js';
+import { placeRouteBest, effortTries, effortExtra } from './fpga/place-route.js';
 import { deviceSites } from './fpga/place.js';
 import { checkRouting } from './fpga/route.js';
 import { bitgen, knownRouting } from './fpga/bitgen.js';
@@ -43,7 +43,7 @@ export class StepError extends Error {
 /**
  * Run the steps of spec ({ top, family, device, pkg, part, steps, seed, effort, replicate,
  * startupClk, synthUpToDate, synthEffort, deepRule }) with io (above). synthEffort: 'normal' | 'high' (the default), the
- * synthesis's Optimization Effort (#282; 'high' given, Place & Route makes HIGH_TRIES placements too, the fastest kept, #651; Normal NORMAL_TRIES for a small design); deepRule: Normal's rule of the deep designs (core/synth-open.js DEEP_RULE, for tests). synthUpToDate ({ report }: the synthesis part of the
+ * synthesis's Optimization Effort (#282; 'high' given, Place & Route makes HIGH_TRIES placements too, the fastest kept, and HIGH_EXTRA more routed when the placer's estimate is promising, #651; Normal NORMAL_TRIES for a small design); deepRule: Normal's rule of the deep designs (core/synth-open.js DEEP_RULE, for tests). synthUpToDate ({ report }: the synthesis part of the
  * report of the run that made it, or null), when the steps start after the synthesis: the netlist of that
  * run is the design's (#280); it is used as it is, or, when it is not there, the synthesis runs.
  */
@@ -62,6 +62,8 @@ export async function runOpenFlow(spec, io) {
   const knownPips = () => (known ||= knownRouting(io.bitDb()));
   // the placements Place & Route makes for a design of `slices` slices: HIGH_TRIES at Optimization Effort High, NORMAL_TRIES at Normal (#651)
   const parTries = slices => effortTries(spec.synthEffort, slices);
+  // and the placements more at High, each routed only when its estimate is promising (#651)
+  const parExtra = () => effortExtra(spec.synthEffort);
   const ucfText = io.ucf || null;
   let synth = null, netlist = null, packed = null, routedText = null;
 
@@ -124,7 +126,7 @@ export async function runOpenFlow(spec, io) {
 
   // The design the simulation models are made of (#120, #121): synthesized with the generics the test bench (open-flow-models.js)
   const { runPostMap, runPostPar, runPostSynth, runPostTranslate } = mountSimModels({
-    io, spec, knownPips, log, netlist: () => netlist, packed: () => packed, parTries, report,
+    io, spec, knownPips, log, netlist: () => netlist, packed: () => packed, parTries, parExtra, report,
     routedOrEarlier: (...a) => routedOrEarlier(...a), routedText: () => routedText, step, synth: () => synth, top,
     ucfText
   });
@@ -182,12 +184,13 @@ export async function runOpenFlow(spec, io) {
     // clock's flip-flops on the slices its global line reaches through switches of known bits; then
     // register replication (#4): the flip-flops and LUTs of many loads on the critical path copied
     // (#522), the design placed again from the first placement (#87) and routed; the faster kept. At Optimization Effort
-    // High (and Normal, a small design), two placements first (seeds seed, seed + 1 …), the fastest kept (#651)
+    // High (and Normal, a small design), two placements first (seeds seed, seed + 1 …), the fastest kept; at High a third,
+    // routed only when the placer's estimate is shorter than one of the first two's (#651)
     let pr;
     const tried = [], placeWarned = new Set();
     try {
       pr = placeRouteBest(netlist, packed, d, k, {
-        seed: spec.seed || 1, tries: parTries(packed.stats.slices), effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part },
+        seed: spec.seed || 1, tries: parTries(packed.stats.slices), extra: parExtra(), effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part },
         onRouted: (p, info) => {
           if (info.replication) return;
           if (!info.retry) tried.push(p);
@@ -197,10 +200,12 @@ export async function runOpenFlow(spec, io) {
         onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s)${x.luts ? ` and ${x.luts} LUT(s)` : ''} on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
       });
     } catch (e) { throw new StepError(`placement failed: ${e.message}`, [], e.hint); }   // (e.hint: the placer's, #128)
-    if (tried.length > 1) {
+    if (tried.length + pr.unrouted.length > 1) {
       const ns = p => (p.sta ? `${p.period.toFixed(3)} ns` : 'not routed');
       const kept = tried.reduce((a, p) => (p.period < a.period ? p : a));
-      log(`Optimization Effort ${spec.synthEffort === 'high' ? 'High' : 'Normal'}: ${tried.length} placements (seeds ${tried.map(p => p.seed).join(', ')}): ${tried.map(ns).join(', ')}; seed ${kept.seed} kept.`);
+      // (an extra placement whose estimate was no shorter than the first ones': not routed, #651)
+      const all = [...tried.map(p => [p.seed, ns(p)]), ...pr.unrouted.map(s => [s, 'not routed (estimated slower)'])].sort((a, b) => a[0] - b[0]);
+      log(`Optimization Effort ${spec.synthEffort === 'high' ? 'High' : 'Normal'}: ${all.length} placements (seeds ${all.map(a => a[0]).join(', ')}): ${all.map(a => a[1]).join(', ')}; seed ${kept.seed} kept.`);
     }
     if (pr.replication?.kept) {
       packed = pr.packed;
