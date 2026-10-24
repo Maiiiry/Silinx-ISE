@@ -10,7 +10,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { scratchEnv, HERE } from './server-helpers.js';
 import { fakeDirectory, dump } from './fixtures/fs-access-fake.js';
-import { browserStore, folderStore, projectOps, copyProjects, projectJsonText, saveBuildResults, readBuildResults, BUILD_REPORTS, BUILD_VIEW } from '../web/js/project-store.js';
+import { byLastUsed, browserStore, folderStore, projectOps, copyProjects, projectJsonText, saveBuildResults, readBuildResults, BUILD_REPORTS, BUILD_VIEW } from '../web/js/project-store.js';
 
 let tmp;
 before(async () => { tmp = await scratchEnv('silinx-store-test-'); });
@@ -54,7 +54,10 @@ test('folder: a new empty project is the server\'s (silinx.json text, src/ sim/ 
   assert.deepEqual(under(await dump(root), 'Empty'), sorted(server));
   assert.deepEqual(Object.keys(server).sort(), ['constraints/', 'silinx.json', 'sim/', 'src/']);
   assert.equal(server['silinx.json'], projectJsonText('Empty', pj));
-  assert.deepEqual(await ops.list(), [{ name: 'Empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: '', board: 'basys2' }]);
+  // (modified: its project file's date, #1156)
+  const [listed] = await ops.list();
+  assert.ok(listed.modified > Date.now() - 60e3 && listed.modified <= Date.now());
+  assert.deepEqual([listed], [{ name: 'Empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: '', board: 'basys2', modified: listed.modified }]);
 });
 
 test('folder: a project from each example is the server\'s, file for file', async () => {
@@ -391,4 +394,31 @@ test('#483 the project operations refuse a path that leaves the project, in both
     assert.deepEqual(put, { ...emptyProjectJson('Put'), top: 'a', constraints: null });
     assert.deepEqual((await ops.project('Put')).fileTree, ['src/a.v']);
   }
+});
+
+// #1156: Open Project's order: by when each project was last used (its last change, or its last opening in this
+// browser when later), the newest first, then by name; the browser's storage says when each project last changed
+test('#1156 byLastUsed: the newest change or opening first, then by name; the browser storage\'s projects dated by their changes', async () => {
+  const list = [{ name: 'b', modified: 100 }, { name: 'a', modified: 300 }, { name: 'c', modified: 0 }, { name: 'd' }, { name: 'e', modified: 200 }];
+  assert.deepEqual(byLastUsed(list).map((p) => [p.name, p.used]), [['a', 300], ['e', 200], ['b', 100], ['c', 0], ['d', 0]]);
+  // opened later than changed: its opening counts; earlier: its change
+  assert.deepEqual(byLastUsed(list, { b: 500, e: 50, x: 900 }).map((p) => [p.name, p.used]), [['b', 500], ['a', 300], ['e', 200], ['c', 0], ['d', 0]]);
+  assert.deepEqual(byLastUsed([]), []);
+  // the browser's storage: each write dates its project; one saved before has none (0)
+  const mem = new Map(), storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const s = browserStore(storage);
+  const t0 = Date.now();
+  await s.create('p1', { name: 'p1', files: [] }, { 'src/a.vhd': 'x' });
+  const [m1] = (await s.list()).map((p) => p.modified);
+  assert.ok(m1 >= t0 && m1 <= Date.now());
+  for (const change of [() => s.writeFile('p1', 'src/a.vhd', 'y'), () => s.saveJson('p1', { name: 'p1', files: [] }), () => s.renamePath('p1', 'src/a.vhd', 'src/b.vhd'), () => s.removePath('p1', 'src/b.vhd')]) {
+    const before = (await s.list())[0].modified;
+    await new Promise((r) => setTimeout(r, 3));
+    await change();
+    assert.ok((await s.list())[0].modified > before);
+  }
+  mem.set('silinx.standalone.fs', JSON.stringify({ old: { json: { name: 'old', files: [] }, files: {} } }));
+  assert.deepEqual((await browserStore(storage).list()).map((p) => [p.name, p.modified]), [['old', 0]]);
+  // the listing of the operations passes it on
+  assert.deepEqual((await projectOps(() => browserStore(storage)).list()).map((p) => p.modified), [0]);
 });

@@ -139,8 +139,14 @@ function rememberRecent(name) {
     const r = JSON.parse(localStorage.getItem('silinx.recent') || '[]').filter(x => x !== name);
     r.unshift(name);
     localStorage.setItem('silinx.recent', JSON.stringify(r.slice(0, 8)));
+    // (when each project was last opened, for Open Project's order, #1156)
+    const o = opened();
+    o[name] = Date.now();
+    localStorage.setItem('silinx.opened', JSON.stringify(o));
   } catch { /* ignore */ }
 }
+/** When each project was last opened in this browser: { name: ms } (#1156). */
+export function opened() { try { const o = JSON.parse(localStorage.getItem('silinx.opened') || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
 export function recent() { try { return JSON.parse(localStorage.getItem('silinx.recent') || '[]'); } catch { return []; } }
 // File ▸ Recent Projects ▸ Clear Recent Projects, and the Start page link: forget the list (the projects stay)
 export function clearRecent() {

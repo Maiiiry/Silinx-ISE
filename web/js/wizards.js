@@ -10,6 +10,8 @@ import { reservedError } from '/core/reserved.js';
 import { reservedNameDiags } from './processes.js';
 import { countEvent, siteCounts } from './analytics.js';
 import { confirmDeviceChange } from './device-change.js';
+import { byLastUsed } from './project-store.js';
+import { opened } from './project.js';
 
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -329,18 +331,23 @@ export async function createTopSource(pname, type, lang) {
   return t.file;
 }
 
+// a date as the lists show it: 2026-10-24 15:07, local time
+const dateText = ms => { const d = new Date(ms), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+
 export async function openProjectDialog() {
-  const list = await api.projects();
+  // the projects by when they were last changed or opened, the newest first, that date last (#1156)
+  const list = byLastUsed(await api.projects(), opened());
   let chosen = null;
-  const tbl = h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Project'), h('th', {}, 'Device'), h('th', {}, 'Top'), h('th', {}, 'Board')));
+  const tbl = h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Project'), h('th', {}, 'Device'), h('th', {}, 'Top'), h('th', {}, 'Board'), h('th', {}, 'Last Used')));
   for (const p of list) {
-    const tr = h('tr', {}, h('td', {}, p.name), h('td', {}, p.device ? `${p.device.part}${p.device.speed}-${p.device.package}` : ''), h('td', {}, p.top || ''), h('td', {}, p.board || ''));
+    const tr = h('tr', {}, h('td', {}, p.name), h('td', {}, p.device ? `${p.device.part}${p.device.speed}-${p.device.package}` : ''), h('td', {}, p.top || ''), h('td', {}, p.board || ''),
+      h('td', { class: 'pj-used', 'data-no-i18n': '' }, p.used ? dateText(p.used) : ''));
     tr.addEventListener('click', () => { tbl.querySelectorAll('tr').forEach(r => r.classList.remove('sel')); tr.classList.add('sel'); chosen = p.name; });
     tr.addEventListener('dblclick', () => { chosen = p.name; document.querySelector('.dlg .btn.primary')?.click(); });
     tbl.append(tr);
   }
   const r = await dialog({
-    title: 'Open Project', width: 560,
+    title: 'Open Project', width: 680,
     body: h('div', {}, list.length ? h('div', { style: { maxHeight: '320px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl) : h('div', {}, 'No projects found in the workspace.')),
     buttons: [{ label: 'Open', primary: true, value: () => chosen }, { label: 'Cancel', value: null }],
   });

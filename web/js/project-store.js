@@ -155,27 +155,30 @@ export function browserStore(storage = () => globalThis.localStorage) {
   const get = name => all()[name] || fail(`project '${name}' not found`);
   return {
     kind: 'browser', label: null,
-    list: async () => Object.values(all()).map(p => p.json).sort((a, b) => a.name.localeCompare(b.name)),
+    // (modified: when it last changed, ms, kept beside it; 0 for one saved before, #1156)
+    list: async () => Object.values(all()).map(p => ({ ...p.json, modified: p.modified || 0 })).sort((a, b) => a.name.localeCompare(b.name)),
     exists: async name => !!all()[name],
     load: async name => get(name),
     create: async (name, json, files = {}) => {
       if (all()[name]) fail(`project '${name}' already exists`);
-      mem[name] = { json: { ...clone(json), name }, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [cleanPath(k), v])) };
+      mem[name] = { json: { ...clone(json), name }, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [cleanPath(k), v])), modified: Date.now() };
       persist();
     },
-    saveJson: async (name, json) => { const p = get(name); p.json = { ...clone(json), name }; delete p.json.fileTree; persist(); },
-    writeFile: async (name, path, text) => { get(name).files[cleanPath(path)] = text; persist(); },
+    saveJson: async (name, json) => { const p = get(name); p.json = { ...clone(json), name }; delete p.json.fileTree; p.modified = Date.now(); persist(); },
+    writeFile: async (name, path, text) => { const p = get(name); p.files[cleanPath(path)] = text; p.modified = Date.now(); persist(); },
     // a file, or a folder (everything under it)
     removePath: async (name, path) => {
       const p = get(name);
       path = cleanPath(path);
       for (const k of Object.keys(p.files)) if (under(k, path)) delete p.files[k];
+      p.modified = Date.now();
       persist();
     },
     renamePath: async (name, from, to) => {
       const p = get(name);
       from = cleanPath(from); to = cleanPath(to);
       for (const k of Object.keys(p.files).filter(x => under(x, from))) { const v = p.files[k]; delete p.files[k]; p.files[to + k.slice(from.length)] = v; }
+      p.modified = Date.now();
       persist();
     },
     deleteProject: async name => { get(name); delete mem[name]; persist(); },
@@ -259,7 +262,8 @@ export function folderStore(root) {
       const out = [];
       for await (const [name, h] of root.entries()) {
         if (h.kind !== 'directory' || name.startsWith('.') || !NAME_RE.test(name)) continue;
-        try { out.push({ ...await readJson(h), name }); } catch { /* not a project */ }
+        // (modified: its project file's date, #1156)
+        try { out.push({ ...await readJson(h), name, modified: (await (await h.getFileHandle(PROJECT_FILE)).getFile()).lastModified || 0 }); } catch { /* not a project */ }
       }
       return out.sort((a, b) => a.name.localeCompare(b.name));
     },
@@ -366,7 +370,7 @@ export async function readBuildResults(store, name, { modelVersion }) {
 export function projectOps(getStore, examples = {}) {
   const S = () => getStore();
   const ops = {
-    list: async () => (await S().list()).map(j => ({ name: j.name, device: j.device, top: j.top, board: j.board })),
+    list: async () => (await S().list()).map(j => ({ name: j.name, device: j.device, top: j.top, board: j.board, modified: j.modified || 0 })),
     load: name => S().load(name),
     create: async ({ name, template = 'empty', device, board }) => {
       if (!NAME_RE.test(name || '')) fail(`invalid project name '${name}'`);
@@ -468,6 +472,13 @@ export function projectOps(getStore, examples = {}) {
     },
   };
   return ops;
+}
+
+/** The projects of a listing ({ name, modified }) by when each was last used, the newest first (#1156): its last change
+ *  or, when later, its last opening in this browser (opened: { name: ms }); then by name. Each gets `used` (ms, 0: never). */
+export function byLastUsed(list, opened = {}) {
+  return list.map(p => ({ ...p, used: Math.max(+p.modified || 0, +opened[p.name] || 0) }))
+    .sort((a, b) => b.used - a.used || a.name.localeCompare(b.name));
 }
 
 /** Copies every project of store `from` into store `to`; one already there (same name) is not

@@ -48,6 +48,18 @@ export function langOf(p) {
 
 async function exists(p) { try { await fs.access(p); return true; } catch { return false; } }
 
+// when a project last changed (ms): its newest file, the build's outputs and hidden folders aside (#1156)
+async function lastChange(dir) {
+  let t = 0;
+  for (const ent of await fs.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    if (ent.name.startsWith('.') || ent.name === 'build') continue;
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) t = Math.max(t, await lastChange(p));
+    else if (ent.isFile()) t = Math.max(t, (await fs.stat(p).catch(() => null))?.mtimeMs || 0);
+  }
+  return Math.round(t);
+}
+
 export async function listProjects() {
   const ws = workspaceDir();
   await fs.mkdir(ws, { recursive: true });
@@ -55,8 +67,9 @@ export async function listProjects() {
   for (const ent of await fs.readdir(ws, { withFileTypes: true })) {
     if (!ent.isDirectory() || ent.name.startsWith('.')) continue;
     try {
-      const pj = JSON.parse(await fs.readFile(await projectFile(path.join(ws, ent.name)), 'utf8'));
-      out.push({ name: ent.name, device: pj.device, top: pj.top, board: pj.board });
+      const dir = path.join(ws, ent.name);
+      const pj = JSON.parse(await fs.readFile(await projectFile(dir), 'utf8'));
+      out.push({ name: ent.name, device: pj.device, top: pj.top, board: pj.board, modified: await lastChange(dir) });
     } catch { /* not a project */ }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
