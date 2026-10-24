@@ -159,7 +159,7 @@ uiTest('#263 a long press on the ISim wave window\'s canvas opens its menu (Add 
   await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running && /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || ''), [], { what: 'ISim run', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running && /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || ''), [], { what: 'ISim run', timeout: 20000 });
   const waves = '.doc:not([hidden]) .isim-waves';
   const at = await page.eval((s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(b.left + b.width / 3), y: Math.round(b.top + 30 + 20 + 10) }; }, waves);
   await page.rightClick(at);

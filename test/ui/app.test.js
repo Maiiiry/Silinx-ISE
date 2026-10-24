@@ -795,16 +795,16 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
   await page.setView('impl');
   await page.menu('Tools', 'Board Emulator');
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'board emulator', timeout: 30000 });
   const docs = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => `${d.id} ${d.title}`), active: window.Silinx.active?.id }));
   const before = await docs();
-  assert.deepEqual(before, { docs: ['summary Design Summary', 'isim SSim (tb_top)', 'emulator Board Emulator (top)'], active: 'emulator' });
+  assert.deepEqual(before, { docs: ['summary Design Summary', 'isim:tb_top SSim (tb_top)', 'emulator Board Emulator (top)'], active: 'emulator' });
   assert.deepEqual(await page.eval(() => JSON.parse(localStorage.getItem('silinx.view.ViewSim')).open), ['summary', 'isim:tb_top', 'emulator:top']);
   await page.reload();
-  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs && window.Silinx.docs.find((d) => d.id === 'isim')?.view, [], { what: 'ISim and the emulator again', timeout: 60000 });
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs && window.Silinx.docs.find((d) => /^isim:/.test(d.id))?.view, [], { what: 'ISim and the emulator again', timeout: 60000 });
   assert.deepEqual(await docs(), before);
   // a netlist model that is gone: not reopened, no message
   await page.eval(() => { const k = 'silinx.view.ViewSim'; const v = JSON.parse(localStorage.getItem(k)); v.open = ['summary', 'isim:tb_top@postsynth']; v.active = 'isim:tb_top@postsynth'; localStorage.setItem(k, JSON.stringify(v)); });

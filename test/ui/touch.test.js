@@ -94,7 +94,7 @@ uiTest('touch (#264): a finger moves the waveform viewer\'s cursor; the mouse st
   await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await page.waitFor(() => /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [], { what: 'sim time 1 us', timeout: 20000 });
   for (const sel of ['.isim-waves', '.isim-names', '.isim-split-names', '.isim-split-v', '.isim-split-h']) assert.equal(await touchAction(page, `.doc:not([hidden]) ${sel}`), 'none', sel);
   // the client point of time t (ps) in the ruler (no row: no snapping to a transition)

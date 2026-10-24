@@ -50,7 +50,7 @@ const simulate = async (page, mod) => {
   await page.eval(() => { window.__oldView = window.Silinx.active?.view || null; });
   await page.treeRow('#hier', mod);
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor((m) => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && window.Silinx.active.view !== window.__oldView
+  await page.waitFor((m) => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && window.Silinx.active.view !== window.__oldView
     && document.querySelector('.doc:not([hidden]) .isim-title-text')?.textContent === m, [mod], { what: `ISim of ${mod}`, timeout: 20000 });
 };
 
@@ -331,7 +331,7 @@ uiTest('#919 ISim stimuli in Tasks ▸ Simulate: a bus expanded, its bits clicke
   await page.openProject('StimBitsTasks');
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.click('#task-empty button');
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
   await simTime(page, '1,000,000');
   await editBits(page);
   await page.waitFor(async () => (await (await fetch('/api/projects/StimBitsTasks')).json()).stimuli?.ctr?.inputs?.d?.[2] === '1001', [], { what: 'stimuli saved' });

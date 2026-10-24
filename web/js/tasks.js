@@ -34,7 +34,6 @@ import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
 import { initCheckMessages } from './tasks-check.js';
-import { buildTestPage, unbuildTestPage } from './tasks-test.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl'];
 // (the first task is Design, its id 'edit' kept: the kept state, the documents; 'Design' in Portuguese too, #1046)
@@ -71,7 +70,7 @@ const DEFAULTS = {
 /** The task a document belongs to, by its id (web/js/app.js openDoc and its callers). */
 export function taskOfDoc(id) {
   const s = String(id || '');
-  if (s === 'isim') return 'sim';
+  if (/^isim(:|$)/.test(s)) return 'sim';   // (one per module and model, #1161)
   if (s === 'emulator') return 'emu';
   // (a build file: a report, #802; the RTL Schematic, Synthesize's view, as the Technology one, #1063; iMPACT, #1172)
   if (/^(summary|pins|fpgaview|impact)$/.test(s) || /^(text|tech|rtl):/.test(s) || s.startsWith('file:build/')) return 'impl';
@@ -104,8 +103,8 @@ export function arrangement(task, kept = {}, narrow = false) {
   return a;
 }
 
-// the tasks whose document is single by nature: a new simulation or emulation replaces the old one
-export const SINGLE = ['sim', 'emu'];
+// the tasks whose document is single by nature: a new emulation replaces the old one
+export const SINGLE = ['emu'];   // (Simulate: its tabs, several simulations open, #1161)
 /** What a document's title says of it: "ISim (top, Post-Synthesis)" → { module: 'top', model: 'Post-Synthesis' }
  *  (a behavioural model: null); a title with no module (iMPACT): { module: null, model: null }. */
 export function docDetail(title) {
@@ -318,7 +317,6 @@ function build() {
     h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
-  buildTestPage(app, newBench);
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
   $('left-tabs').append(h('div', { id: 'task-procs-tab', class: 'tab', 'data-page': 'procs', role: 'tab', 'aria-selected': 'true' },
     h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Processes')));
@@ -343,7 +341,6 @@ function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
   delete document.getElementById('topbar').dataset.fit;
   for (const t of document.querySelectorAll('#left-tabs .tab')) t.removeAttribute('title');
-  unbuildTestPage(app);
   messagesTask(null);   // (the other interfaces: every source, #925)
   shownTask = null;
   app.renderHierarchy();

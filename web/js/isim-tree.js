@@ -1,12 +1,15 @@
 // ISim's instance tree (#405: out of mountISim): the design's instances and their processes, the one selected (its
 // signals in the Objects panel), dragged into the wave window or added from its menu (recursive: a divider before each
-// instance), its source. mountTree(ctx) is called by mountISim where this code was.
+// instance), its source. With `benches` (the project's test benches, #1161): each one a row, the one simulated here
+// opened as its instances' tree, another one simulated (onBench, a document of its own) when clicked; the rows of
+// the others shown in the Tasks layout only (web/css/tasks.css). mountTree(ctx) is called by mountISim where this
+// code was.
 import { esc, h } from './dom.js';
 import { ICON, pathOf } from './isim.js';
 
 /** { renderTree, addInstance } of an ISim window. */
 export function mountTree(ctx) {
-  const { st, design, treeEl, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
+  const { st, design, treeEl, benches, onBench, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
 
   function renderTree() {
     treeEl.innerHTML = '';
@@ -49,7 +52,17 @@ export function mountTree(ctx) {
       }
       return li;
     };
-    if (design.top) treeEl.appendChild(mk(design.top, true));
+    // (the other test benches: a row each, simulated when clicked)
+    const bench = name => {
+      const li = h('li', { class: 'task-bench' });
+      const row = h('div', { class: 'row', title: `Simulate ${name}`, html: `<span class="twisty"></span><span class="ico">${ICON.top}</span><span class="lbl">${esc(name)}</span>` });
+      row.addEventListener('mousedown', () => onBench?.(name));
+      li.appendChild(row);
+      return li;
+    };
+    const names = benches?.() || [];
+    if (!names.includes(current) && design.top) treeEl.appendChild(mk(design.top, true));
+    for (const n of names) treeEl.appendChild(n === current && design.top ? mk(design.top, true) : bench(n));
   }
   function addInstance(inst, recursive, at) {
     const sigs = [];

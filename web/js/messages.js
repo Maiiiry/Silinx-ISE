@@ -50,9 +50,10 @@ export function filterSources(filter, task) {
 let app = null, picked = null, task = null, built = false, cur = 'app';
 const $ = id => document.getElementById(id);
 const shownSources = () => filterSources(picked, task);
-const isimInput = () => document.querySelector('#workspace .isim .isim-cmdline input');
+// (the simulation in front: there may be several, #1161)
+const isimInput = () => document.querySelector('#workspace > .doc:not([hidden]) .isim .isim-cmdline input');
 // ISim's commands: in the Tasks interface while Simulate is in front, in the others while an ISim window is
-const simulating = () => !!isimInput() && (task === 'sim' || (task === null && app?.S.active?.id === 'isim'));
+const simulating = () => !!isimInput() && (task === 'sim' || (task === null && /^isim(:|$)/.test(app?.S.active?.id || '')));
 
 function tag(ln) {
   if (!ln.dataset.src) ln.dataset.src = cur = sourceOf(ln.textContent, cur);

@@ -319,7 +319,7 @@ for (const theme of ['dark', 'light']) {
     await page.setView('sim');
     await page.treeRow('#hier', 'tb_top');
     await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-    await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
+    await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { what: 'ISim', timeout: 30000 });
     await check('ISim');
     await page.setView('impl');
     await page.menu('Tools', 'Board Emulator');

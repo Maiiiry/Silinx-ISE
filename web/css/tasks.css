@@ -235,7 +235,13 @@ html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs 
   html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #drawer-scrim { left: 0; }
 }
 
-/* ------------------------------------------------------------------ Edit's Test page (#1016, web/js/tasks-test.js) */
-/* the test benches' tree, what the page says with none, the wizard's button */
-html[data-layout="tasks"] #test-page .test-none { margin: 10px 14px 4px; color: var(--m-muted); font-size: 12px; }
-html[data-layout="tasks"] #test-page .test-new { margin: 8px 14px; }
+
+/* ------------------------------------------------------------------ Simulate's side panel: Simulation and Instances (#1161) */
+/* ISim's Instances and Processes under a tab, as Design's pages (its heading none); its tree the project's test benches,
+   the one simulated opened as its instances (web/js/isim-tree.js); the other benches' rows here only */
+.task-sim-tabs, .task-bench { display: none; }
+html[data-layout="tasks"] .isim-tree li.task-bench { display: list-item; }
+html[data-layout="tasks"] .isim-inst-panel > .caption { display: none; }
+html[data-layout="tasks"] .task-sim-tabs { display: flex; flex: none; align-items: stretch; height: 36px; padding: 4px 6px; border-bottom: 1px solid var(--m-border); }
+html[data-layout="tasks"] .task-sim-tabs .tab { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; padding: 0 9px; border-radius: 6px;
+  background: var(--m-accent-soft); color: var(--m-accent); font-size: 12px; font-weight: 600; }

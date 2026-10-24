@@ -129,8 +129,8 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   s = await state(page);
   assert.equal(s.task, 'sim');
   assert.equal(s.empty, false);
-  assert.deepEqual(s.tabs, [], 'one document: no tab bar (#854)');
-  assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'tb_top', 'the test bench (#800)');
+  assert.deepEqual(s.tabs, ['SSim (tb_top)'], 'its tab: several simulations may be open (#1161)');
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top)', 'the test bench (#800)');
   // the side panel unfolds from the task's bar, kept for Simulate
   await page.click('#task-bar [data-act="side"]');
   assert.equal((await state(page)).side, 'open');
@@ -291,14 +291,14 @@ uiTest('#839 Tasks in a development build: with the Development menu, in Portugu
   await noWarnings(page);
 }, { build: FULL });
 
-// #854: Simulate and Emulate have one document each (iMPACT Implement's, among its documents, #1172) (a new one replaces the old): no tab bar there; the
+// #854: Emulate has one document (a new one replaces the old; Simulate its tabs, #1161; iMPACT Implement's, #1172): no tab bar there; the
 // document's module and model, and its close, in the task's bar; Edit keeps its tabs
 const docInfo = (page) => page.eval(() => {
   const vis = (e) => !!e && e.getClientRects().length > 0;
   const i = document.getElementById('task-doc');
   return { tabs: vis(document.getElementById('doc-tabs')), info: vis(i) ? [...i.querySelectorAll('span')].filter(vis).map((x) => x.textContent) : null };
 });
-uiTest('#854 Tasks: no tab bar in a task with a single document; its module and model, and its close, in the task\'s bar', E, async (page) => {
+uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module and model, and its close, in the task\'s bar; Simulate its tabs', E, async (page) => {
   await makeProject(env, { name: 'TasksSingle', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -306,16 +306,12 @@ uiTest('#854 Tasks: no tab bar in a task with a single document; its module and 
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitForSelector('.doc:not([hidden]) .cm-editor');
   assert.deepEqual(await docInfo(page), { tabs: true, info: null }, 'Edit keeps its tabs, even with one file');
-  // Simulate: none open (its page, no tab bar), then ISim: its module and model in the bar
+  // Simulate: its tab bar, as Edit's (several simulations may be open, #1161), none open (its page), then ISim in its tab
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  assert.deepEqual(await docInfo(page), { tabs: false, info: null });
+  assert.deepEqual(await docInfo(page), { tabs: true, info: null });
   await page.click('#task-empty button');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
-  await page.waitFor(() => document.getElementById('task-doc').getClientRects().length > 0, [], { what: 'the document in the bar' });
-  assert.deepEqual(await docInfo(page), { tabs: false, info: ['tb_top', 'Behavioral'] });   // (the test bench: #800)
-  // the workspace has the tab bar's height
-  const top = await page.eval(() => Math.round(document.getElementById('workspace').getBoundingClientRect().top - document.getElementById('toolbar').getBoundingClientRect().bottom));
-  assert.ok(top <= 1, `the document right under the toolbar: ${top}`);
+  assert.deepEqual(await docInfo(page), { tabs: true, info: null });
   // Emulate: the board, RTL
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.click('#task-empty button');
@@ -326,11 +322,12 @@ uiTest('#854 Tasks: no tab bar in a task with a single document; its module and 
   await page.waitFor(() => !window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator closed' });
   assert.deepEqual(await docInfo(page), { tabs: false, info: null });
   assert.ok(await shown(page, '#task-empty'));
-  // in Portuguese: the model's name
-  await page.click('#task-switch .task-btn[data-task="sim"]');
+  // in Portuguese: the bar's close (Emulate's board again)
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.click('#task-empty button');
+  await page.waitFor(() => !!window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator', timeout: 30000 });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('#task-doc .task-doc-model').textContent === 'Comportamental', [], { what: 'Portuguese' });
-  assert.equal(await page.eval(() => document.querySelector('#task-doc [data-act="close"]').title), 'Fechar');
+  await page.waitFor(() => document.querySelector('#task-doc [data-act="close"]')?.title === 'Fechar', [], { what: 'Portuguese' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // back to Edit: its tabs
   await page.click('#task-switch .task-btn[data-task="edit"]');
@@ -343,11 +340,11 @@ uiTest('#854 Tasks: no tab bar in a task with a single document; its module and 
   await noWarnings(page);
 }, { build: DEV });
 
-// #799: Edit's Design pane is one tree, no views: the design, then the constraints; the test benches are the Test
-// page's (#1016, test/ui/tasks-test.test.js); Check checks the selected module, a test bench with the simulation's sources
+// #799: Edit's Design pane is one tree, no views: the design, then the constraints; the test benches are Simulate's
+// (its Simulation and Instances, #1161); Check checks the selected module
 const hierRows = (page) => page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.getClientRects().length)
   .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => b.textContent)].join(' ')));
-uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views; Check of a test bench (the Test page\'s)', E, async (page) => {
+uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views; Check of the selected module', E, async (page) => {
   await makeProject(env, { name: 'TasksTree', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -359,15 +356,12 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views
   // the design first (its top, its modules with their drawings' badges), then the groups
   assert.ok(at('TasksTree') === 0 && at('xc3s250e-4-cp132') === 1 && at('top') === 2, rows.join(' | '));
   assert.ok(rows.includes('u_speed - speed_ctrl ASM VHDL'), 'a drawing\'s badge first, its HDL last');
-  assert.ok(at('Test Benches') === -1 && at('tb_top') === -1, rows.join(' | '));   // (the Test page's, #1016)
+  assert.ok(at('Test Benches') === -1 && at('tb_top') === -1, rows.join(' | '));   // (Simulate's, #1161)
   assert.ok(at('Constraints') > at('top') && at('top.ucf') === at('Constraints') + 1, rows.join(' | '));
-  // Check of the test bench: the simulation's sources (Behavioral Check Syntax), no error
-  await page.click('#left-tabs .tab[data-page="test"]');
-  await page.treeRow('#test-tree', 'tb_top', { exact: true });
+  // Check of the selected module, no error
+  await page.treeRow('#hier', 'top', { exact: true });
   await page.click('#task-bar [data-act="main"]');
-  await page.waitConsole(/Elaborating top module <tb_top>/);
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
-  assert.match(await page.eval(() => window.__console()), /Started : "Behavioral Check Syntax"/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
   // the UCF from its group: in Edit (the tree scrolled to its end: its last row clear of the horizontal scroll bar
   // the long rows of blinky's modules give it, which the headless browser draws over the pane)
@@ -488,7 +482,7 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   assert.ok(await shown(page, '#task-model'));
   await page.click('#task-empty button');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
-  await page.waitFor(() => document.querySelector('#task-doc .task-doc-mod')?.textContent === 'tb_top', [], { what: 'the test bench simulated' });
+  await page.waitFor(() => window.Silinx.active?.title === 'SSim (tb_top)', [], { what: 'the test bench simulated' });
   // the waves get the screen: no ISim title bar, no Instances / Objects column, no Design pane, no console
   assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-title')) && !(await shown(page, '.doc:not([hidden]) .isim-left')));
   assert.ok(!(await shown(page, '#left-pages')) && !(await shown(page, '#left-tabs')));
@@ -739,10 +733,9 @@ uiTest('#802 Tasks ▸ Implement: the top\'s Processes, the Design Summary as ca
   await tasksInterface(page);
   await page.openProject('TasksImpl');
   await page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
-  // a module selected in Edit (a test bench, the Test page's: #1016): Implement still lists the top's processes, Design's page
+  // another module selected in Edit: Implement still lists the top's processes
   await page.click('#task-switch .task-btn[data-task="edit"]');
-  await page.click('#left-tabs .tab[data-page="test"]');
-  await page.treeRow('#test-tree', 'tb_top', { exact: true });
+  await page.treeRow('#hier', 'u_knight', { exact: false });
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => document.getElementById('proc-caption')?.textContent === 'Processes: top', [], { what: 'the top\'s processes' });
   assert.ok(await shown(page, '#proc-panel') && !(await shown(page, '#design-panel')), 'the Processes, not the tree');
@@ -882,7 +875,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
       titles: [...document.querySelectorAll('#left-tabs .tab')].map((b) => b.title),
     };
   });
-  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Test', 'Files', 'Libraries', 'Processes'] });   // (Test: #1016; Processes: Implement's, #1160)
+  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Processes'] });   // (no Test: Simulate's benches, #1161; Processes: Implement's, #1160)
   // (no column of its own: the hierarchy from the window's left edge)
   assert.ok(await page.eval(() => document.querySelector('#hier').getBoundingClientRect().left) < 12);
   await page.click('#left-tabs .tab[data-page="files"]');
@@ -914,7 +907,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Teste', 'Ficheiros', 'Bibliotecas', 'Processos']);
+  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Processos']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the modern interface: the activity bar as before, a column with every name, no tooltips
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
@@ -957,7 +950,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   // a design module chosen instead: the simulation top (as Set as Top Module in the Simulation view), simulated at once (#1018)
   await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
   await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
-  await page.waitFor(() => document.querySelector('#task-doc .task-doc-mod')?.textContent === 'and2', [], { what: 'ISim of and2', timeout: 30000 });
+  await page.waitFor(() => window.Silinx.active?.title === 'SSim (and2)', [], { what: 'ISim of and2', timeout: 30000 });
   // Edit: the chosen module's source, in Edit
   await page.click('#task-bar .task-bench-edit');
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/and2.vhd' && document.documentElement.dataset.task === 'edit', [], { what: 'its source in Edit' });
