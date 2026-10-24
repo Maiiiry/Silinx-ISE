@@ -106,20 +106,20 @@ function selectionProcesses(sel, view) {
       { id: 'rtl', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
       { id: 'tech', label: 'View Technology Schematic', ico: 'schematic', onTop: 'synthesizes', run: () => openTechSchematic(top) },
       { id: 'check', label: 'Check Syntax', ico: 'process', run: () => checkSyntax(mod) },
-      { id: 'postsynth', label: EXTRA_STEPS.postsynth, ico: 'process', onTop: 'synthesizes', run: () => generateSimModel(top, 'postsynth') },
+      ...simModelProc({ id: 'postsynth', label: EXTRA_STEPS.postsynth, ico: 'process', onTop: 'synthesizes', run: () => generateSimModel(top, 'postsynth') }),
     ] },
     { id: 'synth-open', label: SYNTH_OPEN, ico: 'process', onTop: 'synthesizes', run: () => synthOpen(top) },
     { id: 'impl', label: 'Implement Design', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par']), children: [
       { id: 'translate', label: 'Translate', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate']), children: [
-        { id: 'posttrans', label: EXTRA_STEPS.posttrans, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'posttrans') },
+        ...simModelProc({ id: 'posttrans', label: EXTRA_STEPS.posttrans, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'posttrans') }),
       ] },
       { id: 'map', label: 'Map', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map']), children: [
-        { id: 'postmap', label: EXTRA_STEPS.postmap, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postmap') },
+        ...simModelProc({ id: 'postmap', label: EXTRA_STEPS.postmap, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postmap') }),
       ] },
       { id: 'par', label: 'Place & Route', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par']), children: [
         { id: 'trce', label: EXTRA_STEPS.trce, ico: 'process', onTop: 'implements', run: () => postParTiming(top) },
         { id: 'xpwr', label: EXTRA_STEPS.xpwr, ico: 'process', onTop: 'implements', run: () => textPowerReport(top) },
-        { id: 'postpar', label: EXTRA_STEPS.postpar, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postpar') },
+        ...simModelProc({ id: 'postpar', label: EXTRA_STEPS.postpar, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postpar') }),
         { id: 'pin2ucf', label: EXTRA_STEPS.pin2ucf, ico: 'process', onTop: 'implements', run: () => backAnnotatePins(top) },
         { id: 'fpgaview', label: EXTRA_STEPS.fpgaview, ico: 'chip', onTop: 'implements', run: () => openFpgaView(top) },
       ] },
@@ -132,6 +132,9 @@ function selectionProcesses(sel, view) {
   ];
 }
 
+// a Generate Post-… Simulation Model process: the classic interface's only; the Tasks interface's Implement has none,
+// Simulate's model choice generates the one it needs (#1265, #490)
+const simModelProc = p => (globalThis.document?.documentElement.dataset.layout === 'tasks' ? [] : [p]);
 // the User Constraints group (Implement's, and Emulate's, #1204), of module `mod`
 const constraintsProcs = mod => ({ id: 'constraints', label: 'User Constraints', ico: 'procGroup', children: [
   { id: 'pins', label: 'I/O Pin Planning', ico: 'pins', run: () => openPinPlanner(mod) },

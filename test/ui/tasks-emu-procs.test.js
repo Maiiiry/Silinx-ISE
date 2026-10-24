@@ -60,9 +60,9 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   // Check Constraints: the project's UCF checked
   await row(page, 'Check Constraints');
   await page.waitConsole(/Process "Check Constraints" completed successfully/);
-  // Edit Constraints (Text): the UCF opens (Design's document)
+  // Edit Constraints (Text): the UCF opens (Implement's document, as I/O Pin Planning, #1265)
   await row(page, 'Edit Constraints (Text)');
-  await page.waitFor(() => /\.ucf$/.test(window.SilinxApp.S.active?.title || ''), [], { what: 'the UCF' });
+  await page.waitFor(() => /\.ucf$/.test(window.SilinxApp.S.active?.title || '') && document.documentElement.dataset.task === 'impl', [], { what: 'the UCF in Implement' });
   // back to Emulate: I/O Pin Planning (Implement's document)
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await row(page, 'I/O Pin Planning');

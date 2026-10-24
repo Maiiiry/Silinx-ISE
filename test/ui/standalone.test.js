@@ -1113,7 +1113,7 @@ uiTest('browser edition: Generate Post-Synthesis Simulation Model in the browser
   const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR/);
-}, { url: () => 'about:blank', timeout: 300000 });
+}, { url: () => 'about:blank', ui: 'classic', timeout: 300000 });   // (the classic Processes' Generate … Simulation Model: the modern Implement has none, #1265)
 
 uiTest('browser edition: Simulate Post-Synthesis Model with no model: "Generate and Simulate" generates it in the browser and the simulation starts (#490)', E, async (page) => {
   await newSiteProject(page, 'WebGenSim', 'blinky');
