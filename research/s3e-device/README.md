@@ -592,6 +592,53 @@ candidates (a spine wire drives them). Left of the 5973: **619 with only spine c
 `GCLKH_GCLK_Bk`…, fed by the spine: a test would cut the spine itself) and 270 with more than two row candidates and no
 single rule match. Next (#3): those, then the edge (terminal) tiles and the corners.
 
+### Part 3: the spine-fed clock wires, the edge tiles and the corners (2026-10-24)
+
+**The spine-fed clock wires** (the rows' own inputs, `GCLKH_GCLK_Bk`…, whose candidates are all spine wires). Cutting a
+spine wire c cuts what else of the net hangs below it, so `clocktests.mjs` (`SPINE=1`) keeps only the spine's PIPs
+(the rows' left out, since every row below c would show an island), and adds a **baseline** for each net and candidate:
+the same net without f's PIP. The test means something only when its baseline is clean (nothing of the kept spine
+below c). The first round takes each wire's candidates in its own row first, a spine's (`NEAR=1`); for the 270 wires
+with more than two row candidates, those in their own column first, a row's (where every join of (A) and (B) is). A
+second round (`SKIP=…`) takes the other candidates of the wires still unsettled.
+
+| Tests | Designs (ISE time) | Verdicts | Against the shipped graph |
+|---|---|---|---|
+| spine, first round (1554) | 219 (561 s) | 570 joins, 452 islands; baselines 504 clean, 12 not (16 tests say nothing) | **all agree** |
+| rows, first round (796) | 213 (522 s) | 165 joins, 558 islands, 73 controls clean | **all agree** |
+| spine, second round (254) | 36 (86 s) | baselines 3 clean, 101 not (147 tests say nothing); 3 islands | **all agree** |
+| rows, second round (1554) | 318 (707 s) | 1412 islands (the candidates of other columns), 142 controls clean | **all agree** |
+
+With part 2: **5734 of the 5973 ambiguous clock wires settled**, each with exactly one join, every one in its own
+column or row. **239 stay**: the spine's own wires (GCLKVC 33, GCLKVML / GCLKVMR 16) and rows whose spine candidates lie
+upstream of others (their baselines are not clean); a test of them would cut the spine at its middle and keep its
+upper half.
+
+**The edge (terminal) tiles and the corners.** In the routes, 1626 of their PIPs' wires are seen, 1228 with a known
+join. `edgejoins.mjs` makes the hypotheses: each known join of an edge tile as a rule (`joinRule`: the same wires at the
+same offset), applied to every tile of its prefix whose wires the routes showed in a tile of that type (2537), and the
+observations' ambiguous joins with a candidate in such a tile (4190, the clock lines' left to `clocktests.mjs`). Then
+the join tests of rounds 1-8 (`prototype.mjs tests`, the round 8 sources, `UNBONDED=1`):
+
+| Tests | Designs (ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 4939 | 133 (522 s) | 1382 joins, 3557 islands | **all** |
+
+**1499 of the 1626 edge wires** now have a known join. The corners (UL, UR, LL, LR, CNR_\*) are the thinnest, 95 of 132.
+1788 hypotheses have no test source within the search's limits (3 joins, 5 PIPs), most of them CLB-edge and I/O-edge
+hexes and long lines (`CLB ~ RTERM` 242, `LIOIS ~ LTERM` 186, `CLB ~ LTERM` 181…).
+
+**#3 now stands at:** every part of the description the method lists (tiles, sites and their types, the sites' pins,
+the PIPs, the joins of the switch boxes, the I/O and block-RAM tiles, the clock network and the edges) measured, every
+measurement agreeing with the shipped graph. Left: the 239 spine wires, the 1788 untestable edge joins and the 11 joins
+round 8 left, then building the measured description and comparing it whole (steps 5-6 of the recommendation).
+
+```
+SPINE=1 NEAR=1 SKIP=c2,c3 node clocktests.mjs tests obs.json cS …/top.xdl     (then SKIP=c2,c3,cS,cM for the second round)
+NEAR=1 SKIP=c2,c3 node clocktests.mjs tests obs.json cM …/top.xdl
+node edgejoins.mjs obs.json edge.json t1 … t8b && UNBONDED=1 … node prototype.mjs tests edge.json obs.json te t1 … t8b
+```
+
 ```
 node gen-obsclk.mjs clkb 12 100 0.25 && impl-remote.sh clk0 … clk11
 INTERSECT=1 node prototype.mjs observe obs.json …/top.xdl clk/*/top.xdl clkb/*/top.xdl

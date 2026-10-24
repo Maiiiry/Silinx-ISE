@@ -48,15 +48,25 @@ export function clockNets(design) {
  *  control }] }], untestable: [[c, f]] }. control: every n-th test also run with the PIP into c kept. */
 export function clockTestDesigns(hyps, designs, { controlEvery = 10 } = {}) {
   const nets = designs.flatMap(d => clockNets(d).map(n => ({ ...n, design: d })));
-  const tests = [], untestable = [];
+  const tests = [], untestable = [], bases = new Set();
   hyps.forEach(([c, f], i) => {
     const n = nets.find(x => x.dangling.has(f) && x.tos.has(c));
     if (!n) { untestable.push([c, f]); return; }
     const into = n.pips.filter(p => key(p.tile, p.to) === c);
-    const keep = n.pips.filter(p => clockTile(p.tile) && !into.includes(p));
     const base = { src: n.src, pin: n.pin, join: [c, f], fpip: n.dangling.get(f) };
-    tests.push({ ...base, pips: [...keep, base.fpip], control: false });
-    if (i % controlEvery === 0) tests.push({ ...base, pips: [...keep, ...into, base.fpip], control: true });
+    if (rowTile(c.split('/')[0])) {
+      const keep = n.pips.filter(p => clockTile(p.tile) && !into.includes(p));
+      tests.push({ ...base, pips: [...keep, base.fpip], control: false });
+      if (i % controlEvery === 0) tests.push({ ...base, pips: [...keep, ...into, base.fpip], control: true });
+      return;
+    }
+    // (a spine candidate: the spine's PIPs only, the rows' left out, since every row below c would be cut off; and a
+    // baseline, the same without f's PIP, once for each net and candidate: the test means something only when it is
+    // clean, nothing of the spine below c)
+    const keep = n.pips.filter(p => clockTile(p.tile) && !rowTile(p.tile) && !into.includes(p));
+    const b = `${nets.indexOf(n)}|${c}`;
+    if (!bases.has(b)) { bases.add(b); tests.push({ ...base, pips: keep, baseline: b, control: false }); }
+    tests.push({ ...base, pips: [...keep, base.fpip], base: b, control: false });
   });
   // packed: no two nets of a design share a wire or a buffer
   const out = [];
@@ -70,7 +80,7 @@ export function clockTestDesigns(hyps, designs, { controlEvery = 10 } = {}) {
     designs: out.map(d => {
       const insts = d.tests.map((t, k) => `inst "b${k}" "BUFGMUX",placed ${t.src.tile} ${t.src.site} ,\n  cfg "${t.src.cfg.map(c => `${c.attr}:${c.name || ''}:${c.value}`).join(' ')}" ;`);
       const nets = d.tests.map((t, k) => `net "t${k}" ,\n  outpin "b${k}" ${t.pin} ,\n${t.pips.map(p => `  pip ${p.tile} ${p.from} ${p.dir} ${p.to} ,`).join('\n')}\n  ;`);
-      return { xdl: `design "clocks" ${PART} v3.2 ;\n${insts.join('\n')}\n${nets.join('\n')}\n`, tests: d.tests.map((t, k) => ({ net: `t${k}`, join: t.join, control: t.control })) };
+      return { xdl: `design "clocks" ${PART} v3.2 ;\n${insts.join('\n')}\n${nets.join('\n')}\n`, tests: d.tests.map((t, k) => ({ net: `t${k}`, join: t.join, control: t.control, ...(t.baseline ? { baseline: t.baseline } : {}), ...(t.base ? { base: t.base } : {}) })) };
     }),
     untestable,
   };
@@ -91,7 +101,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const rules = new Set(v.filter(x => x[2] === 'join').map(([c, f]) => joinRule(c, f)));
       amb = amb.filter(a => !done.has(a.from)).map(a => ({ from: a.from, candidates: a.candidates.filter(c => rules.has(joinRule(c, a.from))) })).filter(a => a.candidates.length === 1);
     }
-    const hyps = amb.map(a => a.candidates.map(c => [c, a.from])).filter(h => h.length <= maxRow).slice(0, limit).flat();
+    // (SPINE=1: the wires with no row candidate, against their spine candidates; NEAR=1: each wire's candidates in its own
+    // column, a row's, or its own row, the spine's, first: where every join (A) and (B) found is)
+    if (process.env.SPINE === '1') {
+      amb = obs.ambiguous.filter(a => !a.src && wireFamily(a.from.split('/')[1]) === 'gclk' && !a.candidates.some(c => rowTile(c.split('/')[0])));
+    }
+    if (process.env.SKIP) {
+      const v = process.env.SKIP.split(',').flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')));
+      const done = new Set(v.filter(x => x[2] === 'join').map(x => x[1]));
+      const tried = new Set(v.filter(x => x[2] === 'join' || x[2] === 'no-join').map(x => `${x[0]}|${x[1]}`));
+      amb = amb.filter(a => !done.has(a.from)).map(a => ({ ...a, candidates: a.candidates.filter(c => !tried.has(`${c}|${a.from}`)) }));
+    }
+    if (process.env.NEAR === '1') {
+      const xy = k => k.split('/')[0].match(/X(\d+)Y(\d+)$/).slice(1).map(Number);
+      amb = amb.map(a => ({ ...a, candidates: a.candidates.filter(c => (rowTile(c.split('/')[0]) ? xy(c)[0] === xy(a.from)[0] : xy(c)[1] === xy(a.from)[1])) }));
+    }
+    const hyps = amb.map(a => a.candidates.map(c => [c, a.from])).filter(h => h.length && h.length <= maxRow).slice(0, limit).flat();
     const r = clockTestDesigns(hyps, files.map(f => parseXdl(fs.readFileSync(f, 'utf8'))));
     fs.mkdirSync(dir, { recursive: true });
     r.designs.forEach((d, i) => fs.writeFileSync(path.join(dir, `j${i}.xdl`), d.xdl));
@@ -100,12 +125,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } else if (cmd === 'verdicts') {
     const [dir] = args;
     const t = JSON.parse(fs.readFileSync(path.join(dir, 'tests.json'), 'utf8'));
-    const out = [], count = {};
-    t.designs.forEach((tests, i) => {
+    const out = [], count = {}, base = new Map();
+    const result = t.designs.map((tests, i) => {
       const f = path.join(dir, `j${i}.drc.log`);
       const log = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
-      const v = /PhysDesignRules results/.test(log) ? parseJoinTests(log, tests.map(x => x.net)) : null;
+      return /PhysDesignRules results/.test(log) ? parseJoinTests(log, tests.map(x => x.net)) : null;
+    });
+    t.designs.forEach((tests, i) => { for (const x of tests) if (x.baseline) base.set(x.baseline, !result[i] ? 'not-run' : result[i].get(x.net)); });
+    t.designs.forEach((tests, i) => {
+      const v = result[i];
       for (const x of tests) {
+        if (x.baseline) { const r = `baseline-${base.get(x.baseline) === 'join' ? 'clean' : base.get(x.baseline)}`; count[r] = (count[r] || 0) + 1; out.push([...x.join, r]); continue; }
+        // (a test against a baseline that is not clean says nothing)
+        if (x.base && base.get(x.base) !== 'join') { count['base-not-clean'] = (count['base-not-clean'] || 0) + 1; out.push([...x.join, 'base-not-clean']); continue; }
         // (an island: f driven through c, a join; none: not; a control: no island expected)
         const r = !v ? 'not-run' : v.get(x.net) === 'unclear' ? 'unclear' : x.control ? (v.get(x.net) === 'join' ? 'control' : 'control-island') : v.get(x.net) === 'no-join' ? 'join' : 'no-join';
         count[r] = (count[r] || 0) + 1;
