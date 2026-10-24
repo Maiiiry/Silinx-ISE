@@ -191,7 +191,7 @@ uiTest('touch (#674): in the waveform viewer two fingers scroll the time (the cu
   await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await page.waitFor(() => /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [], { what: 'sim time 1 us', timeout: 20000 });
   const state = () => page.eval(() => { const s = window.Silinx.active.view.state; return { t0: s.t0, scale: s.scale, cursor: s.cursor, sel: [...s.sel] }; });
   const w = await rectOf(page, '.doc:not([hidden]) .isim-waves');

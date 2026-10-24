@@ -120,7 +120,7 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'simulation ran', timeout: 30000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'simulation ran', timeout: 30000 });
   assert.ok(await page.eval(() => window.Silinx.active.view.state.rows.find((r) => r.name === 'clk').sig.wave.t.length) > 50);
   // a project that synthesizes with XST needs Xilinx ISE: a clear message, no crash
   await page.eval(async () => { window.Silinx.project.synthTool = 'xst'; await window.SilinxApp.saveProjectJson(); });
@@ -1104,7 +1104,7 @@ uiTest('browser edition: Generate Post-Synthesis Simulation Model in the browser
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
     await page.key('Enter');
@@ -1125,7 +1125,7 @@ uiTest('browser edition: Simulate Post-Synthesis Model with no model: "Generate 
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .dlg-buttons .btn')].map((b) => b.textContent)), ['Generate and Simulate', 'Cancel']);
   await page.dialogButton('Generate and Simulate');
   await page.waitNoDialog();
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 180000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 180000, what: 'ISim ready' });
   const lines = (await page.consoleText()).slice(start).split('\n').map((l) => l.trim()).filter(Boolean);
   const done = 'Process "Generate Post-Synthesis Simulation Model" completed successfully';
   assert.ok(lines.includes('=== SILINX STEP postsynth ==='), lines.join('\n'));

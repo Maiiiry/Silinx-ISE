@@ -22,7 +22,7 @@ uiTest('#920 SSim: the Processes pane, the simulation\'s tab, its console and pr
   await page.treeRow('#procs', 'SSim Simulator', { exact: true });
   assert.ok(!(await procLabels(page)).some((l) => /ISim/.test(l)), (await procLabels(page)).join());
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running
     && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'SSim\'s first run', timeout: 30000 });
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top)');
   assert.match(await page.consoleText(), /Launching SSim view\./);

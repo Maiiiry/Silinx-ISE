@@ -59,7 +59,7 @@ async function withinBudget(page) {
 }
 
 const closeActive = (page) => page.eval(async () => { const A = window.SilinxApp; const d = A.S.active; if (d) await A.closeDoc(d); });
-const waitActive = (page, id) => page.waitFor((x) => window.Silinx.active?.id === x && window.Silinx.active.view !== undefined, [id], { what: `${id} open` });
+const waitActive = (page, id) => page.waitFor((x) => (window.Silinx.active?.id === x || window.Silinx.active?.id?.startsWith(`${x}:`)) && window.Silinx.active.view !== undefined, [id], { what: `${id} open` });
 
 // a placed and routed design for the FPGA view (the XDL fixture, as the 'fpgaview' step of ISE writes it)
 const TOP = `library ieee; use ieee.std_logic_1164.all;

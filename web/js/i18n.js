@@ -200,7 +200,7 @@ const PT = {
   'Fold block': 'Dobrar bloco', 'Run process': 'Executar processo', 'Push into instance': 'Entrar na instância',
   'Double-click process': 'Duplo clique num processo', 'Double-click instance (schematic)': 'Duplo clique numa instância (esquemático)',
   // ISim
-  'Instances and Processes': 'Instâncias e Processos', 'Objects': 'Objetos', 'Object Name': 'Nome do Objeto', 'Value': 'Valor', 'Data Type': 'Tipo de Dados',
+  'Instances and Processes': 'Instâncias e Processos', 'Simulation and Instances': 'Simulação e Instâncias', 'Objects': 'Objetos', 'Object Name': 'Nome do Objeto', 'Value': 'Valor', 'Data Type': 'Tipo de Dados',
   'Name': 'Nome', 'Restart': 'Reiniciar', 'Run All': 'Executar Tudo', 'Break': 'Parar', 'Run for the specified time': 'Executar durante o tempo indicado',
   'Step (advance to the next scheduled event)': 'Passo (avançar para o próximo evento)', 'Zoom In': 'Ampliar', 'Zoom Out': 'Reduzir',
   'Zoom to Full View': 'Ver Tudo', 'Go to Time 0': 'Ir para o Tempo 0', 'Go to Latest Time': 'Ir para o Último Tempo',
@@ -335,8 +335,6 @@ const PT = {
   'The model to simulate': 'O modelo a simular',
   // the Edit task's one tree: its groups (#799)
   'Test Benches': 'Bancadas de Teste', 'Constraints': 'Restrições',
-  // the Edit task's Test page (web/js/tasks-test.js, #1016)
-  'Test': 'Teste', 'Test benches': 'Bancadas de teste', 'The project has no test bench yet.': 'O projeto ainda não tem bancada de teste.',
   // a single document's module and model in the task's bar (#854)
   'Post-Synthesis': 'Pós-Síntese', 'Post-Translate': 'Pós-Translate', 'Post-Map': 'Pós-Map', 'Post-Place & Route': 'Pós-Place & Route',
   // its message centre (web/js/messages.js, #798)
@@ -791,7 +789,7 @@ export function t(text) {
 }
 
 // ---------------------------------------------------------------- DOM translation
-const SKIP = '.cm-editor, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #test-tree .lbl, #libs-page .lbl, svg text, .sch-svg, .xl-hover-tip';
+const SKIP = '.cm-editor, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #libs-page .lbl, svg text, .sch-svg, .xl-hover-tip';
 const ATTRS = ['title', 'placeholder', 'aria-label'];
 const textState = new WeakMap();   // text node -> { orig, last }
 const attrState = new WeakMap();   // element -> { [attr]: { orig, last } }

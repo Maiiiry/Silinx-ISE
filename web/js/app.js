@@ -854,8 +854,13 @@ export function renderLibsPage() {
 // the Simulation view with module `mod` selected (e.g. a test bench just created): Simulate runs it
 export function showInSim(mod) {
   setView('sim');
-  // (the modern interface: the test benches in their own tree, #1016, #1149)
-  const key = CSS.escape(`m:${mod}`), row = document.querySelector(`#hier [data-key="${key}"], #test-tree [data-key="${key}"]`);
+  // (the modern interface, the Tasks layout: the test bench Simulate's, the one it runs, #1161)
+  if (document.documentElement.dataset.layout === 'tasks') {
+    const m = S.modules.find(x => x.name === mod);
+    if (m) select({ type: 'module', module: mod, file: m.file });   // (its processes: the Simulation view's)
+    return setTop(mod, true);
+  }
+  const key = CSS.escape(`m:${mod}`), row = document.querySelector(`#hier [data-key="${key}"]`);
   if (row) row.dispatchEvent(new MouseEvent('click'));
 }
 

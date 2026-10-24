@@ -37,7 +37,7 @@ for (const ui of ['modern', 'classic', 'tasks']) {
     await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
     await page.openProject(name);
     await page.eval(() => window.SilinxApp.runSimulation('tb_top'));
-    await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
+    await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running
       && /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || ''), [], { what: 'ISim ran', timeout: 30000 });
     // the toolbar: Save and Load, no VCD export (Tasks: in the wave window's line, #1026)
     const titles = await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-toolbar .tb-btn')].map((b) => b.title));

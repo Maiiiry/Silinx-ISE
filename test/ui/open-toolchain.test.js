@@ -477,14 +477,14 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
   // (longer than ISim's first run: run all; typed again if no run started, as in the traffic example's test)
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
     await page.key('Enter');
     try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n')), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
   }
-  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' })
+  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /^isim:/.test(window.Silinx.active?.id || '') && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' })
     .catch(async (e) => { throw new Error(`${e.message}\n--- ISim: ${JSON.stringify(await page.eval(() => ({ running: window.Silinx.active?.view?.state?.running, time: document.querySelector('.isim-st-time')?.textContent, console: (Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n')).split('\n').slice(-12) })))}`); });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR/);
@@ -525,13 +525,13 @@ uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of b
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Map Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
     await page.key('Enter');
     try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n')), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
   }
-  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' });
+  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /^isim:/.test(window.Silinx.active?.id || '') && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR/);
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Map)');
@@ -566,14 +566,14 @@ uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, 
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Place & Route Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
   assert.match(await page.consoleText(), /^Timing: build\/netgen\/par\/top_timesim\.sdf \(\d+ instances with their delays\)\.$/m);
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
     await page.key('Enter');
     try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n')), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
   }
-  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR|Error/.test(t) ? t : null; }, [], { timeout: 180000, what: 'the simulation of the model' });
+  const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /^isim:/.test(window.Silinx.active?.id || '') && /Simulation finished OK|ERROR|Error/.test(t) ? t : null; }, [], { timeout: 180000, what: 'the simulation of the model' });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR|Error|Timing violation/);
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Place & Route)');
@@ -609,7 +609,7 @@ uiTest('#490 open mode: Simulate Post-Synthesis Model with no model offers "Gene
   await page.key('Escape');
   await page.waitNoDialog();
   await new Promise((r) => setTimeout(r, 300));
-  assert.equal(await page.eval(() => !!window.SilinxApp.findDoc('isim') || !!window.SilinxApp.S.busy), false);
+  assert.equal(await page.eval(() => !!window.Silinx.docs.find((d) => /^isim:/.test(d.id)) || !!window.SilinxApp.S.busy), false);
   const after = (await page.consoleText()).slice(before.length);
   assert.doesNotMatch(after, /Started : "(?!(Behavioral )?Check Syntax")|Generate Post-Synthesis|WARNING|ERROR/, after);
   // in Portuguese
@@ -628,7 +628,7 @@ uiTest('#490 open mode: Simulate Post-Synthesis Model with no model offers "Gene
   await ask();
   await page.key('Enter');
   await page.waitNoDialog();
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 180000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 180000, what: 'ISim ready' });
   const log = (await page.consoleText()).slice(start);
   const lines = log.split('\n').map((l) => l.trim()).filter(Boolean);
   // the process ran once, ended without errors, then the simulation of the model started
@@ -863,7 +863,7 @@ uiTest('#490 a model that needs ISE: the dialog says why, without the button (an
   // nothing ran
   const log = (await page.consoleText()).slice(before);
   assert.doesNotMatch(log, /Started : "(?!(Behavioral )?Check Syntax")|WARNING|ERROR/, log);
-  assert.equal(await page.eval(() => !!window.SilinxApp.findDoc('isim') || !!window.SilinxApp.findDoc('emulator')), false);
+  assert.equal(await page.eval(() => !!window.Silinx.docs.find((d) => /^isim:/.test(d.id)) || !!window.SilinxApp.findDoc('emulator')), false);
 }, { timeout: 120000 });
 
 // #280: Implement Design does not synthesize again while the synthesis is up to date (the design sources,

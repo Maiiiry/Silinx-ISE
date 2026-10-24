@@ -4,7 +4,9 @@
 // The rest of the Tasks interface: test/ui/tasks.test.js.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { setupUi, uiTest, makeProject, ROOT } from './harness.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -112,9 +114,9 @@ uiTest('#1026 Tasks ▸ Simulate: the simulator\'s icons in the wave window\'s l
 const logText = (page) => page.eval(() => document.getElementById('console-log').textContent);
 const started = async (page, from) => [...(await logText(page)).slice(from).matchAll(/Started : "Simulate (?:Behavioral|Post-Synthesis|Post-Translate|Post-Map|Post-Place & Route) Model"\./g)].map((m) => m[0]);
 const choose = (page, id, value) => page.eval((i, v) => { const s = document.getElementById(i); s.value = v; s.dispatchEvent(new Event('change')); }, id, value);
-// the simulator shown: its module and model (the task's bar), ready
-const simShown = (page, module, model) => page.waitFor((m, k) => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
-  && document.querySelector('#task-doc .task-doc-mod')?.textContent === m && document.querySelector('#task-doc .task-doc-model')?.textContent === k, [module, model], { what: `ISim of ${module}, ${model}`, timeout: 180000 });
+// the simulator shown: its module and model (its tab's title: several simulations may be open, #1161), ready
+const simShown = (page, module, model) => page.waitFor((m, k) => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running
+  && window.Silinx.active.title === (k === 'Behavioral' ? `SSim (${m})` : `SSim (${m}, ${k})`), [module, model], { what: `ISim of ${module}, ${model}`, timeout: 180000 });
 uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates it once (the model generated first), no Simulate button', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await simulateBench(page, 'TasksSimChoice');
@@ -133,8 +135,9 @@ uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates
   await page.waitFor(() => window.Silinx.project.simTop === 'top', [], { what: 'top chosen' });
   await simShown(page, 'top', 'Behavioral');
   await new Promise((r) => setTimeout(r, 500));
-  assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'top', 'the last choice stays');
-  assert.equal(await page.eval(() => window.SilinxApp.S.docs.filter((d) => d.id === 'isim').length), 1);
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (top)', 'the last choice stays');
+  // (each module its simulation, several open: the test bench's and top's, #1161)
+  assert.deepEqual(await page.eval(() => window.SilinxApp.S.docs.filter((d) => /^isim:/.test(d.id)).map((d) => d.id).sort()), ['isim:tb_top', 'isim:top']);
   // back to the test bench
   from = (await logText(page)).length;
   await choose(page, 'task-bench', 'tb_top');
@@ -160,3 +163,45 @@ uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates
   assert.ok(await shown(page, '#task-bar [data-act="main"]'), 'Edit\'s Check');
   await noWarnings(page);
 }, { build: DEV, timeout: 300000 });
+
+// #1161: Simulate keeps a tab per simulation (each test bench and model its own); its side panel, Simulation and
+// Instances, a tab as Design's pages, lists every test bench of the project, the one simulated opened as its instances,
+// another one simulated (in its own tab) when clicked; the classic interface's ISim as before; Design has no Test page
+uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation and Instances lists the test benches, another one simulated by a click', E, async (page) => {
+  const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');
+  await makeProject(env, { name: 'TasksSimTabs', template: 'blinky', files: { 'sim/tb_two.vhd': tb.replaceAll('tb_top', 'tb_two') }, roles: { 'sim/tb_two.vhd': 'sim' } });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimTabs');
+  assert.equal(await page.eval(() => document.querySelector('#left-tabs .tab[data-page="test"]')), null, 'no Test page in Design');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  const panel = () => page.eval(() => {
+    const d = document.querySelector('.doc:not([hidden]) .isim'), vis = (e) => !!e && e.getClientRects().length > 0;
+    return { tab: vis(d.querySelector('.task-sim-tabs')) ? d.querySelector('.task-sim-tabs').textContent : null, caption: vis(d.querySelector('.isim-inst-panel > .caption')),
+      rows: [...d.querySelectorAll('.isim-tree > li > .row')].filter(vis).map((r) => r.querySelector('.lbl').textContent),
+      open: [...d.querySelectorAll('.isim-tree > li')].filter((li) => li.querySelector(':scope > ul')).map((li) => li.querySelector('.lbl').textContent) };
+  });
+  assert.deepEqual(await panel(), { tab: 'Simulation and Instances', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_top'] });
+  // the other test bench clicked: simulated in its own tab, the first one kept
+  await page.click('.doc:not([hidden]) .isim-tree li.task-bench .row');
+  await simShown(page, 'tb_two', 'Behavioral');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#doc-tabs .tab')].filter((t) => t.getClientRects().length).map((t) => t.querySelector('.tlabel').textContent)), ['SSim (tb_top)', 'SSim (tb_two)']);
+  await page.showSide();
+  assert.deepEqual(await panel(), { tab: 'Simulation and Instances', caption: false, rows: ['tb_top', 'tb_two'], open: ['tb_two'] });
+  // and back to the first by its row: its tab again, not a new simulation
+  const from = (await logText(page)).length;
+  await page.click('.doc:not([hidden]) .isim-tree li.task-bench .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top', [], { what: 'tb_top\'s tab' });
+  assert.deepEqual(await started(page, from), []);
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-tabs')?.textContent === 'Simulação e Instâncias', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the classic interface: Instances and Processes as before, the simulated bench only
+  await setInterface(page, 'classic');
+  await page.waitFor(() => !document.documentElement.dataset.layout, [], { what: 'classic' });
+  assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
+});

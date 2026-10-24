@@ -64,7 +64,7 @@ uiTest('ISim Wave window: zoom, markers, radix, force constant / clock / remove,
   await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await simTime(page, '1,000,000');
   assert.deepEqual(await rows(page), ['tb/clk', 'tb/q']);
   const startLog = await consoleText(page);
@@ -215,7 +215,7 @@ Finished circuit initialization process.
   // ---- Go To Source Code (the q row): the test bench opens at the declaration of q
   await page.rightClick(await waveAt(page, 50000, 2));
   await menuItem(page, 'Go To Source Code');
-  await page.waitFor(() => window.Silinx.active?.id !== 'isim', [], { what: 'source opened' });
+  await page.waitFor(() => !/^isim:/.test(window.Silinx.active?.id || ''), [], { what: 'source opened' });
   assert.equal(await page.eval(() => window.Silinx.active.id), 'file:sim/tb.vhd');
   await page.waitFor(() => window.Silinx.active.editor?.view, [], { what: 'editor ready' });
   await page.waitFor(() => window.Silinx.active.editor.getCursor().line + 1 === 5, [], { what: 'cursor on line 5 (signal q)' });
@@ -258,7 +258,7 @@ uiTest('ISim command line: commands given before ISim\'s first run starts or dur
     mo.observe(document.body, { childList: true, subtree: true });
   }, TYPE);
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await simTime(page, '1,002,000');
   assert.deepEqual(await page.eval(() => window.__early), { running: false, time: '' }, 'typed before the first run started');
   assert.deepEqual(await commandLines(page), ['SSim> run 1 us', 'SSim> run 2 ns', 'SSim> show time', 'Simulation time: 1.002 us']);
@@ -297,7 +297,7 @@ uiTest('ISim Wave window (#341): New Group, open / close, Rename Group, drag int
   await page.setView('sim');
   await page.treeRow('#hier', 'tb');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await simTime(page, '1,000,000');
   // the instance u's signals too: clk q (tb), u/r
   await page.showSide();

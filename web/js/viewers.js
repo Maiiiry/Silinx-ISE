@@ -257,11 +257,12 @@ async function runSimulationInner(mod, model, stale) {
   setStatus(procId, 'ok');
   const { mountISim } = await import('./isim.js');
   if (stale?.()) return;
-  const id = 'isim';
+  // (one document per module and model: several simulations open side by side, #1161; this one's run again replaces it)
+  const id = `isim:${mod}${model ? `@${model}` : ''}`;
   const old = findDoc(id);
   if (old) await closeDoc(old);
   openDoc({
-    id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
+    id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: id,
     create(el) {
       // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
       // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with
@@ -273,7 +274,10 @@ async function runSimulationInner(mod, model, stale) {
         onChange: m => { S.project.stimuli = { ...(S.project.stimuli || {}), [mod]: m }; saveProjectJson().catch(e => toast(`Cannot save the stimuli: ${e.message}`, 'error')); },
         onSaveTestbench: m => saveStimTestbench(inst === design.top ? mod : inst.module, inst, m),
       };
-      const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, wcfg: wcfgFiles(mod), onOpenSource: ref => ref?.file && openFile(ref.file, ref.line) });
+      // (the project's test benches in its tree, another one simulated in a document of its own: #1161)
+      const benches = () => S.modules.filter(m => m.role === 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b));
+      const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, wcfg: wcfgFiles(mod), onOpenSource: ref => ref?.file && openFile(ref.file, ref.line),
+        benches, onBench: name => { const d = findDoc(`isim:${name}`); if (d) openDoc({ id: d.id }); else runSimulation(name); } });
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => view.refresh?.(), 0) };
     },
   });

@@ -21,7 +21,7 @@ uiTest('ISim: Simulate Behavioral Model runs the test bench; waveforms and objec
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view);
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view);
   // the initial run: 1 us
   await page.waitFor(() => /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [], { what: 'initial 1 us run', timeout: 20000 });
   const st = await page.eval(() => {
@@ -114,7 +114,7 @@ uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s M
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running
     && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'ISim', timeout: 20000 });
   // ISim's console not in its window; its lines in the bottom console, under Simulation
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-bottom').getBoundingClientRect().height), 0);
@@ -591,7 +591,7 @@ end Structure;
   assert.match(await page.eval(() => document.querySelector('.dlg-overlay').innerText), /Run anyway\?/);
   await page.dialogButton('No');
   await page.waitNoDialog();
-  assert.equal(await page.eval(() => !!window.SilinxApp.findDoc('isim')), false);
+  assert.equal(await page.eval(() => !!window.Silinx.docs.find((d) => /^isim:/.test(d.id))), false);
 });
 
 uiTest('Verilog design with Xilinx primitives (BUFG, FDCE): Check Syntax and Simulate Behavioral Model find them, no library clause (#17)', E, async (page) => {
@@ -628,7 +628,7 @@ endmodule
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
   const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /TEST (PASSED|FAILED)/.test(t) ? t : null; }, [], { timeout: 20000, what: 'TEST PASSED / FAILED' });
   assert.match(out, /TEST PASSED/);
 });
@@ -665,7 +665,7 @@ end sim;
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_add');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
   const out = await page.waitFor(() => { const t = Array.from(document.querySelector('.doc:not([hidden]) .isim-console')?.children || [], (e) => e.textContent).join('\n'); return /TEST DONE/.test(t) ? t : null; }, [], { timeout: 20000, what: 'TEST DONE in the console' });
   assert.match(out, /3 \+ 4 =   7\n15 \+ 15 =  30\n9 \+ 1 =  10\nTEST DONE/);
   assert.doesNotMatch(out, /not supported/);
