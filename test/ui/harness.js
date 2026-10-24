@@ -345,7 +345,7 @@ class PageBase {
     const def = typeof label === 'string' && await this.eval(async (m) => {
       const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
       if (!e || e.getClientRects().length) return null;
-      const { t } = await import('/js/i18n.js');
+      const t = await import('/js/i18n.js').then((m) => m.t, () => (x) => x);
       const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
       return (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-')
         .map((x) => ({ label: t(x.label), disabled: !!(typeof x.disabled === 'function' ? x.disabled() : x.disabled), submenu: !!x.submenu }));
@@ -413,7 +413,9 @@ class PageBase {
     const r = await this.eval(async (m, l) => {
       const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
       if (!e || e.getClientRects().length) return 'shown';
-      const { t } = await import('/js/i18n.js'), { runAction } = await import('/js/ui.js');
+      // (the single-file editions have no modules to import: the English labels, the action itself)
+      const t = await import('/js/i18n.js').then((m) => m.t, () => (x) => x);
+      const runAction = await import('/js/ui.js').then((m) => m.runAction, () => (lbl, f) => f());
       const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
       const it = (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-').find((x) => x.label === l || t(x.label) === l);
       if (!it) return 'missing';
@@ -490,6 +492,7 @@ class PageBase {
   /** The Design pane's view, Implementation or Simulation: its radio button; the modern interface has no views (its
    *  layout by tasks, #1149): the app's view set as the radio would. */
   async setView(view) {
+    this.view = view;   // (asked for: Implement in front sets the Implementation view, tasksTreeRow sets it back)
     if (await this.eval((v) => !!document.querySelector(`input[name=view][value=${v}]`)?.getClientRects().length, view)) return this.click(`input[name=view][value=${view}]`);
     // (the modern interface: Implement's Processes are the top's whatever is selected, #1208, so the Simulation's
     // processes are read in Design)
@@ -532,6 +535,7 @@ class PageBase {
     // (a process Implement does not list, its Processes the top's whatever is selected, #1208: read in Design)
     if (container === '#procs' && !await isShown() && await this.eval(() => document.documentElement.dataset.task === 'impl')) {
       await this.click('#task-switch .task-btn[data-task="edit"]');
+      if (this.view) await this.eval((v) => window.SilinxApp.setView(v), this.view);
     }
     return this.waitFor((c, l, ex, d) => {
       const match = (t) => (ex ? t === l : t === l || t.startsWith(l));
