@@ -1,6 +1,7 @@
 // The Tasks interface's Simulate task (#800, #782): the waves get the screen.
 // - ISim's own Instances and Objects are the task's side panel, folded at first (the Design pane is not shown in
-//   Simulate); ISim's title bar is the task's bar's (the module and the model, #854); its run controls stay its
+//   Simulate), from the top of the work area as Design's and Implement's, the simulations' tabs to its right (fitSimTabs,
+//   #1259); ISim's title bar is the task's bar's (the module and the model, #854); its run controls stay its
 //   toolbar, in the wave window's line (placeSimToolbar, #1026); no status line (#1017; web/css/tasks.css).
 // - Simulate runs the project's test bench whatever module is selected (simTarget), with the model chosen in the
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation). Choosing
@@ -15,11 +16,33 @@ import { h } from './ui.js';
  *  Tasks interface, #1026; web/css/tasks.css hides them), else back under its title bar, as ISim made it. */
 export function placeSimToolbar(tasks) {
   for (const root of document.querySelectorAll('#workspace .isim')) {
+    watchSide(root.querySelector('.isim-left'));
     const tb = root.querySelector('.isim-toolbar'), cap = root.querySelector('.isim-wavewin > .caption');
     if (!tb || !cap) continue;
     if (tasks && tb.parentElement !== cap) cap.prepend(tb);
     else if (!tasks && tb.parentElement === cap) root.querySelector('.isim-title').after(tb);
   }
+}
+
+/** The simulations' tabs to the right of the side panel, which starts at the top of the work area as Design's and
+ *  Implement's (#1259; web/css/tasks.css): #center's --sim-side, the side panel's width with its splitter (0: folded or
+ *  not shown), and --sim-tabs, the tabs' height (0: a single simulation, no tabs), above the waves. */
+export function fitSimTabs() {
+  const center = document.getElementById('center'), tabs = document.getElementById('doc-tabs');
+  if (!center) return;
+  const split = [...document.querySelectorAll('#workspace > .doc .isim-split-main')].find(e => e.getClientRects().length);
+  const side = split ? Math.max(0, Math.round(split.getBoundingClientRect().right - center.getBoundingClientRect().left)) : 0;
+  center.style.setProperty('--sim-side', `${side}px`);
+  center.style.setProperty('--sim-tabs', `${tabs?.offsetHeight || 0}px`);
+}
+// (measured again when a side panel is shown, folded or resized by its splitter)
+const watched = new WeakSet();
+let sides = null;
+function watchSide(el) {
+  if (!el || watched.has(el) || typeof ResizeObserver !== 'function') return;
+  sides ||= new ResizeObserver(() => fitSimTabs());
+  sides.observe(el);
+  watched.add(el);
 }
 
 export const SIM_MODELS = [['', 'Behavioral'], ['postsynth', 'Post-Synthesis'], ['posttrans', 'Post-Translate'], ['postmap', 'Post-Map'], ['postpar', 'Post-Place & Route']];
