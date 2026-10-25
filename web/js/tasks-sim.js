@@ -5,7 +5,7 @@
 //   toolbar, in the wave window's line (placeSimToolbar, #1026); no status line (#1017; web/css/tasks.css).
 // - Simulate runs the project's test bench whatever module is selected (simTarget), with the model chosen in the
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation). Choosing
-//   the model or the test bench simulates at once, the bar has no Simulate button (#1018; the task's page still has one).
+//   the model or the test bench simulates at once, the bar has no Simulate button (#1018; the side panel's row, #1376).
 // - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in SSim), makes a new one
 //   with the Test Bench Wizard (#917; its source from the Design panel, #1363).
 // simTarget and simChoices have no DOM and are unit tested (test/tasks.test.js).

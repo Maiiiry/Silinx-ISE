@@ -30,7 +30,8 @@ import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { layoutToggled } from './layout-fit.js';
 import { messagesTask, initMessages } from './messages.js';
-import { benchSelect, fitSimTabs, modelSelect, newBench, placeSimSide, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
+import { mountSimPanel } from './tasks-sim-panel.js';
+import { fitSimTabs, placeSimSide, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
@@ -136,7 +137,7 @@ export const taskTitle = (t, dot) => dot ? `${TASK_LABEL[t]} — ${DOT_TEXT[dot]
 // ------------------------------------------------------------------ the page
 const root = () => document.documentElement;
 const on = () => root().dataset.layout === 'tasks';
-let app = null, state = readState(null), lastActive = null, shownTask = null, fitSoon = () => {};
+let app = null, state = readState(null), lastActive = null, shownTask = null, fitSoon = () => {}, simPanel = null;
 
 function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
@@ -231,13 +232,14 @@ function tagDocs() {
     // (Simulate with no test bench yet: one to create, or a module simulated with stimuli drawn in SSim: #917, #1291)
     const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
     empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
-    // (the wizard's button whenever there is a design module to test, a bench or not: no entry in the choice, #1312)
-    empty.querySelector('.task-empty-bench').hidden = !(current() === 'sim' && app.S.project && simChoices(app.S.project, app.S.modules).design.length);
+    // (Simulate's side panel: the wizard's row whenever there is a design module to test, a bench or not, #1312, #1376)
+    simPanel?.refresh();
+    document.getElementById('task-sim-panel').hidden = !(on() && current() === 'sim' && app.S.project && mine === 0);
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
     go.disabled = !mainEnabled();
-    go.hidden = current() === 'edit' || current() === 'impl';   // (Design's and Implement's pages: no button, #1349, #1367)
+    go.hidden = current() !== 'emu';   // (Design's, Simulate's and Implement's pages: no button, #1349, #1376, #1367)
   }
   fitSimTabs();   // (the tabs shown or not: #1259)
 }
@@ -309,7 +311,7 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-sim-panel', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
 const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implementation' };
 function build() {
   const $ = id => document.getElementById(id);
@@ -338,12 +340,10 @@ function build() {
   };
   $('task-bar').addEventListener('click', onAct);
   $('task-view').addEventListener('click', onAct);
-  // (Simulate's page: what to simulate, any module, its source and the model, shown above its Simulate button, the
-  // page's first button: web/css/tasks.css, #1291)
+  // (Simulate's page: its title and text, what to simulate in its side panel beside it, #1376)
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
-    h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
-    h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…'),
-    h('div', { class: 'task-empty-sim' }, benchSelect(app), modelSelect(app))));   // (no Edit: a source from the Design panel, #1363)
+    h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
+  simPanel = mountSimPanel(app, { simulate: () => simulate(app), enabled: () => mainEnabled() });
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
@@ -382,6 +382,7 @@ function fitHeader() {
 
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
+  simPanel = null;
   document.getElementById('topbar').after(document.getElementById('toolbar'));   // (under the header again, #1321)
   delete document.getElementById('topbar').dataset.fit;
   for (const t of document.querySelectorAll('#left-tabs .tab')) t.removeAttribute('title');
@@ -454,7 +455,7 @@ export function initTasks(a) {
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
-  setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
+  setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); simPanel?.refresh(); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
     for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button')) b.disabled = !app.S.project || (b.dataset.act === 'check-design' && !app.S.project.top); } }, 1000);
   apply();
 }

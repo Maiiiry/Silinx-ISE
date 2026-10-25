@@ -159,26 +159,29 @@ html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] { di
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] .isim :is(.isim-wavewin, .isim-split-main, .isim-stimbar) { display: none; }
 html[data-layout="tasks"][data-task="sim"]:is([data-side="folded"], [data-max="on"]) #workspace > .doc[data-sim-side] { display: none !important; }
 html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"], [data-max="on"]) #workspace:has(> .doc[data-sim-side]) > .doc:not([hidden]):not([data-sim-side]) { left: var(--sim-side, 0px); }
-/* Simulate's page: what to simulate, its source and the model above its Simulate button (#1291; choosing the module or
-   the model simulates, #1018) */
-#task-model, #task-bench, .task-empty-sim { display: none; }
+/* Simulate's side panel with nothing simulated (#1376, web/js/tasks-sim-panel.js): what to simulate and the model
+   (choosing either simulates, #1018), Simulate and the wizard as Implement's processes; the page beside it */
+#task-sim-panel { display: none; }
+html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #task-sim-panel:not([hidden]) { display: flex; flex-direction: column; position: absolute; z-index: 1;
+  top: 0; bottom: 0; left: 0; width: min(300px, 45%); border-right: 1px solid var(--m-border); background: var(--m-surface-2); font-size: 12px; }
+html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #workspace:has(> #task-sim-panel:not([hidden])) > #task-empty { left: min(300px, 45%); }
+html[data-layout="tasks"][data-task="sim"]:has(#task-sim-panel:not([hidden])) #task-view [data-act="side"] { display: none; }   /* (always shown) */
+#task-sim-panel > .tree { padding: 4px 0; }
+#task-sim-panel .task-sim-choice { padding: 3px 0; }
+#task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: 28px; margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
+  background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
+#task-sim-panel .task-sim-act { cursor: pointer; }
+#task-sim-panel .task-sim-act.disabled { opacity: .5; cursor: default; }
 /* the simulation's model at the right end of its toolbar (#1353) */
 html[data-layout="tasks"] .isim-toolbar .isim-model { margin-left: auto; height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
   border-radius: 6px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-html[data-layout="tasks"][data-task="sim"] #task-empty .task-empty-sim { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-bottom: 4px; }
-html[data-layout="tasks"] #task-empty > .m-step { order: 2; }   /* (after the choices, the page's first button though) */
-html[data-layout="tasks"] #task-empty > .task-empty-bench { order: 3; }
-html[data-layout="tasks"][data-task="sim"] #task-bench { display: inline-block; height: 32px; max-width: 200px;
-  border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-#task-empty :is(.task-empty-bench, .m-step)[hidden] { display: none; }
+#task-empty .m-step[hidden] { display: none; }
 /* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
 @media (max-width: 1024px) {
   html[data-layout="tasks"] #toolbar:not(#topbar > *) { flex-wrap: wrap; height: auto; min-height: 44px; row-gap: 4px; padding-block: 4px; }
   html[data-layout="tasks"] #task-bar { flex-wrap: wrap; row-gap: 4px; }
 }
-html[data-layout="tasks"][data-task="sim"] #task-model { display: inline-block; height: 32px; max-width: 200px;
-  border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-@media (pointer: coarse) { html[data-layout="tasks"][data-task="sim"] #task-model { height: 40px; } }
+@media (pointer: coarse) { #task-sim-panel .task-sim-choice select { height: 40px; } }
 
 /* ------------------------------------------------------------------ Emulate (#801, web/js/tasks-emu.js) */
 /* the board gets the screen at its proper size at least (zoomed up by tasks-emu.js, never down: #1021); its side

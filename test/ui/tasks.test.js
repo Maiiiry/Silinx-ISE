@@ -126,7 +126,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.ok(!(await shown(page, '#console-body')) && await shown(page, '#console-tabs'));
   assert.equal(await page.eval(() => document.querySelector('#task-empty h2').textContent), 'Simulate');
   // its action: the simulation of the top module (as the toolbar's Simulate of the modern interface)
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
   s = await state(page);
   assert.equal(s.task, 'sim');
@@ -314,7 +314,7 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
   // simulations may be open, #1161)
   await page.click('#task-switch .task-btn[data-task="sim"]');
   assert.deepEqual(await docInfo(page), { tabs: false, info: null });
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
   assert.deepEqual(await docInfo(page), { tabs: true, info: null });
   // Emulate: the board, RTL
@@ -477,7 +477,7 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-model option')].map((o) => [o.value, o.textContent])),
     [['', 'Behavioral'], ['postsynth', 'Post-Synthesis'], ['posttrans', 'Post-Translate'], ['postmap', 'Post-Map'], ['postpar', 'Post-Place & Route']]);
   assert.ok(await shown(page, '#task-model'));
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
   await page.waitFor(() => window.Silinx.active?.title === 'SSim (tb_top)', [], { what: 'the test bench simulated' });
   // the waves get the screen: no ISim title bar, no Instances / Objects column, no Design pane, no console
@@ -839,7 +839,8 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: true });
   for (const t of ['sim', 'emu']) {
     await page.click(`#task-switch .task-btn[data-task="${t}"]`);
-    assert.deepEqual(await L(), { bar: false, left: false, side: true, procs: false, files: false }, t);
+    // (Simulate with nothing simulated: its own side panel always shown, no button to fold it, #1376)
+    assert.deepEqual(await L(), { bar: false, left: false, side: t !== 'sim', procs: false, files: false }, t);
     // (the workspace from the window's left edge: no empty column)
     assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4, `${t}: no empty column`);
   }
@@ -929,13 +930,13 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.click('#task-switch .task-btn[data-task="sim"]');
   const bench = () => page.eval(() => { const s = document.getElementById('task-bench'); return { value: s.value, options: [...s.options].map((o) => [o.value, o.textContent, o.disabled]) }; });
   // no test bench: said, and the wizard offered; the design module listed
-  await page.waitFor(() => !document.querySelector('#task-empty .task-empty-bench').hidden, [], { what: 'the wizard offered' });
+  await page.waitFor(() => document.querySelector('#task-sim-panel [data-act=wizard]')?.getClientRects().length > 0, [], { what: 'the wizard offered' });
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
     'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
-  // (no New Test Bench in the choice: the page's button, #1312)
+  // (no New Test Bench in the choice: the side panel's row, #1312, #1376)
   assert.deepEqual(await bench(), { value: 'and2', options: [['Design modules', 'Design modules', true], ['and2', 'and2', false]] });
   // the wizard: its test bench becomes the one Simulate runs
-  await page.click('#task-empty .task-empty-bench');
+  await page.click('#task-sim-panel [data-act=wizard]');
   await page.waitDialog('Test Bench Wizard');
   for (let k = 0; k < 4; k++) await page.dialogButton('Next >');
   await page.dialogButton('Finish');
@@ -944,21 +945,31 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.waitFor(() => document.getElementById('task-bench').value === 'tb_and2', [], { what: 'the choice' });
   assert.deepEqual((await bench()).options.map(([v]) => v), ['Test Benches', 'tb_and2', 'Design modules', 'and2']);
-  assert.ok(await shown(page, '#task-empty') && await shown(page, '#task-empty .task-empty-bench'), 'a test bench: the wizard still offered (#1312)');
+  assert.ok(await shown(page, '#task-empty') && await shown(page, '#task-sim-panel [data-act=wizard]'), 'a test bench: the wizard still offered (#1312)');
   assert.notEqual(await page.eval(() => document.querySelector('#task-empty p').textContent), 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   // a design module chosen instead: the simulation top (as Set as Top Module in the Simulation view), simulated at once (#1018)
   await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
   await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
   await page.waitFor(() => window.Silinx.active?.title === 'SSim (and2)', [], { what: 'ISim of and2', timeout: 30000 });
-  // Simulate's page (its simulation closed): the choice, the model and Simulate, no Edit (a source from the Design
-  // panel, #1363)
+  // its simulation closed: Simulate's page, its title and text, no button (#1376); the side panel beside it, under its
+  // Simulation tab: the choice, the model, Simulate and the wizard as rows, no Edit (a source from the Design panel, #1363)
   await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
   await page.waitFor(() => !document.getElementById('task-empty').hidden, [], { what: 'Simulate\'s page' });
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-empty .task-empty-sim > *')].map((e) => e.id || e.className)), ['task-bench', 'task-model']);
-  assert.ok(!(await page.eval(() => [...document.querySelectorAll('#task-empty button')].some((b) => b.getClientRects().length && /^Edit/.test(b.textContent)))), 'no Edit button');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-empty button')].filter((b) => b.getClientRects().length).length), 0);
+  assert.deepEqual(await page.eval(() => {
+    const p = document.getElementById('task-sim-panel'), e = document.getElementById('task-empty').getBoundingClientRect(), r = p.getBoundingClientRect();
+    return { tab: p.querySelector('.task-sim-tabs .tab').textContent, rows: [...p.querySelectorAll('.tree > li > .row')].map((x) => x.querySelector('select')?.id || x.textContent),
+      beside: Math.round(r.right) <= Math.round(e.left) + 1, side: !!document.querySelector('#task-view [data-act="side"]')?.getClientRects().length };
+  }), { tab: 'Simulation', rows: ['task-bench', 'task-model', 'Simulate', 'Create a test bench (Wizard)…'], beside: true, side: false });
+  // its Simulate row: the choice simulated
+  await page.click('#task-sim-panel [data-act=simulate]');
+  await page.waitFor(() => window.Silinx.active?.title === 'SSim (and2)' && document.getElementById('task-sim-panel').hidden, [], { what: 'Simulate from the panel', timeout: 30000 });
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
+  await page.waitFor(() => !document.getElementById('task-sim-panel').hidden, [], { what: 'the panel again' });
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.getElementById('task-bench').options[0].textContent === 'Bancadas de Teste', [], { what: 'Portuguese' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-sim-panel .tab, #task-sim-panel .lbl')].map((e) => e.textContent)), ['Simulação', 'Simular', 'Criar uma bancada de teste (Assistente)…']);
   assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2']);
   assert.equal(await page.eval(() => document.getElementById('task-bench').title), 'A bancada de teste a simular');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
@@ -970,7 +981,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.setViewport(1366, 768);
   // not in the other tasks
   await page.click('#task-switch .task-btn[data-task="edit"]');
-  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-empty .task-empty-sim')));
+  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-sim-panel')));
   await noWarnings(page);
 }, { build: DEV });
 
@@ -1053,7 +1064,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   assert.ok(lines.some(([src, t]) => src === 'app' && /^Project "TasksMsgs" opened/.test(t)), JSON.stringify(lines));
   // Simulate: its filter (the picked one forgotten); ISim's console is not in its window, its lines are here
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-console'), [], { what: 'ISim', timeout: 30000 });
   assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-bottom')), 'ISim\'s console hidden');
   await page.click('#task-view [data-act="console"]');
@@ -1142,7 +1153,7 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
     if ((document.documentElement.dataset.side === 'open') !== o) document.querySelector('#task-view [data-act="side"], [data-act="side"]').click();
   }, open);
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
   for (const open of [true, false]) {
     await sideOpen(open);
@@ -1343,7 +1354,7 @@ uiTest('#1337 Tasks: a reload in Implement with no top module comes back in Impl
   await tasksInterface(page);
   await page.openProject('TasksReloadImpl');
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || ''), [], { what: 'the simulation', timeout: 60000 });
   await page.eval(async () => { const A = window.SilinxApp; A.S.project.top = ''; await A.saveProjectJson(); A.renderProcesses(); });
   await page.click('#task-switch .task-btn[data-task="impl"]');

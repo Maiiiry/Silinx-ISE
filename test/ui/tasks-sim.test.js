@@ -37,7 +37,7 @@ async function simulateBench(page, name) {
   await tasksInterface(page);
   await page.openProject(name);
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-wavewin') && /Sim Time: 1,000,000 ps/.test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || '')
     && !window.Silinx.active.view.state.running, [], { what: 'ISim ran', timeout: 30000 });
 }
