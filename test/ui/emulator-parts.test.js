@@ -31,7 +31,6 @@ end rtl;
 // a property of the emulator's view ('sim.now', 'held', 'paints' …)
 const emu = (page, prop) => page.eval((p) => p.split('.').reduce((o, k) => o?.[k], window.SilinxApp.findDoc('emulator').view), prop);
 const stat = (page) => page.eval(() => document.querySelector('.emu .stat').textContent);
-const hiddenSel = '.emu-bar select[title^="What the emulator does while it is not seen"]';
 async function openEmulator(page) {
   await page.menu('Tools', 'Board Emulator');
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running' });

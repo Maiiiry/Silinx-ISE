@@ -111,7 +111,6 @@ export function presetOf(type, params = {}) {
   }
   return null;
 }
-const presetDef = (type, title) => SYMBOLS[type]?.presets?.find(p => p.title === title) || null;
 
 // ------------------------------------------------------------------ Xilinx library symbols
 // Xilinx Unified Library symbols that ISE .sch import (core/isesch.js) maps to native symbols: they

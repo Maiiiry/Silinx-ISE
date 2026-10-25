@@ -18,7 +18,6 @@ import { example, EXAMPLES } from './examples-lib.mjs';
 
 const P = (x, y) => ({ x, y });
 const near = (a, b, tol = 0.11) => Math.hypot(a.x - b.x, a.y - b.y) <= tol;
-const bez = ([p0, c1, c2, p3], t) => { const s = 1 - t; return P(s ** 3 * p0.x + 3 * s * s * t * c1.x + 3 * s * t * t * c2.x + t ** 3 * p3.x, s ** 3 * p0.y + 3 * s * s * t * c1.y + 3 * s * t * t * c2.y + t ** 3 * p3.y); };
 
 test('a point relative to the ends and back: the fraction along them, the distance to their left; ends at one point', () => {
   const a = P(100, 100), b = P(300, 100);

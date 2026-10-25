@@ -24,7 +24,6 @@ import { mountMovesS6 } from './place-moves.js';
 
 export { PlaceError };
 
-const RANK = { X: 0, L: 1, M: 2 };
 /** Does a slice site of kind `site` take an instance that needs `need` (X, L, M)? */
 export const sliceFits = (need, site) => need === 'X' || site === need || (need === 'L' && site === 'M');
 const needOf = inst => inst.type.slice(5);

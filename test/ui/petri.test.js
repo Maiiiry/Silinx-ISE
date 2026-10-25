@@ -80,7 +80,6 @@ async function newNet(page, pj) {
   await page.waitFor((ed) => /2 places · 2 transitions · 4 arcs/.test(document.querySelector(`${ed} .asm-status`)?.textContent || ''), [ED], { what: 'the Petri net editor' });
 }
 const node = (page, id) => page.eval((ed, i) => { const r = document.querySelector(`${ed} [data-id=${i}] ${i[0] === 'p' ? 'circle' : 'rect'}`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, ED, id);
-const statusOf = (page) => page.eval((ed) => document.querySelector(`${ed} .asm-status`).textContent, ED);
 const problems = (page) => page.eval((ed) => [...document.querySelectorAll(`${ed} .asm-prob`)].map((li) => `${li.classList.contains('warning') ? 'warning' : 'error'}: ${li.textContent}`), ED);
 const saved = async (pj) => JSON.parse(await readWs(env, pj, 'src/ctl.pn.json'));
 // a project file once it is what `ok` wants (it is written by the autosave, ~0.8 s after the edit, and

@@ -24,11 +24,9 @@
 //
 // Isomorphic module (browser + Node).
 
-import { lex, KEYWORDS as VHDL_KW } from './vhdl/lexer.js';
-import { tokenize, KEYWORDS as VLOG_KW } from './verilog/lexer.js';
+import { lex } from './vhdl/lexer.js';
+import { tokenize } from './verilog/lexer.js';
 import { mountVhdlScopes } from './scopes-vhdl.js';
-
-export { VHDL_KW, VLOG_KW };
 
 function lineStarts(text) {
   const out = [0];

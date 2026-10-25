@@ -771,8 +771,6 @@ function clockedHard() {
 // flip-flops only
 const clockedFf = () => yjson({ clk: ['input', 1], d: ['input', 1], q: ['output', 1] }, [
   ...clock, ...ibuf('d', 1), { name: 'ff', type: 'FDRE', params: { INIT: '0' }, conns: { C: 'clk_g', CE: '1', R: '0', D: 'd_i', Q: 'f' }, outs: ['Q'] }, obuf('q', 'f')]);
-// the warning of a DCM whose CLKIN comes from a pad through general routing (#47)
-const generalClkin = (u, pad, dcm) => `${u}: its CLKIN comes from the pad ${pad} through general routing: no pad reaches the CLKIN of ${dcm} on a dedicated path of known bits`;
 // the pad ISE's placer gives a DCM's CLKIN when the clock has no LOC (#92: implemented by ISE, one DCM on each site)
 const ISE_DCM_PAD = {
   'xc3s100ecp132-4': { DCM_X0Y1: 'A9', DCM_X0Y0: 'M6' },

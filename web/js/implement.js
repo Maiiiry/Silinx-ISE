@@ -17,8 +17,6 @@ import { inView, saveProjectJson, setTop } from './design.js';
 // Live per-step status from run.sh's "=== SILINX STEP <step> ===" markers and ISE WARNING/ERROR lines.
 const STEP_PROC = { synth: 'synth', translate: 'translate', map: 'map', par: 'par', trce: 'par', bitgen: 'bitgen', prombit: 'bitgen',
   postsynth: 'postsynth', posttrans: 'posttrans', postmap: 'postmap', postpar: 'postpar', pin2ucf: 'pin2ucf', xpwr: 'xpwr', fpgaview: 'fpgaview', fpgadevice: 'fpgaview' };
-const STEP_TOOL = { synth: 'Xst', translate: 'NgdBuild', map: 'Map', par: 'Par', trce: 'Timing', bitgen: 'Bitgen', prombit: 'Bitgen',
-  postsynth: 'NetListWriters', posttrans: 'NetListWriters', postmap: 'NetListWriters', postpar: 'NetListWriters', pin2ucf: 'Pin2UCF', xpwr: 'Power', fpgaview: 'Xdl', fpgadevice: 'Xdl' };
 const RANK = { ok: 0, warn: 1, err: 2 };
 export const worst = (...xs) => xs.filter(Boolean).reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'ok');
 

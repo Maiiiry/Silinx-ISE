@@ -27,7 +27,7 @@ const PARTS = {
     'closeProjectNow', 'reloadProject', 'reloadProjectNow', 'updateTitle', 'rememberRecent', 'recent', 'clearRecent',
     'renderStartPage', 'storageBox', 'storageMenuItems', 'storageLine', 'updateStorageStatus', 'switchStorage',
     'openWorkspaceFolder', 'reopenWorkspaceFolder', 'useBrowserStorage', 'copyBrowserProjects'],
-  'implement.js': ['STEP_PROC', 'STEP_TOOL', 'RANK', 'worst', 'applyReportWarnings', 'stepTracker', 'ucfDiagnostics', 'checkUcfFile',
+  'implement.js': ['STEP_PROC', 'RANK', 'worst', 'applyReportWarnings', 'stepTracker', 'ucfDiagnostics', 'checkUcfFile',
     'checkConstraints', 'regenerateUcf', 'runImpl', 'runImplInner', 'SYNTH_OPEN', 'synthOpenRunning', 'synthOpen', 'FLOW_UP_TO',
     'generateSimModel', 'postParTiming', 'textPowerReport', 'backAnnotatePins', 'readBuildFile', 'showTextDoc', 'stopProcesses'],
   'drawings.js': ['openAsm', 'staleHdl', 'freshHdl', 'syncHdlFromAsm', 'asmFromHdlFile',
@@ -81,9 +81,6 @@ test('#405 app.js split: what app.js imports from a module is exported by it, an
   // the names other modules use on the app object are still there
   for (const name of ['log', 'logLine', 'setDiagnostics']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
   for (const name of ['openProject', 'closeProject', 'reloadProject', 'stepTracker', 'regenerateUcf']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
-  // and app.js still exports them by name
-  assert.match(app, /^export \{ log, setDiagnostics \};/m);
-  assert.match(app, /^export \{ openProject, closeProject, reloadProject \};/m);
 });
 
 test('#405 app.js split: the helpers fail on a part missing from a module', () => {
