@@ -198,7 +198,7 @@ function apply() {
 function tagDocs() {
   const S = app?.S;
   if (!S) return;
-  placeSimToolbar(on());   // (SSim's toolbar in its wave window's line: #1026)
+  placeSimToolbar(on(), S);   // (SSim's toolbar in its wave window's line: #1026; its model, #1353)
   let mine = 0, only = null;
   for (const d of S.docs) {
     const t = taskOf(d);

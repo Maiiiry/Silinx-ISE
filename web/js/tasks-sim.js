@@ -15,7 +15,9 @@ import { h } from './ui.js';
 /** SSim's toolbar in its wave window's line, where its name ("Default.wcfg") and the cursor's text were (`tasks`: the
  *  Tasks interface, #1026; web/css/tasks.css hides them), its stimuli bar under it (#1270), else both back under its title
  *  bar, as SSim made them. */
-export function placeSimToolbar(tasks) {
+export function placeSimToolbar(tasks, S = null) {
+  if (!tasks) for (const sel of document.querySelectorAll('#workspace .isim-toolbar .isim-model')) sel.remove();   // (the Tasks interface's only)
+  else if (S) for (const d of S.docs) if (/^isim:/.test(d.id)) placeModel(d, tasks);
   for (const root of document.querySelectorAll('#workspace .isim')) {
     watchSide(root.querySelector('.isim-left'));
     const tb = root.querySelector('.isim-toolbar'), cap = root.querySelector('.isim-wavewin > .caption');
@@ -27,6 +29,26 @@ export function placeSimToolbar(tasks) {
     if (bar && tasks && bar.previousElementSibling !== cap) cap.after(bar);
     else if (bar && !tasks && bar.previousElementSibling !== tb) tb.after(bar);
   }
+}
+
+/** The simulation's model in its toolbar's right end, after Edit Stimuli (the Tasks interface, #1353): another one chosen
+ *  simulates the same module with it (a netlist not generated yet offered to be generated first, #490). */
+function placeModel(d, tasks) {
+  const tb = d.el.querySelector('.isim-toolbar');
+  let sel = tb?.querySelector('.isim-model');
+  if (!tb || !tasks) { sel?.remove(); return; }
+  if (sel) return;
+  const [mod, model = ''] = d.id.slice('isim:'.length).split('@');
+  sel = h('select', { class: 'isim-model', title: 'The model to simulate', 'aria-label': 'The model to simulate' },
+    ...SIM_MODELS.map(([v, label]) => h('option', { value: v }, label)));
+  sel.value = model;
+  sel.addEventListener('change', async () => {
+    const v = sel.value;
+    sel.value = model;   // (this simulation's; the other one in its own tab)
+    const { runSimulation } = await import('./viewers.js');   // (not at load: viewers.js loads the app)
+    runSimulation(mod, v || undefined);
+  });
+  tb.append(sel);
 }
 
 /** The simulations' tabs to the right of the side panel, which starts at the top of the work area as Design's and

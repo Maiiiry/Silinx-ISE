@@ -263,6 +263,39 @@ uiTest('#1345 Tasks ▸ Simulate: Maximize hides the side panel too, the waves f
   assert.deepEqual(await g(), { side: true, fromLeft: false, console: true });
 }, { build: DEV });
 
+// #1353: the simulation's model at the right end of its toolbar, after Edit Stimuli: its own model shown; another one
+// chosen simulates the module with it, in a tab of its own
+uiTest('#1353 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar, after Edit Stimuli; Portuguese', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'TasksSimModel', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimModel');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  const g = () => page.eval(() => {
+    const tb = document.querySelector('.doc:not([hidden]) .isim-toolbar'), s = tb.querySelector('.isim-model');
+    const stim = [...tb.querySelectorAll('.tb-btn')].find((b) => /Edit Stimuli/.test(b.textContent));
+    return s && { value: s.value, options: [...s.options].map((o) => o.textContent), last: tb.lastElementChild === s,
+      right: Math.abs(s.getBoundingClientRect().right - tb.getBoundingClientRect().right) < 12, afterStim: !!stim && s.getBoundingClientRect().left > stim.getBoundingClientRect().right };
+  });
+  assert.deepEqual(await g(), { value: '', options: ['Behavioral', 'Post-Synthesis', 'Post-Translate', 'Post-Map', 'Post-Place & Route'], last: true, right: true, afterStim: true });
+  // Post-Synthesis chosen: generated, then simulated in its own tab; this one keeps Behavioral
+  await page.eval(() => { const s = document.querySelector('.doc:not([hidden]) .isim-toolbar .isim-model'); s.value = 'postsynth'; s.dispatchEvent(new Event('change')); });
+  await page.waitDialog();
+  await page.dialogButton('Generate and Simulate');
+  await simShown(page, 'tb_top', 'Post-Synthesis');
+  assert.equal((await g()).value, 'postsynth');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim-toolbar .isim-model option')?.textContent === 'Comportamental', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the classic interface: none
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.querySelectorAll('.isim-toolbar .isim-model').length), 0);
+}, { build: DEV, timeout: 300000 });
+
 // #1316, #1332: the Simulation tree's rows show their types: [Waveform] marked, the simulation's view, then their HDL's
 // (no drawing's: Design's); [Waveform] brings the waveform to the front, the HDL's opens the file here, in Simulation
 uiTest('#1316 #1332 Tasks ▸ Simulate: the Simulation tree\'s rows [Waveform*] and their HDL; the HDL badge opens the file in Simulation, [Waveform] the waveform; Portuguese', E, async (page) => {
