@@ -36,6 +36,7 @@ import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
 import { initCheckMessages } from './tasks-check.js';
+import { initTreeMenus } from './tasks-menus.js';
 import { prefKey } from './prefs.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl'];
@@ -411,6 +412,7 @@ export function initTasks(a) {
   fitSoon = initEmulate(() => on() && current() === 'emu');
   initProgram(() => arrangeProgram(on()));
   initCheckMessages(on, () => { if (!arr().console) arrange({ console: true }); }, (...a) => app.log(...a));
+  initTreeMenus(app, { on, task: () => current() });
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
   $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) toggle({ side: true }); });
