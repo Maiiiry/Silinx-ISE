@@ -266,13 +266,20 @@ async function runSimulationInner(mod, model, stale) {
     id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: id,
     create(el) {
       // SSim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
-      // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with
+      // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with in
+      // this simulation only: a test bench runs its own inputs, its stimuli neither kept nor applied again (#1380)
       const inst = (design.top.ports || []).some(p => p.dir === 'in') ? design.top
         : (design.top.children || []).find(c => (c.ports || []).some(p => p.dir === 'in')) || design.top;
+      const bench = inst !== design.top;
+      if (bench && S.project.stimuli?.[mod]) {   // (kept before #1380: dropped)
+        const { [mod]: _, ...rest } = S.project.stimuli;
+        S.project.stimuli = rest;
+        saveProjectJson().catch(() => {});
+      }
       const stimuli = {
-        model: S.project.stimuli?.[mod] || null, inst,
+        model: bench ? null : S.project.stimuli?.[mod] || null, inst,
         ports: (inst.ports || []).map(p => ({ name: p.name, dir: p.dir, width: p.sig.t.w || 1 })),
-        onChange: m => { S.project.stimuli = { ...(S.project.stimuli || {}), [mod]: m }; saveProjectJson().catch(e => toast(`Cannot save the stimuli: ${e.message}`, 'error')); },
+        onChange: m => { if (bench) return; S.project.stimuli = { ...(S.project.stimuli || {}), [mod]: m }; saveProjectJson().catch(e => toast(`Cannot save the stimuli: ${e.message}`, 'error')); },
         onSaveTestbench: m => saveStimTestbench(inst === design.top ? mod : inst.module, inst, m),
       };
       // (the project's test benches in its tree, another one simulated in a document of its own: #1161)
