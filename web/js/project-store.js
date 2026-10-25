@@ -445,6 +445,8 @@ export function projectOps(getStore, examples = {}) {
         await S().renamePath(name, from, to);
         json.files = json.files.map(f => ({ ...f, path: remap(f.path) }));
         if (json.constraints) json.constraints = remap(json.constraints);
+        // the files removed from the project stay removed at their new paths (#1228)
+        if (json.excluded) json.excluded = json.excluded.map(remap);
         await S().saveJson(name, json);
         return clone(json);
       }
@@ -454,6 +456,7 @@ export function projectOps(getStore, examples = {}) {
       const lang = /\.vhdl?$/i.test(to) ? 'vhdl' : /\.(v|sv)$/i.test(to) ? 'verilog' : null;
       json.files = json.files.map(f => (f.path === from ? { ...f, path: to, lang: lang || f.lang } : f));
       if (json.constraints === from) json.constraints = to;
+      if (json.excluded) json.excluded = json.excluded.map(f => (f === from ? to : f));
       await S().saveJson(name, json);
       return clone(json);
     },
@@ -464,6 +467,7 @@ export function projectOps(getStore, examples = {}) {
       const json = clone(p.json);
       json.files = json.files.filter(f => !under(f.path, path));
       if (json.constraints && under(json.constraints, path)) json.constraints = null;
+      if (json.excluded) json.excluded = json.excluded.filter(f => !under(f, path));
       await S().saveJson(name, json);
       return { ok: true };
     },
