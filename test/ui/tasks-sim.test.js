@@ -122,9 +122,9 @@ const simShown = (page, module, model) => page.waitFor((m, k) => /^isim:/.test(w
 uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates it once (the model generated first), no Simulate button', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await simulateBench(page, 'TasksSimChoice');
-  // no Simulate button in the task's bar (the other tasks keep their action)
+  // no action button in the task's bar (#1292); the choices on Simulate's page (#1291), its document open: not shown
   assert.ok(!(await shown(page, '#task-bar [data-act="main"]')), 'no Simulate button');
-  assert.ok(await shown(page, '#task-bench') && await shown(page, '#task-model'));
+  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-model')));
   // a module chosen: simulated once, at once
   let from = (await logText(page)).length;
   await choose(page, 'task-bench', 'top');
@@ -160,9 +160,9 @@ uiTest('#1018 Tasks ▸ Simulate: choosing the test bench or the model simulates
   await choose(page, 'task-model', '');
   await simShown(page, 'tb_top', 'Behavioral');
   assert.deepEqual(await started(page, from), ['Started : "Simulate Behavioral Model".']);
-  // the other tasks: their action in the bar
+  // the other tasks: no action button in the bar either (#1292)
   await page.click('#task-switch .task-btn[data-task="edit"]');
-  assert.ok(await shown(page, '#task-bar [data-act="main"]'), 'Edit\'s Check');
+  assert.ok(!(await shown(page, '#task-bar [data-act="main"]')), 'no Check in the bar');
   await noWarnings(page);
 }, { build: DEV, timeout: 300000 });
 

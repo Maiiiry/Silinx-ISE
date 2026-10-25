@@ -77,7 +77,7 @@ uiTest('View ▸ Interface ▸ Modern: the task switcher in the header, the task
   }));
   assert.deepEqual(L, {
     ui: 'modern', stored: 'modern', tasks: ['Design', 'Simulate', 'Emulate', 'Implement'],   // (no Program: Implement's, #1172)
-    bar: ['Close', 'The test bench to simulate', "Open the test bench's source", 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the test bench, #917, and the model, #800: Simulate's)
+    bar: ['Close'],   // (Close: a single document's, #854; Simulate's choices on its page, #1291; no action button, #1292)
     view: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)'],   // (in the header, #1218)
   });
   assert.ok(await shown(page, '#task-switch'));
@@ -347,6 +347,9 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
 
 // #799: Edit's Design pane is one tree, no views: the design, then the constraints; the test benches are Simulate's
 // (its Simulation and Instances, #1161); Check checks the selected module
+// the task's action, as its design-flow button runs it (no button in the task's bar: #1292)
+const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement' };
+const taskAction = (page) => page.eval((m) => document.querySelector(`#toolbar .m-step[data-step="${m[document.documentElement.dataset.task]}"]`).click(), STEP);
 const hierRows = (page) => page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.getClientRects().length)
   .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => b.textContent)].join(' ')));
 uiTest('#799 Tasks ▸ Edit: one design tree (the design, no constraints: #1250), no views; Check of the selected module', E, async (page) => {
@@ -365,7 +368,7 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, no constraints: #1250)
   assert.ok(at('Constraints') === -1 && !rows.some((r) => /\.ucf\b/.test(r)), rows.join(' | '));   // (#1250)
   // Check of the selected module, no error
   await page.treeRow('#hier', 'top', { exact: true });
-  await page.click('#task-bar [data-act="main"]');
+  await taskAction(page);
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
   // the classic interface: its views and Processes again, no constraints either
@@ -386,7 +389,7 @@ uiTest('#991 Tasks: a task\'s dot explained by its button\'s tooltip; in Portugu
   assert.equal(await tip('edit'), 'Design');
   await page.click('#task-switch .task-btn[data-task="edit"]');
   await page.treeRow('#hier', 'gates', { exact: true });
-  await page.click('#task-bar [data-act="main"]');
+  await taskAction(page);
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
   await page.waitFor(() => document.querySelector('#task-switch .task-btn[data-task="edit"] .task-dot').dataset.state === 'ok', [], { what: 'Edit\'s dot' });
   assert.equal(await tip('edit'), 'Design — done, no warnings');
@@ -743,7 +746,7 @@ uiTest('#802 Tasks ▸ Implement: the top\'s Processes, the Design Summary as ca
   // (another of Implement's documents in front meanwhile: I/O Pin Planning, from its process)
   await page.treeRow('#procs', 'I/O Pin Planning', { dbl: true, exact: true });
   await page.waitFor(() => window.SilinxApp.S.active?.id === 'pins', [], { what: 'I/O Pin Planning in front' });
-  await page.click('#task-bar [data-act="main"]');
+  await taskAction(page);
   await page.waitConsole(/Process "Generate Programming File" (completed successfully|failed)/, { timeout: 120000 });
   await page.waitFor(() => window.SilinxApp.S.active?.id === 'summary', [], { what: 'the summary come forward', timeout: 10000 });
   await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table caption')].some((c) => c.textContent === 'Programming File'), [], { what: 'the summary with its programming file', timeout: 30000 });
@@ -918,7 +921,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
 // Edit's. A project with no test bench: Simulate's page offers the wizard
 const AND2 = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity and2 is\n  port (a, b : in std_logic; y : out std_logic);\nend and2;\n'
   + 'architecture rtl of and2 is\nbegin\n  y <= a and b;\nend rtl;\n';
-uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the test bench chosen in the bar; its source opened', E, async (page) => {
+uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the test bench chosen on its page (#1291); its source opened', E, async (page) => {
   await makeProject(env, { name: 'TasksBench', top: 'and2', files: { 'src/and2.vhd': AND2 } });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -928,7 +931,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   // no test bench: said, and the wizard offered; the design module listed
   await page.waitFor(() => !document.querySelector('#task-empty .task-empty-bench').hidden, [], { what: 'the wizard offered' });
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
-    'The project has no test bench yet: create one with the wizard, or simulate the top with stimuli drawn in ISim.');
+    'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   assert.deepEqual(await bench(), { value: 'and2', options: [['Design modules', 'Design modules', true], ['and2', 'and2', false], ['+new', 'New Test Bench (Wizard)…', false]] });
   // the wizard: its test bench becomes the one Simulate runs
   await page.click('#task-empty .task-empty-bench');
@@ -945,13 +948,15 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
   await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
   await page.waitFor(() => window.Silinx.active?.title === 'SSim (and2)', [], { what: 'ISim of and2', timeout: 30000 });
-  // Edit: the chosen module's source, in Edit
-  await page.click('#task-bar .task-bench-edit');
+  // Edit (on Simulate's page, #1291: its simulation closed): the chosen module's source, in Edit
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
+  await page.waitFor(() => !document.getElementById('task-empty').hidden, [], { what: 'Simulate\'s page' });
+  await page.click('#task-empty .task-bench-edit');
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/and2.vhd' && document.documentElement.dataset.task === 'edit', [], { what: 'its source in Edit' });
   // in Portuguese
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('#task-bar .task-bench-edit').textContent === 'Editar', [], { what: 'Portuguese' });
+  await page.waitFor(() => document.querySelector('#task-empty .task-bench-edit').textContent === 'Editar', [], { what: 'Portuguese' });
   assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2', 'Nova Bancada de Teste (Assistente)…']);
   assert.equal(await page.eval(() => document.getElementById('task-bench').title), 'A bancada de teste a simular');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
@@ -963,7 +968,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.setViewport(1366, 768);
   // not in the other tasks
   await page.click('#task-switch .task-btn[data-task="edit"]');
-  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-bar .task-bench-edit')));
+  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-empty .task-bench-edit')));
   await noWarnings(page);
 }, { build: DEV });
 
@@ -1006,7 +1011,7 @@ uiTest('#923 #1172 Tasks ▸ Implement: no Emulate processes, Configure Target D
   // before an implementation (the utilization "not yet implemented"), then after it (timing, programming file)
   await page.waitFor(() => /not yet implemented/.test(document.querySelector('.doc:not([hidden]) .summary-table caption')?.parentElement?.parentElement?.textContent || ''), [], { what: 'the summary before an implementation' });
   await sweep(3, 'before');
-  await page.click('#task-bar [data-act="main"]');
+  await taskAction(page);
   await page.waitConsole(/Process "Generate Programming File" (completed successfully|failed)/, { timeout: 120000 });
   await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table caption')].some((c) => c.textContent === 'Programming File'), [], { what: 'the summary', timeout: 30000 });
   await sweep(5, 'after');
@@ -1033,8 +1038,8 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary'), [], { what: 'the Design Summary behind' });
   assert.equal((await state(page)).task, 'edit');
   // Edit: Check (the task's action, enabled once the project is there): its lines only; All shows the application's too
-  await page.waitFor(() => !document.querySelector('#task-bar [data-act="main"]').disabled, [], { what: 'Check enabled' });
-  await page.click('#task-bar [data-act="main"]');
+  await page.waitFor(() => document.querySelector('#toolbar .m-step[data-step="check"]')._enabled(), [], { what: 'Check enabled' });
+  await taskAction(page);
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
   assert.deepEqual(await pressed(page), ['check']);
   let lines = await shownLines(page);
