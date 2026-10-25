@@ -42,7 +42,7 @@ export const SCH_PT = {
   'Net name already used': 'Nome de rede já usado', 'Connect by name': 'Ligar pelo nome',
   'Connect this net to it by name? They become one net, without a wire drawn between them.': 'Ligar esta rede a ela pelo nome? Passam a ser uma só rede, sem um fio desenhado entre elas.',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',
-  'Bidirectional': 'Bidirecional', 'Auto direction': 'Direção automática',
+  'Bidirectional': 'Bidirecional',
   // the Add I/O Marker tool: on a wire, a pin or empty space (#680)
   'Add I/O Marker: click a wire end, a pin or empty space to add a port marker (a wire to its tip connects it later).':
     'Adicionar Marcador de E/S: clique na ponta de um fio, num pino ou num espaço vazio para adicionar um marcador de porto (um fio até à sua ponta liga-o depois).',

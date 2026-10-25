@@ -2,7 +2,6 @@
 export const FPGA_PT = {
   'View Implemented Design (FPGA)': 'Ver Projeto Implementado (FPGA)',
   'Implemented Design (FPGA View)': 'Projeto Implementado (Vista da FPGA)',
-  'The FPGA view needs the full Silinx application with Xilinx ISE (it reads the placed and routed design).': 'A vista da FPGA precisa da aplicação Silinx completa com o Xilinx ISE (lê o projeto colocado e encaminhado).',
   'Set the top module of the project first.': 'Defina primeiro o módulo de topo do projeto.',
   'The FPGA view shows the design after Place & Route. Run Implement Design (Synthesize, Translate, Map, Place & Route) now?': 'A vista da FPGA mostra o projeto depois de Place & Route. Executar agora Implement Design (Synthesize, Translate, Map, Place & Route)?',
   'The implemented design could not be read.': 'Não foi possível ler o projeto implementado.',

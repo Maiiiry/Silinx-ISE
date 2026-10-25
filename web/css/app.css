@@ -171,9 +171,8 @@ table.grid tr.sel td { background: #dbe8fb; }
 /* start page / summary */
 .page { padding: 14px 18px; overflow: auto; height: 100%; }
 .page h2 { font-size: 16px; color: #1e395b; margin: 4px 0 12px; font-weight: normal; }
-.page a, .linkish { color: #0645ad; cursor: pointer; text-decoration: none; }
-.page a:hover, .linkish:hover { text-decoration: underline; }
-.start-grid { display: flex; gap: 30px; flex-wrap: wrap; }
+.page a { color: #0645ad; cursor: pointer; text-decoration: none; }
+.page a:hover { text-decoration: underline; }
 .start-box { min-width: 260px; }
 .start-box h3 { font-size: 13px; color: #1e395b; border-bottom: 1px solid #c9d7ed; padding-bottom: 3px; }
 /* the first heading right under the pane's caption, as the Design pane's content (#1101) */

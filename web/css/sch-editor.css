@@ -49,7 +49,6 @@
 .sch-editor .se-btn:active:not(:disabled), .sch-editor .se-btn.on { border-color: #3c7fb1; background: linear-gradient(#c4e5f6, #98d1ef); }
 .sch-editor .se-btn:disabled { opacity: .4; }
 .sch-editor .se-sep { width: 1px; height: 18px; background: #c0c0c0; margin: 0 4px; box-shadow: 1px 0 #fff; }
-.sch-editor .se-lang { height: 21px; margin-right: 3px; }
 .sch-editor .se-opts { display: inline-flex; align-items: center; gap: 4px; }
 .sch-editor .se-opts label { color: var(--se-muted); }
 .sch-editor .se-optin { height: 21px; width: 110px; border: 1px solid var(--field-border); padding: 0 3px; background: var(--field-bg); }
@@ -351,7 +350,7 @@
 .sch-editor.sim-mode .se-left { opacity: .45; pointer-events: none; }
 /* (Try it: the drawing's options and Symbol Info stay, #1175) */
 .sch-editor.sim-mode .se-toolbar .se-btn:not([data-act="sim"]):not([data-act="zin"]):not([data-act="zout"]):not([data-act="fit"]):not([data-act="view"]):not([data-act="check"]):not([data-act="info"]),
-.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep, .sch-editor.sim-mode .se-toolbar .se-lang { opacity: .35; pointer-events: none; }
+.sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep { opacity: .35; pointer-events: none; }
 .sch-editor.sim-mode .se-canvas { cursor: default; }
 /* wires by value: 1 bright green, 0 dark green, X/U red, Z blue, no value grey */
 .sch-editor.sim-mode svg .wire.lv-1 .wline { stroke: #00c800; stroke-width: 2; }
