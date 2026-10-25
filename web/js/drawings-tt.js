@@ -21,9 +21,11 @@ export async function openTt(path) {
   const id = `tt:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
   let model;
-  try { model = JSON.parse(await api.readFile(S.project.name, path)); }
+  const pj = S.project.name;
+  try { model = JSON.parse(await api.readFile(pj, path)); }
   catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
   const { mountTtEditor } = await import('./truthtable.js');
+  if (S.project?.name !== pj) return;   // another project opened meanwhile: not its drawing (#1231)
   openDoc({
     id, path, title: path.split('/').pop(), icon: 'truthtable',
     create(el, d) {
