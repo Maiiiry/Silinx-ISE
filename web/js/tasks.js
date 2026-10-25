@@ -309,6 +309,8 @@ function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
   $('menubar').after(h('nav', { id: 'task-switch', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
+  // the toolbar in the header, where the menu bar was (none in this interface: web/css/tasks.css, #1321)
+  $('menubar').after($('toolbar'));
   $('statusbar').before(h('nav', { id: 'task-tabs', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
   const tb = (act, title, ico) => h('button', { class: 'tb-btn', type: 'button', 'data-act': act, title, 'aria-label': title, html: ICON[ico] });
   // the side panel, the messages and the document maximized: at the header's right end, after Settings (#1218, #1314)
@@ -374,6 +376,7 @@ function fitHeader() {
 
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
+  document.getElementById('topbar').after(document.getElementById('toolbar'));   // (under the header again, #1321)
   delete document.getElementById('topbar').dataset.fit;
   for (const t of document.querySelectorAll('#left-tabs .tab')) t.removeAttribute('title');
   messagesTask(null);   // (the other interfaces: every source, #925)

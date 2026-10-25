@@ -48,6 +48,8 @@ export const settingsItems = () => [
   '-',
   { label: 'Keyboard Shortcuts', action: () => wiz.shortcutsDialog() },
   { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
+  // a development build's Development menu (#707), the menu bar gone (#1321)
+  ...((dev) => (dev ? ['-', { label: dev.label, submenu: dev.items() }] : []))(developmentMenu()),
 ].filter(Boolean);
 
 export function setupMenus() {

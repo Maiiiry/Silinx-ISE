@@ -51,8 +51,18 @@ for (const orientation of ['landscape', 'portrait']) {
   uiTest(`#1130 tablet in ${orientation} (${width} x ${height}): the page fits the screen; a menu and a dialog by taps; a file opened`, E, async (page) => {
     assert.deepEqual(await page.eval(() => [matchMedia('(pointer: coarse)').matches, matchMedia('(hover: none)').matches, innerWidth, innerHeight]), [true, true, width, height]);
     assert.deepEqual(await fits(page), { page: true, over: [] }, 'the Start page');
-    // File ▸ New Project… by taps: its dialog, on the screen; Cancel by a tap
-    await tapMenu(page, 'File', 'New Project…');
+    // a menu by taps (the header's Settings, no menu bar in the modern interface, #1321; else File's), its dialog on the
+    // screen (About; File ▸ New Project…), closed by a tap
+    if (await page.eval(() => !!document.getElementById('settings-btn')?.getClientRects().length)) {
+      await page.tap('#settings-btn');
+      await page.waitFor(() => document.querySelector('body > .menu-popup:not(.sub) .mi'), [], { what: 'Settings open' });
+      await page.tap('body > .menu-popup:not(.sub) > .mi .lbl', { text: 'About Silinx ISE' });
+      await page.waitDialog();
+      assert.equal(await onScreen(page, '.dlg-overlay .dlg'), true, 'About on the screen');
+      await page.tap('.dlg-overlay .dlg-buttons .btn', { text: 'OK' });
+      await page.waitNoDialog();
+      await page.tap('#toolbar .tb-btn[data-cmd=newProject]');
+    } else await tapMenu(page, 'File', 'New Project…');
     await page.waitDialog('New Project');
     assert.equal(await onScreen(page, '.dlg-overlay .dlg'), true, 'the dialog on the screen');
     await page.tap('.dlg-overlay .dlg-buttons .btn', { text: 'Cancel' });
