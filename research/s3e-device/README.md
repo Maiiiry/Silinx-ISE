@@ -844,3 +844,53 @@ INTERSECT=1 node prototype.mjs observe obsN.json …117 designs… feat*/*/top.x
 PINRULES=1 node chip.mjs measured.json.gz obs.json --ft … --probe … --tests …
 SILINX_CONFIG_DIR=cfg node research/s3e-route/open-flow.mjs examples/gates out/gates      (the 43, one at a time)
 ```
+
+## 12. The clock column and the I/O columns' clock lines; 40 of the 43 designs through ISE on the measured graph (2026-10-25)
+
+What the 6 designs of section 11 lacked, each measured:
+
+- **The clock column by index** (`varyjoins.mjs`): ISE's routes showed the PIPs and joins of the doubles across the clock
+  column (`CLKV_E2BEG5 -> CLKT_SELDUB2`, `TIBUFS/E2BEG5 ~ CLKT/CLKV_E2BEG5`) at some indexes only. `pips`: each PIP seen
+  in a clock-column tile with its wires' index varied among the tile's measured wires, to the arc probe: 3682 asked,
+  **212 exist**; `joins`: each join seen there with the index varied, to the join tests: 470 tests, 187 joins, 283
+  islands, every one agreeing. A BUFGMUX's S then routes (`feat_bufgmux`, `feat_bufgmux_1`).
+- **The I/O columns' clock lines.** Clock tests (`clocktests.mjs`) on the 61 designs' clock nets with an end in an I/O
+  or block-RAM tile: 984 designs, 2189 tests, 811 joins, every verdict agreeing. Then `varyjoins.mjs clock`: each known
+  join of two clock lines with an end in an I/O tile at every index and every tile of the prefix at the same offset,
+  tested from a BUFGMUX (`BUFGSRC=1`, `MAXDEPTH=10 MAXJOINS=8`: the spine, the row and the column are a long way from
+  it): 211 + 111 joins, all agreeing. The clock-line nodes still split go from 581 to 296; the I/O registers' clocks route
+  (`feat_iob_pair`).
+
+| | Section 10 | Now |
+|---|---|---|
+| Nodes split / merged | 12 217 / 0 | 12 011 / 0 |
+| PIPs extra / missing | 66 / 52 423 | 66 / 50 557 |
+| Pins wrong (by node) / missing | 0 / 22 796 | 0 / 19 929 (216 named otherwise: BCIN, section 11) |
+
+**ISE's verdict** (`scripts/check-open-flow.mjs`, the measured graph in `SILINX_CONFIG_DIR`): **all 40 designs that route
+pass: no open-flow warning, DRC 0 errors and 0 warnings, xdl2ncd no warning, and Silinx's `.bit` byte-identical to ISE's
+bitgen with CRC on and off.** They are the 7 examples (gates, traffic, blinky, pong, stopwatch, clock, vga) and 33 of the
+36 `test/fixtures/open-flow` designs of the XC3S250E CP132: block RAMs and their wizards, DCMs (one and two, a phase shift, a divider,
+the clock wizard), BUFGMUX, the multipliers and their cascade, SRL16 and their chains, I/O registers, DDR,
+bidirectional pads, the hard primitives.
+
+Still failing, the measured graph's last gaps:
+
+- `feat_iob_lines`: the I/O registers' clocks in columns no test reaches yet (296 clock-line nodes split; 106 hypotheses
+  no test source reaches);
+- `feat_manual_clock`: a clock pad into a BUFGMUX through general routing: `CLKV_E2BEG0` / `CLKV_E2MID0`, the only PIPs
+  of known bits into `CLKT_CLKDUB0`, have their joins to the I/O tiles untested (no pad source drives that I/O tile's
+  doubles: 320 such hypotheses);
+- `feat_clocks12`: twelve clocks, the routing does not converge (3 nodes shared after 50 passes): the 12 011 nodes still
+  split (hex and double taps whose segment starts in a tile no test drives, the I/O tiles' OMUX) leave the router fewer
+  ways.
+
+The shipped graph stays: the replacement is the maintainer's decision. What it would still need: those three, the
+quality comparison against the shipped graph (routability and timing, #3's acceptance), and the other devices.
+
+```
+node varyjoins.mjs pips measured.json.gz obs.json cand.json probe7.json,…   && probe-run.mjs cand.json probe.json
+node varyjoins.mjs joins measured.json.gz obs.json hyp.json t1 … u8          && prototype.mjs tests hyp.json …
+node varyjoins.mjs clock measured.json.gz obs.json hyp.json t1 … u10         && BUFGSRC=1 MAXDEPTH=10 MAXJOINS=8 … prototype.mjs tests …
+SILINX_CONFIG_DIR=cfg SILINX_ISE_HOST=… node scripts/check-open-flow.mjs examples/gates … test/fixtures/open-flow/hard_prim
+```
