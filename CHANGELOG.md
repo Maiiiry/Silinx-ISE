@@ -457,7 +457,7 @@ In detail:
   route (6377, now 478); `varyjoins.mjs long`, `edge` and `taps`, and `predict` / `edgejoins.mjs` on the measured graph's
   wires (`WIRES=`), closed them, every verdict agreeing with the shipped graph. The 43 designs pass ISE on it, 0.4% faster
   than on the shipped graph (research/s3e-device README section 14).
-- **The private-data check (#1336):** scripts/check-private-data.mjs allows the made-up /Users/Me of test/impl.test.js.
+- **The private-data check (#1336):** scripts/check-private-data.mjs allows the made-up macOS home folder of test/impl.test.js.
 - **Tasks ▸ Design: Check Design beside Close Project (#1329):** the bar under the Design tree runs Check Syntax of the
   project's top module, whatever the tree selects; it is off with no project or no top module. The classic interface has
   no such bar.
