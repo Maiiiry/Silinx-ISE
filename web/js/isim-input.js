@@ -29,6 +29,32 @@ export function mountInput(ctx) {
     invalidate(false);
   }
   function localXY(e, el) { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  // a selection window (#1351): dragged over the names column, every row it crosses selected (Ctrl/Cmd: added to the
+  // selection); a click without a drag selects the row under it, or none under the rows
+  function boxSelect(e, y0, i0) {
+    const add = e.ctrlKey || e.metaKey, before = new Set(st.sel), box = document.createElement('div');
+    box.className = 'isim-selbox';
+    let moved = false;
+    const at = yy => Math.floor((clamp(yy, RULER_H, sizes().NH) - RULER_H + st.scrollY) / ROW_H);
+    const mm = (ev) => {
+      const [, y] = localXY(ev, cn);
+      if (!moved && Math.abs(y - y0) < 4) return;
+      if (!moved) { moved = true; cn.parentElement.append(box); }
+      const top = clamp(Math.min(y0, y), RULER_H, sizes().NH), bot = clamp(Math.max(y0, y), RULER_H, sizes().NH);
+      Object.assign(box.style, { left: `${cn.offsetLeft}px`, top: `${cn.offsetTop + top}px`, width: `${cn.clientWidth}px`, height: `${bot - top}px` });
+      st.sel = new Set(add ? before : []);
+      const n = flat().length, a = at(top), b = Math.min(n - 1, at(bot - 1));
+      for (let k = Math.max(0, a); k <= b; k++) st.sel.add(flat()[k].key);
+      if (b >= 0 && a < n) st.anchor = clamp(a, 0, n - 1);
+      invalidate(false);
+    };
+    const mu = () => {
+      box.remove();
+      if (!moved) selectRow(i0, e);
+      invalidate(false);
+    };
+    track(cn, e, mm, mu);
+  }
 
   on(cn, 'pointerdown', (e) => {
     if (!e.isPrimary) return;
@@ -40,7 +66,8 @@ export function mountInput(ctx) {
     }
     const i = rowAtY(y);
     if (e.button === 2) { if (i >= 0 && !st.sel.has(flat()[i].key)) selectRow(i, null); return; }
-    if (i < 0) { selectRow(-1, e); return; }
+    // from the values column, or under the rows: a selection window (#1351); on a name: the row selected, dragged to move
+    if (i < 0 || x > st.nameW) { boxSelect(e, y, i); return; }
     const it = flat()[i];
     // twisty (a group's: open / close it)
     const tx = 4 + it.depth * 16;
