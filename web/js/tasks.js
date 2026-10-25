@@ -392,10 +392,20 @@ function unbuild() {
   for (const k of ['task', 'side', 'console', 'max', 'single', 'nodocs']) delete r.dataset[k];
 }
 
+// a reload: the task in front when the page was left, brought back once the last project is reopened at start-up, whatever
+// task its reopened documents brought forward (a simulation, Simulate's) — Implement with no top has none of its own (#1337)
+let startTask = null;
+export function restoreStartTask() {
+  const t = startTask;
+  startTask = null;
+  if (on() && t && t !== current()) setTask(t);
+}
+
 /** The Tasks interface's behaviour; its parts are built while it is the interface. `a` is the app (web/js/app.js). */
 export function initTasks(a) {
   app = a;
   load();
+  startTask = state.task;   // (the task in front when the page was left: back to it once the project reopens, #1337)
   initMessages(app);   // (the message centre: every interface's, #925)
   fitSoon = initEmulate(() => on() && current() === 'emu');
   initProgram(() => arrangeProgram(on()));

@@ -1351,6 +1351,32 @@ uiTest('#1321 Tasks: no menu bar, the toolbar in the header in its place, withou
   await noWarnings(page);
 }, { build: DEV });
 
+// #1337: a reload comes back to the task in front, also one with no document of its own (Implement with no top), whatever
+// task the reopened documents (a simulation) bring forward
+uiTest('#1337 Tasks: a reload in Implement with no top module comes back in Implement, not in Simulate (its simulation reopened)', E, async (page) => {
+  await makeProject(env, { name: 'TasksReloadImpl', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksReloadImpl');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-empty button');
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || ''), [], { what: 'the simulation', timeout: 60000 });
+  await page.eval(async () => { const A = window.SilinxApp; A.S.project.top = ''; await A.saveProjectJson(); A.renderProcesses(); });
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => !!document.querySelector('#procs .task-no-top'), [], { what: 'Implement with no top' });
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksReloadImpl' && window.SilinxApp.findDoc('isim:tb_top'), [], { what: 'the project and its simulation again', timeout: 60000 });
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(await page.eval(() => document.documentElement.dataset.task), 'impl');
+  assert.ok(await page.eval(() => !!document.querySelector('#procs .task-no-top')), 'its note');
+  // and from Simulate: Simulate again
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksReloadImpl' && window.SilinxApp.findDoc('isim:tb_top'), [], { what: 'reopened', timeout: 60000 });
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(await page.eval(() => document.documentElement.dataset.task), 'sim');
+}, { build: DEV });
+
 // #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
 uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
   await makeProject(env, { name: 'TasksNoTabs', template: 'gates', files: {}, roles: {} });
