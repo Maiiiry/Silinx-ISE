@@ -1389,14 +1389,14 @@ uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button
   await tasksInterface(page);
   await page.openProject('TasksView');
   const where = () => page.eval(() => {
-    const v = document.getElementById('task-view'), th = document.getElementById('theme-btn'), top = document.getElementById('topbar');
+    const v = document.getElementById('task-view'), th = document.getElementById('settings-btn'), top = document.getElementById('topbar');
     const btns = [...v.querySelectorAll('.tb-btn')], r = btns.map((b) => b.getBoundingClientRect()), t = th.getBoundingClientRect();
     return {
-      acts: btns.map((b) => b.dataset.act), inHeader: top.contains(v), afterTheme: th.nextElementSibling === v && r.every((x) => x.left >= t.right && Math.abs((x.top + x.bottom) / 2 - (t.top + t.bottom) / 2) < 2),
+      acts: btns.map((b) => b.dataset.act), inHeader: top.contains(v), afterSettings: th.nextElementSibling === v && r.every((x) => x.left >= t.right && Math.abs((x.top + x.bottom) / 2 - (t.top + t.bottom) / 2) < 2),
       rightEnd: top.getBoundingClientRect().right - r.at(-1).right < 24, inBar: document.querySelectorAll('#task-bar [data-act=side], #task-bar [data-act=console], #task-bar [data-act=max]').length,
     };
   });
-  assert.deepEqual(await where(), { acts: ['side', 'console', 'max'], inHeader: true, afterTheme: true, rightEnd: true, inBar: 0 });
+  assert.deepEqual(await where(), { acts: ['side', 'console', 'max'], inHeader: true, afterSettings: true, rightEnd: true, inBar: 0 });
   // they still act
   await page.click('#task-view [data-act="side"]');
   assert.equal((await state(page)).side, 'folded');

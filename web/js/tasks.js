@@ -311,8 +311,8 @@ function build() {
   $('menubar').after(h('nav', { id: 'task-switch', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
   $('statusbar').before(h('nav', { id: 'task-tabs', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
   const tb = (act, title, ico) => h('button', { class: 'tb-btn', type: 'button', 'data-act': act, title, 'aria-label': title, html: ICON[ico] });
-  // the side panel, the messages and the document maximized: at the header's right end, after the theme's button (#1218)
-  $('theme-btn').after(h('div', { id: 'task-view', role: 'group', 'aria-label': 'Layout' },
+  // the side panel, the messages and the document maximized: at the header's right end, after Settings (#1218, #1314)
+  $('settings-btn').after(h('div', { id: 'task-view', role: 'group', 'aria-label': 'Layout' },
     tb('side', 'Show or hide the side panel', 'side'),
     tb('console', 'Show or hide the messages', 'msgs'),
     tb('max', 'Maximize the document (double-click its tab)', 'max')));

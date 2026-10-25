@@ -19,6 +19,21 @@ const LUM = `window.__lum = (sel) => {
   return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255;
 };`;
 
+// the header's Settings (#1314): its entries, or one chosen (an entry of a submenu: item and sub)
+async function settingsMenu(page, item, sub) {
+  await page.closeMenus();
+  await page.click('#settings-btn');
+  await page.waitForSelector('body > .menu-popup .mi');
+  const labels = await page.eval(() => [...document.querySelectorAll('body > .menu-popup:not(.sub) > .mi .lbl')].map((l) => l.textContent));
+  if (!item) { await page.closeMenus(); return labels; }
+  if (!sub) { await page.click('body > .menu-popup:not(.sub) > .mi', { index: labels.indexOf(item) }); return labels; }
+  await page.hover(await page.point('body > .menu-popup:not(.sub) > .mi', { index: labels.indexOf(item) }));
+  await page.waitForSelector('.menu-popup.sub .mi');
+  const subs = await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent));
+  await page.click('.menu-popup.sub .mi', { index: subs.indexOf(sub) });
+  return subs;
+}
+
 async function subMenu(page, menu, item, sub) {
   const items = await page.openMenu(menu);
   const idx = items.findIndex((x) => x.label === item);
@@ -33,6 +48,36 @@ async function subMenu(page, menu, item, sub) {
 
 // #1149: the modern interface is the Tasks one (its layout by tasks, data-layout="tasks"): the header with the search and
 // the task switcher, Design's pages as tabs above its panel, the document and console tabs on top, the task's empty state
+// #1314: the header's Settings, in place of the light / dark switch: About, Interface, Language, Theme, the update checks,
+// the keyboard shortcuts, Tell Us Who You Are; in Portuguese
+uiTest('#1314 the header\'s Settings: About, Interface, Language, Theme, Check for Updates, Keyboard Shortcuts, Tell Us Who You Are; Portuguese', E, async (page) => {
+  assert.equal(await page.eval(() => document.getElementById('theme-btn')), null, 'no light / dark switch');
+  assert.deepEqual(await settingsMenu(page), ['About Silinx ISE', 'Interface', 'Language', 'Theme', 'Toolchain Settings (ISE / Programmers)…', 'Check for Updates…', 'Check for Updates at Start-up', 'Keyboard Shortcuts', 'Tell Us Who You Are…']);
+  await settingsMenu(page, 'About Silinx ISE');
+  await page.waitDialog('About Silinx ISE');
+  await page.key('Escape');
+  await page.waitNoDialog();
+  await settingsMenu(page, 'Toolchain Settings (ISE / Programmers)…');
+  await page.waitDialog('Toolchain Settings');
+  await page.key('Escape');
+  await page.waitNoDialog();
+  await settingsMenu(page, 'Keyboard Shortcuts');
+  await page.waitDialog('Keyboard Shortcuts');
+  await page.key('Escape');
+  await page.waitNoDialog();
+  assert.deepEqual(await settingsMenu(page, 'Theme', 'Light'), ['System', 'Light', 'Dark']);
+  await page.waitFor(() => document.documentElement.dataset.theme === 'light');
+  assert.deepEqual(await settingsMenu(page, 'Language', 'Português'), ['English', 'Português']);
+  await page.waitFor(() => document.getElementById('settings-btn').title === 'Definições', [], { what: 'Portuguese' });
+  assert.deepEqual(await settingsMenu(page), ['Acerca do Silinx ISE', 'Interface', 'Idioma', 'Tema', 'Definições da Toolchain (ISE / Programadores)…', 'Procurar Atualizações…', 'Procurar Atualizações no Arranque', 'Atalhos de Teclado', 'Diga-nos Quem É…']);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // Interface ▸ Classic: the classic interface (no header buttons there), its menus
+  await settingsMenu(page, 'Interface', 'Classic');
+  await page.waitFor(() => document.documentElement.dataset.ui === 'classic');
+  assert.equal(await page.eval(() => document.getElementById('settings-btn').getClientRects().length), 0);
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+}, { ui: 'modern' });
+
 uiTest('modern interface by default: the Tasks layout, header with search and the tasks, Design\'s tabs on top, tabs on top, empty state', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   assert.deepEqual(await ui(page), { ui: 'modern', theme: 'light' });
@@ -159,8 +204,8 @@ uiTest('theme: follows the system, View ▸ Theme ▸ Dark / Light / System, hea
   await subMenu(page, 'View', 'Theme', 'Light');
   await page.waitFor(() => document.documentElement.dataset.theme === 'light');
   assert.equal(await page.eval(() => localStorage.getItem('silinx.theme')), 'light');
-  // the header button switches between light and dark
-  await page.click('#theme-btn');
+  // the header's Settings ▸ Theme ▸ Dark (#1314: in place of the light / dark switch)
+  await settingsMenu(page, 'Theme', 'Dark');
   await page.waitFor(() => document.documentElement.dataset.theme === 'dark');
   assert.equal(await page.eval(() => localStorage.getItem('silinx.theme')), 'dark');
   await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
@@ -251,12 +296,12 @@ uiTest('Portuguese: the modern header, buttons, empty state and palette are tran
     search: document.querySelector('.m-search-text').textContent,
     tasks: [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.textContent.trim()),
     empty: document.querySelector('#task-empty p').textContent,
-    theme: document.getElementById('theme-btn').getAttribute('title'),
+    settings: document.getElementById('settings-btn').getAttribute('title'),
   }));
   assert.deepEqual(T, {
     // ('Design' in Portuguese too, #1046)
     search: 'Procurar comandos e ficheiros…', tasks: ['Design', 'Simular', 'Emular', 'Implementar'],
-    empty: 'Abra uma fonte no painel Projeto, ou verifique o projeto.', theme: 'Alternar entre tema claro e escuro',
+    empty: 'Abra uma fonte no painel Projeto, ou verifique o projeto.', settings: 'Definições',
   });
   const subs = await subMenu(page, 'Ver', 'Interface');
   assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Clássica']);

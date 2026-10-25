@@ -22,6 +22,34 @@ import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
 
+// the menus' entries the header's Settings shares (#1314): the language, the interface, the theme (the classic ISE look is
+// light only), the update check at start-up (#488: off, the app asks GitHub nothing until Check for Updates… is used)
+const languageMenu = () => ({ label: 'Language', submenu: Object.entries(LOCALES).map(([id, l]) => ({ label: l.name, checked: getLanguage() === id, action: () => setLanguage(id) })) });
+const interfaceMenu = () => ({ label: 'Interface', submenu: [
+  { label: 'Modern', checked: getInterface() === 'modern', action: () => setInterface('modern') },
+  { label: 'Classic', checked: getInterface() === 'classic', action: () => setInterface('classic') },
+] });
+const themeMenu = () => (getInterface() !== 'classic' ? { label: 'Theme', submenu: [
+  { label: 'System', checked: getTheme() === 'system', action: () => setTheme('system') },
+  { label: 'Light', checked: getTheme() === 'light', action: () => setTheme('light') },
+  { label: 'Dark', checked: getTheme() === 'dark', action: () => setTheme('dark') },
+] } : null);
+const updateAtStartItem = () => ({ label: 'Check for Updates at Start-up', checked: wiz.updateCheckEnabled(), action: () => { wiz.setUpdateCheckEnabled(!wiz.updateCheckEnabled()); toast(wiz.updateCheckEnabled() ? 'Check for updates at start-up on: the latest release is asked of GitHub when the app starts' : 'Check for updates at start-up off: Help > Check for Updates… checks by hand'); } });
+/** The header's Settings menu (the modern interface, #1314). */
+export const settingsItems = () => [
+  { label: 'About Silinx ISE', icon: icon('help'), action: () => wiz.aboutDialog() },
+  '-',
+  interfaceMenu(), languageMenu(), themeMenu(),
+  '-',
+  { label: 'Toolchain Settings (ISE / Programmers)…', icon: icon('gear'), action: () => wiz.toolchainDialog() },
+  '-',
+  { label: 'Check for Updates…', action: () => wiz.checkUpdatesDialog() },
+  updateAtStartItem(),
+  '-',
+  { label: 'Keyboard Shortcuts', action: () => wiz.shortcutsDialog() },
+  { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
+].filter(Boolean);
+
 export function setupMenus() {
   const hasPj = () => !S.project;
   menuBar($('menubar'), S.menus = [
@@ -76,17 +104,7 @@ export function setupMenus() {
       '-',
       { label: 'Design Summary', icon: icon('summary'), action: () => openSummary(), disabled: hasPj },
       '-',
-      { label: 'Language', submenu: Object.entries(LOCALES).map(([id, l]) => ({ label: l.name, checked: getLanguage() === id, action: () => setLanguage(id) })) },
-      { label: 'Interface', submenu: [
-        { label: 'Modern', checked: getInterface() === 'modern', action: () => setInterface('modern') },
-        { label: 'Classic', checked: getInterface() === 'classic', action: () => setInterface('classic') },
-      ] },
-      // the classic ISE look is light only
-      getInterface() !== 'classic' ? { label: 'Theme', submenu: [
-        { label: 'System', checked: getTheme() === 'system', action: () => setTheme('system') },
-        { label: 'Light', checked: getTheme() === 'light', action: () => setTheme('light') },
-        { label: 'Dark', checked: getTheme() === 'dark', action: () => setTheme('dark') },
-      ] } : null,
+      languageMenu(), interfaceMenu(), themeMenu(),
       '-',
       { label: 'Command Palette…', action: () => showPalette(), shortcut: 'Ctrl+K' },
     ].filter(Boolean) },
@@ -132,7 +150,7 @@ export function setupMenus() {
       '-',
       { label: 'Check for Updates…', action: () => wiz.checkUpdatesDialog() },
       // the start-up check (#488): off, the app asks GitHub nothing until Check for Updates… is used
-      { label: 'Check for Updates at Start-up', checked: wiz.updateCheckEnabled(), action: () => { wiz.setUpdateCheckEnabled(!wiz.updateCheckEnabled()); toast(wiz.updateCheckEnabled() ? 'Check for updates at start-up on: the latest release is asked of GitHub when the app starts' : 'Check for updates at start-up off: Help > Check for Updates… checks by hand'); } },
+      updateAtStartItem(),
       '-',
       { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
     ] },
