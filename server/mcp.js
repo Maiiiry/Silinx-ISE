@@ -259,8 +259,10 @@ export const TOOLS = [
     async run({ project: name, path: rel, text }) {
       await readProject(name);
       if (typeof text !== 'string') throw toolError('text: the whole text of the file');
-      if (/^(silinx\.json|build\/)/.test(String(rel))) throw toolError(`'${rel}' is written by Silinx itself`);
-      await projectPath(name, rel);
+      // the path as the project lists it: ./silinx.json is silinx.json (#1233)
+      const key = P.relKey(P.projectDir(name), await projectPath(name, rel));
+      if (key === P.PROJECT_FILE || key === 'build' || key.startsWith('build/')) throw toolError(`'${rel}' is written by Silinx itself`);
+      rel = key;
       const existed = (await P.fileTree(name)).includes(rel);
       try { await P.writeFile(name, rel, text); } catch (e) { throw toolError(e.message); }
       const added = !existed && (await P.readProject(name)).files.some(f => f.path === rel);

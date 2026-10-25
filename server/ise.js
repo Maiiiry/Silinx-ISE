@@ -25,6 +25,7 @@ import { loadConfig, detectIse, iseStatus, iseModeOf, which } from './toolchain.
 import { validateDevice, findPart } from './devices.js';
 import { resourceCount } from '../core/resources.js';
 import { parseBitHeader } from './programmer.js';
+import { within } from './paths.js';
 
 // the default flow (an empty request runs these)
 export const STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
@@ -386,7 +387,7 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
   // every file path of the project stays inside its folder (silinx.json comes from an imported zip too)
   const inside = rel => {
     const full = path.resolve(projectDir, rel);
-    if (!full.startsWith(projectDir + path.sep)) throw Object.assign(new Error(`file path escapes project: ${rel}`), { status: 400 });
+    if (full === projectDir || !within(projectDir, full)) throw Object.assign(new Error(`file path escapes project: ${rel}`), { status: 400 });
     return full;
   };
   // the drawn sources without an HDL file: their HDL made here (#177)
