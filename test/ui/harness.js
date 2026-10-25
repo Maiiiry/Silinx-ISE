@@ -346,11 +346,13 @@ class PageBase {
     const def = typeof label === 'string' && await this.eval(async (m) => {
       const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
       if (!e || e.getClientRects().length) return null;
-      const t = await import('/js/i18n.js').then((m) => m.t, () => (x) => x);
+      // (the single-file editions have no modules to import, and an import tried there is a console error in Firefox: no
+      // popup there, the definition only)
+      const mod = (f) => (document.querySelector('script[type="module"][src$="/js/app.js"]') ? import(f) : Promise.reject(new Error('one file')));
+      const t = await mod('/js/i18n.js').then((m) => m.t, () => (x) => x);
       const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
       const all = (typeof menu.items === 'function' ? menu.items() : menu.items).filter(Boolean);
-      // (the single-file editions have no modules to import: no popup there, the definition only)
-      await import('/js/ui.js').then((u) => u.popupMenu(all, 8, 56), () => {});
+      await mod('/js/ui.js').then((u) => u.popupMenu(all, 8, 56), () => {});
       return all.filter((x) => x !== '-')
         .map((x) => ({ label: t(x.label), disabled: !!(typeof x.disabled === 'function' ? x.disabled() : x.disabled), submenu: !!x.submenu }));
     }, label);
@@ -417,9 +419,11 @@ class PageBase {
     const r = await this.eval(async (m, l) => {
       const e = [...document.querySelectorAll('#menubar .item')].find((x) => x.textContent.trim() === m);
       if (!e || e.getClientRects().length) return 'shown';
-      // (the single-file editions have no modules to import: the English labels, the action itself)
-      const t = await import('/js/i18n.js').then((m) => m.t, () => (x) => x);
-      const runAction = await import('/js/ui.js').then((m) => m.runAction, () => (lbl, f) => f());
+      // (the single-file editions have no modules to import, an import tried there a console error in Firefox: the English
+      // labels, the action itself)
+      const mod = (f) => (document.querySelector('script[type="module"][src$="/js/app.js"]') ? import(f) : Promise.reject(new Error('one file')));
+      const t = await mod('/js/i18n.js').then((m) => m.t, () => (x) => x);
+      const runAction = await mod('/js/ui.js').then((m) => m.runAction, () => (lbl, f) => f());
       const menu = window.SilinxApp.S.menus.find((x) => x.label === e.dataset.menu);
       const it = (typeof menu.items === 'function' ? menu.items() : menu.items).filter((x) => x && x !== '-').find((x) => x.label === l || t(x.label) === l);
       if (!it) return 'missing';
