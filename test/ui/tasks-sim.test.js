@@ -208,6 +208,26 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the tes
   assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
 });
 
+// #1316: the Simulation tree's rows show their sources' types, as Design's badges (the base marked)
+uiTest('#1316 Tasks ▸ Simulate: the Simulation tree\'s rows with their types as Design\'s badges ([ASM*] [VHDL], [VHDL*]); Portuguese', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimBadges', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimBadges');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  const rows = () => page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .row')].filter((r) => r.querySelector('.lbl') && r.getClientRects().length)
+    .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`)].join(' ')));
+  const r = await rows();
+  for (const want of ['tb_top VHDL*', 'uut VHDL*', 'u_speed ASM* VHDL', 'u_pre Verilog*']) assert.ok(r.includes(want), `${want}: ${r.join(' | ')}`);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .badge')].some((b) => b.textContent === 'ASM'), [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
+
 // #1267: a test bench clicked in Simulation: its instances shown expanded, the other benches collapsed (▸)
 uiTest('#1267 Tasks ▸ Simulate: a test bench clicked in Simulation shows its instances expanded, the other benches collapsed', E, async (page) => {
   const tb = fs.readFileSync(path.join(ROOT, 'examples/blinky/sim/tb_top.vhd'), 'utf8');

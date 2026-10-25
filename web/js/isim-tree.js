@@ -9,8 +9,13 @@ import { ICON, pathOf } from './isim.js';
 
 /** { renderTree, addInstance } of an ISim window. */
 export function mountTree(ctx) {
-  const { st, design, treeEl, benches, onBench, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
+  const { st, design, treeEl, benches, onBench, badges, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
 
+  // a module's types after its name, as Design's badges (#1316)
+  const badgesHtml = mod => {
+    const b = badges?.(mod) || [];
+    return b.length ? `<span class="badges">${b.map(x => `<span class="badge${x.base ? ' base' : ''}">${esc(x.text)}</span>`).join('')}</span>` : '';
+  };
   function renderTree() {
     treeEl.innerHTML = '';
     const mk = (inst, isTop) => {
@@ -18,7 +23,7 @@ export function mountTree(ctx) {
       const procs = (inst.procs || []).filter(p => p.kind !== 'glue');
       const hasKids = inst.children.length || procs.length;
       const row = h('div', { class: 'row' + (inst === st.curInst ? ' sel' : ''),
-        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span><span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
+        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span>${badgesHtml(inst.module)}<span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
       row.title = pathOf(inst);
       row.draggable = true;
       row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-isim', JSON.stringify({ inst: inst.path })); e.dataTransfer.effectAllowed = 'copy'; });
@@ -57,7 +62,7 @@ export function mountTree(ctx) {
     // (the other test benches: a row each, collapsed, simulated (its instances shown) when clicked, #1267)
     const bench = name => {
       const li = h('li', { class: 'task-bench' });
-      const row = h('div', { class: 'row', title: `Simulate ${name}`, html: `<span class="twisty">▸</span><span class="ico">${ICON.top}</span><span class="lbl">${esc(name)}</span>` });
+      const row = h('div', { class: 'row', title: `Simulate ${name}`, html: `<span class="twisty">▸</span><span class="ico">${ICON.top}</span><span class="lbl">${esc(name)}</span>${badgesHtml(name)}` });
       row.addEventListener('mousedown', () => onBench?.(name));
       li.appendChild(row);
       return li;
