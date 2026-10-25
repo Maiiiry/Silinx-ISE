@@ -4,7 +4,8 @@
 //   node prototype.mjs observe obs.json routed.xdl...           what ISE's routed designs show
 //   node prototype.mjs predict obs.json switch-tiles.txt pred.json [tested-dir...]
 //                                                               rules -> predicted joins not yet observed or tested
-//                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too; SEG=pairs: their taps pairwise)
+//                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too; SEG=pairs: their taps pairwise;
+//                                                               WIRES=measured.json.gz: the tiles' wires a measured graph has)
 //   node prototype.mjs tests pred.json obs.json dir [tested-dir...]   join test designs (run: ise-remote.sh dir);
 //                                                               (SOURCES=1, DBPIPS=1, SOURCEXDL=routed.xdl,…: rounds 4-6;
 //                                                               PROBED=probe.json: 7; SOURCEOBS=obs.json, UNBONDED=1: 8)
@@ -24,7 +25,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { parseXdl } from '../../core/xdl.js';
-import { loadDevice, PIP_BIDI } from '../../core/fpga/device.js';
+import { loadDevice, PIP_BIDI, PIP_ROUTETHRU } from '../../core/fpga/device.js';
 import { observeDesign, resolveAmbiguous, intersectAmbiguous, tileXY, wireFamily, blockRamOutputJoins } from './observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from './model.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from './hypotheses.mjs';
@@ -107,7 +108,11 @@ if (cmd === 'observe') {
   const grid = switchGrid(lines(sbFile));
   const pipsOf = pipTable(obs);
   const wireCache = new Map();
-  const wiresOf = t => { const ty = dbType(t); if (!wireCache.has(ty)) { const s = new Set(); for (const [a, b] of pipsOf(ty)) { s.add(a); s.add(b); } wireCache.set(ty, s); } return wireCache.get(ty); };
+  // (WIRES=measured.json.gz: each tile's wires in a measured graph, chip.mjs's: the database's and the probe's too, an I/O
+  // tile's OMUX_Wk no route took; else the wires ISE's routes showed in the tile's type)
+  const G = process.env.WIRES ? loadDevice(readJson(process.env.WIRES)) : null;
+  const wiresOf = G ? t => { if (!wireCache.has(t)) { const k = G.tile(t); wireCache.set(t, new Set(k === undefined ? [] : Array.from(G.templates[G.tileTemplate[k]].wires, i => G.names[i]))); } return wireCache.get(t); }
+    : t => { const ty = dbType(t); if (!wireCache.has(ty)) { const s = new Set(); for (const [a, b] of pipsOf(ty)) { s.add(a); s.add(b); } wireCache.set(ty, s); } return wireCache.get(ty); };
   const rules = new Set();
   for (const [a, b] of obs.joins) { const r = gridRule(a, b, grid); if (r) rules.add(r); }
   let closed = process.env.CLOSE === '1' ? closeRules(rules) : rules;
@@ -269,13 +274,24 @@ if (cmd === 'observe') {
     const b = measPiece.get(mn) || []; b.push(key); measPiece.set(mn, b);
   }
   const measOf = new Map(); for (const [n, l] of measPiece) for (const k of l) measOf.set(k, n);
-  let exact = 0, exactMulti = 0, split = 0, merged = 0, multi = 0;
+  let exact = 0, exactMulti = 0, split = 0, merged = 0, multi = 0, risky = 0, lossy = 0;
   const splitEx = [], splitFam = new Map();
+  // (a piece of a split node a net can reach: a PIP into it or a site's output pin on it; two such pieces, two nets may be
+  // put on one wire (risky); a reachable piece and another with PIPs out of it, a route the router lacks (lossy))
+  const into = new Uint8Array(M.nodeCount), outOf = new Uint8Array(M.nodeCount);
+  for (let k = 0; k < M.tileCount; k++) {
+    const tp = M.templates[M.tileTemplate[k]], b = M.tileWireBase[k];
+    for (let i = 0; i < tp.from.length; i++) if (!(tp.flags[i] & PIP_ROUTETHRU)) { into[M.nodeOf[b + tp.to[i]]] = 1; outOf[M.nodeOf[b + tp.from[i]]] = 1; }
+    tp.sites.forEach(st => st.pins.forEach(p => { if (p.dir === 'o' || p.output) into[M.nodeOf[b + p.wire]] = 1; }));
+  }
   for (const l of refPiece.values()) {
     if (l.length > 1) multi++;
     const ms = new Set(l.map(k => measOf.get(k)));
     if (ms.size > 1) {
       split++;
+      const reach = [...ms].filter(n => into[n]);
+      if (reach.length > 1) risky++;
+      else if (reach.length && [...ms].some(n => outOf[n] && !into[n])) lossy++;
       if (splitEx.length < 8) splitEx.push(l.join(' '));
       const fam = wireFamily(l[0].slice(l[0].indexOf('/') + 1)) || 'other';
       splitFam.set(fam, (splitFam.get(fam) || 0) + 1);
@@ -283,7 +299,7 @@ if (cmd === 'observe') {
   }
   const top = m => [...m].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}:${v}`).join(' ');
   console.log(JSON.stringify(s));
-  console.log(`nodes over ${wires} measured wires: ${refPiece.size} reference pieces (${multi} with more than one wire): ${exact} exact (${exactMulti} of more than one wire), ${split} split (missing joins), ${merged} merged (extra joins)`);
+  console.log(`nodes over ${wires} measured wires: ${refPiece.size} reference pieces (${multi} with more than one wire): ${exact} exact (${exactMulti} of more than one wire), ${split} split (missing joins: ${risky} with two pieces a net can reach, ${lossy} more with a route lost), ${merged} merged (extra joins)`);
   console.log('split pieces by family:', top(splitFam));
   console.log('PIPs missing (by pattern):', top(ex.pipsMissing));
   console.log('PIPs extra:', top(ex.pipsExtra));

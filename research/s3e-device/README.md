@@ -956,3 +956,50 @@ PROBED=all-non-clb-pips.json … prototype.mjs tests hyp.json obs.json u16 …
 SILINX_CONFIG_DIR=cfg node research/s3e-route/open-flow.mjs <design> out --quality q.json     (each graph)
 SILINX_CONFIG_DIR=cfg SILINX_ISE_HOST=… node scripts/check-open-flow.mjs <the 43>               (each graph: trce's period)
 ```
+
+## 14. The split nodes: none a short can come from, and the routes they cost (2026-10-25)
+
+**Which split nodes matter.** A piece of a split node can carry a net only if a PIP drives it or a site's output pin is on
+it. A short needs two such pieces of one wire: the router takes each piece for a node of its own, so it may put two nets
+on them. A piece that nothing drives (a hex that starts beyond the chip's edge: `BIOIS_X22Y0/W6END1 … LRTERM_W6A1`, no
+BEG) never carries one. `prototype.mjs compare` now counts both kinds: the split nodes **with two pieces a net can
+reach** (the risk), and those with one reachable piece and another with PIPs out of it (**a route the router lacks**).
+Of section 13's 9500: 188 risky, all long lines at the I/O rows and columns' ends; 6377 a route lost.
+
+**What closed them** (`varyjoins.mjs`, every hypothesis to ISE's join tests):
+
+- `long`: the long lines' rule, six switch boxes on with the index six on modulo 24 (eastwards LH, southwards LV), the
+  DCM tiles among the switch boxes (`TIBUFS_X13Y35/LV18 -> DCM_TL_CENTER_X13Y34/LV19 -> … CLB_X13Y26/LV0`; the tile
+  probe's list had left them out): 326 joins. **No split node a short can come from is left.**
+- `predict` and `edgejoins.mjs` take the measured graph's wires (`WIRES=`): a rule applies where the bit database and
+  the probe gave the wires, not only where a route showed them (an I/O tile's `OMUX_W14`): 13 822 joins.
+- `edge`: the edge tiles' known joins at every index; `taps`: a double's or a hex's other taps from any of them, whatever
+  the prefix (a hex south from the top: `TTERM_X2Y35/TBTERM_S6A2 ~ CLB_X2Y33/S6MID2`), the same tap in a tile of the same
+  place (`TTERM_X2Y35/TBTERM_N6BEG2 ~ TIBUFS_X2Y35/N6BEG2`), an END's `END_S` / `END_N`: 3648 joins (taps by tile
+  coordinates guess wrong across the block-RAM columns: 4869 islands, as expected).
+
+Every verdict of these rounds agrees with the shipped graph (local scoring).
+
+| | Section 13 | Now |
+|---|---|---|
+| Nodes split | 9500 | 3413 |
+| ... with two pieces a net can reach (a short) | 188 | **0** |
+| ... with a route lost | 6377 | 478 |
+| Nodes merged | 0 | 0 |
+
+The 478 left: the top I/O tiles' clock lines above the block-RAM columns (`TIOIS_X4Y35/GCLKk`), the hexes into the
+terminal tiles above them (`CLB_X10Y30/N6BEG3 ~ TTERM4_X10Y35/TBTERM_N6A3`, five rows: offsets in switch boxes there), a
+few corners' `NW_N`. The other 2935 only lose wires no route can use.
+
+**ISE's verdict on all 43** on this graph: as section 13, every one clean (DRC 0 / 0, no warning, `.bit` byte-identical
+with CRC on and off). **The quality against the shipped graph** (ISE's `trce`, the 37 with a clock period): geometric
+mean **0.9960** (0.4% faster; 1.0017 in section 13), 22 within ±0.5%, 10 faster, 5 slower, from 0.953 (`feat_dcm_bufgin`)
+to 1.061 (`feat_bramwiz`). The examples: traffic 7.772 -> 7.701 ns, blinky 6.527 -> 6.636, pong 12.221 -> 12.178,
+stopwatch 12.839 -> 12.323, clock 6.332 -> 6.272, vga 8.94 -> 8.541.
+
+```
+SWITCHTILES=switch-tiles.txt node varyjoins.mjs long measured.json.gz obs.json hyp.json t1 … ; node varyjoins.mjs edge|taps …
+WIRES=measured.json.gz SEG=pairs node prototype.mjs predict obs.json switch-tiles.txt pred.json t1 …
+WIRES=measured.json.gz node edgejoins.mjs obs.json edge.json t1 …
+node prototype.mjs compare measured.json.gz        (the split nodes: with two pieces a net can reach, with a route lost)
+```
