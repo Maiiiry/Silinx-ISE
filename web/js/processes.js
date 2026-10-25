@@ -171,8 +171,9 @@ function noTopNote() {
 }
 /** Set Top Module…: the top chosen among the design's modules, the hierarchy's roots first (#1224). */
 export async function chooseTop() {
-  const roots = viewRoots(false);
-  const names = [...new Set([...roots, ...S.modules.filter(m => m.kind !== 'package' && m.role !== 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b))])];
+  const byName = (a, b) => a.localeCompare(b);
+  const roots = viewRoots(false).sort(byName);   // (in their names' order, not the files')
+  const names = [...new Set([...roots, ...S.modules.filter(m => m.kind !== 'package' && m.role !== 'sim').map(m => m.name).sort(byName)])];
   if (!names.length) return toast('The project has no module that can be the top yet', 'info');
   const sel = h('select', { style: { width: '100%' } }, ...names.map(n => h('option', { value: n, 'data-no-i18n': true }, n)));
   const r = await dialog({
