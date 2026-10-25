@@ -3,6 +3,461 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.14.0
+
+The modern interface is now organised by tasks (Design, Simulate, Emulate, Implement), with no menu bar; schematics
+get curved wires; the Silinx toolchain makes faster circuits.
+
+In short:
+
+- **The modern interface by tasks:** Design, Simulate, Emulate and Implement (the board is programmed from Implement);
+  it is the default, and Classic keeps ISE's look, menus and toolbar.
+- **No menu bar in the modern interface:** the toolbar is in the header, and a Settings button holds About, Interface,
+  Language, Theme, Toolchain Settings, Check for Updates, Keyboard Shortcuts and Tell Us Who You Are; the other commands
+  are the pages' buttons, the processes, the right-click menus and the command palette.
+- **Design:** New Source and Add Copy of Source above the tree, Close Project under it; the Files page adds the
+  folder's files to the project, copies files in and deletes a file from the disk; the Start page has New Project and
+  Open Project buttons and says where the projects are kept.
+- **Simulate:** several simulations at once, each in its tab; its Simulation tree lists the test benches with their
+  types as Design's badges; what to simulate (any module, the model) is chosen on its page.
+- **Implement:** the top module's processes, whatever is selected; with no top, it says so and offers Set Top Module…;
+  a top can be unset from its right-click menu.
+- **Curved wires in the schematic editor,** hop-overs on them; ADD and SUB drawn as adders; turned or mirrored symbols
+  keep their pin names inside; a module's symbol keeps its wires until Update Symbol.
+- **Drawings and their HDL:** the HDL generated from a schematic, ASM chart, state diagram, truth table or Petri net
+  opens read-only, linked to its drawing.
+- **A reload comes back to where you were:** the task, the documents, the one in front, each source's cursor.
+- **Faster circuits from the Silinx toolchain:** shallower critical paths in synthesis (femtorv32 7 % faster), a third
+  placement at Optimization Effort High (2.2 % shorter critical paths).
+- **Toolchain Settings checked more strictly:** the ISE settings script must be a file of the ISE installation, and
+  Silinx never pulls a Docker image when it runs one.
+- **The site's development edition** (dev/) keeps its own settings, apart from the stable edition's.
+- **Fixes:** a module declared again in another source no longer hides the first one from the hierarchy; Add Copy of
+  Source's Files input fits its dialog; the editor's Find button closes the find bar when clicked again.
+
+In detail:
+
+- **Find toggles (#1328):** web/js/editor.js (findToggle: the search panel closed when open), web/js/app.js (the
+  editor bar's Find), web/js/menus.js (the toolbar's); Ctrl+F and the menus' Find… still open it. Test:
+  test/ui/editing.test.js.
+- **A form's fields within their column (#1326):** web/css/app.css (.form-grid: its fields min-width 0, a file input as
+  wide as its column). Test: test/ui/new-source.test.js (four window widths).
+- **Code comments name the simulator SSim (#1323):** the comments of web/js, web/css and scripts that called Silinx's
+  simulator ISim; those about Xilinx's ISim and the internal names (isim*.js, .isim-*) unchanged. No behaviour change.
+- **No menu bar in the modern interface (#1321):** web/css/tasks.css (the menu bar hidden; the toolbar's look in the
+  header, Stop, Toolchain Settings, About and the separators after Find hidden), web/js/tasks.js (the toolbar moved into
+  the header, back under it in the other interfaces). Tests: test/ui/app.test.js, test/ui/tasks.test.js, test/ui/modern.test.js, test/ui/dark-contrast.test.js, test/ui/tablet.test.js, test/ui/standalone.test.js; test/ui/harness.js shows a hidden menu's popup (its submenus hovered, its items clicked); a development build's Development menu under Settings.
+- **A flaky test (#1319):** test/ui/projects.test.js's #375 test waits for the Start page's recent project to be drawn
+  again before it presses it.
+- **The Simulation tree's badges (#1316):** web/js/design.js (moduleBadges: a module's badges as its Design row has
+  them), web/js/viewers.js, web/js/isim.js, web/js/isim-tree.js, web/js/i18n.js. Test: test/ui/tasks-sim.test.js.
+- **The header's Settings (#1314):** web/index.html, web/js/app.js, web/js/menus.js (settingsItems: the View and Help
+  menus' entries, shared), web/js/icons.js, web/js/tasks.js, web/js/i18n.js, web/css/modern.css. Tests:
+  test/ui/modern.test.js, test/ui/tasks.test.js, test/modern.test.js.
+- **Close Project under the Design tree (#1309):** web/js/tasks.js (the Tasks interface's Design page: Close Project
+  under the tree, off with no project), web/css/tasks.css; web/js/project.js and web/css/app.css (the Start page's,
+  #1300, removed). Tests: test/ui/tasks.test.js, test/ui/projects.test.js.
+- **The saved top waited for (#1308):** test/ui/unset-top.test.js reads the top saved on the server once the save has
+  reached it (the app changes its project first and saves it after).
+- **No File and Edit menus in the modern interface (#1307):** web/css/tasks.css (hidden by their names, as #1217's and
+  #1253's). Tests: test/ui/app.test.js (the menu bar, in English and Portuguese; the menu walk); the tests of the File and Edit menus themselves (hints, projects, standalone) in the classic interface.
+- **A test after #1287 (#1305):** test/ui/unset-top.test.js's #1220 test waits for Implement's empty list and its note
+  with no top module, not for Design Summary/Reports.
+- **A redefined module's first source kept in the hierarchy (#1303):** web/js/design.js (renderHierarchy: the source
+  whose module the library replaced, the warning "module … redefined" unchanged, a row of its own with a warning icon,
+  its drawing's or its file's). Test: test/ui/hierarchy.test.js (an HDL file, a schematic).
+- **Close Project on the Start page and in the Design tree (#1300):** web/js/project.js (the Start page's button, off
+  with no project as the exports), web/css/app.css, web/js/design.js (the project's and the device's rows' menu). Test:
+  test/ui/projects.test.js (in Portuguese too).
+- **Each source's cursor kept (#1299):** web/js/doc-cursor.js (per project, in this browser, this edition's key; at
+  most 50 sources a project), web/js/app.js (kept as the cursor moves; a source opened with no line asked for goes back
+  to it). Tests: test/web-doc-cursor.test.js, test/web-prefs.test.js, test/ui/editing.test.js.
+- **Where the application keeps its projects (#1297):** server/server.js (GET /api/workspace: the workspace folder),
+  web/js/api.js, web/js/project.js (the Start page's box, information only, without the browser edition's folder
+  commands), web/css/app.css, web/js/i18n.js. Tests: test/server-api.test.js, test/ui/projects.test.js.
+- **No Design Summary with no top module (#1295):** web/js/tasks.js (refreshDots: in the Tasks interface the Design
+  Summary, opened behind with the project or restored with its documents, closed while no top module is set; #1287
+  left only Implement's list empty). Test: test/ui/tasks-no-top.test.js.
+- **Simulate's choices on its page (#1291):** web/js/tasks.js (the test bench / module choice, Edit and the model in
+  Simulate's page; its text: "choose a module to simulate with stimuli drawn in SSim"), web/css/tasks.css, web/js/i18n.js.
+- **No action button in the toolbar (#1292):** web/js/tasks.js (the task's bar keeps Emulate's document line only),
+  web/css/tasks.css.
+- Tests: test/ui/tasks.test.js, test/ui/tasks-sim.test.js, test/ui/tablet.test.js.
+- **No New Test Bench in Simulate's choice (#1312):** web/js/tasks-sim.js (the choice lists the test benches and the
+  design modules), web/js/tasks.js (the page's Create a test bench (Wizard)… button shown whenever there is a design
+  module to test).
+- **No empty tab bar (#1289):** web/js/tasks.js (tagDocs: data-nodocs when the task has no document), web/css/tasks.css.
+  Tests: test/ui/tasks.test.js, test/ui/dark-contrast.test.js.
+- **Implement with no top module (#1287):** web/js/processes.js (renderProcesses: the list empty under #1224's note),
+  web/js/tasks.js (Implement opens the Design Summary itself only with a top). Test: test/ui/tasks-no-top.test.js.
+- **A test bench just added found as its module, not its file (#1285):** test/ui/harness.js (tasksTreeRow: a file by its
+  whole name only, so a module's name waits for the module instead of selecting its file before the project is compiled
+  again; and while waiting, with the Simulation view asked, Design and that view again), for stimuli.test.js's flaky
+  simulate() on CI.
+- **XST options: a list in braces (#1281):** since #1244, an `impl.xstOptions` value with a space was refused, and
+  so was XST's `-generics {DIV=2 DEBOUNCE=2}`, the ISE timing simulation test's (test/ise/timesim.test.js). A value is
+  one word or a list in braces with no brace, quote or line break inside (server/ise.js).
+- **A test after #1265 (#1276):** test/ui/synth-open.test.js finds Synthesize - Yosys (open) after Synthesize - XST's
+  children, whichever interface lists Generate Post-Synthesis Simulation Model.
+- **The contrast tests measure settled colours (#1274):** test/ui/dark-contrast.test.js waits for the colour
+  transitions (.12 s, web/css/modern.css) to end before measuring, so that a button just enabled is not read halfway.
+- **Design's Start page with no project (#1272):** web/js/tasks.js (Design brought to the front for want of a project
+  shows its Start page), test/ui/tasks.test.js (#1260's test waits for the page to be drawn).
+- **The stimuli bar clear of Simulate's tabs (#1270):** web/js/tasks-sim.js (placeSimToolbar: in the Tasks interface
+  ISim's stimuli bar in the wave window, under its line of icons; since #1259 the simulations' tabs covered it at the
+  document's top). Tests: test/ui/stimuli.test.js (failed on main), test/ui/tasks-sim.test.js.
+- **A test bench clicked, expanded (#1267):** web/js/isim-tree.js (openBench: the simulated bench expanded when its
+  simulation comes to the front; its row clicked expands it; the other benches' rows a collapsed twisty), web/js/isim.js,
+  web/js/viewers.js (on activation). Test: test/ui/tasks-sim.test.js.
+- **Implement's processes (#1265):** web/js/processes.js (the four Generate Post-… Simulation Model processes in the
+  classic interface's Processes only), web/js/tasks.js (taskOfDoc: the constraints file Implement's document, as I/O
+  Pin Planning). Tests: test/ui/tasks.test.js, test/ui/tasks-emu-procs.test.js, test/ui/open-toolchain.test.js and test/ui/standalone.test.js (the
+  simulation models' tests in the classic interface), test/tasks.test.js.
+- **A test after #1250 (#1262):** test/ui/editing.test.js's Design hierarchy test no longer expects the constraints
+  file among the tree's rows.
+- **The tasks off with no project (#1260):** web/js/tasks.js (refreshDots: the buttons off, Design brought back when a
+  project closes; setTask refuses another task with no project), web/css/tasks.css (their look). Test:
+  test/ui/tasks.test.js.
+- **Simulate's side panel from the top (#1259):** web/css/tasks.css (Simulate's tabs placed to the right of the side
+  panel, the waves below them), web/js/tasks-sim.js (fitSimTabs: the side panel's width and the tabs' height, measured
+  again when the panel is shown, folded or resized), web/js/tasks.js. Test: test/ui/tasks-sim.test.js.
+- **Simulation and Implementation (#1257):** web/js/isim.js (Simulate's header, "Simulation and Instances" before),
+  web/js/tasks.js (Implement's tab and its tooltip, "Implement" before), web/js/i18n.js. Tests: test/ui/tasks.test.js,
+  test/ui/tasks-sim.test.js (in Portuguese too: Simulação, Implementação).
+- **No Window menu in the modern interface (#1253):** web/css/tasks.css (hidden by its name, as #1217's menus). Test:
+  test/ui/app.test.js (the menu bar, in English and Portuguese; the menu walk).
+- **The toolbar's Print (#1251) and its buttons removed (#1252):** web/js/menus.js (setupToolbar: Print after Open
+  Project, enabled as File ▸ Print… is, refreshed with Undo / Redo; the Design Summary, View RTL Schematic and I/O Pin
+  Planning buttons removed), web/js/icons.js (the print icon), web/js/i18n.js ("Print": "Imprimir"). Test:
+  test/ui/app.test.js.
+- **No constraints in the design hierarchy (#1250):** web/js/design.js (the UCF row under the device, the Tasks
+  interface's Constraints group). Tests: test/ui/hierarchy.test.js (the examples' trees; the UCF on the Files page),
+  test/ui/tasks.test.js (Edit's tree, the classic one), test/ui/app.test.js (the constraints' processes under the top
+  module).
+- **Project ▸ Sync with .xise removed (#1248):** web/js/menus.js (the entry, the full application only), web/js/i18n.js
+  (its labels); the server's `POST /api/projects/:p/sync-xise` stays. Test: test/ui/app.test.js (the menus have no
+  .xise entry).
+- **Stricter checks of the toolchain settings set through the API (#1244):** server/toolchain.js checks the ISE
+  settings scripts a changed value names (this computer's: an absolute path to an existing file outside the
+  workspace, owned by root or the user and writable by no one else, its folders too; in the image or on the ssh
+  host: an absolute path outside `/work` and `ssh.remoteDir`) and the images (no leading `-`); server/ise.js runs
+  `docker run --pull=never` (here and on the ssh host) and takes an `impl.xstOptions` value as one word.
+- **The development edition's own settings (#1243):** web/js/prefs.js (prefKey: on the site's dev/, every setting
+  kept in localStorage under `silinx.dev.*`; the stable edition and the application keep their keys, so no setting
+  is lost), used by the keys of the interface and theme (modern.js, and index.html's early script), the language,
+  the drawer and the narrow panels, the recent / open / last projects and each project's view, the Tasks
+  interface's arrangement, the splitters, the emulator, the schematic options, the lint switch, the ink samples,
+  the emulation engine and Check for Updates; the projects, the workspace folder and the service worker were
+  already kept apart. test/ui/harness.js sets the dev edition's interface key too. Tests: test/web-prefs.test.js,
+  test/ui/standalone.test.js; the early script's tests (test/tasks.test.js, test/modern.test.js, test/web-narrow.test.js) read it with the dev edition's keys too.
+- **Tests broken on main (#1225):** test/timings.json without the deleted tasks-test.test.js (#1161); the Start page's
+  Project Commands right under its buttons (web/css/app.css, test/ui/app.test.js #1101, after #1216); the harness's
+  setView('sim') leaves Implement, whose Processes are the top's (#1208).
+- **No top module in Implement (#1224):** web/js/processes.js (a note under the list in Tasks ▸ Implement with no top,
+  and `chooseTop`: the top chosen among the design's modules, the roots first); web/css/tasks.css; web/js/i18n.js.
+  Test: test/ui/tasks-no-top.test.js.
+- **The Start page kept when drawn again (#1222):** web/js/project.js (the page the same whether a project is open: the
+  exports always links, doing nothing with none; the host's data-project says it), web/css/app.css (their disabled look
+  from it), so that a late drawing keeps the page and a click pressed on a recent project is not lost (#494, broken
+  by #1216). Test: test/ui/projects.test.js.
+- **Unset as Top Module (#1220):** web/js/design.js (`topMenuItem`: Set or, on the top, Unset as Top Module;
+  `unsetTop`); web/js/drawings.js, drawings-tt.js (the drawings' menus, `drawnTop`); web/js/menus.js (the classic
+  Project menu); web/js/i18n.js. Test: test/ui/unset-top.test.js.
+- **The layout buttons in the header (#1218):** web/js/tasks.js (`#task-view` after the theme button, its clicks and
+  pressed states as before); web/css/tasks.css. Tests: test/ui/tasks.test.js and the tests that use them
+  (test/ui/harness.js, sch-layout-fit, tasks-emu-procs).
+- **No Project, Process and Tools menus (#1217):** web/css/tasks.css (hidden in the Tasks layout, by their names:
+  web/js/ui.js `data-menu`); the messages that said "Tools ▸ Toolchain
+  Settings" name Toolchain Settings, the gear in the toolbar (web/js/implement.js, summary.js, viewers.js, i18n.js).
+  Tests: test/ui/app.test.js, test/ui/open-toolchain.test.js.
+- **The Start page (#1216):** web/js/project.js (the two buttons on top; Import / Export Silinx ISE Project, a line,
+  Import / Export Xilinx ISE Project, the exports disabled with no project); web/js/menus.js (exportProjectZip
+  exported); web/css/app.css, web/css/modern.css. Test: test/ui/projects.test.js.
+- **Delete File… (#1215):** web/js/design.js (a file's menu in the Files view, in the project or not: asked first, its
+  editor closed, out of the project, the constraints file too, deleted from the disk); web/js/i18n.js. Test:
+  test/ui/files-delete.test.js.
+- **Files page buttons (#1214):** web/js/tasks.js (the row above the Files list); web/js/design.js
+  (`addFromFolderDialog`: the folder's files not in the project, with checkboxes); web/css/tasks.css; web/js/i18n.js.
+  Test: test/ui/files-delete.test.js.
+- **Emulate's tab (#1212):** web/js/tasks-emu.js (its label Emulate, Emular in Portuguese). Test:
+  test/ui/tasks-emu-procs.test.js.
+- **Source buttons in Design (#1210):** web/js/tasks.js (a row of two buttons above the Design tree, opening the New
+  Source Wizard and the Add Copy of Source dialog, disabled with no project); web/css/tasks.css (half of the panel each,
+  Design's only). Test: test/ui/tasks-src-bar.test.js.
+- **Implement's processes the top's (#1208):** web/js/processes.js (in Tasks ▸ Implement the list and its caption are
+  the top module's, whatever the selection; no "not the top" question there); web/js/tasks.js (the Processes drawn once
+  the task is set, the selection's again in another task). Test: test/ui/tasks.test.js.
+- **Implement's tab (#1207):** web/js/tasks.js (its label and tooltip Implement); web/css/tasks.css (its rule wins over the
+  side tabs' general one: the panel's width). Test: test/ui/tasks.test.js.
+- **Processes in Emulate (#1204):** web/js/processes.js (the User Constraints and Emulate on Board groups built once,
+  for Implement and Emulate; `emulateProcesses()`; `renderProcessTree(host, defs)`, the panel's tree drawn anywhere,
+  Emulate's redrawn with the panel: the same states); web/js/tasks-emu.js (placeProcesses: the tab and the tree at the
+  top of the emulator's side column, in the Tasks interface); web/css/tasks.css (hidden in the classic interface; a
+  side tab's label whole, Simulate's too). Test: test/ui/tasks-emu-procs.test.js.
+- **Full View on a layout toggle (#1203):** web/js/layout-fit.js (new: `layoutToggled()`, the signal; `onLayoutToggled(el,
+  fit)`, a shown drawing fitted at once and while its room settles); web/js/tasks.js (the bar's side panel, messages and
+  maximize buttons, a tab's double click, Ctrl/Cmd+Shift+Enter and a folded panel's tab send it); web/js/sch-editor.js and
+  web/js/schematic-view.js listen while they live. Test: test/ui/sch-layout-fit.test.js.
+- **The toolbar's Undo / Redo refreshed when a command ends (#1199):** a command, a project Undo or Redo draws them again
+  at once (they were refreshed on a click, a key and every second: greyed out a moment after a command, a quick click on
+  them lost).
+- **A read-only schematic's toolbar (#1193):** the schematic editor's setBanner (a note at the end of its toolbar);
+  Curved wires shown in a read-only view, drawing it with curves or not without changing it.
+- **No undo for a read-only document (#1192):** web/js/app.js docEditor none for a read-only HDL editor; the toolbar's
+  Undo / Redo enabled as the Edit menu's (web/js/menus.js refreshSteps).
+- **Design forward before the opening ends (#1191):** web/js/project.js sends silinx:project-opened inside the opening
+  (#1171 sent it a tick after it, over what came next), and not for the reopening at start-up (openProject's startup);
+  a document brought to the front that was already in front, behind Design, brings its task forward
+  (silinx:doc-activated, web/js/tasks.js); a narrow screen's drawer kept as it was.
+- **Module symbols as placed (#1183):** an instance is drawn from the ports it was placed with (params.ports; an
+  instance saved without them takes its module's when the schematic is read); core/schdoc-modsym.js: symbolDiff (the
+  ports added, removed or turned), updatedPorts (the pins that stay keep their order, the new ones after them),
+  updateModuleSymbols (the wires, I/O markers and net names following their pin by name; a removed or turned pin's wire
+  left unconnected, pulled back from a pin that comes in its place; one undo step). The netlist's warning, and an error
+  for a pin connected to a port gone or turned; Update Symbol and Update All in the properties; in Portuguese.
+- **No options for Add I/O Marker (#1180):** web/js/sch-tools.js: a marker on empty space an input, named by its prompt.
+- **A finger's drop keeps placing (#1179):** web/js/sch-mouse.js, on a touch screen (a coarse pointer); with the mouse,
+  the symbol dropped is selected as before.
+- **The HDL generated from a drawing is read-only (#1176):** web/js/app.js opens it read-only (CodeMirror's
+  `readOnly`, switched by `setReadOnly` in web/js/editor.js when a file is linked to a drawing while open, after a
+  reload); no Undo / Redo or Templates ▾ in its bar, no Undo, Cut, Paste, Toggle Comment, Rename Symbol, Quick Fix,
+  templates or Instantiate module in its right-click menu (Copy, Select All, Find, Check Syntax and Open <drawing>
+  kept); Tab, F2, Ctrl+., completion, a paste, a template and a quick fix do nothing, and its save writes nothing. Its
+  banner always shows: "Read-only, generated from <drawing>", or "Read-only, not in sync with <drawing>" and the
+  reason (in Portuguese too). The Errors tab offers no "Fix: …" for it, and Rename Symbol does not change its
+  instances (it names the drawing, as for a drawing without an HDL file).
+- **Edits no longer flow from the HDL back into the drawing:** `syncSchematicFromHdl`, `syncAsmFromHdl`,
+  `syncFsmFromHdl`, `syncTtFromHdl` and `schStructure` removed (the HDL editor's save was their only caller); their UI
+  tests now assert the read-only HDL (truthtable, drawings-tt, fsm, petri, hierarchy, projects), and
+  test/ui/generated-hdl.test.js covers a schematic's HDL, a module written in HDL, its conversion while open, and the
+  Tasks interface.
+- **Curved wires and Symbol Info in Try it (#1175):** the wires' style changed while trying it out (undone by Undo, the
+  circuit still running); a symbol other than an input selected there by a click; Curved wires moved beside Hop-overs.
+- **The width on its lead (#1174):** web/js/sch-svg.js pinWidth, every side; test/web-sch-svg.test.js checks each
+  width on its own lead, every symbol in its 8 orientations.
+- **Four sources (#1173):** web/js/messages.js reads the synthesis, the implementation's steps and the board's
+  programming as Implementation's; Emulator renamed Emulation (Emulação); Implement's filter Implementation.
+- **Programming in Implement (#1172):** web/js/tasks.js (four tasks; iMPACT's document Implement's; a kept 'prog' task
+  read as Implement), web/js/tasks-prog.js (iMPACT arranged wherever it opens in the Tasks layout), web/css/tasks.css
+  (Configure Target Device in Implement's Processes again).
+- **The UI tests' rows found and clicked in one go (#1172):** the harness's treeRow counts a row where it finds it (the
+  list drawn again between two looks lost it), and in the modern interface acts on a Processes row where the list has
+  it, its task coming and going (a project opening in Design, #1191).
+- **Opened in Design (#1171):** the opening says when its documents are in place (an event, silinx:project-opened)
+  and the Tasks layout brings Design and its Design page to the front.
+- **Hop-overs on curved wires (#1163):** where two wires' curves cross (not within a hop of either wire's end), the
+  more horizontal of the two there hops over the other with an arc of the technical drawing's radius (#692),
+  bulging up (core/schcurve.js curveCrossings, curveHopD); drawn with Hop-overs ticked (on by default, #756), printed
+  as drawn; a view only, the document, its nets and its HDL the same.
+- **The Processes panel drawn again when a project opens (#1162):** a project with no state to restore (no run yet) or
+  no top kept the last project's list, caption and states; Implement's side panel (web/js/tasks-impl.js) is drawn
+  with none selected when there is no top.
+- **One simulation document per module and model (#1161):** ISim's document isim:<module>[@model] (web/js/viewers.js),
+  Simulate no longer a single-document task (its tab bar), the command line the simulation in front's.
+- **Simulation and Instances (#1161, #1159):** ISim's Instances and Processes under a tab in the Tasks layout, its tree
+  the project's test benches (web/js/isim-tree.js); Edit's Test page removed (web/js/tasks-test.js), a new test bench
+  made Simulate's.
+- **No panel's heading under the side panel's tabs (#1159, #1160)** in the Tasks layout (web/css/tasks.css).
+- **Implement's Processes under a tab (#1160):** a Processes tab (Processos), Implement's only one, styled as Edit's
+  pages; the processes that open the top's drawing (View/Edit Schematic, Truth Table, …) left out there.
+- **Open Project by date (#1156):** each listing of the projects says when each last changed (the server: its newest
+  file, the build's outputs aside; the browser's storage: its last write; a folder on the disk: its project file's
+  date), the app remembers when each was opened (localStorage silinx.opened), and the dialog sorts by the later of the
+  two (web/js/project-store.js byLastUsed), the date shown as 2026-10-24 15:07.
+- **Modern is the Tasks layout (#1149):** web/js/modern.js (two interfaces; a stored 'tasks' read as Modern), the View
+  menu, index.html's early script.
+- **A new test bench selected in its tree in the modern interface (#1149):** showInSim found it in the Design pane
+  only.
+- **The UI tests in the new modern interface (#1149):** the harness reads the whole console (the message centre
+  filters by task), sets the view and opens a side-panel page through the app or Design, acts on a hierarchy or
+  Processes row a task does not show, shows the messages and the side panel when a task has them folded; a test of
+  the classic interface's own parts (its views, its Processes panel) says so (uiTest's `ui: 'classic'`); the old
+  modern interface's tests removed or turned into the classic interface's.
+- **The schematic editor's remembered toolbar options in a module of their own (#1145, #405):** Keep connections,
+  Names and Hop-overs moved as they were from mountSchEditor (web/js/sch-editor.js) to web/js/sch-options.js,
+  read through getters; no change of behaviour.
+- **Curved wires (#1144):** the schematic's `wireStyle: "curved"` (saved with it, undone by Undo), the checkbox in the
+  editor's toolbar after Keep connections (Fios curvos in Portuguese). Every wire keeps its rectilinear path
+  (`points`), from which its connections, net, HDL and ISE `.sch` come as before; a wire's own curve (`curve`: its
+  knots, each stored relative to the wire's two ends, so that it follows them when a symbol moves, a selection is
+  pasted or a wire is rerouted or split) is a drawing only, a Catmull-Rom spline through its knots
+  (core/schcurve.js); a wire without one is drawn as its rectilinear path with its bends rounded. In curved mode: a
+  wire by clicks keeps the points clicked and a stroke (#1052) its simplified shape, their rectilinear path routed
+  between their ends (#948); a wire ended on a curve, a net name or an I/O marker put on one connects at the point of
+  the path answering it; the selected wire's handles dragged, its curve grabbed and pulled (a knot added), a handle
+  removed by a double click, Reset curve in its Properties; net and bus names on the curves; hop-overs on the
+  curves (#1163), junction dots as before; printed as drawn. The short of two named nets is refused as before
+  (#754, #806). Older files open as they were (the technical drawing).
+- **Spartan-6 packer: a 5FF's D through O5 (#1143):** a storage element packed on a 5FF (A5FF … D5FF) with its
+  D from outside the slice now takes it through the position's O5 as a route-through of a LUT input (as ISE's
+  map does), only when O5 is free and the O6 LUT leaves it an input; it was on the bypass input, which a 5FF does
+  not have (the slices' definitions: a 5FF's D is O5's). `checkSlice` refuses a 5FF whose D is not O5's. The
+  examples' slice counts are unchanged; stopwatch's four such 5FFs are now legal.
+- **The adder's shape (#1138):** ADD and SUB (one pin per operand) drawn as a notched trapezoid, each pin's lead ending
+  on its outline, in every orientation; COMP and the forms with a pin per bit stay boxes. Saved schematics unchanged.
+- **The multiplexers 70 px wide (#1136):** as the DEMUX (M16_1 keeps its 80, room for its 4 select bits); their select
+  bits where they were. A schematic of before (document version 3) is converted to version 4 on opening
+  (core/schdoc-upgrade.js): each multiplexer placed so that its inputs stay put, its output's connections moved with
+  it (a wire's end, an I/O marker, a net name; a run added for a wire leaving it across or another symbol's pin on
+  it); the netlist and the HDL unchanged. The clipboard says the document version it was copied from.
+- **A bus width on a lead up or down written upright on it (#1139),** the lead broken under it, no longer turned.
+- **Pin names turned (#1134):** placed past each pin's lead (its symbol's own side, not the turned one: the
+  multiplexer's output and COMP's / SUB's result stay unnamed turned 180° or mirrored), a multiplexer's select past its
+  slanted edge; the names on a top or bottom side turned to read upwards when one is longer than two letters.
+- **The device primitives' clock triangle (#1135):** RAMB16, MULT18X18SIO, DCM_SP, DSP48A1, … draw one at their clock
+  pins, as the flip-flops and modules.
+- **Bus widths inside the symbol (#1139):** by the lead, 10 px in from the pin's end (above a lead across, beside a
+  lead up or down, turned), not beyond the pin where the wire connects.
+- **Every symbol in its 8 orientations checked (#1137):** test/web-sch-svg.test.js draws each type turned and mirrored
+  and checks its pin names inside the body and off the leads, the hidden names hidden, the clock triangles, the
+  widths inside the box.
+- **Tasks in every build (#1131):** the development build's gate (#838) removed from web/js/modern.js, the View menu
+  and the early script of web/index.html (a stored choice of Tasks is kept, its layout before the first paint); the
+  standalone build's `<html data-dev>`, read by that script only, no longer written. The Development menu stays the
+  development build's only.
+- **UI tests on a tablet (#1130):** the harness's tablet mode (uiTest's `tablet`: landscape 1180 x 820 or portrait
+  820 x 1180, touch with a coarse pointer and no hover, an Android tablet's user agent in Chrome, an iPad's in WebKit;
+  `page.tap` a finger's tap), and test/ui/tablet.test.js in both orientations: the page fits the screen, a menu and a
+  dialog by taps, a file opened, Simulate, the Board Emulator's switch tapped and its LEDs, Implement with the Silinx
+  toolchain, iMPACT's Program FPGA on the screen, the Tasks interface's tasks by taps; in the cross-browser set
+  (scripts/test-browsers.mjs), passing in Chrome, Firefox and WebKit.
+- **The document tabs' width and close buttons (#1128):** web/css/app.css gives #doc-tabs' tabs one width (170 px,
+  190 in the modern interface), the name cut with an ellipsis, the close button at the right end; modern.css no longer
+  hides an inactive tab's close button until hovered.
+- **Try it's controls by the marker's side (#1124):** core/sch-live-place.js gives a control's place from the marker's
+  side (#296's ports[].side): along its body from its tip for a switch, a clock box or an LED; above a W / E body,
+  beside an N / S one for a value. The unturned markers' controls are where they were (web/js/sch-live.js).
+- **VCC and GND as buses (#1122):** their stem is now their pin's lead (web/js/sch-svg.js), a bus when it is wider
+  than 1 bit; it was part of their shape's path, always thin.
+- **The truth table's separating lines (#1120):** web/css/truthtable.css (and modern.css's colour); the rule meant for
+  the inputs/outputs line never applied (`:first-of-type` was the row's first cell, the #).
+- **Bit database: a clock into the fabric (#957):** every DCM output's switch into its tile's output multiplexer
+  (`DCM_<output> -> OMUXk`) and every top and bottom global buffer's (`CLKT_GCLK_MAINk -> CLKT_TO_OMUXj`, CLKB's), 636
+  unknown before, measured with ISE (`research/s3e-bitstream/gen-clkdata.mjs`, `measure-clkdata.sh`: the switches added
+  as branches to designs ISE routed, 714 xdl + bitgen runs). The measured designs are byte-identical to ISE's bitgen;
+  `feat_clock_data`, a global clock and a DCM output read as data, is byte-identical with a clean DRC.
+- **Bit database, XC3S500E / XC3S1200E:** bits of some pads' input registers that a neighbouring pad's features held,
+  measured with ISE (an IDDR2 on one pad alone) and moved to their pad: A3's set / reset and second flip-flop (held by
+  B3), C9's input delay (E9), B9's, C15's and D13's second flip-flop (D9, A16, E12). A register with a set / reset on A3,
+  or one on C9 alone, is now byte-identical to ISE's; the board test `feat_iob_owners` (#897).
+- **Spartan-6: the router (#730):** the placed Spartan-6 design routed on the device description's routing graph
+  (`core/fpga/s6/route.js`): PathFinder's negotiated congestion as the Spartan-3E router, the global clocks on
+  the global network only (the spines, BUFH, the HCLK rows, the switch boxes' GCLK wires), a pad into its global
+  buffer by the dedicated clock path, the power nets from the TIEOFFs near their sinks (one net a TIEOFF, as ISE),
+  route-throughs only through the unused I/O logic and BUFH (their XDL_DUMMY instances) or out of a net's own
+  slice, optionally the known switches only (`allowPip`, for the bit database, #726). The routed design as XDL
+  (`route-output.js`) and its rules checked against the graph (`route-check.js`: every switch the device's, every
+  sink reached, no node of two nets, the clocks off the general interconnect, every route-through declared).
+  Every example routes completely on the XC6SLX16 and the XC6SLX45 in a few passes and under 3 seconds, with
+  1.0 to 1.2 times the switches per connection of ISE's routing of the same netlists (night 1,
+  `research/s6/compare-route.mjs`); ISE reads every routing and its DRC finds no error and no warning but
+  stopwatch's 9K block RAM note, which ISE's own implementation has too (`research/s6/measured/ise-check.json`).
+- **Spartan-6: the placer (#729):** the packed Spartan-6 design placed on the Nexys3's XC6SLX16 and the Atlys's
+  XC6SLX45 (`core/fpga/s6/`): its physical design (`phys.js`: the slices, IOBs, global buffers, block RAMs and
+  DSP48A1s as site instances, every net as site pins, the constants as power nets), the device's sites
+  (`sites.js`: the carry chains' next stages and the DSP cascades from the routing graph, the 32 clock-capable
+  pads and their buffers, the banks), a simulated annealing in the manner of the Spartan-3E placer (`place.js`,
+  `place-moves.js`: carry chains up a column of SLICEL / SLICEM, SLICEM instances on SLICEM sites, block RAMs and
+  DSP48A1s on theirs, I/Os on their LOC pads with one VCCO a bank, a clock pad's buffer the one its dedicated path
+  reaches), timing-driven by a simple delay estimate (`place-timing.js`, until #731), its rules checked
+  (`place-check.js`) and the placement written as XDL (`xdl.js`: the sites' configurations as ISE writes them, the
+  power nets from the TIEOFFs, `tieoffs.js`, or from a free LUT where no TIEOFF reaches, as ISE). Every example is
+  placed legally on both parts in under a second, its wirelength per connection 0.6 to 1.2 times ISE's placement
+  of the same netlists (night 1, `research/s6/compare-place.mjs`); ISE reads every placement (`xdl -xdl2ncd`),
+  routes it keeping it (`par -k`) and its DRC finds no error (`research/s6/ise-place-check.sh`,
+  `measured/ise-check.json`). The Spartan-6 flow has no routing nor bitstream yet (#730, #724).
+- **The critical-LUT resynthesis goes down the path from an end it cannot make shallower (#652):** an end whose function
+  is too wide for the resynthesis's forms (more than 8 to 12 signals three levels down) stopped it, though the LUTs on the
+  way to it are narrower. Now, once a round makes no end shallower, the rounds go on down the path from such an end
+  (through a carry chain too, up to `RESYNTH_RULE.descend`, 40, cells), the first LUT with a form made shallower; those
+  rounds are kept only when the critical path is `descendGain` (3 %) shorter at least (`core/lut-resynth.js`). Four
+  routings of the corpus and the examples change at Normal, three at High (Silinx's static timing): epfl-router −10.5 %,
+  femtorv32-quark −5.5 % (High −8.7 %, 16 slices fewer), the clock example −4.8 %, the vga example +2.0 % at Normal (1–4 %
+  faster on other seeds) and −0.8 % at High; the other designs' netlists are the same. By ISE's trce on the 7 changed
+  routings: −4.3 % in geometric mean, every bitstream byte-identical to ISE's bitgen with a clean DRC. The synthesis
+  takes about 8 % longer at Normal. research/synth-quality/README.md, "Below an end with no shallower form: the descent".
+- **A third placement at Optimization Effort High, routed when its estimate is promising (#651):** after the router's
+  fixes, the placement is most of what is left of the critical path's routing (81 % of it on the corpus's critical
+  paths), and one placement's seed moves a design by several per cent. At High the flows (`core/open-flow-core.js`,
+  Implement Design and the Post-Place & Route model's design) now make `effortExtra('high')` (`HIGH_EXTRA`, 1)
+  placement more after the two of #811 (`core/fpga/place-route.js` `placeRouteBest` option `extra`, `placeOnly`), and
+  route it only when the placer's estimate of its critical path is shorter than the longer of the first two's: a
+  placement costs about a third of its routing, and the estimate tells the faster routings only roughly. Seeds 1 and 2
+  are routed as before, so no design gets slower by Silinx's analysis. The console names the third: its period, or "not
+  routed (estimated slower)". Measured with Silinx's static timing on the corpus's 53 designs of 1500 LUTs at most and
+  the 7 examples at High (57 timed, the same netlists): 0.81 % shorter in geometric mean, 19 faster (itc99-b09 −5.8 %,
+  itc99-b06 −4.9 %, verilog-lfsr-crc −4.6 %, itc99-b08 −4.5 %, fpu-adder −3.9 %), none slower, the slices the same,
+  place and route ×1.20 at High. By ISE's trce on the 19 changed routings: 2.17 % shorter in geometric mean (itc99-b06
+  −6.3 %, verilog-lfsr-crc −6.0 %, itc99-b09 −5.2 %, iwls05-usb-phy −3.9 %, itc99-b12 −3.7 %, the stopwatch example
+  −3.5 %), 3 slower (spi-fpga-master +4.1 %, epfl-priority +2.8 %, t80 +0.2 %: periods within the static timing's
+  error of trce), every bitstream byte-identical to ISE's bitgen with a clean DRC. research/s3e-route/README.md, "A
+  third placement at High".
+- **Device measurements, the clock joins tested (#3):** `clocktests.mjs` tests a clock wire's join by removal on
+  ISE's own clock nets (kept to the spine and the GCLKH rows, the PIP into the candidate left out: an island when the
+  wire is driven through it), with controls; sparser clock observations (`gen-obsclk.mjs` p). 8592 tests in 1163 small
+  designs, every verdict agreeing with the shipped graph: 4999 of the 5973 ambiguous clock wires settled.
+- **Device measurements, the clock network observed (#3):** the ambiguous joins of the clock lines narrowed by the
+  intersection of each wire's candidates over the nets that leave it undriven (`intersectAmbiguous`, the nets' source
+  tiles left out), and observation designs of 8 global clocks each on a random part of the chip (`gen-obsclk.mjs`):
+  10 053 more joins from ISE's routes, all right in the shipped graph but 2 rule-decided ones; the clock lines' joins
+  that remain need tests from a BUFGMUX (next).
+- **Device measurements, the spine-fed clock wires, the edge tiles and the corners (#3):** clock tests against the spine
+  with a baseline for each net and candidate (`clocktests.mjs SPINE`, `NEAR`, `SKIP`), and the edge tiles' joins as
+  rules and ambiguous candidates (`edgejoins.mjs`) for the join tests: 9097 tests, every verdict agreeing with the
+  shipped graph; 5734 of the 5973 ambiguous clock wires settled, 1499 of the 1626 edge wires seen with a known join.
+- **The measured XC3S250E description: the pins of the features no example uses (#3):** 61 more designs ISE implemented
+  (the open-flow fixtures, `gen-obspins2.mjs`: a shift register in every CLB, an F8 in every pair of CLBs, the block RAMs'
+  second clock, every BUFGMUX) give every pin the open flow uses, 55 081 pin facts all right. The observer reads an F8's
+  FXINB and a multiplier's BCIN on the next tile's wire, a side BUFGMUX's O, and the last loose ends of a net as the one
+  pairing that makes it a tree (a DCM's path to its BUFGMUX); the rules join the carry chains in every tile. 37 of the 43
+  designs of the XC3S250E route on the measured graph (research/s3e-device README section 11).
+- **Device measurements, the pins of the I/O tiles with no pad (#3):** the I/O observation designs on the same die's
+  FT256 (`gen-obspins.mjs --pads`), its pads renamed to the CP132's sites (`renamePads`): 23 753 pin facts, every one
+  agreeing with the shipped graph; 35 of the 54 I/O tile type and site positions observed, the 19 others sites that no
+  package bonds.
+- **The measured XC3S250E description: the clock column by index, the I/O columns' clock lines; 40 designs through ISE
+  (#3):** `varyjoins.mjs` asks the arc probe and the join tests the clock column's PIPs and joins at every index, and the
+  I/O columns' clock lines at every index and tile; every verdict agrees with the shipped graph. The 40 designs that route
+  on the measured graph pass `check-open-flow`: DRC 0 / 0, no warning, `.bit` byte-identical with CRC on and off. Three
+  fixtures still fail (research/s3e-device README section 12).
+- **Device measurements, steps 5-6 (#3):** `chip.mjs` builds the whole chip's description from the measurements (the
+  bit database's features, ISE's routes, the arc probe, the join tests); the clock spine's joins tested from the global
+  buffers (`BUFGSRC`), the carry chain, the slices' CE / SR and wide-multiplexer pins observed (`gen-obscarry.mjs`,
+  `gen-obsslice.mjs`, `gen-obsmux.mjs`). The seven examples routed on it pass `scripts/check-open-flow.mjs`: DRC clean,
+  no warning, byte-identical to ISE's bitgen.
+- **The measured XC3S250E description: all 43 test designs through ISE, as fast as on the shipped graph (#3):** the
+  clock rows no design used and the I/O columns' clock lines below them measured (`varyjoins.mjs rows`, join tests from
+  a global buffer), the tests' router given every non-CLB tile's PIPs, and the tiles on the device report's grid
+  (`build.mjs`: tiles of one X / Y shared a place, and the placer took the clock tiles' CLB column for the wrong half).
+  The 7 examples and the 36 open-flow designs of the Basys2-250 pass ISE's DRC with a byte-identical bitstream; ISE's
+  critical period is 0.17% longer on average than on the shipped graph (research/s3e-device README section 13).
+- **Device measurements, round 6 (#3):** the join tests drive every output line of a block RAM (the block-RAM tiles'
+  switches from the bit database, `DBPIPS=1`; where each output enters its interconnect tile, from ISE's routes,
+  `blockRamOutputJoins`): 1120 new tests, every verdict agreeing with the shipped graph; no block-RAM join is left
+  untestable, 1281 of the I/O tiles are.
+- **Device measurements, round 7 (#3):** the I/O tiles' switches asked of ISE tile by tile (`candidates.mjs io`, the
+  arc probe: 4476 of 7590 exist), so the join tests reach the I/O tiles' wires ISE's routes never took: 744 new tests,
+  every verdict agreeing with the shipped graph; 537 joins stay untestable (from 1281).
+- **Device measurements, round 8 (#3):** the I/O tiles with no pad in the CP132 tested from the same die in the FT256
+  (every pad an input) and, where no package bonds a pad, from their unbonded IOB sites (`SOURCEOBS`, `UNBONDED`,
+  `testSources`): 512 new tests, every verdict agreeing with the shipped graph, 14 joins implied by the known ones;
+  11 stay untestable (from 537).
+- **Device measurements, the sites' pins (#3):** observation designs that use every pin of the block RAMs, multipliers,
+  DCMs and I/O blocks (`gen-obspins.mjs`), and an observer that reads the clock tiles' pins too. 17 509 pin facts from
+  102 ISE designs, every one agreeing with the shipped graph: every RAMB16 and BUFGMUX pin, the others but the test,
+  differential, PCI and DDR-cascade pins Silinx does not use (`prototype.mjs pins`).
+- **The measured XC3S250E description: its split and merged nodes, the I/O tiles' names, every PIP asked in its own tile
+  (#3):** seven rounds of join tests (157 612 tests, every valid verdict agreeing with the shipped graph) bring the nodes
+  split from 46 646 to 12 217 and the merged ones to none; the joins rules decided are tested, no longer taken as seen
+  (two were wrong, the merged nodes); the arc probe finds the I/O tiles' `IOIS_X` names and refuses 484 PIPs a tile had only
+  by its type: the extra PIPs go from 9732 to 66. `segmentRules` pairs, `edgejoins.mjs` skips the refused joins,
+  `gen-obspins2.mjs` designs for the pins still missing (research/s3e-device README section 10).
+- **The measured XC3S250E description: no split node a short can come from (#3):** `prototype.mjs compare` counts the
+  split nodes with two pieces a net can reach (188, all long lines at the chip's edges, now none) and those that cost a
+  route (6377, now 478); `varyjoins.mjs long`, `edge` and `taps`, and `predict` / `edgejoins.mjs` on the measured graph's
+  wires (`WIRES=`), closed them, every verdict agreeing with the shipped graph. The 43 designs pass ISE on it, 0.4% faster
+  than on the shipped graph (research/s3e-device README section 14).
+
 ## 15.13.0
 
 In short:
