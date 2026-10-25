@@ -40,7 +40,6 @@ function schematic() {
 const ED = '.doc:not([hidden]) .sch-editor';
 const portId = (doc, name) => doc.ports.find((p) => p.name === name).id;
 // class of the wire drawn from an I/O marker (its value level)
-const wireLevel = (page, wireId) => page.eval((sel, id) => [...document.querySelector(`${sel} g.wire[data-id="${id}"]`).classList].find((c) => c.startsWith('lv-')) || null, ED, wireId);
 
 uiTest('#405 Try it parts: the bus value editor, the clock\'s Run and Pause, the panel and a module instance\'s pins', E, async (page) => {
   const doc = schematic();

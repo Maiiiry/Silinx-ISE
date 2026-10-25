@@ -46,8 +46,6 @@ window.Silinx = S; // handy for debugging from the console
 
 const $ = id => document.getElementById(id);
 
-export { log, setDiagnostics };   // (web/js/console.js)
-
 // the messages of one file checked again (after a quick fix), when the tabs list some of them
 function recheckFile(path) {
   if (!S.project || !S.diags.some(x => x.file === path)) return;
@@ -744,9 +742,6 @@ export async function openImpact() {
   const { mountImpact } = await import('./impact.js');
   openDoc({ id: 'impact', title: 'iMPACT', icon: 'impact', create: (el, d) => mountImpact(el, d) });
 }
-
-// ------------------------------------------------------------------ project lifecycle (web/js/project.js)
-export { openProject, closeProject, reloadProject };
 
 // ------------------------------------------------------------------ left pages
 export function showLeftPage(page) {

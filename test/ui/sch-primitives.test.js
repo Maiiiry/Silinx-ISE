@@ -16,7 +16,6 @@ const E = () => env;
 const ED = '.doc:not([hidden]) .sch-editor';
 const DLG = `${ED} .se-symdoc`;
 const palette = (page) => page.eval((sel) => [...document.querySelectorAll(`${sel} .se-symrow .nm`)].map((x) => x.textContent), ED);
-const heads = (page) => page.eval((sel) => [...document.querySelectorAll(`${sel} .se-cathead`)].map((x) => x.textContent), ED);
 
 uiTest('Device Primitives: the palette of the project\'s family, a RAMB16 placed (properties, Symbol Info with its count), the device changed, Portuguese', E, async (page) => {
   const doc = newDoc('mem', 'vhdl');

@@ -749,7 +749,6 @@ export function vStmtStart(toks, i) {
 }
 
 // ===================================================================== IR expression printers
-const V_OPS = { nand: null, nor: null };
 export function prVlog(e) {
   if (!e) return '';
   switch (e.op) {

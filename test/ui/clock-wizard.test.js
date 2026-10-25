@@ -18,7 +18,6 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-const DLG = '.dlg-overlay .wiz-main';
 // New Source ▸ Clock Manager (DCM / PLL), the file name, Wizard (#958)
 const openClockWizard = (page, name = 'clkgen') => newSourceWizardOf(page, 'Clock Manager (DCM / PLL)', name, 'Clocking Wizard');
 const pageTitle = (page) => page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent);

@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { compile, elaborate, simulate } from '../core/compile.js';
 import { diffSynth } from './diff-synth.js';
 
-const errors = (lib, d) => [...lib.errors, ...d.diags].filter(x => x.severity === 'error').map(x => `${x.line}: ${x.message}`);
 const run = (sources, top, until = 1e6) => {
   const r = simulate(sources, top, { until });
   assert.deepEqual(r.errors.map(e => `${e.file}:${e.line} ${e.message}`), []);
