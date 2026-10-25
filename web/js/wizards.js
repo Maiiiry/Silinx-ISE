@@ -503,11 +503,12 @@ export function drawnHdlTaken(path, name, lang) {
 // ------------------------------------------------------------------ New Source (web/js/new-source.js, #405)
 export { newSourceWizard } from './new-source.js';
 
-export async function addSourceDialog() {
+/** Add Copy of Source… (`role`: the association first chosen; `title`: Add Copy of Test Bench, Simulation only, #1385). */
+export async function addSourceDialog({ role: first = 'design', title = 'Add Copy of Source' } = {}) {
   const inp = h('input', { type: 'file', multiple: true, accept: '.v,.vhd,.vhdl,.ucf,.mem,.hex,.asm.json,.json' });
-  const role = select([['design', 'All (Implementation + Simulation)'], ['impl', 'Implementation only'], ['sim', 'Simulation only']], 'design');
+  const role = select([['design', 'All (Implementation + Simulation)'], ['impl', 'Implementation only'], ['sim', 'Simulation only']], typeof first === 'string' ? first : 'design');
   const r = await dialog({
-    title: 'Add Copy of Source', width: 480,
+    title, width: 480,
     body: h('div', { class: 'form-grid' }, ...field('Files:', inp), ...field('Association:', role)),
     buttons: [{ label: 'OK', primary: true, value: true }, { label: 'Cancel', value: null }],
   });

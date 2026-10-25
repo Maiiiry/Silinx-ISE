@@ -55,9 +55,11 @@ html[data-layout="tasks"] #toolbar .tb-btn:is([data-cmd="stop"], [data-cmd="gear
 html[data-layout="tasks"] #toolbar .tb-btn[data-cmd="find"] ~ .tb-sep { display: none; }
 /* the Design page's New Source and Add Copy of Source, above the tree, half of the panel each (#1210); the Files
    page's Add to Project and Add Copy to Project (#1214) */
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
+/* (the Simulation hierarchy's, as Design's: #1385, web/js/tasks-sim-tree.js) */
+.task-sim-src-bar { display: none; }
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
 html[data-layout="tasks"] #task-close-bar { padding: 4px 6px 6px; border-top: 1px solid var(--m-border); }   /* (under the tree, #1309) */
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-layout="tasks"] #design-panel { flex: 1; }
 
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
@@ -166,11 +168,12 @@ html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #task-sim-panel:
   top: 0; bottom: 0; left: 0; width: min(300px, 45%); border-right: 1px solid var(--m-border); background: var(--m-surface-2); font-size: 12px; }
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #workspace:has(> #task-sim-panel:not([hidden])) > #task-empty { left: min(300px, 45%); }
 html[data-layout="tasks"][data-task="sim"]:has(#task-sim-panel:not([hidden])) #task-view [data-act="side"] { display: none; }   /* (always shown) */
-#task-sim-panel > .tree { padding: 4px 0; }
+#task-sim-panel > .task-sim-trees { flex: 1; min-height: 0; overflow: auto; }
+#task-sim-panel .tree { padding: 4px 0; }
 #task-sim-panel .task-sim-choice { padding: 3px 0; }
 #task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: 28px; margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
   background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-#task-sim-panel :is(.task-sim-act, .task-sim-bench > .row) { cursor: pointer; }
+#task-sim-panel .task-sim-bench > .row { cursor: pointer; }
 #task-sim-panel .tree[hidden] { display: none; }
 /* the simulation's model at the right end of its toolbar (#1353) */
 html[data-layout="tasks"] .isim-toolbar .isim-model { margin-left: auto; height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
