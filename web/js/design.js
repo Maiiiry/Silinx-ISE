@@ -9,7 +9,7 @@ import { drawnModule } from '/core/view-hdl.js';
 import { S, addToProject, closeDoc, fixMissingTops, instancesOf, moduleInfo, openFile, projectUndo, syncFpgaView,
   viewRoots } from './app.js';
 import { log } from './console.js';
-import { reloadProject } from './project.js';
+import { closeProject, reloadProject } from './project.js';
 import { checkUcfFile } from './implement.js';
 import { asmContextMenu, clashTip, convertToAsm, convertToFsm, convertToSchematic, fsmContextMenu, openAsm, openFsm,
   isTt, openPetri, openSch, openTt, openTtSchematic, openView, petriContextMenu, resolveHdlClash, schContextMenu, syncedViewMenu,
@@ -34,7 +34,7 @@ export function renderHierarchy() {
   const one = oneTree(), sim = S.view === 'sim' && !one;
   const tree = h('ul', { class: 'tree', tabindex: '0', 'aria-label': 'Design hierarchy', onkeydown: treeKeys });
   const dev = `${pj.device.part}${pj.device.speed}-${pj.device.package}`;
-  const root = treeItem({ label: pj.name, ico: 'project', open: true, onSelect: () => select({ type: 'project' }), key: 'project' });
+  const root = treeItem({ label: pj.name, ico: 'project', open: true, onSelect: () => select({ type: 'project' }), key: 'project', onContext: e => projectContextMenu(e) });
   tree.append(root.li);
   const devItem = treeItem({ label: !sim ? dev : 'Behavioral', ico: !sim ? 'chip' : 'sim', open: true, key: 'device', onSelect: () => select({ type: 'device' }), onContext: e => projectContextMenu(e) });
   root.ul.append(devItem.li);
@@ -337,6 +337,8 @@ function projectContextMenu(e) {
     { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog() },
     '-',
     { label: 'Design Properties…', action: () => wiz.projectProperties() },
+    '-',
+    { label: 'Close Project', action: () => closeProject() },   // (#1300)
   ], e.clientX, e.clientY);
 }
 
