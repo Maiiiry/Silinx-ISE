@@ -950,15 +950,15 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
   await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
   await page.waitFor(() => window.Silinx.active?.title === 'SSim (and2)', [], { what: 'ISim of and2', timeout: 30000 });
-  // Edit (on Simulate's page, #1291: its simulation closed): the chosen module's source, in Edit
+  // Simulate's page (its simulation closed): the choice, the model and Simulate, no Edit (a source from the Design
+  // panel, #1363)
   await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
   await page.waitFor(() => !document.getElementById('task-empty').hidden, [], { what: 'Simulate\'s page' });
-  await page.click('#task-empty .task-bench-edit');
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/and2.vhd' && document.documentElement.dataset.task === 'edit', [], { what: 'its source in Edit' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-empty .task-empty-sim > *')].map((e) => e.id || e.className)), ['task-bench', 'task-model']);
+  assert.ok(!(await page.eval(() => [...document.querySelectorAll('#task-empty button')].some((b) => b.getClientRects().length && /^Edit/.test(b.textContent)))), 'no Edit button');
   // in Portuguese
-  await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('#task-empty .task-bench-edit').textContent === 'Editar', [], { what: 'Portuguese' });
+  await page.waitFor(() => document.getElementById('task-bench').options[0].textContent === 'Bancadas de Teste', [], { what: 'Portuguese' });
   assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2']);
   assert.equal(await page.eval(() => document.getElementById('task-bench').title), 'A bancada de teste a simular');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
@@ -970,7 +970,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.setViewport(1366, 768);
   // not in the other tasks
   await page.click('#task-switch .task-btn[data-task="edit"]');
-  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-empty .task-bench-edit')));
+  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-empty .task-empty-sim')));
   await noWarnings(page);
 }, { build: DEV });
 
@@ -1163,24 +1163,6 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
   await sideOpen(true);
   assert.equal(await page.eval(() => Math.round(document.getElementById('left').getBoundingClientRect().width)), 520);
   await noWarnings(page);
-}, { build: DEV });
-
-uiTest('#1102 Tasks ▸ Simulate: the test bench\'s Edit button has its label centred', E, async (page) => {
-  await makeProject(env, { name: 'TasksEdit', template: 'blinky' });
-  await page.setViewport(1366, 768);
-  await tasksInterface(page);
-  await page.openProject('TasksEdit');
-  await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.waitFor(() => document.querySelector('.task-bench-edit')?.getClientRects().length > 0, [], { what: 'the Edit button' });
-  const off = await page.eval(() => {
-    const b = document.querySelector('.task-bench-edit'), r = b.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(b);
-    const t = range.getBoundingClientRect();
-    return { text: b.textContent, dx: Math.round((t.left + t.width / 2) - (r.left + r.width / 2)), dy: Math.round((t.top + t.height / 2) - (r.top + r.height / 2)) };
-  });
-  assert.equal(off.text, 'Edit');
-  assert.ok(Math.abs(off.dx) <= 1 && Math.abs(off.dy) <= 1, JSON.stringify(off));
 }, { build: DEV });
 
 // #1162: Implement's Processes for a project with no top module, opened after one with its processes and states: none of

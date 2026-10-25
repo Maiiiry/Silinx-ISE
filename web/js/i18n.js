@@ -331,7 +331,7 @@ const PT = {
   // the Implement task (#802)
   'Program the board…': 'Programar a placa…',
   // the Simulate task (#800)
-  'The test bench to simulate': 'A bancada de teste a simular', 'Open the test bench\'s source': 'Abrir a fonte da bancada de teste',
+  'The test bench to simulate': 'A bancada de teste a simular',
   'Design modules': 'Módulos do projeto',
   'Create a test bench (Wizard)…': 'Criar uma bancada de teste (Assistente)…',
   'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.': 'O projeto ainda não tem bancada de teste: crie uma com o assistente, ou escolha um módulo para o simular com estímulos desenhados no SSim.',

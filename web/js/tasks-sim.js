@@ -7,7 +7,7 @@
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation). Choosing
 //   the model or the test bench simulates at once, the bar has no Simulate button (#1018; the task's page still has one).
 // - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in SSim), makes a new one
-//   with the Test Bench Wizard, and opens the chosen one's source (#917): the design tree is Edit's.
+//   with the Test Bench Wizard (#917; its source from the Design panel, #1363).
 // simTarget and simChoices have no DOM and are unit tested (test/tasks.test.js).
 
 import { h } from './ui.js';
@@ -157,9 +157,4 @@ export async function newBench(app) {
   const made = simChoices(app.S.project, app.S.modules).benches.find(n => !before.has(n));
   if (made) await app.setTop(made, true);
   refreshBench(app);
-}
-/** The source of the module Simulate runs, in Edit. */
-export function editBench(app) {
-  const m = app.S.modules.find(x => x.name === simTarget(app.S.project, app.S.modules));
-  if (m) app.openFile(m.file, m.line);
 }
