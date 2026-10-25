@@ -282,7 +282,8 @@ async function runSimulationInner(mod, model, stale) {
         // (each row's types: [Waveform], the simulation's own view, marked, its waveform brought to the front; then the
         // module's HDL, opened here in Simulation; a drawing's badge Design's, not here: #1316, #1332)
         badges: name => [{ text: 'Waveform', base: true, title: 'Show the waveform', open: () => openDoc({ id }) },
-          ...moduleBadges(name).filter(b => /^(VHDL|Verilog)$/.test(b.text)).map(b => ({ ...b, base: false, title: 'Open the HDL here, in Simulation',
+          // (the HDL drawn solid, as [Waveform]: the module's own source, #1357)
+          ...moduleBadges(name).filter(b => /^(VHDL|Verilog)$/.test(b.text)).map(b => ({ ...b, base: true, title: 'Open the HDL here, in Simulation',
             open: () => { const i = moduleInfo(name); if (i) openFile(i.file, i.line, undefined, { task: 'sim' }); } }))] });
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0) };
