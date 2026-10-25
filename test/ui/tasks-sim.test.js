@@ -227,6 +227,12 @@ uiTest('#1343 Tasks ▸ Simulate: a test bench\'s HDL from the Simulation tree o
       waves: !!r(document.querySelector('#workspace > .doc .isim-wavewin')), tree: [...document.querySelectorAll('#workspace > .doc .isim-tree > li > .row .lbl')].filter((e) => e.getClientRects().length).map((e) => e.textContent) };
   });
   assert.deepEqual(await g(), { task: 'sim', side: true, besides: true, tabs: true, waves: false, tree: ['tb_top'] });
+  // its editor bar shown under the tabs, the source editable (#1357)
+  assert.deepEqual(await page.eval(() => {
+    const bar = window.Silinx.active.el.querySelector('.editor-bar').getBoundingClientRect(), tabs = document.getElementById('doc-tabs').getBoundingClientRect();
+    const at = document.elementFromPoint(bar.left + bar.width / 2, bar.top + bar.height / 2);
+    return { under: bar.top >= tabs.bottom - 1, onTop: !!at?.closest('.editor-bar'), editable: !window.Silinx.active.editor.readOnly?.() };
+  }), { under: true, onTop: true, editable: true });
   // folded: the source alone
   await page.click('#task-view [data-act=side]');
   await page.waitFor(() => document.documentElement.dataset.side === 'folded');
@@ -310,7 +316,7 @@ uiTest('#1316 #1332 Tasks ▸ Simulate: the Simulation tree\'s rows [Waveform*] 
   const rows = () => page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .row')].filter((r) => r.querySelector('.lbl') && r.getClientRects().length)
     .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`)].join(' ')));
   const r = await rows();
-  for (const want of ['tb_top Waveform* VHDL', 'uut Waveform* VHDL', 'u_speed Waveform* VHDL', 'u_pre Waveform* Verilog']) assert.ok(r.includes(want), `${want}: ${r.join(' | ')}`);
+  for (const want of ['tb_top Waveform* VHDL*', 'uut Waveform* VHDL*', 'u_speed Waveform* VHDL*', 'u_pre Waveform* Verilog*']) assert.ok(r.includes(want), `${want}: ${r.join(' | ')}`);
   assert.ok(!r.some((x) => /ASM/.test(x)), r.join(' | '));
   // u_pre's [Verilog]: its file opened here, the task still Simulation, the document Simulation's
   const sim = await page.eval(() => window.Silinx.active.id);

@@ -151,6 +151,8 @@ html[data-layout="tasks"][data-task="sim"]:is([data-side="folded"], [data-max="o
 html[data-layout="tasks"][data-task="sim"] #center { position: relative; }
 html[data-layout="tasks"][data-task="sim"] #doc-tabs { position: absolute; z-index: 2; top: 0; left: var(--sim-side, 0px); right: 0; }
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc .isim-wavewin { margin-top: var(--sim-tabs, 0px); }
+/* a source in front in Simulate: under the tabs, its editor bar shown (#1357) */
+html[data-layout="tasks"][data-task="sim"] #workspace > .doc:not(:has(.isim)) { top: var(--sim-tabs, 0px); }
 /* a source in front (a module's HDL from the Simulation tree): the last simulation's side panel at its left, the source
    beside it (#1343: web/js/tasks-sim.js placeSimSide); folded, the source alone */
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] { display: flex !important; right: auto; width: var(--sim-side, 0px); z-index: 1; }
