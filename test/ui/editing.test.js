@@ -76,6 +76,30 @@ uiTest('editor: an edit made while the file is being saved is saved too, and sav
   assert.match(await readWs(env, 'SlowSave', 'src/top.vhd'), /^library ieee; -- one two\n/);
 });
 
+// #1328: the Find buttons (the editor's bar, the toolbar) toggle the find bar; Ctrl+F opens it
+uiTest('editor: the Find buttons open the find bar and close it when clicked again; Ctrl+F opens it (#1328)', E, async (page) => {
+  await project('FindPj');
+  await page.openProject('FindPj');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  const open = () => page.eval(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'));
+  const bar = '.doc:not([hidden]) .editor-bar .tb-btn[title^="Find"]';
+  await page.click(bar);
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'the find bar' });
+  await page.click(bar);
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'closed by the second click' });
+  // the toolbar's Find: the same
+  await page.click('#toolbar .tb-btn[data-cmd=find]');
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'opened from the toolbar' });
+  await page.click('#toolbar .tb-btn[data-cmd=find]');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'closed from the toolbar' });
+  // Ctrl+F: opens it (twice: still open)
+  await page.eval(() => window.Silinx.active.editor.focus());
+  await page.key('f', { modifiers: process.platform === 'darwin' ? 4 : 2 });
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'Ctrl+F' });
+  assert.equal(await open(), true);
+});
+
 // #1299: a reload comes back to each source's cursor; a jump to a given line still wins
 uiTest('editor: a reload of the page, or the source opened again, comes back to its cursor; a line asked for wins (#1299)', E, async (page) => {
   await project('CursorPj');

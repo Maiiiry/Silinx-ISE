@@ -183,7 +183,7 @@ export function setupToolbar() {
     btn('cut', 'Cut', () => cutAny(), () => canCopyAny() && canDeleteAny()),
     btn('copy', 'Copy', () => copyAny(), canCopyAny),
     btn('paste', 'Paste', () => pasteAny(), canPasteAny),
-    btn('find', 'Find', () => S.active?.editor?.exec('findPersistent')),
+    btn('find', 'Find', () => S.active?.editor?.exec('findToggle')),   // (again: closed, #1328)
     h('div', { class: 'tb-sep' }),
     btn('asm', 'New ASM State Diagram', () => S.project && wiz.newSourceWizard({ type: 'asm' })),
     h('div', { class: 'tb-sep' }),
