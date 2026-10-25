@@ -119,15 +119,15 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   // File ▸ Close Project is tested with the projects; Print needs a diagram (diagram tests)
   const SKIP = new Set(['Close Project']);
   const modern = await page.eval(() => document.documentElement.dataset.layout === 'tasks');
-  const GONE = ['Project', 'Process', 'Tools'];
+  const GONE = ['Project', 'Process', 'Tools', 'Window'];   // (Window: #1253)
   const shownMenus = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
   assert.deepEqual(GONE.filter((m) => shownMenus.includes(m)), modern ? [] : GONE, `the menu bar: ${shownMenus}`);
   // (in Portuguese too: the menus hidden by their name, not their label)
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   const pt = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
-  assert.deepEqual(['Projeto', 'Processo', 'Ferramentas'].filter((m) => pt.includes(m)), modern ? [] : ['Projeto', 'Processo', 'Ferramentas'], `in Portuguese: ${pt}`);
+  assert.deepEqual(['Projeto', 'Processo', 'Ferramentas', 'Janela'].filter((m) => pt.includes(m)), modern ? [] : ['Projeto', 'Processo', 'Ferramentas', 'Janela'], `in Portuguese: ${pt}`);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  const MENUS = ['Edit', 'File', 'View', ...(modern ? [] : GONE), 'Help', 'Window'];
+  const MENUS = ['Edit', 'File', 'View', ...(modern ? [] : ['Project', 'Process', 'Tools']), 'Help', ...(modern ? [] : ['Window'])];
   const acted = [], idle = [], disabled = [], log = [];
   for (const m of MENUS) {
     const items = await page.openMenu(m);
@@ -187,7 +187,8 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   const windows = log.filter((l) => l.startsWith('Window ▸')).map((l) => l.slice(9, l.indexOf(':')));
   // (SSim's module: the test bench, or in the modern interface the module its Simulate chose, #1149)
   // (the modern interface: they open from the processes and the toolbar, not from a menu, #1217)
-  for (const w of modern ? ['Design Summary'] : ['SSim (', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.some((x) => x === w || (w.endsWith('(') && x.startsWith(w))), `Window menu lists ${w}: ${windows}`);
+  // (no Window menu in the modern interface: its documents in their tabs, #1253)
+  for (const w of modern ? [] : ['SSim (', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.some((x) => x === w || (w.endsWith('(') && x.startsWith(w))), `Window menu lists ${w}: ${windows}`);
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
