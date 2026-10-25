@@ -5,7 +5,7 @@
 //   toolbar, in the wave window's line (placeSimToolbar, #1026); no status line (#1017; web/css/tasks.css).
 // - Simulate runs the project's test bench whatever module is selected (simTarget), with the model chosen in the
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation). Choosing
-//   the model or the test bench simulates at once, the bar has no Simulate button (#1018; the side panel's row, #1376).
+//   the model or the test bench simulates at once, the bar has no Simulate button (#1018); with no test bench, once both are chosen (#1378).
 // - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in SSim), makes a new one
 //   with the Test Bench Wizard (#917; its source from the Design panel, #1363).
 // simTarget and simChoices have no DOM and are unit tested (test/tasks.test.js).
@@ -99,17 +99,33 @@ export function simTarget(project, modules = []) {
  *  a netlist not generated yet offered to be generated first, #490). */
 export function modelSelect(app) {
   const sel = h('select', { id: 'task-model', title: 'The model to simulate', 'aria-label': 'The model to simulate' },
-    ...SIM_MODELS.map(([v, label]) => h('option', { value: v }, label)));
-  sel.addEventListener('change', () => simulate(app));
+    h('option', { value: '?', disabled: true }, 'Select simulation model...'), ...SIM_MODELS.map(([v, label]) => h('option', { value: v }, label)));
+  sel.value = '?';
+  sel.addEventListener('change', () => { if (ready()) simulate(app); });
   return sel;
 }
+
+// with no test bench, Simulate's side panel's choices start on their prompts, and the simulation runs once both are made
+// (#1378); else a choice simulates at once (#1018)
+let prompt = { on: false, module: false };
+/** The choices on their prompts (`on`: the side panel shown, no test bench), from the moment it is shown. */
+export function promptChoices(on) {
+  if (on && !prompt.on) {
+    prompt = { on: true, module: false };
+    const m = document.getElementById('task-model');
+    if (m) m.value = '?';
+  }
+  prompt.on = on;
+}
+const ready = () => !prompt.on || (prompt.module && document.getElementById('task-model')?.value !== '?');
 
 /** Simulate: the test bench, with the model chosen; a choice made while another is being prepared replaces it (#1018). */
 let simSeq = 0;
 export async function simulate(app) {
   const mod = simTarget(app.S.project, app.S.modules);
   if (!mod) return;
-  const model = document.getElementById('task-model')?.value || undefined;
+  const v = document.getElementById('task-model')?.value;
+  const model = v && v !== '?' ? v : undefined;   // (its prompt: Behavioral)
   const seq = ++simSeq;
   const { runSimulation } = await import('./viewers.js');   // (not at load: viewers.js loads the app)
   return runSimulation(mod, model, { stale: () => seq !== simSeq });
@@ -130,7 +146,7 @@ export function benchSelect(app) {
   sel.addEventListener('change', () => {
     const v = sel.value;
     sel.value = simTarget(app.S.project, app.S.modules) || '';   // (until the choice is made)
-    if (v) app.setTop(v, true).then(() => { refreshBench(app); return simulate(app); });
+    if (v) { prompt.module = true; app.setTop(v, true).then(() => { refreshBench(app); return ready() && simulate(app); }); }
   });
   return sel;
 }
@@ -143,11 +159,12 @@ export function refreshBench(app) {
   if (sel.dataset.key !== key) {
     sel.dataset.key = key;
     sel.replaceChildren(
+      ...(benches.length ? [] : [h('option', { value: '', disabled: true }, 'Select design module to simulate...')]),
       ...(benches.length ? [h('option', { disabled: true }, 'Test Benches'), ...benches.map(n => h('option', { value: n }, n))] : []),
-      h('option', { disabled: true }, 'Design modules'), ...design.map(n => h('option', { value: n }, n)));   // (a new test bench: the page's button, #1312)
-    for (const o of sel.options) if (o.hasAttribute('value')) o.dataset.noI18n = '';   // (the modules' names)
+      ...(benches.length ? [h('option', { disabled: true }, 'Design modules')] : []), ...design.map(n => h('option', { value: n }, n)));   // (no heading under the prompt, #1378)   // (a new test bench: the page's button, #1312)
+    for (const o of sel.options) if (o.value && !o.disabled) o.dataset.noI18n = '';   // (the modules' names, not the prompt)
   }
-  sel.value = simTarget(app.S.project, app.S.modules) || '';
+  sel.value = prompt.on && !prompt.module ? '' : simTarget(app.S.project, app.S.modules) || '';
 }
 /** The Test Bench Wizard for the top module; the test bench it makes becomes the one Simulate runs. */
 export async function newBench(app) {

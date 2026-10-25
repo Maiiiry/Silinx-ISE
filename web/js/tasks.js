@@ -233,8 +233,7 @@ function tagDocs() {
     const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
     empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
     // (Simulate's side panel: the wizard's row whenever there is a design module to test, a bench or not, #1312, #1376)
-    simPanel?.refresh();
-    document.getElementById('task-sim-panel').hidden = !(on() && current() === 'sim' && app.S.project && mine === 0);
+    simPanel?.refresh(on() && current() === 'sim' && !!app.S.project && mine === 0);
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
@@ -343,7 +342,7 @@ function build() {
   // (Simulate's page: its title and text, what to simulate in its side panel beside it, #1376)
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
-  simPanel = mountSimPanel(app, { simulate: () => simulate(app), enabled: () => mainEnabled() });
+  simPanel = mountSimPanel(app, { simulate: () => simulate(app) });
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
@@ -455,7 +454,7 @@ export function initTasks(a) {
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
-  setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); simPanel?.refresh(); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
+  setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { if (simPanel) simPanel.refresh(); else refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
     for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button')) b.disabled = !app.S.project || (b.dataset.act === 'check-design' && !app.S.project.top); } }, 1000);
   apply();
 }

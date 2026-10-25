@@ -334,6 +334,7 @@ const PT = {
   'The test bench to simulate': 'A bancada de teste a simular',
   'Design modules': 'Módulos do projeto',
   'Create a test bench (Wizard)…': 'Criar uma bancada de teste (Assistente)…',
+  'Select design module to simulate...': 'Selecione o módulo do projeto a simular...', 'Select simulation model...': 'Selecione o modelo de simulação...',
   'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.': 'O projeto ainda não tem bancada de teste: crie uma com o assistente, ou escolha um módulo para o simular com estímulos desenhados no SSim.',
   'The model to simulate': 'O modelo a simular',
   // the Edit task's one tree: its groups (#799)
@@ -365,6 +366,8 @@ const PT_FF = [['synchronous set and reset (S over R)', 'set e reset síncronos 
   ['clock enable', 'habilitação do relógio'], ['asynchronous clear', 'clear assíncrono'], ['asynchronous preset', 'preset assíncrono'],
   ['synchronous reset', 'reset síncrono'], ['synchronous set', 'set síncrono']];
 const PT_PATTERNS = [
+  // Simulate's side panel: a test bench's row (#1378)
+  [/^Simulate ([A-Za-z][A-Za-z0-9_]*)$/, 'Simular $1'],
   // the Development menu (#707)
   [/^Features \((\d+)\)$/, 'Funcionalidades ($1)'], [/^Bug fixes \((\d+)\)$/, 'Correções ($1)'], [/^Other \((\d+)\)$/, 'Outras ($1)'],
   [/^All Changes since (\d+\.\d+\.\d+)…$/, 'Todas as Alterações desde a $1…'], [/^Changes since (\d+\.\d+\.\d+)$/, 'Alterações desde a $1'],
