@@ -38,10 +38,10 @@ uiTest('#1220 Unset as Top Module: on the top\'s menu, the project without a top
   assert.equal(await savedTop('UnsetPj'), '');
   assert.deepEqual(await rowMenu(page, 'a'), ['Set as Top Module']);
   await page.closeMenus();
-  // the modern interface's Implement: only the Design Summary
+  // the modern interface's Implement: no processes, its note (no Design Summary either, #1287, #1305)
   if (await page.eval(() => document.documentElement.dataset.layout === 'tasks')) {
     await page.click('#task-switch .task-btn[data-task="impl"]');
-    await page.waitFor(() => [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent).join() === 'Design Summary/Reports', [], { what: 'no processes' });
+    await page.waitFor(() => !document.querySelector('#procs .lbl') && !!document.querySelector('#procs .task-no-top'), [], { what: 'no processes' });
     await page.click('#task-switch .task-btn[data-task="edit"]');
   } else {
     // the classic interface's Project menu: Set as Top Module of the selected module; on the top, Unset
