@@ -471,6 +471,13 @@ test('pages carry a Content-Security-Policy: scripts only from the server and th
   assert.deepEqual(dir['script-src'].filter(x => x.startsWith("'sha256-")).sort(), inline.sort());
   assert.ok(fss.readdirSync(path.join(HERE, '..', 'web')).filter(f => f.endsWith('.html')).length > 1);
   for (const page of ['/index.html', '/asm-demo.html']) assert.match((await fetch(app.origin + page)).headers.get('content-security-policy') || '', /script-src 'self'/, page);
+  // #1236: every response (a page, a script, the API, an error) typed as it says, no referrer, no X-Powered-By
+  for (const u of ['/', '/js/app.js', '/api/templates', '/api/projects/Nope']) {
+    const h = (await fetch(app.origin + u)).headers;
+    assert.equal(h.get('x-content-type-options'), 'nosniff', u);
+    assert.equal(h.get('referrer-policy'), 'no-referrer', u);
+    assert.equal(h.get('x-powered-by'), null, u);
+  }
   // not on the API, the scripts, nor a path outside web/
   assert.equal((await fetch(app.origin + '/api/templates')).headers.get('content-security-policy'), null);
   assert.equal((await fetch(app.origin + '/js/app.js')).headers.get('content-security-policy'), null);
@@ -610,6 +617,12 @@ test('xise sync: auto picks the newer side, explicit import/export, unsafe paths
   await fs.writeFile(xfile, '<project><files><file xil_pn:name="../x.ucf" xil_pn:type="FILE_UCF"/></files></project>');
   r = await call('POST', '/projects/Sy/sync-xise', { direction: 'import' });
   assert.equal(r.body.project.constraints, 'board.ucf');
+  // #1236: an absolute constraints path (POSIX or a Windows drive) is outside the project too
+  for (const ucf of ['/etc/x.ucf', 'C:/work/x.ucf', 'C:\\work\\x.ucf']) {
+    await fs.writeFile(xfile, `<project><files><file xil_pn:name="${ucf}" xil_pn:type="FILE_UCF"/></files></project>`);
+    r = await call('POST', '/projects/Sy/sync-xise', { direction: 'import' });
+    assert.equal(r.body.project.constraints, 'board.ucf', ucf);
+  }
   assert.equal(r.body.project.device.part, 'xc3s500e');
   assert.equal(r.body.project.top, 'top');
   // broken .xise / bad direction

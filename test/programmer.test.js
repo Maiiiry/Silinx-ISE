@@ -352,6 +352,11 @@ test('pure helpers: resolveOptions fallbacks, command builders, scan parsing, ex
   const cfg = { programmer: { tool: '', cable: '' }, paths: { adepttool: fakes.adept } };
   // Basys2 prefers djtgcfg; when it is not installed the on-board adepttool is used
   process.env.PATH = isolatedPath();
+  // #1236: a cable or device from the page is a value, never an option
+  for (const [k, v] of [['cable', '-v'], ['cable', '--help'], ['device', '-x'], ['cable', 'a\nb'], ['device', 'a;b'], ['cable', '$(id)']])
+    assert.throws(() => prog.resolveOptions({ [k]: v }, cfg, 'basys2'), e => e.status === 400 && e.message === `invalid ${k} '${v}'`, `${k} ${v}`);
+  for (const [k, v] of [['cable', 'digilent_hs2'], ['cable', 'usb21'], ['cable', 'xpc'], ['device', 'Nexys2'], ['device', '1'], ['device', 'xc3s250e'], ['cable', 'ft2232:0403/6010']])
+    assert.equal(prog.resolveOptions({ [k]: v }, cfg, 'basys2')[k], v, `${k} ${v}`);
   assert.equal(prog.resolveOptions({}, cfg, 'basys2').tool, 'adepttool');
   assert.equal(prog.resolveOptions({}, { ...cfg, paths: { adepttool: path.join(tmp, 'x') } }, 'basys2').tool, 'djtgcfg');
   process.env.PATH = isolatedPath(fakes.prog);
