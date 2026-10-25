@@ -145,7 +145,7 @@ html[data-layout="tasks"] .isim-wavewin > .caption > .isim-toolbar { flex: 1; mi
 html[data-layout="tasks"][data-task="sim"] :is(#left-pages, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
 /* (#left the activity bar only, open or folded: no empty column of the Design pane's width, #882) */
 html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"]) #left { width: auto !important; min-width: 0; }
-html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-left, .isim-split-main) { display: none; }
+html[data-layout="tasks"][data-task="sim"]:is([data-side="folded"], [data-max="on"]) .isim :is(.isim-left, .isim-split-main) { display: none; }   /* (maximized too: #1345) */
 /* the side panel from the top of the work area, as Design's and Implement's; the simulations' tabs to its right, above
    the waves (#1259: --sim-side and --sim-tabs, web/js/tasks-sim.js fitSimTabs) */
 html[data-layout="tasks"][data-task="sim"] #center { position: relative; }
@@ -155,8 +155,8 @@ html[data-layout="tasks"][data-task="sim"] #workspace > .doc .isim-wavewin { mar
    beside it (#1343: web/js/tasks-sim.js placeSimSide); folded, the source alone */
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] { display: flex !important; right: auto; width: var(--sim-side, 0px); z-index: 1; }
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] .isim :is(.isim-wavewin, .isim-split-main, .isim-stimbar) { display: none; }
-html[data-layout="tasks"][data-task="sim"][data-side="folded"] #workspace > .doc[data-sim-side] { display: none !important; }
-html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"]) #workspace:has(> .doc[data-sim-side]) > .doc:not([hidden]):not([data-sim-side]) { left: var(--sim-side, 0px); }
+html[data-layout="tasks"][data-task="sim"]:is([data-side="folded"], [data-max="on"]) #workspace > .doc[data-sim-side] { display: none !important; }
+html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"], [data-max="on"]) #workspace:has(> .doc[data-sim-side]) > .doc:not([hidden]):not([data-sim-side]) { left: var(--sim-side, 0px); }
 /* Simulate's page: what to simulate, its source and the model above its Simulate button (#1291; choosing the module or
    the model simulates, #1018) */
 #task-model, #task-bench, .task-bench-edit, .task-empty-sim { display: none; }

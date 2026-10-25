@@ -239,6 +239,30 @@ uiTest('#1343 Tasks ▸ Simulate: a test bench\'s HDL from the Simulation tree o
   assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
 }, { build: DEV });
 
+// #1345: Maximize in Simulate hides the simulation's side panel too (the waves from the left edge); restored, it is back
+uiTest('#1345 Tasks ▸ Simulate: Maximize hides the side panel too, the waves from the left edge; restored, as it was', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimMax', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimMax');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  const g = () => page.eval(() => {
+    const vis = (s) => !!document.querySelector(`.doc:not([hidden]) ${s}`)?.getClientRects().length;
+    const w = document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect(), ws = document.getElementById('workspace').getBoundingClientRect();
+    return { side: vis('.isim-left'), fromLeft: Math.abs(w.left - ws.left) < 2, console: !!document.getElementById('console-wrap').getClientRects().length };
+  });
+  assert.deepEqual(await g(), { side: true, fromLeft: false, console: true });
+  await page.click('#task-view [data-act=max]');
+  await page.waitFor(() => document.documentElement.dataset.max === 'on');
+  assert.deepEqual(await g(), { side: false, fromLeft: true, console: false });
+  await page.click('#task-view [data-act=max]');
+  await page.waitFor(() => document.documentElement.dataset.max === 'off');
+  assert.deepEqual(await g(), { side: true, fromLeft: false, console: true });
+}, { build: DEV });
+
 // #1316, #1332: the Simulation tree's rows show their types: [Waveform] marked, the simulation's view, then their HDL's
 // (no drawing's: Design's); [Waveform] brings the waveform to the front, the HDL's opens the file here, in Simulation
 uiTest('#1316 #1332 Tasks ▸ Simulate: the Simulation tree\'s rows [Waveform*] and their HDL; the HDL badge opens the file in Simulation, [Waveform] the waveform; Portuguese', E, async (page) => {
