@@ -170,8 +170,8 @@ html[data-layout="tasks"][data-task="sim"]:has(#task-sim-panel:not([hidden])) #t
 #task-sim-panel .task-sim-choice { padding: 3px 0; }
 #task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: 28px; margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
   background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-#task-sim-panel .task-sim-act { cursor: pointer; }
-#task-sim-panel .task-sim-act.disabled { opacity: .5; cursor: default; }
+#task-sim-panel :is(.task-sim-act, .task-sim-bench > .row) { cursor: pointer; }
+#task-sim-panel .tree[hidden] { display: none; }
 /* the simulation's model at the right end of its toolbar (#1353) */
 html[data-layout="tasks"] .isim-toolbar .isim-model { margin-left: auto; height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
   border-radius: 6px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
