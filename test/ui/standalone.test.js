@@ -714,6 +714,7 @@ uiTest('#1051 the site installable as an app: its manifest, icons and service wo
   } finally { unreachable = false; }
 }, { url: () => 'about:blank', timeout: 300000 });
 
+// (the File and Edit menus: the classic interface's, the modern one has none, #1307)
 uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in a folder on the disk, in the full application\'s format', E, async (page) => {
   const fakeUrl = `${siteUrl}__test/fs-access-fake.js`;
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_FOLDER(fakeUrl) });
@@ -900,8 +901,9 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   const bar = !await page.eval(() => document.documentElement.dataset.layout);
   assert.ok(pt.includes('Reabrir Silinx-projects') && pt.includes('Onde Ficam os Projetos') && (!bar || pt.includes('Armazenamento: este navegador')), pt.join(' | '));
   assert.deepEqual(untranslated(en, pt, [/^(InBrowser|Disk|Silinx-projects)$/]), []);
-}, { url: () => 'about:blank', skip: chromeOnly, timeout: 120000 });
+}, { url: () => 'about:blank', skip: chromeOnly, timeout: 120000, ui: 'classic' });
 
+// (the File and Edit menus: the classic interface's, the modern one has none, #1307)
 uiTest('browser edition without the File System Access API (Firefox, Safari): Open Workspace Folder… disabled, and why', E, async (page) => {
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: NO_FOLDER_API });
   await page.goto(siteUrl);
@@ -917,7 +919,7 @@ uiTest('browser edition without the File System Access API (Firefox, Safari): Op
   // the browser's storage works as before
   await newProject(page, 'NoFolder', 'blinky');
   assert.ok(await page.eval(() => JSON.parse(localStorage.getItem('silinx.standalone.fs')).NoFolder.json.name === 'NoFolder'));
-}, { url: () => 'about:blank', skip: chromeOnly });
+}, { url: () => 'about:blank', skip: chromeOnly, ui: 'classic' });
 
 // a new project from an example in the browser edition (the site): the New Project wizard
 async function newSiteProject(page, name, example) {

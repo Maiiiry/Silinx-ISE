@@ -285,6 +285,7 @@ uiTest('#1297 the Start page of the application: Where Projects Are Kept, the wo
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
 });
 
+// (the File and Edit menus: the classic interface's, the modern one has none, #1307)
 uiTest('open, switch and close projects (Open Project dialog, Recent Projects, Start page)', E, async (page) => {
   for (const n of ['Alpha', 'Beta']) {
     await makeProject(env, { name: n, files: { [`src/${n.toLowerCase()}.vhd`]: `library ieee; use ieee.std_logic_1164.all;\nentity ${n.toLowerCase()} is port (a : in std_logic; y : out std_logic); end;\narchitecture r of ${n.toLowerCase()} is begin y <= not a; end r;\n` }, top: n.toLowerCase() });
@@ -388,7 +389,7 @@ uiTest('open, switch and close projects (Open Project dialog, Recent Projects, S
   await page.waitFor(() => [...document.querySelectorAll('#start-page a')].some((a) => a.textContent === 'Alpha'));
   await page.click('#start-page a', { text: 'Clear Recent Projects' });
   await page.waitFor(() => ![...document.querySelectorAll('#start-page a')].some((a) => a.textContent === 'Alpha' || a.textContent === 'Clear Recent Projects'), [], { what: 'Start page list cleared' });
-});
+}, { ui: 'classic' });
 
 uiTest('Close Project while the project is still opening: closed after the opening, the Start page stays shown (#375)', E, async (page) => {
   await makeProject(env, { name: 'Gamma', files: { 'src/gamma.vhd': 'library ieee; use ieee.std_logic_1164.all;\nentity gamma is port (a : in std_logic; y : out std_logic); end;\narchitecture r of gamma is begin y <= not a; end r;\n' }, top: 'gamma' });
