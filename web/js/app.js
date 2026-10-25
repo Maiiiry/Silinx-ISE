@@ -961,9 +961,11 @@ async function boot() {
   const projects = await api.projects().catch(() => []);
   // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
   if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) {
-    await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)
-    await new Promise(r => setTimeout(r, 0));   // (the reopened documents' tasks followed first)
-    restoreStartTask();   // (and the task that was in front, #1337)
+    try {
+      await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)
+      await new Promise(r => setTimeout(r, 0));   // (the reopened documents' tasks followed first)
+      restoreStartTask();   // (and the task that was in front, #1337)
+    } finally { delete document.documentElement.dataset.restoring; }   // (the work area shown, where the user was: #1339)
   }
   else showLeftPage('start');
   // check for updates at start-up (a newer release opens the update dialog) unless the setting is off; not awaited

@@ -6,7 +6,7 @@
 // line in it). The classic interface is unchanged (test/ui/modern.test.js).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import { setupUi, uiTest, makeProject, chromeOnly } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { newDoc, normalizeDoc, symbolPins } from '../../core/schdoc.js';
 
@@ -1376,6 +1376,33 @@ uiTest('#1337 Tasks: a reload in Implement with no top module comes back in Impl
   await new Promise((r) => setTimeout(r, 400));
   assert.equal(await page.eval(() => document.documentElement.dataset.task), 'sim');
 }, { build: DEV });
+
+// #1339: a reload reopens the documents out of sight: every document brought to the front before the last one was, while
+// the work area was hidden; shown again at the end, where the user was
+uiTest('#1339 Tasks: a reload reopens the documents out of sight, the work area shown once where the user was', E, async (page) => {
+  await makeProject(env, { name: 'TasksReloadHidden', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksReloadHidden');
+  for (const f of ['src/top.vhd', 'src/knight.vhd', 'src/counter.v']) await page.eval((p) => window.SilinxApp.openFile(p), f);
+  await page.eval(() => window.SilinxApp.openAsm('src/speed_ctrl.asm.json'));
+  await page.waitFor(() => window.Silinx.active?.asmEditor, [], { what: 'the ASM chart' });
+  await page.eval(() => window.SilinxApp.openFile('src/knight.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/knight.vhd');
+  // (every change of the document in front noted, and whether the work area was hidden then)
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__fronts = []; new MutationObserver(() => {
+    const a = document.querySelector('#doc-tabs > .tab.active'), h = document.documentElement.hasAttribute('data-restoring');
+    const w = document.getElementById('workspace'), shown = !!w && getComputedStyle(w).visibility !== 'hidden';
+    if (a && window.__fronts.at(-1)?.tab !== a.textContent) window.__fronts.push({ tab: a.textContent, hidden: h && !shown });
+  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-restoring'] });` });
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksReloadHidden' && window.Silinx.active?.id === 'file:src/knight.vhd' && !document.documentElement.hasAttribute('data-restoring'), [], { what: 'reopened', timeout: 60000 });
+  const fronts = await page.eval(() => window.__fronts);
+  assert.ok(fronts.length >= 2, JSON.stringify(fronts));
+  assert.deepEqual(fronts.slice(0, -1).filter((f) => !f.hidden), [], `documents shown while reopening: ${JSON.stringify(fronts)}`);
+  assert.ok(/knight\.vhd/.test(fronts.at(-1).tab), JSON.stringify(fronts));
+  assert.equal(await page.eval(() => getComputedStyle(document.getElementById('workspace')).visibility), 'visible');
+}, { build: DEV, skip: chromeOnly });
 
 // #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
 uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
