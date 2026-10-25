@@ -110,6 +110,34 @@ uiTest('#405 ISim wave window: the names (a click, Ctrl, Shift, a group\'s twist
   assert.deepEqual(out.dbl, [['renameDivider', 'D'], ['openSource', 'B']]);
 });
 
+// #1351: a selection window: a drag from the values column (or under the rows) selects the rows it crosses; Ctrl adds;
+// a click without a drag selects the row under it (none under the rows); a drag on a name still moves the row
+uiTest('#1351 SSim wave window: a selection window over the names and values selects several signals; Ctrl adds; a click one', E, async (page) => {
+  await page.eval(MOUNT);
+  const out = await page.eval(() => {
+    const { st, cn, ptr, click, sel } = window.__inp;
+    const r = {};
+    ptr(cn, 'pointerdown', 250, 35);
+    ptr(cn, 'pointermove', 250, 75);
+    r.box = !!document.querySelector('.isim-selbox');
+    ptr(cn, 'pointerup', 250, 75);
+    r.three = sel(); r.gone = !document.querySelector('.isim-selbox');
+    // from under the rows, up over D: D alone; with Ctrl: added to it
+    ptr(cn, 'pointerdown', 250, 150); ptr(cn, 'pointermove', 250, 100); ptr(cn, 'pointerup', 250, 100);
+    r.below = sel();
+    ptr(cn, 'pointerdown', 250, 35, { ctrlKey: true }); ptr(cn, 'pointermove', 250, 45, { ctrlKey: true }); ptr(cn, 'pointerup', 250, 45, { ctrlKey: true });
+    r.ctrl = sel();
+    // a click in the values column: its row; under the rows: none
+    click(cn, 250, 60); r.click = sel();
+    click(cn, 250, 160); r.none = sel();
+    // a drag on a name: the row moved (not a selection window)
+    ptr(cn, 'pointerdown', 100, 40); ptr(cn, 'pointermove', 100, 75); r.noBox = !document.querySelector('.isim-selbox'); ptr(cn, 'pointerup', 100, 75);
+    r.rows = st.rows.map((x) => x.name);
+    return r;
+  });
+  assert.deepEqual(out, { box: true, three: ['1', '2', '3'], gone: true, below: ['4'], ctrl: ['1', '4'], click: ['2'], none: [], noBox: true, rows: ['B', 'A', 'G', 'D'] });
+});
+
 uiTest('#405 ISim wave window: the waves (the cursor snapped to a transition, Shift, a marker dragged), the menu and the keys', E, async (page) => {
   await page.eval(MOUNT);
   const out = await page.eval(() => {
