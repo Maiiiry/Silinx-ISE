@@ -894,3 +894,65 @@ node varyjoins.mjs joins measured.json.gz obs.json hyp.json t1 … u8          &
 node varyjoins.mjs clock measured.json.gz obs.json hyp.json t1 … u10         && BUFGSRC=1 MAXDEPTH=10 MAXJOINS=8 … prototype.mjs tests …
 SILINX_CONFIG_DIR=cfg SILINX_ISE_HOST=… node scripts/check-open-flow.mjs examples/gates … test/fixtures/open-flow/hard_prim
 ```
+
+## 13. All 43 designs through ISE on the measured graph; its quality against the shipped graph (2026-10-25)
+
+**The last three designs:**
+
+- **The tests' router only knew the I/O and block-RAM tiles' PIPs** (`PROBED`). A join of a clock-column wire
+  (`TIBUFS/E2BEG0 ~ CLKT/CLKV_E2BEG0`) needs a PIP out of the CLKT end, so it was untestable. With every non-CLB tile's
+  PIPs of the measured graph (a PIP a tile lacks makes ISE refuse the design, never a wrong verdict), 262 more tests ran:
+  211 joins. `feat_manual_clock` (a clock pad into a BUFGMUX through general routing) routes.
+- **The clock rows no design used.** The left and right GCLKH rows at Y13 were single-wire nodes: no route of ISE's
+  took them. `varyjoins.mjs rows` moves each known join of two clock wires in one tile row (or column) to every other
+  row where the tiles at the same X have the same wires, at every index: 276 joins. Then, in rounds until none is left
+  to test (u16-u18: 2116 joins, 86 islands, all agreeing), the I/O columns' clock lines below them. `feat_iob_lines`
+  routes.
+- **The tile grid.** `build.mjs` laid the tiles out by their names' coordinates (36 rows × 28 columns), so tiles of one
+  X / Y shared a place: CLKT_X13Y35 and CLB_X13Yk in column 13. The placer's halves of the chip are columns either side
+  of the clock tiles', so CLB_X13 (fed by the left half's rows) counted as the right half. A top buffer's clock then
+  took the line its side buffer of the left half used (`GCLKVML_X6Y17/GCLKVMLR_GCLK_DN4`: `feat_clocks12` did not
+  converge). The distances of the placer and of Silinx's timing estimate were also off. Now the measurements carry the
+  device report's grid (`rows`, `cols`, each tile's `r`, `c`, as its names), and the tiles are where the device has
+  them. `feat_clocks12` routes. (#1294, opened for a placer bug, was this.)
+
+| | Section 12 | Now |
+|---|---|---|
+| Nodes split / merged | 12 011 / 0 | 9500 / 0 |
+| Clock-line nodes split | 296 | 91 |
+| PIPs extra / missing | 66 / 50 557 | 66 / 50 557 |
+| Pins wrong (by node) / missing | 0 / 19 929 | 0 / 19 929 |
+
+**ISE's verdict on all 43** (the 7 examples, the 36 `test/fixtures/open-flow` designs of the XC3S250E CP132):
+`check-open-flow` on the measured graph passes every one: no open-flow warning, DRC 0 errors and 0 warnings, xdl2ncd no
+warning, and Silinx's `.bit` byte-identical to ISE's bitgen with CRC on and off.
+
+**The quality against the shipped graph** (the same 43, the open flow on each graph, ISE's timing analysis, `trce`, of
+each routed design; the 37 with a clock period):
+
+| | Measured / shipped |
+|---|---|
+| Critical period, geometric mean | **1.0017** (+0.17%) |
+| Within ±0.5% | 20 |
+| Slower / faster | 10 / 7 |
+| Range | 0.922 (`feat_bram_clocks`) to 1.096 (`blinky`) |
+| Slices | the same in every design |
+
+The examples: gates (no clock), traffic 7.772 -> 7.745 ns, blinky 6.527 -> 7.151, pong 12.221 -> 12.143, stopwatch
+12.839 -> 12.898, clock 6.332 -> 6.434, vga 8.94 -> 9.05. The differences either way are the placement's: the router
+has fewer choices on 9500 nodes still split (the hex and double taps whose segment starts in a tile no test drives, the
+I/O tiles' OMUX), and the placer's delay table is computed on the graph.
+
+**What replacing the shipped XC3S250E graph would mean.** Every design of the open flow's tests passes ISE on it, at the
+same speed on average. Against it: 9500 nodes are still split, and the router takes each piece for a node of its own, so
+two nets may still be put on two pieces of one wire (a short: ISE's DRC finds none in the 43, but the risk of section 10
+stays until no node is split); 216 BCIN pin wires are named otherwise; and the rules of sections 9 and 11 give 64 pins
+and 125 joins ISE checks only where a route uses them. The other three devices have no
+measured description. The decision is the maintainer's.
+
+```
+node varyjoins.mjs rows measured.json.gz obs.json hyp.json t1 … u15        (then the rounds: varyjoins, predict, edgejoins)
+PROBED=all-non-clb-pips.json … prototype.mjs tests hyp.json obs.json u16 …
+SILINX_CONFIG_DIR=cfg node research/s3e-route/open-flow.mjs <design> out --quality q.json     (each graph)
+SILINX_CONFIG_DIR=cfg SILINX_ISE_HOST=… node scripts/check-open-flow.mjs <the 43>               (each graph: trce's period)
+```

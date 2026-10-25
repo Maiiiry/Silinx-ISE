@@ -2,14 +2,15 @@
 // (core/fpga/device.js), from Silinx's own measurements only (research/s3e-device/README.md).
 //
 // The measurements are given as:
-//   { part, family,
-//     tiles: [{ name, type, sites: [[siteName, bonded]] }],        (bonded: 0 internal, 1 bonded, 2 unbonded)
+//   { part, family, rows?, cols?,
+//     tiles: [{ name, type, sites: [[siteName, bonded]], r?, c? }],  (bonded: 0 internal, 1 bonded, 2 unbonded)
 //     types: { <key>: { name?, wires: [names], pips: [[from, to, flags]], sites: [{ type, pins: [[pin, 'i'|'o', wire]] }] } },
 //                                       (name: the tile type, when several keys are variants of one type)
 //     joins: [['TILE/WIRE', 'TILE/WIRE']] }
 // and fed to the packer as the lines it reads (DeviceBuilder), so the result is the same format as
-// the shipped graphs and loads with loadDevice(). Rows and columns are Silinx's own: tile Y counted
-// from the top, tile X (one tile per X / Y here).
+// the shipped graphs and loads with loadDevice(). Rows and columns: the device's grid when the measurements
+// carry it (rows, cols, each tile's r, c: the device report's, as its tile names; the placer's distances and its halves
+// of the chip are on it, #3), else tile Y counted from the top, tile X (tiles of one X / Y then share a place).
 import { DeviceBuilder, PIP_BIDI } from '../../core/fpga/device.js';
 import { tileXY } from './observe.mjs';
 
@@ -17,10 +18,11 @@ const splitKey = k => { const i = k.indexOf('/'); return [k.slice(0, i), k.slice
 
 /** The lines DeviceBuilder reads for the measurements m (a generator: large devices are not held as one string). */
 export function* measuredLines(m) {
+  const grid = m.rows !== undefined && m.tiles.every(t => t.r !== undefined && t.c !== undefined);
   const pos = m.tiles.map(t => tileXY(t.name));
   const maxY = Math.max(...pos.map(p => p.y)), maxX = Math.max(...pos.map(p => p.x));
   yield `(xdl_resource_report v0.2 ${m.part} ${m.family || 'spartan3e'}`;
-  yield `(tiles ${maxY + 1} ${maxX + 1}`;
+  yield grid ? `(tiles ${m.rows} ${m.cols}` : `(tiles ${maxY + 1} ${maxX + 1}`;
   const conns = new Map();   // 'TILE/WIRE' -> ['TILE WIRE', ...]
   for (const [a, b] of m.joins) {
     for (const [x, y] of [[a, b], [b, a]]) { if (!conns.has(x)) conns.set(x, []); conns.get(x).push(splitKey(y).join(' ')); }
@@ -28,7 +30,7 @@ export function* measuredLines(m) {
   for (let i = 0; i < m.tiles.length; i++) {
     const t = m.tiles[i], tp = m.types[t.type], p = pos[i];
     if (!tp) throw new Error(`no measured type ${t.type} for ${t.name}`);
-    yield `(tile ${maxY - p.y} ${p.x} ${t.name} ${tp.name || t.type} ${t.sites.length}`;
+    yield grid ? `(tile ${t.r} ${t.c} ${t.name} ${tp.name || t.type} ${t.sites.length}` : `(tile ${maxY - p.y} ${p.x} ${t.name} ${tp.name || t.type} ${t.sites.length}`;
     for (let k = 0; k < tp.sites.length; k++) {
       const s = tp.sites[k], [name, bonded] = t.sites[k];
       yield `(primitive_site ${name} ${s.type} ${bonded === 1 ? 'bonded' : bonded === 2 ? 'unbonded' : 'internal'} ${s.pins.length}`;

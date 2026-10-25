@@ -8,7 +8,10 @@
 //   clock: each known join (observed or confirmed) of two clock lines with an end in an I/O tile, at every index 0-7
 //          and at every tile of the same prefix at the same offset: join hypotheses, tested from a BUFGMUX (BUFGSRC=1,
 //          MAXDEPTH=10 MAXJOINS=8: the spine, the row and the I/O column's line are a long way from it)
-//   node varyjoins.mjs pips|joins|clock measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
+//   rows:  each known join of two clock lines (GCLK…) whose ends are in one tile row or one tile column, moved to every
+//          other row (column) where tiles at the same X (Y) have the same wires, at every index 0-7: the clock rows and
+//          vertical lines ISE's designs did not use (the GCLKH row at Y13, GCLKV_X6Yk)
+//   node varyjoins.mjs pips|joins|clock|rows measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -83,6 +86,30 @@ export function clockLineVariants(joins, tiles, wiresOf, done) {
   return [...out.values()];
 }
 
+/** The clock rows and vertical lines moved: each known join of two GCLK wires in one tile row (or column), at every
+ *  other row (column) where a tile at the same X (Y) has each wire, at every index 0-7: [[a, b]], none known or tested. */
+export function clockRowVariants(joins, tiles, wiresOf, done) {
+  const at = new Map();
+  for (const t of tiles) { const x = tileXY(t); if (x) { const k = `${x.x},${x.y}`; if (!at.has(k)) at.set(k, []); at.get(k).push(t); } }
+  const ys = [...new Set(tiles.map(t => tileXY(t)?.y).filter(y => y !== undefined))], xs = [...new Set(tiles.map(t => tileXY(t)?.x).filter(x => x !== undefined))];
+  const find = (x, y, w) => (at.get(`${x},${y}`) || []).find(t => wiresOf(t)?.has(w));
+  const out = new Map();
+  for (const [a, b] of joins) {
+    const [ta, wa] = a.split('/'), [tb, wb] = b.split('/');
+    if (!/GCLK/.test(wa) || !/GCLK/.test(wb)) continue;
+    const A = tileXY(ta), B = tileXY(tb), ma = /^(.*?)(\d+)$/.exec(wa), mb = /^(.*?)(\d+)$/.exec(wb);
+    if (!A || !B || !ma || !mb || ma[2] !== mb[2]) continue;
+    const moves = A.y === B.y ? ys.map(y => [[A.x, y], [B.x, y]]) : A.x === B.x ? xs.map(x => [[x, A.y], [x, B.y]]) : [];
+    for (const [[xa, ya], [xb, yb]] of moves) for (let j = 0; j < 8; j++) {
+      const t1 = find(xa, ya, ma[1] + j), t2 = find(xb, yb, mb[1] + j);
+      if (!t1 || !t2 || t1 === t2) continue;
+      const h = [`${t1}/${ma[1]}${j}`, `${t2}/${mb[1]}${j}`];
+      if (!done.has(ord(h))) out.set(ord(h), h);
+    }
+  }
+  return [...out.values()];
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, gf, of, out, ...rest] = process.argv.slice(2);
   const { loadDevice } = await import('../../core/fpga/device.js');
@@ -100,7 +127,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const verdicts = rest.flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')));
     const known = [...obs.joins, ...verdicts.filter(v => v[2] === 'join').map(v => [v[0], v[1]])];
     const done = new Set([...known, ...verdicts.filter(v => v[2] === 'no-join')].map(ord));
-    const hyp = cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : clockLineVariants(known, G.tileNames, wiresOf, done);
+    const hyp = cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : cmd === 'rows' ? clockRowVariants(known, G.tileNames, wiresOf, done) : clockLineVariants(known, G.tileNames, wiresOf, done);
     fs.writeFileSync(out, JSON.stringify(hyp));
     console.log(`${hyp.length} join hypotheses`);
   }

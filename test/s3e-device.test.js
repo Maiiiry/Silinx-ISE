@@ -19,7 +19,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs } from '../research/s3e-device/gen-obspins2.mjs';
-import { indexVariants, pipVariants, joinVariants, clockLineVariants } from '../research/s3e-device/varyjoins.mjs';
+import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -889,4 +889,27 @@ test('varyjoins: a pair\'s index varied among the wires that exist; the clock co
   const C = Object.fromEntries(tiles.map(t => [t, new Set(['GCLK0', 'GCLK1'])]));
   const h = clockLineVariants([['LIOIS_X0Y3/GCLK0', 'LIOIS_X0Y2/GCLK0']], tiles, t => C[t] || null, new Set(['LIOIS_X0Y2/GCLK0|LIOIS_X0Y3/GCLK0']));
   assert.deepEqual(h.map(j => j.join(' ')).sort(), ['LIOIS_X0Y3/GCLK1 LIOIS_X0Y2/GCLK1', 'LIOIS_X0Y8/GCLK0 LIOIS_X0Y7/GCLK0', 'LIOIS_X0Y8/GCLK1 LIOIS_X0Y7/GCLK1'].sort());
+});
+
+test('varyjoins rows: a clock row\'s join moved to the other rows where the tiles at the same X have the wires, at every index (#3)', () => {
+  const tiles = ['GCLKH_X1Y5', 'GCLKH_X2Y5', 'GCLKH_X1Y13', 'GCLKH_X2Y13', 'CLB_X1Y13', 'CLB_X2Y13', 'GCLKH_X1Y21'];
+  const W = { GCLKH_X1Y5: ['GCLKH_GCLK0', 'GCLKH_GCLK1'], GCLKH_X2Y5: ['GCLKH_GCLK0', 'GCLKH_GCLK1'], GCLKH_X1Y13: ['GCLKH_GCLK0'], GCLKH_X2Y13: ['GCLKH_GCLK0'], CLB_X1Y13: ['E2BEG0'], CLB_X2Y13: ['E2BEG0'], GCLKH_X1Y21: ['GCLKH_GCLK0'] };
+  const wiresOf = t => (W[t] ? new Set(W[t]) : null);
+  const h = clockRowVariants([['GCLKH_X1Y5/GCLKH_GCLK0', 'GCLKH_X2Y5/GCLKH_GCLK0']], tiles, wiresOf, new Set(['GCLKH_X1Y5/GCLKH_GCLK0|GCLKH_X2Y5/GCLKH_GCLK0']));
+  // row 13 (the GCLKH tiles, not the CLBs at the same coordinates), index 1 in row 5; not row 21 (no GCLKH_X2Y21)
+  assert.deepEqual(h.map(j => j.join(' ')).sort(), ['GCLKH_X1Y13/GCLKH_GCLK0 GCLKH_X2Y13/GCLKH_GCLK0', 'GCLKH_X1Y5/GCLKH_GCLK1 GCLKH_X2Y5/GCLKH_GCLK1']);
+});
+
+test('chipMeasurements and packMeasured: the tiles on the device report\'s grid, not on their names\' coordinates (CLB_X13 and CLKT_X13 in columns of their own: the placer\'s halves, its distances) (#3)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { CENTER_SMALL: { features: { 'E2END1->E2BEG1': [] } }, CLKT: { features: { 'CLKV_E2BEG0->CLKT_CLKDUB0': [] } } } };
+  const m = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs: { pips: [], pins: [], pinJoins: [], joins: [] } });
+  assert.deepEqual([m.rows, m.cols], [dev.rows, dev.cols]);
+  const g = loadDevice(packMeasured(m));
+  const rc = (D, t) => { const k = D.tile(t); return [D.tileRow[k], D.tileCol[k]]; };
+  for (const t of ['CLB_X13Y15', 'CLB_X14Y15', 'CLKT_X13Y35', 'CLB_X1Y1']) assert.deepEqual(rc(g, t), rc(dev, t), t);
+  assert.notEqual(rc(g, 'CLB_X13Y15')[1], rc(g, 'CLKT_X13Y35')[1]);
+  // (measurements with no grid: the names' coordinates, as before)
+  const old = loadDevice(packMeasured({ ...m, rows: undefined }));
+  assert.equal(rc(old, 'CLB_X13Y15')[1], rc(old, 'CLKT_X13Y35')[1]);
 });
