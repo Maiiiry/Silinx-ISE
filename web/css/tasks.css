@@ -151,6 +151,12 @@ html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-l
 html[data-layout="tasks"][data-task="sim"] #center { position: relative; }
 html[data-layout="tasks"][data-task="sim"] #doc-tabs { position: absolute; z-index: 2; top: 0; left: var(--sim-side, 0px); right: 0; }
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc .isim-wavewin { margin-top: var(--sim-tabs, 0px); }
+/* a source in front (a module's HDL from the Simulation tree): the last simulation's side panel at its left, the source
+   beside it (#1343: web/js/tasks-sim.js placeSimSide); folded, the source alone */
+html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] { display: flex !important; right: auto; width: var(--sim-side, 0px); z-index: 1; }
+html[data-layout="tasks"][data-task="sim"] #workspace > .doc[data-sim-side] .isim :is(.isim-wavewin, .isim-split-main, .isim-stimbar) { display: none; }
+html[data-layout="tasks"][data-task="sim"][data-side="folded"] #workspace > .doc[data-sim-side] { display: none !important; }
+html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"]) #workspace:has(> .doc[data-sim-side]) > .doc:not([hidden]):not([data-sim-side]) { left: var(--sim-side, 0px); }
 /* Simulate's page: what to simulate, its source and the model above its Simulate button (#1291; choosing the module or
    the model simulates, #1018) */
 #task-model, #task-bench, .task-bench-edit, .task-empty-sim { display: none; }
