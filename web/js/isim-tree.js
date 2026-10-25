@@ -32,9 +32,9 @@ export function mountTree(ctx) {
       const procs = (inst.procs || []).filter(p => p.kind !== 'glue');
       const hasKids = inst.children.length || procs.length;
       const row = h('div', { class: 'row' + (inst === st.curInst ? ' sel' : ''),
-        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span>${badgesHtml(inst.module)}<span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
+        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span>${isTop ? badgesHtml(inst.module) : ''}<span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
       row.title = pathOf(inst);
-      badgeClicks(row, inst.module, inst);
+      if (isTop) badgeClicks(row, inst.module, inst);   // (the simulated module's row only, not its instances': #1365)
       row.draggable = true;
       row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-isim', JSON.stringify({ inst: inst.path })); e.dataTransfer.effectAllowed = 'copy'; });
       row.addEventListener('mousedown', (e) => {
