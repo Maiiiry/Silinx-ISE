@@ -537,12 +537,19 @@ class PageBase {
       await this.click('#task-switch .task-btn[data-task="edit"]');
       if (this.view) await this.eval((v) => window.SilinxApp.setView(v), this.view);
     }
-    return this.waitFor((c, l, ex, d) => {
+    return this.waitFor((c, l, ex, d, v) => {
       const match = (t) => (ex ? t === l : t === l || t.startsWith(l));
       const A = window.SilinxApp, S = A.S;
       if (c === '#procs') {
         const row = [...document.querySelectorAll('#procs .row')].find((r) => match(r.querySelector('.lbl')?.textContent?.trim() || ''));
-        if (!row) return false;
+        if (!row) {
+          // (Implement brought to the front meanwhile, a document of its own opening after a reload, or the view
+          // changed by it: Design and the asked view again, then looked for once more)
+          // (only for the Simulation view asked: Implement's own processes are looked for in Implement)
+          if (v === 'sim' && document.documentElement.dataset.task === 'impl') document.querySelector('#task-switch .task-btn[data-task="edit"]')?.click();
+          if (v === 'sim' && S.view !== v) A.setView(v);
+          return false;
+        }
         row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         if (d) row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
         return true;
@@ -550,10 +557,12 @@ class PageBase {
       if (S.project && match(S.project.name)) { A.select({ type: 'project' }); return true; }
       const m = S.modules.find((x) => match(x.name));
       if (m) { A.select({ type: 'module', module: m.name, file: m.file }); if (d) A.openFile(m.file, m.line); return true; }
-      const f = S.project?.files.find((x) => match(x.path.split('/').pop()));
+      // (a file by its whole name: a module's name, e.g. a test bench just added, matches its file's before the
+      // project is compiled again, and the file's row has no Simulation processes, #1285)
+      const f = S.project?.files.find((x) => x.path.split('/').pop() === l);
       if (f) { A.select({ type: 'file', file: f.path }); if (d) A.openFile(f.path); return true; }
       return false;
-    }, [container, label, exact, dbl], { what: `tree row '${label}' in ${container} (the modern interface)` });
+    }, [container, label, exact, dbl, this.view || null], { what: `tree row '${label}' in ${container} (the modern interface)` });
   }
 }
 
