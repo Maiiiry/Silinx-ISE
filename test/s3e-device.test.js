@@ -2,6 +2,10 @@
 // the observation of ISE-routed nets, the join rules, the xdl2ncd probes, the DRC join tests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, intersectAmbiguous, joinRule, blockRamOutputJoins } from '../research/s3e-device/observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from '../research/s3e-device/model.mjs';
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
@@ -14,6 +18,7 @@ import { chipMeasurements } from '../research/s3e-device/chip.mjs';
 import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
+import { srlCascade, f8Muxes, ramClkB, bufgs } from '../research/s3e-device/gen-obspins2.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -154,6 +159,17 @@ test('segmentRules: the taps of doubles and hexes from their names', () => {
   assert.equal(r.length, 4 * (4 + 8));   // per direction: a double's 2 taps + END_S / END_N, a hex's 6 + 2
   for (const x of ['E2BEG3 1,0 E2MID3', 'E2BEG3 2,0 E2END3', 'E2BEG3 2,-1 E2END_S3', 'W2BEG3 -2,1 W2END_N3',
     'N6BEG3 0,1 N6A3', 'N6BEG3 0,3 N6MID3', 'N6BEG3 0,6 N6END3', 'N6BEG3 0,7 N6END_N3', 'S6BEG3 0,-5 S6D3']) assert.ok(r.includes(x), x);
+});
+
+test('segmentRules pairs: every tap to every later tap of its segment', () => {
+  const r = [...segmentRules([3], { pairs: true })];
+  // per direction: a double's taps BEG, MID (each to the later taps + END_S / END_N): 2 + 2, 1 + 2; a hex's: 6 + 2 down to 1 + 2
+  assert.equal(r.length, 4 * ((4 + 3) + (8 + 7 + 6 + 5 + 4 + 3)));
+  for (const x of ['E2MID3 1,0 E2END3', 'E2MID3 1,-1 E2END_S3', 'N6MID3 0,3 N6END3', 'N6A3 0,2 N6MID3', 'W6C3 -2,0 W6END3',
+    'S6D3 0,-2 S6END_S3', 'E6BEG3 6,0 E6END3']) assert.ok(r.includes(x), x);
+  assert.ok(!r.some(x => /END/.test(x.split(' ')[0])), 'no rule from an END');
+  // without pairs: the BEG rules only, the same as before
+  assert.deepEqual(new Set(segmentRules([3])), new Set(r.filter(x => /^\w\dBEG/.test(x))));
 });
 
 test('packMeasured: measurements in the packed format of the shipped graphs', () => {
@@ -678,6 +694,9 @@ test('edgeHypotheses: an edge tile\'s known join as a rule for the tiles of its 
   // a corner's ambiguous join, with its candidate in the edge tile (the CLB's left to the switch-box rounds); none
   // without an edge tile, none of the clock lines
   assert.deepEqual(r.ambiguous, [['UL_X0Y35/N2BEG0', 'CLB_X1Y34/N2MID0']]);
+  // the refused ones (the tests' islands) are not asked again, and make no rule
+  const q = edgeHypotheses(obs, tiles, [['LTERM_X0Y3/W6BEG1', 'CLB_X1Y3/W6END1']], [['LTERM_X0Y4/W6BEG1', 'CLB_X1Y4/W6END1'], ['UL_X0Y35/N2BEG0', 'CLB_X1Y34/N2MID0']]);
+  assert.deepEqual(q, { rules: [['LTERM_X0Y5/W6BEG1', 'CLB_X1Y5/W6END1']], ambiguous: [] });
   assert.deepEqual(['LTERM4_X0Y9', 'CNR_TTERM_X1Y35', 'COB_TERM_B_X9Y0', 'UL_X0Y35', 'CLB_X1Y1', 'TIOIS_X3Y35'].map(edgeTile), [true, true, true, true, false, false]);
 });
 
@@ -721,6 +740,18 @@ test('chipMeasurements: a tile\'s PIPs from the database\'s features and the rou
   assert.ok(!m.joins.some(j => j.includes('CLB_X9Y9/NOWIRE')));
 });
 
+test('chipMeasurements: an I/O tile\'s database names as the probe found them (IOIS_X0, no route of ISE\'s took it) (#3, the I/O names)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { TIOIS: { features: { 'X0->OMUX3': [], 'XQ0->OMUX3': [] } } } };
+  const obs = { pips: [{ tile: 'TIOIS_X3Y35', from: 'IOIS_XQ0', dir: '->', to: 'OMUX3' }], pins: [], pinJoins: [], joins: [] };
+  const pips = m => { const t = m.tiles.find(x => x.name === 'TIOIS_X5Y35'); return m.types[t.type].pips.map(([a, b]) => `${a}->${b}`).sort(); };
+  // the routes name IOIS_XQ0 only: X0 stays the database's name
+  assert.deepEqual(pips(chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs })), ['IOIS_XQ0->OMUX3', 'X0->OMUX3']);
+  // the probe accepted IOIS_X0 in one tile: the name of every tile's
+  const probe = { yes: [{ tile: 'TIOIS_X3Y35', from: 'IOIS_X0', to: 'OMUX3' }], no: [] };
+  assert.deepEqual(pips(chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs, probe })), ['IOIS_X0->OMUX3', 'IOIS_XQ0->OMUX3']);
+});
+
 test('gen-obscarry, gen-obsslice, gen-obsmux: the carry chains in every slice column, a flip-flop on every slice, wide multiplexers and comparators, read by Silinx\'s front end (#3, step 5)', () => {
   const dev = loadDeviceCache('xc3s250ecp132-4');
   const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
@@ -738,4 +769,40 @@ test('gen-obscarry, gen-obsslice, gen-obsmux: the carry chains in every slice co
   // (its data and selects permuted: every multiplexer its own pair)
   assert.equal(new Set([...mx.v.matchAll(/md(\d+) = (\{[^}]*\});\n {2}wire \[3:0\] ms\d+ = (\{[^}]*\})/g)].map(x => x[2] + x[3])).size, 40, 'every multiplexer its own permutation');
   for (const v of [m0.v, sl.v, mx.v]) assert.deepEqual(read(v), [[], []]);
+});
+
+test('gen-obspins2: a shift register in every CLB, a 32:1 multiplexer in every pair of CLBs, the block RAMs\' second clock, every BUFGMUX of a clock tile; read by Silinx\'s front end (#3, the pins still missing)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
+  const ranges = d => [...d.ucf.matchAll(/RANGE = SLICE_X(\d+)Y(\d+):SLICE_X(\d+)Y(\d+) ;/g)].map(r => r.slice(1).map(Number));
+  // every CLB's four slices once
+  const sr = srlCascade(dev);
+  assert.equal(sr.n, 612);
+  assert.ok(ranges(sr).every(([x0, y0, x1, y1]) => x0 % 2 === 0 && y0 % 2 === 0 && x1 === x0 + 1 && y1 === y0 + 1));
+  assert.equal(new Set(ranges(sr).map(r => r.join(','))).size, 612);
+  // the pairs of CLBs one above the other, from CLB row 0 or 1: together every CLB that has one above or below it
+  const a = f8Muxes(dev, 0), b = f8Muxes(dev, 1);
+  for (const [d, off] of [[a, 0], [b, 1]]) assert.ok(ranges(d).every(([x0, y0, x1, y1]) => x1 === x0 + 1 && y1 === y0 + 3 && (y0 / 2) % 2 === off));
+  assert.deepEqual([a.n, b.n], [306, 272]);
+  const rb = ramClkB(dev);
+  assert.equal(rb.n, 12);
+  assert.match(rb.v, /RAMB16_S1_S1 u0 \(\.CLKA\(clk\)[^;]*\.CLKB\(ck2\)/);
+  // the BUFGMUXes of each clock tile: 8 on each side, 4 at the top and the bottom
+  const bg = ['CLKL', 'CLKR', 'CLKT', 'CLKB'].map(p => bufgs(dev, p));
+  assert.deepEqual(bg.map(d => d.n), [8, 8, 4, 4]);
+  assert.match(bg[0].ucf, /^INST "u0" LOC = "BUFGMUX_X0Y2" ;/);
+  for (const d of [sr, a, rb, ...bg]) assert.deepEqual(read(d.v), [[], []]);
+});
+
+test('prototype.mjs predict: the joins rules decided are hypotheses; a test not run or invalid is asked again, a refused one not (#3)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'predict-'));
+  const a = ['CLB_X1Y1/E2BEG0', 'CLB_X2Y1/E2MID0'], b = ['CLB_X1Y2/E2BEG0', 'CLB_X2Y2/E2MID0'], c = ['CLB_X1Y3/E2BEG0', 'CLB_X2Y3/E2MID0'], d = ['CLB_X1Y4/E2BEG0', 'CLB_X2Y4/E2MID0'];
+  fs.writeFileSync(path.join(dir, 'obs.json'), JSON.stringify({ pips: [], joins: [], decided: [a, b, c, d] }));
+  fs.writeFileSync(path.join(dir, 'tiles.txt'), 'CLB_X1Y1\n');
+  fs.mkdirSync(path.join(dir, 't'));
+  fs.writeFileSync(path.join(dir, 't', 'verdicts.json'), JSON.stringify([[...b, 'no-join'], [...c, 'invalid'], [...d, 'not-run']]));
+  execFileSync(process.execPath, ['research/s3e-device/prototype.mjs', 'predict', path.join(dir, 'obs.json'), path.join(dir, 'tiles.txt'), path.join(dir, 'pred.json'), path.join(dir, 't')], { stdio: 'pipe' });
+  const pred = JSON.parse(fs.readFileSync(path.join(dir, 'pred.json'), 'utf8')).map(j => j.join(' ')).sort();
+  assert.deepEqual(pred, [a, c, d].map(j => j.join(' ')).sort());
+  fs.rmSync(dir, { recursive: true });
 });

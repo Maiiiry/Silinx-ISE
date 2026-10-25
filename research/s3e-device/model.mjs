@@ -104,18 +104,23 @@ export function closeRules(rules) {
  * direction D and length L starts at D<L>BEG<i> and passes the taps in order, one switch box apart —
  * BEG, MID, END for a double; BEG, A, B, MID, C, D, END for a hex (UG331) —, with the same index i;
  * the END_S / END_N taps are the END's switch box one row down / up. indexes: the wire indexes
- * (0-7 on the Spartan-3E).
+ * (0-7 on the Spartan-3E). pairs: also each tap to every later tap (a segment whose BEG is in a tile no test drives
+ * from, an I/O or block-RAM switch box: its other taps joined to each other).
  */
-export function segmentRules(indexes = [0, 1, 2, 3, 4, 5, 6, 7]) {
+export function segmentRules(indexes = [0, 1, 2, 3, 4, 5, 6, 7], { pairs = false } = {}) {
   const taps = { 2: ['BEG', 'MID', 'END'], 6: ['BEG', 'A', 'B', 'MID', 'C', 'D', 'END'] };
   const step = { N: [0, 1], S: [0, -1], E: [1, 0], W: [-1, 0] };
   const out = new Set();
   for (const d of 'NSEW') for (const len of [2, 6]) for (const i of indexes) {
     const [sc, sy] = step[d];
-    taps[len].forEach((tap, k) => { if (k) out.add(`${d}${len}BEG${i} ${sc * k},${sy * k} ${d}${len}${tap}${i}`); });
     const end = taps[len].length - 1;
-    out.add(`${d}${len}BEG${i} ${sc * end},${sy * end - 1} ${d}${len}END_S${i}`);
-    out.add(`${d}${len}BEG${i} ${sc * end},${sy * end + 1} ${d}${len}END_N${i}`);
+    // the taps after a start j (BEG only, or every one with pairs), END_S / END_N among them
+    for (let j = 0; j < (pairs ? end : 1); j++) {
+      const a = `${d}${len}${taps[len][j]}${i}`;
+      taps[len].forEach((tap, k) => { if (k > j) out.add(`${a} ${sc * (k - j)},${sy * (k - j)} ${d}${len}${tap}${i}`); });
+      out.add(`${a} ${sc * (end - j)},${sy * (end - j) - 1} ${d}${len}END_S${i}`);
+      out.add(`${a} ${sc * (end - j)},${sy * (end - j) + 1} ${d}${len}END_N${i}`);
+    }
   }
   return out;
 }

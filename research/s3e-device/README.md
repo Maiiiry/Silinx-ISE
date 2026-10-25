@@ -717,3 +717,69 @@ INTERSECT=1 node prototype.mjs observe obs.json …/top.xdl
 PINRULES=1 node chip.mjs measured.json.gz obs.json --ft obs-ft256.json,obs-xb.json --probe probe7.json --tests t1,…,sp3 --clock c2,…,cM2
 SILINX_CONFIG_DIR=cfg node scripts/check-open-flow.mjs examples/gates … examples/vga     (cfg/devices/xc3s250ecp132-4.json.gz: the measured graph)
 ```
+
+## 10. Toward replacing the shipped graph: the split nodes, the I/O names, the PIPs of each tile (2026-10-25)
+
+The whole-graph comparison of section 9, read by the risk each gap carries for the open flow: a PIP or a pin missing only
+narrows the router's choice; a **split node** lets it put two nets on one wire (a short), a **merged** one makes a net
+look connected that is open, an **extra PIP** is a route ISE refuses. The plan (#3): the split and merged nodes first,
+then the extra PIPs (the I/O names), then the pins of the features no example uses, then the acceptance (the comparison
+clean, the 7 examples and the 45 `test/fixtures/open-flow` designs through ISE, the quality comparison).
+
+**The split nodes.** None of the 46 646 hid a tested join that went missing: 22 929 were predicted and never tested, 23 717
+never predicted. The rounds, every verdict against the shipped graph (local scoring only):
+
+| Round | Hypotheses | Tests (designs, ISE time) | Joins / islands | Agree |
+|---|---|---|---|---|
+| u1 | `SEG=1` over the whole chip (128 723) | 123 843 (48, 2092 s) | 66 791 / 57 052 | all but 4, and those 4 were invalid (below) |
+| u2 | the joins rules decided (below), u1's untestable | 20 526 (33, 528 s) | 18 248 / 2278 | all but 1, invalid |
+| u3 | the rest, from the cleaned observation | 945 (8, 47 s) | 890 / 55 | all |
+| u4 | `SEG=pairs`: a segment's taps pairwise | 2480 (25, 139 s) | 459 / 2021 | all |
+| u5, u6 | the edge tiles (`edgejoins.mjs`) | 6382 + 1056 (229, 899 s) | 2317 / 4663 | all |
+| u7 | the hex taps whose BEG is in an I/O tile, driven from a pad | 2380 (89, 888 s) | 1854 / 526 | all |
+
+- **The joins rules decided are hypotheses.** `observe` wrote `resolveAmbiguous`'s joins (18 101: a wire's one candidate
+  a rule of the joins found matches) with the observed ones, and the tests drove across them as known: two were wrong
+  (`CLB_X8Y34/E2BEG4 ~ CLB_X18Y34/E2END4`, `…5`, a rule across the block-RAM column), the 2 merged nodes of section 9,
+  and the 13 tests whose route crossed them (u1, u2) failed whatever the tested join (`invalid`). They are now apart
+  (`decided`), `predict` sends them to the tests, and a test not run or invalid is asked again. The 1093 joins only 9
+  designs showed, whose routes are gone (another session's folder), are hypotheses too; every one of the 44 505 joins seen
+  in the 117 designs left is right.
+- `segmentRules(…, { pairs: true })`: each tap of a double or a hex to every later tap (a segment whose BEG no test can
+  drive); `edgejoins.mjs` no longer asks again a join a test refused.
+- The test router may take the measured graph's PIPs of the I/O and block-RAM tiles (`PROBED`): a PIP a tile lacks makes
+  ISE refuse the design (not run), never a wrong verdict. A test net with a loop (`LIOIS_BRK_X0Y25/S2BEG7` driven twice)
+  crashes ISE's DRC (`RUG CREATION PROBLEM`): left out.
+
+**The I/O names.** The database names an I/O tile's wires as a CLB's (`rename`: IOIS_X0 is X0); `chip.mjs` took
+`IOIS_<name>` only where ISE's routes named it, and no route takes an I/O tile's `X` output (a pad's input reaches
+`IOIS_Y`). The arc probe: of the 9210 PIPs of the I/O tiles with an end in either name (`X`, `XQ`, `Y`, `YQ`, `XB`, `YB`,
+`F#_B#`, `G#_B#`), **9182 exist**, `IOIS_X0 -> OMUX…` among them, the 28 others mixing the two names. `chip.mjs` now
+takes the names the probe found too (`--probe a.json,b.json`): the 9732 extra PIPs of section 9 go.
+
+**The PIPs of each tile.** A PIP a tile had only by its type (seen in another tile of the type, or a feature of the
+database's) was not asked in the tile. The arc probe of every PIP of the non-CLB tiles that neither ISE's routes nor the
+probe showed there (299 713, 95 rounds, 74 min) and of the PIPs seen only in another tile of the type (3440): **448 + 36
+refused**, the extra PIPs of the comparison (`CLKV_OMUXk_OUTLk -> CLKV_OUTLk`: the CLKV tiles have none left,
+`Ik_PINWIRE -> IOIS_IBUFk`, `GCLKH_GCLKk -> GCLKH_GCLK_UPk` in the block-RAM columns' clock rows,
+`MULT_CCARRY_BCOUTk -> MULT_CARRYB_BCOUTk`).
+
+| | Section 9 | Now |
+|---|---|---|
+| Nodes split / merged | 46 646 / 2 | 12 217 / 0 |
+| PIPs extra | 9732 | 66 (`FX2 -> FX_S2`, `COUTk -> COUT_Nk`: in the CLB rows the routes saw them in, given to the type) |
+| PIPs missing | 62 757 | 52 423 (the route-throughs, the `STUB_IOIS_*` PIPs, which have no bits: the router does not take them) |
+| Pins wrong / missing | 0 / 22 796 | 0 / 22 796 |
+
+The 12 217 split left: hex and double taps whose segment starts in a tile no test drives (`W6END ~ W6MID` where the BEG is
+in a right I/O tile), the I/O tiles' `OMUX` to the CLBs' `OMUX_S` / `OMUX_N` (a pad's input reaches only `IOIS_Y`), the
+I/O and block-RAM columns' clock lines (`TIOIS/GCLKk` to the CLB's: ISE's clock nets into I/O registers and block RAMs),
+the carry chain at the bottom row.
+
+```
+SEG=1 node prototype.mjs predict obs.json switch-tiles.txt pred.json t1 … u0     (SEG=pairs: the taps pairwise)
+UNBONDED=1 PROBED=probed.json DBPIPS=1 SOURCES=1 BUFGSRC=1 SOURCEOBS=obs.json SOURCEXDL=… MAXJOINS=3 MAXDEPTH=5 node prototype.mjs tests pred.json obs.json u1 t1 …
+node edgejoins.mjs obs.json edge.json t1 … u6
+node probe-run.mjs candidates.json probe.json        (SILINX_ISE_HOST: the I/O names, the PIPs of each tile)
+PINRULES=1 node chip.mjs measured.json.gz obs.json --ft … --probe probe7.json,io9.json,type.json,rest.json --tests t1,…,u7
+```
