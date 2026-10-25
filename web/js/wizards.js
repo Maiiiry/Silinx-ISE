@@ -645,7 +645,7 @@ export async function toolchainDialog() {
   }
   const cfg = JSON.parse(JSON.stringify(tc.config));
   const ISE_OPTS = [['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']];
-  const mode = select([...ISE_OPTS, ['silinx', 'Silinx toolchain (no ISE)']], cfg.mode);
+  const mode = select([['silinx', 'Silinx toolchain (no ISE)'], ...ISE_OPTS], cfg.mode);   // (the Silinx toolchain first, #1347)
   const inputs = {
     'local.settings': h('input', { type: 'text', value: cfg.local.settings || '', placeholder: 'auto-detect (…/14.7/ISE_DS/settings64.sh)' }),
     'docker.image': h('input', { type: 'text', value: cfg.docker.image || '', placeholder: 'e.g. my-ise:14.7' }),
