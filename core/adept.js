@@ -156,7 +156,7 @@ const BYTEREV = Uint8Array.from({ length: 256 }, (_, x) => { let r = 0; for (let
 export const byterev = data => { const out = new Uint8Array(data.length); for (let i = 0; i < data.length; i++) out[i] = BYTEREV[data[i]]; return out; };
 
 // the devices of the Digilent boards' chains: IDCODE (version bits masked), name, IR length, kind
-export const JTAG_DEVICES = [
+const JTAG_DEVICES = [
   [0x01c10093, 'xc3s100e', 6, 'fpga'], [0x01c1a093, 'xc3s250e', 6, 'fpga'], [0x01c22093, 'xc3s500e', 6, 'fpga'],
   [0x01c2e093, 'xc3s1200e', 6, 'fpga'], [0x01c3a093, 'xc3s1600e', 6, 'fpga'],
   [0x05044093, 'xcf01s', 8, 'prom'], [0x05045093, 'xcf02s', 8, 'prom'], [0x05046093, 'xcf04s', 8, 'prom'],
@@ -353,7 +353,7 @@ const S3 = { CFG_IN: 0x05, JPROGRAM: 0x0b, JSTART: 0x0c };
 const ST_INIT = 0x10, ST_DONE = 0x20;
 
 /** The FPGA of the chain (or an error naming what was found). */
-export function fpgaOf(chain) {
+function fpgaOf(chain) {
   const f = chain.devices.find(d => d.kind === 'fpga');
   if (!f) fail(`no Spartan-3E FPGA on the JTAG chain (found ${chain.devices.map(d => d.name).join(', ')})`);
   return f;

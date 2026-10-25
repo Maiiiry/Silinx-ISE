@@ -11,7 +11,7 @@ const WIZARDS = {
 };
 
 /** The spec of the wizard that made the HDL file `path` (from its text in the project), or null. */
-export function wizardSpecOf(path) {
+function wizardSpecOf(path) {
   const text = (S.sources || []).find(s => s.path === path)?.text;
   const spec = text ? readWizardSpec(text) : null;
   return spec && WIZARDS[spec.wizard] ? spec : null;

@@ -12,10 +12,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Known, harmless matches: [file (or a RegExp of files), the matched text (or a RegExp), why]
-export const ALLOW = [
+const ALLOW = [
   [/^(THIRD-PARTY-NOTICES\.md|scripts\/licences\/[^/]+\.txt)$/, /@/, 'the licence texts of the third-party packages name their authors'],
   [/./, /^(127\.\d+\.\d+\.\d+|0\.0\.0\.0|255\.255\.255\.255)$/, 'loopback / any address / broadcast'],
   [/./, /^(192\.0\.2|198\.51\.100|203\.0\.113)\.\d+$/, 'documentation addresses (RFC 5737)'],
@@ -51,7 +51,7 @@ const PLACEHOLDER_USERS = /^(<[^>]+>|\$\w+|\$\{\w+\}|%\w+%|you|me|user|username|
 const isNetworkIp = (ip) => { const [a, b] = ip.split('.').map(Number); return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127); };
 
 /** The rules: { kind, re, check?(match) -> the text to report or null }. */
-export const RULES = [
+const RULES = [
   { kind: 'e-mail address', re: /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g },
   // an IPv4 address (not part of a longer dotted number such as a version, nor a product's version after its name and a
   // slash, as in a User-Agent string: Chrome/1.2.3.4, #1080)

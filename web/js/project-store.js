@@ -11,9 +11,9 @@
 
 import { DEV_SITE } from './prefs.js';
 
-export const PROJECT_FILE = 'silinx.json';
+const PROJECT_FILE = 'silinx.json';
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
-export const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' };
+const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' };
 // the site's development edition (https://pmnmalo.github.io/Silinx-ISE/dev/, built from main): its
 // own browser storage, so that a development build never touches the stable edition's projects
 // (a workspace folder on the disk can still be opened by both); its settings too (web/js/prefs.js)
@@ -22,7 +22,7 @@ const BROWSER_KEY = DEV_SITE ? 'silinx.dev.standalone.fs' : 'silinx.standalone.f
 
 const clone = o => JSON.parse(JSON.stringify(o));
 const fail = msg => { throw new Error(msg); };
-export const langOf = p => (/\.(v|vh|sv)$/i.test(p) ? 'verilog' : /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.ucf$/i.test(p) ? 'ucf' : 'text');
+const langOf = p => (/\.(v|vh|sv)$/i.test(p) ? 'verilog' : /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.ucf$/i.test(p) ? 'ucf' : 'text');
 /**
  * A project-relative path normalised: forward slashes, no empty or '.' segments. null when it would
  * leave the project (#483): not a string, empty, absolute ('/x', '\\\\host\\x', 'C:\\x'), a '..' segment,

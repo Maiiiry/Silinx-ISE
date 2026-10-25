@@ -10,7 +10,7 @@ import { simplify } from '/core/schcurve.js';
 import { snap, segDist } from './sch-editor.js';
 
 /** The length (screen pixels) from which a press that moves is a stroke rather than a click. */
-export const STROKE_MIN = 16;
+const STROKE_MIN = 16;
 
 /** { strokeStart, strokeMove, strokeEnd, strokeCancel } of a schematic editor (doc(), modules(), view(): its current ones). */
 export function mountStroke(ctx) {

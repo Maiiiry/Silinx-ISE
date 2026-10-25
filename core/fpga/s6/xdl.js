@@ -11,7 +11,7 @@ import { paramBits, paramInt } from '../netlist.js';
 import { AND2L, ffKind } from './pack.js';
 import { tieoffFor } from './tieoffs.js';
 
-export class XdlError extends Error {}
+class XdlError extends Error {}
 
 const POS = ['A', 'B', 'C', 'D'];
 

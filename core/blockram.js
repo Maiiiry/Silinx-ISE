@@ -30,8 +30,8 @@ const PRIMS = {
 };
 export const MEMORY_FAMILIES = Object.keys(PRIMS);
 // (NO_CHANGE is left out: over several rows of blocks the word kept would be the row's, not the memory's)
-export const WRITE_MODES = ['READ_FIRST', 'WRITE_FIRST'];
-export const MAX_WIDTH = 256, MAX_DEPTH = 1 << 20;
+const WRITE_MODES = ['READ_FIRST', 'WRITE_FIRST'];
+const MAX_WIDTH = 256, MAX_DEPTH = 1 << 20;
 
 /** The port shapes of a family's block RAMs: [{ prim, width, depth, data, parity, halves }] (halves: the 9 Kbit
  *  halves one block takes on Spartan-6; 1 on Spartan-3E, whose blocks are counted whole). */

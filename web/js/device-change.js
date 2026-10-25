@@ -13,7 +13,7 @@ import { inView } from './design.js';
 
 /** The issues of the project's design on the device `next` ({ family, part, package }): their messages ([] when
  *  it fits, or the part is not in the database). db: the device database (S.devices). */
-export async function deviceChangeMessages(pj, next, db) {
+async function deviceChangeMessages(pj, next, db) {
   const to = db.parts.find(p => p.part === next.part);
   if (!to) return [];
   const fromPart = db.parts.find(p => p.part === pj.device?.part);

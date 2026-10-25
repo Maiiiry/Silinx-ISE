@@ -7,7 +7,7 @@
 // (core/petri.js isEnabled), so the graph is finite; it is explored up to `maxStates` markings.
 import { normalizePetri, preset, postset } from './petri.js';
 
-export const MAX_STATES = 20000;
+const MAX_STATES = 20000;
 
 /** The incidence matrix: C[p][t] = tokens put − tokens taken (inhibitor arcs take none). */
 export function incidence(model) {

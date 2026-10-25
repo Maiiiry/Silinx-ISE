@@ -17,7 +17,7 @@
 // copy connects to that port (the clk of the sheet, say), as a label of that name drawn by hand does.
 import { DOC_VERSION, GRID, normalizeDoc, symbolPins, parseNetName } from './schdoc.js';
 
-export const CLIP_VERSION = 1;
+const CLIP_VERSION = 1;
 const clone = o => JSON.parse(JSON.stringify(o));
 const key = (x, y) => `${x},${y}`;
 function onSeg(p, a, b) {

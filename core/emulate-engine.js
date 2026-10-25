@@ -10,8 +10,8 @@
 // Isomorphic ES module (browser + Node), no DOM.
 
 export const ENGINE_KEY = 'silinx.emulator.engine';
-export const MIN_CORES = 4;
-export const MIN_MEMORY_GB = 4;
+const MIN_CORES = 4;
+const MIN_MEMORY_GB = 4;
 
 const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Tablet/i;
 

@@ -12,7 +12,7 @@ import { mainCheckout } from './fetch-design-corpus.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MCC_MANIFEST = path.join(ROOT, 'test', 'diagram-corpus', 'mcc.json');
-export const MCC_CACHE = path.join(mainCheckout(ROOT), '.cache', 'diagram-corpus', 'mcc');
+const MCC_CACHE = path.join(mainCheckout(ROOT), '.cache', 'diagram-corpus', 'mcc');
 export const netFile = net => path.join(MCC_CACHE, `${net.instance}.pnml`);
 
 /** Fetch the nets not in the cache yet. Returns { fetched, cached }. */

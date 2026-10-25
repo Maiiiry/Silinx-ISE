@@ -52,7 +52,7 @@ const NO_SITE = /^(GND|VCC|PULLUP|PULLDOWN)$/;
 const sitePinOf = pin => pin.replace(/<(\d+)>$/, '$1');
 
 /** The constraints of the port bits (LOC, IOSTANDARD, DRIVE, SLEW, PULL): { 'led<3>': { loc, iostandard … } }. */
-export function portConstraints(nl, ucf) {
+function portConstraints(nl, ucf) {
   if (!ucf) return {};
   const parsed = typeof ucf === 'string' ? parseUcf(ucf, { ports: ucfPortsOf(nl) }) : ucf;
   return portAssignments(parsed?.assignments ? parsed : { assignments: ucf }, nl.ports.flatMap(p => p.bits.map(b => b.name))).assignments;
