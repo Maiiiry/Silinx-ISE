@@ -183,7 +183,10 @@ export async function chooseTop() {
     body: h('div', {}, h('label', {}, 'The module the design is implemented from:'), sel),
     buttons: [{ label: 'OK', primary: true, value: true }, { label: 'Cancel', value: null }],
   });
-  if (r) await setTop(sel.value, false);
+  if (!r) return;
+  await setTop(sel.value, false);
+  // (Implement in front: its Design Summary opened at once, as when Implement is chosen with a top, #1372)
+  if (implTop()) await openSummary();
 }
 
 /** The tree of the processes `defs` drawn in `host`: each with its state, run by a double-click, its menu. */

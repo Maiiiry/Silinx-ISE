@@ -48,6 +48,9 @@ uiTest('#1224 Tasks ▸ Implement with no top module: said so, Set Top Module…
   assert.equal(await note(page), null, 'no note with a top');
   assert.equal((await rows(page))[0], 'Design Summary/Reports', 'the Design Summary with a top (#1287)');
   assert.equal((await env.server.api('GET', '/api/projects/NoTop')).top, 'top');
+  // the Design Summary opened at once, in front, as when Implement is chosen with a top (#1372)
+  await page.waitFor(() => window.Silinx.active?.id === 'summary' && document.documentElement.dataset.task === 'impl', [], { what: 'the Design Summary in front' });
+  assert.ok(await page.eval(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary')), 'its tab');
   // in Portuguese
   await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); window.SilinxApp.renderProcesses(); });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
