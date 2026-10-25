@@ -237,7 +237,7 @@ function tagDocs() {
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
     go.disabled = !mainEnabled();
-    go.hidden = current() === 'edit';   // (Design's page: no button, #1349)
+    go.hidden = current() === 'edit' || current() === 'impl';   // (Design's and Implement's pages: no button, #1349, #1367)
   }
   fitSimTabs();   // (the tabs shown or not: #1259)
 }

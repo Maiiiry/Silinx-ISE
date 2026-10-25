@@ -1180,6 +1180,8 @@ uiTest('#1162 Tasks ▸ Implement: a project with no top opened after another sh
   await page.click('#task-switch .task-btn[data-task="impl"]');
   assert.deepEqual(await page.eval(() => ({ caption: document.getElementById('proc-caption').textContent, rows: [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent), states: document.querySelectorAll('#procs .status svg').length })),
     { caption: 'Processes: ', rows: [], states: 0 });   // (no top: no processes, no Design Summary, #1287)
+  // Implement's page: its text, no button (the processes from the Implementation panel, #1367)
+  assert.deepEqual(await page.eval(() => [document.querySelector('#task-empty h2').textContent, document.querySelector('#task-empty .m-step').getClientRects().length]), ['Implement', 0]);
   await page.eval(() => localStorage.removeItem('silinx.ui'));
 }, { build: DEV });
 
