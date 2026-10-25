@@ -83,9 +83,9 @@ uiTest('View ▸ Interface ▸ Modern: the task switcher in the header, the task
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
   assert.ok(!(await shown(page, '#statusbar')), 'no status bar in the Tasks interface (#1039)');
-  // with no project: Edit, its page says what it does; its action (Check) needs a project
+  // with no project: Edit, its page says what it does, no button (Check Design is under the tree, #1349)
   assert.deepEqual(await state(page), { task: 'edit', side: 'open', console: 'open', max: 'off', current: ['edit'], tabs: [], empty: true });
-  assert.equal(await page.eval(() => document.querySelector('#task-empty button').disabled), true);
+  assert.deepEqual(await page.eval(() => [document.querySelector('#task-empty p').textContent, document.querySelector('#task-empty .m-step').getClientRects().length]), ['Open a source from the Design panel.', 0]);
   // the theme menu (not the classic interface's)
   assert.ok((await page.openMenu('View')).some((x) => x.label === 'Theme'));
   await page.closeMenus();
@@ -225,7 +225,7 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   const pt = await texts();
   assert.deepEqual(untranslated(en, pt), ['@Design', 'Design'], 'Design: the task\'s name in Portuguese too (#1046), its text and its tooltip');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-switch .lbl')].map((l) => l.textContent)), ['Design', 'Simular', 'Emular', 'Implementar']);   // (Design: not "Projeto", the Project menu's, #1046)
-  assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent), 'Abra uma fonte no painel Projeto, ou verifique o projeto.');
+  assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent), 'Abra uma fonte no painel Projeto.');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => b.textContent)),
     ['Todas', 'Projeto', 'Simulação', 'Emulação', 'Implementação']);
   // the longer labels (the menus too) fit the header: a laptop, a tablet in landscape (the switcher's labels giving

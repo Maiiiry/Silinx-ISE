@@ -316,7 +316,7 @@ const PT = {
   // the Tasks interface (web/js/tasks.js, #804): View ▸ Interface ▸ Tasks, the task switcher, the task's bar
   'Tasks': 'Tarefas', 'Task': 'Tarefa', 'Show or hide the side panel': 'Mostrar ou esconder o painel lateral',
   'Show or hide the messages': 'Mostrar ou esconder as mensagens', 'Maximize the document (double-click its tab)': 'Maximizar o documento (duplo clique no separador)',
-  'Open a source from the Design panel, or check the design.': 'Abra uma fonte no painel Projeto, ou verifique o projeto.',
+  'Open a source from the Design panel.': 'Abra uma fonte no painel Projeto.',
   'Simulate the design: its waves open here.': 'Simule o projeto: as formas de onda abrem aqui.',
   'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
   'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',

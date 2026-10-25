@@ -46,7 +46,7 @@ const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement'
 const ACTION = { edit: 'Check', sim: 'Simulate', emu: 'Emulate', impl: 'Implement' };
 const NO_BENCH = 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.';
 const HINT = {
-  edit: 'Open a source from the Design panel, or check the design.',
+  edit: 'Open a source from the Design panel.',   // (no Check here: Check Design is under the tree, #1349)
   sim: 'Simulate the design: its waves open here.',
   emu: 'Emulate the design on the board: the board opens here.',
   impl: 'Implement the design: synthesis, place & route and the programming file.',
@@ -237,6 +237,7 @@ function tagDocs() {
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
     go.disabled = !mainEnabled();
+    go.hidden = current() === 'edit';   // (Design's page: no button, #1349)
   }
   fitSimTabs();   // (the tabs shown or not: #1259)
 }

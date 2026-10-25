@@ -302,7 +302,7 @@ uiTest('Portuguese: the modern header, buttons, empty state and palette are tran
   assert.deepEqual(T, {
     // ('Design' in Portuguese too, #1046)
     search: 'Procurar comandos e ficheiros…', tasks: ['Design', 'Simular', 'Emular', 'Implementar'],
-    empty: 'Abra uma fonte no painel Projeto, ou verifique o projeto.', settings: 'Definições',
+    empty: 'Abra uma fonte no painel Projeto.', settings: 'Definições',
   });
   const subs = await subMenu(page, 'Ver', 'Interface');
   assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Clássica']);
