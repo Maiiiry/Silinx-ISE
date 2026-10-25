@@ -286,7 +286,8 @@ async function runSimulationInner(mod, model, stale) {
           ...moduleBadges(name).filter(b => /^(VHDL|Verilog)$/.test(b.text)).map(b => ({ ...b, base: true, title: 'Open the HDL here, in Simulation',
             open: () => { const i = moduleInfo(name); if (i) openFile(i.file, i.line, undefined, { task: 'sim' }); } }))] });
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
-      return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0) };
+      // (the project read again, a test bench added, removed or renamed: its tree drawn again, #1364)
+      return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0), onProject: () => view.refresh?.() };
     },
   });
 }

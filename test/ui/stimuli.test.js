@@ -172,6 +172,8 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   assert.equal(await page.eval(() => [...document.querySelectorAll('.dlg-overlay')].pop().querySelector('input').value), 'tb_ctr');
   await page.click('.dlg-overlay .dlg-buttons button', { text: 'OK' });
   await page.waitFor(async () => (await (await fetch('/api/projects/StimPj')).json()).files.some((f) => f.path === 'src/tb_ctr.vhd' && f.role === 'sim'), [], { what: 'tb_ctr.vhd, simulation', timeout: 20000 });
+  // the open simulation's tree lists it at once, no reload of the page (#1364)
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .isim-tree > li > .row .lbl`)].some((e) => e.textContent === 'tb_ctr'), [DOC], { what: 'tb_ctr in the tree', timeout: 5000 });
   await simulate(page, 'tb_ctr');
   await page.waitFor((d) => /TEST PASSED: 8 vector/.test(Array.from(document.querySelector(`${d} .isim-console`)?.children || [], (e) => e.textContent).join('\n')), [DOC], { what: 'TEST PASSED', timeout: 20000 });
   assert.doesNotMatch(await consoleText(page), /Error|Warning/);
