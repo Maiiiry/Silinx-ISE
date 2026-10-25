@@ -2,12 +2,13 @@
 // (web/css/tasks.css):
 // - the project's test benches, a row each, as SSim's tree: one clicked is simulated (#1378);
 // - with none, the module to simulate and the model, each on its prompt, the simulation run once both are chosen
-//   (#1378), and the Test Bench Wizard as a row in the style of Implement's processes.
+//   (#1378); the Test Bench Wizard is the bar's New Test Bench… (#1385).
 // A simulation open, the side panel is SSim's tree.
 
-import { h } from './ui.js';
+import { h, popupMenu } from './ui.js';
 import { icon } from './icons.js';
-import { benchSelect, modelSelect, newBench, promptChoices, refreshBench, simChoices, simTarget } from './tasks-sim.js';
+import { benchSelect, modelSelect, promptChoices, refreshBench, simChoices, simTarget } from './tasks-sim.js';
+import { benchItems, treeBar, treeItems } from './tasks-sim-tree.js';
 
 /** The panel, appended to the work area: `simulate` runs the test bench chosen. */
 export function mountSimPanel(app, { simulate }) {
@@ -18,33 +19,36 @@ export function mountSimPanel(app, { simulate }) {
     r.addEventListener('click', run);
     r.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); } });
   };
-  const wizard = row('task-sim-act', 'add', h('span', { class: 'lbl' }, 'Create a test bench (Wizard)…'));
-  wizard.firstChild.dataset.act = 'wizard';
-  clickable(wizard.firstChild, () => newBench(app));
   const choices = h('ul', { class: 'tree task-sim-choices' },
-    row('task-sim-choice', 'moduleTop', benchSelect(app)), row('task-sim-choice', 'wave', modelSelect(app)), wizard);
+    row('task-sim-choice', 'moduleTop', benchSelect(app)), row('task-sim-choice', 'wave', modelSelect(app)));
   const benches = h('ul', { class: 'tree task-sim-benches' });
+  // (its commands above it, a test bench's menu and the empty space's, as Design's: #1385)
   const panel = h('div', { id: 'task-sim-panel', hidden: true },
     h('div', { class: 'task-sim-tabs', role: 'tablist' }, h('span', { class: 'tab active', role: 'tab' }, h('span', { class: 'tab-lbl' }, 'Simulation'))),
-    choices, benches);
+    treeBar(app), h('div', { class: 'task-sim-trees' }, choices, benches));
+  panel.addEventListener('contextmenu', e => {
+    if (e.defaultPrevented || !e.target.closest('.task-sim-trees') || e.target.closest('.row')) return;
+    e.preventDefault();
+    popupMenu(treeItems(app), e.clientX, e.clientY);
+  });
   document.getElementById('workspace').append(panel);
 
   const bench = name => {
     const li = h('li', { class: 'task-sim-bench', 'data-bench': name });
     const r = h('div', { class: 'row', title: `Simulate ${name}` }, h('span', { class: 'twisty' }, '▸'), icon('moduleTop'), h('span', { class: 'lbl', 'data-no-i18n': '' }, name));
     clickable(r, () => app.setTop(name, true).then(() => simulate()));
+    r.addEventListener('contextmenu', e => { e.preventDefault(); popupMenu(benchItems(app, name), e.clientX, e.clientY); });
     li.append(r);
     return li;
   };
   return {
     /** Its rows as the project is now (`shown`: the panel shown, else as it is). */
     refresh(shown = !panel.hidden) {
-      const S = app.S, { benches: names, design } = S.project ? simChoices(S.project, S.modules) : { benches: [], design: [] };
+      const S = app.S, names = S.project ? simChoices(S.project, S.modules).benches : [];
       promptChoices(shown && !names.length);
       panel.hidden = !shown;
       choices.hidden = !!names.length;
       benches.hidden = !names.length;
-      wizard.hidden = !design.length;
       refreshBench(app);
       if (benches.dataset.key !== names.join()) { benches.dataset.key = names.join(); benches.replaceChildren(...names.map(bench)); }
       const cur = S.project ? simTarget(S.project, S.modules) : null;

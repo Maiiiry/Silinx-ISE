@@ -941,12 +941,12 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
     model: ['?', 'Select simulation model...'] };
   const prompts = async () => { const m = await choice('task-model'); return { bench: await choice('task-bench'), model: [m.value, m.options[0][1]] }; };
   // no test bench: said; the side panel beside the page (no button on it, #1376): the module and the model, each on its
-  // prompt, and the wizard; no Simulate row (#1378)
-  await page.waitFor(() => document.querySelector('#task-sim-panel [data-act=wizard]')?.getClientRects().length > 0, [], { what: 'the wizard offered' });
+  // prompt; no Simulate row (#1378), the wizard the bar's New Test Bench (#1385)
+  await page.waitFor(() => document.querySelector('#task-sim-panel [data-act=new-bench]')?.getClientRects().length > 0, [], { what: 'the wizard offered' });
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
     'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-empty button')].filter((b) => b.getClientRects().length).length), 0);
-  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['task-bench', 'task-model', 'Create a test bench (Wizard)…'], beside: true, side: false });
+  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['task-bench', 'task-model'], beside: true, side: false });
   assert.deepEqual(await prompts(), PROMPTS);
   // the module chosen: not simulated yet, the model still to choose; the model chosen: simulated
   await set('task-bench', 'and2');
@@ -963,10 +963,10 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.getElementById('task-bench').options[0].textContent === 'Selecione o módulo do projeto a simular...', [], { what: 'Portuguese' });
   assert.deepEqual(await page.eval(() => [document.getElementById('task-model').options[0].textContent, ...[...document.querySelectorAll('#task-sim-panel .tab, #task-sim-panel .lbl')].filter((e) => e.getClientRects().length).map((e) => e.textContent)]),
-    ['Selecione o modelo de simulação...', 'Simulação', 'Criar uma bancada de teste (Assistente)…']);
+    ['Selecione o modelo de simulação...', 'Simulação']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the wizard: its test bench becomes the one Simulate runs; the panel lists the test benches, the choices gone
-  await page.click('#task-sim-panel [data-act=wizard]');
+  await page.click('#task-sim-panel [data-act=new-bench]');
   await page.waitDialog('Test Bench Wizard');
   for (let k = 0; k < 4; k++) await page.dialogButton('Next >');
   await page.dialogButton('Finish');

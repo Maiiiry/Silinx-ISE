@@ -427,7 +427,7 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- instance tree (isim-tree.js)
   // (made here, in mount order; the Objects panel, made below, is drawn again when an instance is selected or added)
-  const { renderTree, addInstance, openBench } = mountTree({ st, design, treeEl, benches: opts.benches, onBench: opts.onBench, badges: opts.badges, current: opts.title, onOpenSource, openSource, showMenu, renderObjects: () => renderObjects(),
+  const { renderTree, addInstance, openBench } = mountTree({ st, design, treeEl, benches: opts.benches, onBench: opts.onBench, badges: opts.badges, benchMenu: opts.benchMenu, treeMenu: opts.treeMenu, goToSource: opts.goToSource, current: opts.title, onOpenSource, openSource, showMenu, renderObjects: () => renderObjects(),
     instSignals, newRow, rebuildFlat, updateVScroll, invalidate });
 
   // ---------------------------------------------------------------- objects list (isim-objects.js)

@@ -428,3 +428,70 @@ uiTest('#1259 Tasks ▸ Simulate: the side panel from the top, the simulations\'
   assert.equal(await page.eval(() => getComputedStyle(document.getElementById('doc-tabs')).position), 'static');
   assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
 }, { build: DEV });
+
+// #1385: the Simulation hierarchy's commands, as Design's: New Test Bench and Add Copy of TB above it (nothing
+// under it), in Simulate's side panel and in SSim's tree; a test bench's right-click menu, the empty space's; SSim's Go To
+// Source, the module's source in Design; Portuguese; classic none
+uiTest('#1385 Tasks ▸ Simulate: the Simulation hierarchy\'s buttons and right-click menus; Portuguese; classic none', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimCmds', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimCmds');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  const bars = (root) => page.eval((r) => [...document.querySelectorAll(`${r} .task-sim-src-bar .btn, ${r} .task-sim-close-bar`)].filter((b) => b.getClientRects().length).map((b) => `${b.textContent}${b.disabled ? ' (off)' : ''}`), root);
+  const appMenu = () => page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => `${i.textContent.trim()}${i.classList.contains('disabled') || i.getAttribute('aria-disabled') === 'true' ? ' (off)' : ''}`); return m.length ? m : null; }, [], { what: 'the menu' });
+  const ssimMenu = () => page.waitFor(() => { const m = [...document.querySelectorAll('.isim-menu-root > .isim-menu-item')].map((i) => `${i.querySelector('.lbl').textContent}${i.classList.contains('dis') ? ' (off)' : ''}`); return m.length ? m : null; }, [], { what: 'SSim\'s menu' });
+  const below = (sel) => page.eval((s) => { const b = document.querySelector(s).getBoundingClientRect(), rows = [...document.querySelectorAll(`${s} .row`)].filter((r) => r.getClientRects().length);
+    return { x: Math.round(b.left + 30), y: Math.round(((rows.at(-1)?.getBoundingClientRect().bottom ?? b.top) + b.bottom) / 2) }; }, sel);
+  const BENCH = ['Open', 'Rename…', 'Check Syntax', 'New Test Bench…', 'Add Copy of TB…', 'Remove from Project', 'Source Properties…'];
+  // the side panel, nothing simulated: the bar, the bench's menu, the empty space's
+  await page.waitFor(() => document.querySelector('#task-sim-panel .task-sim-bench .row')?.getClientRects().length > 0, [], { what: 'the panel' });
+  assert.deepEqual(await bars('#task-sim-panel'), ['New Test Bench…', 'Add Copy of TB…']);
+  await page.rightClick('#task-sim-panel .task-sim-bench .row');
+  assert.deepEqual((await appMenu()).map((x) => x.replace(' (off)', '')), BENCH);
+  assert.ok(!(await page.eval(() => window.SilinxApp.S.docs.some((d) => /^isim:/.test(d.id)))), 'a right-click simulates nothing');
+  await page.closeMenus();
+  await page.rightClick(await below('#task-sim-panel .task-sim-trees'));
+  assert.deepEqual(await appMenu(), ['New Test Bench…', 'Add Copy of TB…']);
+  await page.closeMenus();
+  // simulated: SSim's tree has them too; its bench's menu SSim's own commands (Go To Source), then the bench's
+  await page.click('#task-sim-panel .task-sim-bench .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top' && !window.Silinx.active.view.state.running, [], { what: 'SSim', timeout: 60000 });
+  await page.showSide();
+  assert.deepEqual(await bars('.doc:not([hidden]) .isim-inst-panel'), ['New Test Bench…', 'Add Copy of TB…']);
+  await page.rightClick('.doc:not([hidden]) .isim-tree > li > .row .lbl', { text: 'tb_top' });
+  const m = await ssimMenu();
+  assert.deepEqual(m.slice(0, 3), ['Add to Wave Window', 'Add to Wave Window (Recursive)', 'Go To Source']);
+  assert.deepEqual(m.slice(-BENCH.length), BENCH);
+  await page.eval(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  // (tb_top folded: the tree's empty space under it)
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .twisty');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-tree > li > ul'), [], { what: 'tb_top folded' });
+  await page.rightClick(await below('.doc:not([hidden]) .isim-inst-panel > .body'));
+  assert.deepEqual(await ssimMenu(), ['New Test Bench…', 'Add Copy of TB…']);
+  await page.eval(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  // Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-src-bar [data-act=new-bench]')?.textContent === 'Nova Bancada de Teste…', [], { what: 'Portuguese' });
+  assert.deepEqual(await bars('.doc:not([hidden]) .isim-inst-panel'), ['Nova Bancada de Teste…', 'Adicionar Cópia de TB…']);
+  await page.rightClick(await below('.doc:not([hidden]) .isim-inst-panel > .body'));
+  assert.deepEqual(await ssimMenu(), ['Nova Bancada de Teste…', 'Adicionar Cópia de TB…']);
+  await page.eval(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // Go To Source on an instance: its module's source in Design (u_speed: its ASM drawing)
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .twisty');
+  await page.rightClick('.doc:not([hidden]) .isim-tree .row .lbl', { text: 'u_speed' });
+  await ssimMenu();
+  await page.click('.isim-menu-root > .isim-menu-item', { text: 'Go To Source' });
+  await page.waitFor(() => document.documentElement.dataset.task === 'edit' && /speed_ctrl\.asm\.json$/.test(window.Silinx.active?.id || ''), [], { what: 'its ASM in Design' });
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.eval(() => window.SilinxApp.closeDoc(window.SilinxApp.S.docs.find((d) => d.id === 'isim:tb_top')));
+  await page.waitFor(() => !window.SilinxApp.S.docs.some((d) => /^isim:/.test(d.id)) && !document.getElementById('task-sim-panel').hidden, [], { what: 'closed, the panel again' });
+  // the classic interface: none
+  await page.click('#task-sim-panel .task-sim-bench .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top', [], { what: 'SSim', timeout: 60000 });
+  await setInterface(page, 'classic');
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.deepEqual(await bars('.doc:not([hidden]) .isim-inst-panel'), []);
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });

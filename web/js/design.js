@@ -159,6 +159,16 @@ export function moduleBadges(name) {
   return [sch ? { text: viewBadge(sch), base: true } : null, isTt(sch) ? { text: 'Schematic' } : null, wz ? { text: wz, base: true } : null,
     drawn ? null : { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog', base: !sch && !wz }].filter(Boolean);
 }
+/** A module's source opened as its Design row's double-click opens it: its drawing, its wizard, else its HDL (SSim's Go
+ *  To Source in the Tasks interface, #1385). */
+export function openModuleSource(name) {
+  const info = moduleInfo(name);
+  if (!info) return;
+  const drawn = /\.(sch|asm|tt|fsm|pn)\.json$/.test(info.file) ? info.file : null;
+  const sch = drawn || viewOfModule(info.name, info.file);
+  const wz = !sch ? wizardLabelOf(info.file) : null;
+  return sch ? openView(sch) : wz ? openWizardModule(info.file) : openFile(info.file, info.line);
+}
 function viewOfModule(name, file) {
   const v = S.hdlToSch?.[file];
   if (!v) return null;

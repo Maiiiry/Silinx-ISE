@@ -9,7 +9,7 @@ import { ICON, pathOf } from './isim.js';
 
 /** { renderTree, addInstance } of an SSim window. */
 export function mountTree(ctx) {
-  const { st, design, treeEl, benches, onBench, badges, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
+  const { st, design, treeEl, benches, onBench, badges, benchMenu, treeMenu, goToSource, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
 
   // a module's types after its name, as Design's badges (#1316); a badge's click its `open` (the instance), not the row's
   const badgesHtml = mod => {
@@ -25,6 +25,13 @@ export function mountTree(ctx) {
       el.addEventListener('mousedown', e => { e.stopPropagation(); if (e.button) return; st.curInst = inst; renderTree(); renderObjects(); x.open(inst); });
     }
   };
+  // the tree's empty space: its own menu, when given (#1385)
+  (treeEl.parentElement || treeEl).addEventListener('contextmenu', (e) => {
+    if (e.target.closest('.row')) return;
+    const m = treeMenu?.();
+    if (!m) return;
+    e.preventDefault(); showMenu(e.clientX, e.clientY, m);
+  });
   function renderTree() {
     treeEl.innerHTML = '';
     const mk = (inst, isTop) => {
@@ -50,7 +57,10 @@ export function mountTree(ctx) {
           { label: 'Add to Wave Window', action: () => addInstance(inst, false) },
           { label: 'Add to Wave Window (Recursive)', action: () => addInstance(inst, true) },
           { sep: true },
-          { label: 'Go To Source Code', disabled: !onOpenSource, action: () => openSource(inst) },
+          // (the Tasks interface: Go To Source, the module's source in Design, its drawing if it has one: #1385)
+          goToSource?.() ? { label: 'Go To Source', action: () => goToSource()(inst.module) } : { label: 'Go To Source Code', disabled: !onOpenSource, action: () => openSource(inst) },
+          // (the simulated test bench's own commands, the Tasks interface's: #1385)
+          ...(isTop && benchMenu?.(inst.module)?.length ? [{ sep: true }, ...benchMenu(inst.module)] : []),
         ]);
       });
       li.appendChild(row);
@@ -73,7 +83,8 @@ export function mountTree(ctx) {
     const bench = name => {
       const li = h('li', { class: 'task-bench' });
       const row = h('div', { class: 'row', title: `Simulate ${name}`, html: `<span class="twisty">▸</span><span class="ico">${ICON.top}</span><span class="lbl">${esc(name)}</span>${badgesHtml(name)}` });
-      row.addEventListener('mousedown', () => onBench?.(name));
+      row.addEventListener('mousedown', (e) => { if (!e.button) onBench?.(name); });
+      row.addEventListener('contextmenu', (e) => { const m = benchMenu?.(name); if (!m?.length) return; e.preventDefault(); showMenu(e.clientX, e.clientY, m); });
       li.appendChild(row);
       return li;
     };

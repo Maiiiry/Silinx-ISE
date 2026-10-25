@@ -9,13 +9,14 @@ import { ENGINE_KEY, defaultEngine } from '/core/emulate-engine.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
 import * as wiz from './wizards.js';
 import { countEvent } from './analytics.js';
-import { S, closeDoc, findDoc, moduleInfo, openDoc, openFile, projectBoard, status, withPrimitives } from './app.js';
+import { S, app, closeDoc, findDoc, moduleInfo, openDoc, openFile, projectBoard, status, withPrimitives } from './app.js';
+import { asSsim, benchItems, treeBar, treeItems } from './tasks-sim-tree.js';
 import { log, showConsolePage, setDiagnostics } from './console.js';
 import { reloadProject } from './project.js';
 import { generateSimModel, readBuildFile, runImpl } from './implement.js';
 import { ucfPort } from './drawings.js';
 import { EXTRA_STEPS, ISE_ONLY, SIM_MODEL_NAMES, checkSyntax, diagsFor, loadUcfText, openMode, saveAll, setStatus } from './processes.js';
-import { inView, moduleBadges, saveProjectJson } from './design.js';
+import { inView, moduleBadges, openModuleSource, saveProjectJson } from './design.js';
 import { wcfgFiles } from './sim-wcfg.js';
 import { prefKey } from './prefs.js';
 
@@ -264,7 +265,7 @@ async function runSimulationInner(mod, model, stale) {
   if (old) await closeDoc(old);
   openDoc({
     id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: id,
-    create(el) {
+    create(el, doc) {
       // SSim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
       // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with in
       // this simulation only: a test bench runs its own inputs, its stimuli neither kept nor applied again (#1380)
@@ -291,13 +292,21 @@ async function runSimulationInner(mod, model, stale) {
         badges: name => [{ text: 'Waveform', base: true, title: 'Show the waveform', open: () => openDoc({ id }) },
           // (the HDL drawn solid, as [Waveform]: the module's own source, #1357)
           ...moduleBadges(name).filter(b => /^(VHDL|Verilog)$/.test(b.text)).map(b => ({ ...b, base: true, title: 'Open the HDL here, in Simulation',
-            open: () => { const i = moduleInfo(name); if (i) openFile(i.file, i.line, undefined, { task: 'sim' }); } }))] });
+            open: () => { const i = moduleInfo(name); if (i) openFile(i.file, i.line, undefined, { task: 'sim' }); } }))],
+        // (the Tasks interface: a test bench's menu, the tree's empty space's, and the commands above the tree, as
+        // Design's: #1385; web/css/tasks.css shows the bar there only)
+        benchMenu: name => (tasksOn() && S.modules.some(m => m.name === name && m.role === 'sim') ? asSsim(benchItems(app, name)) : []),
+        treeMenu: () => (tasksOn() ? asSsim(treeItems(app)) : null), goToSource: () => (tasksOn() ? openModuleSource : null) });
+      const tree = el.querySelector('.isim-inst-panel');
+      tree?.querySelector(':scope > .body').before(treeBar(app));
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
       // (the project read again, a test bench added, removed or renamed: its tree drawn again, #1364)
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0), onProject: () => view.refresh?.() };
     },
   });
 }
+
+const tasksOn = () => document.documentElement.dataset.layout === 'tasks';
 
 // The stimuli drawn in SSim saved as a self-checking test bench (#336, core/stimuli.js -> core/testbench.js): next
 // to the module's file, in the project's language, a simulation source
