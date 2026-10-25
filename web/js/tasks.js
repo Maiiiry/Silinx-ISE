@@ -282,6 +282,9 @@ function refreshDots() {
   if (implementationEnded(implDot, now) && on() && current() === 'impl' && app.S.project) app.openSummary();
   implDot = now;
   if (on()) arrangeProgram(true);   // (Program's iMPACT, also once its document has its task: #803)
+  // no top module: no Design Summary, whether opened behind with the project or restored with its documents (#1295)
+  const summary = on() && app?.S.project && !app.S.project.top && app.findDoc('summary');
+  if (summary) app.closeDoc(summary);
   // no project: Design (its Start page) only, the other tasks off; a project closed brings Design back (#1260)
   const none = !!app && !app.S.project;
   if (none && on() && current() !== 'edit') { setTask('edit'); app.showLeftPage('start'); }   // (its Start page, #1272)
