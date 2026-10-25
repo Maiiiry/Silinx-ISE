@@ -332,7 +332,7 @@ uiTest('#919 ISim stimuli in Tasks ▸ Simulate: a bus expanded, its bits clicke
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
   await page.openProject('StimBitsTasks');
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  await page.click('#task-empty button');
+  await page.click('#task-sim-panel [data-act=simulate]');
   await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || '') && document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
   await simTime(page, '1,000,000');
   await editBits(page);
