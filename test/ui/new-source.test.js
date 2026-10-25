@@ -163,3 +163,23 @@ uiTest('New Source (#958) in the Tasks interface\'s Edit task: the same buttons,
     await page.eval(() => localStorage.removeItem('silinx.ui'));
   }
 }, { build: { commit: 'abc1234', date: '2026-10-21 12:00' } });
+
+// #1326: Add Copy of Source's Files input within the dialog, as wide as the Association choice under it, at every width
+uiTest('#1326 Add Copy of Source: the Files input inside the dialog, as wide as its column (a laptop, a tablet either way, a phone)', E, async (page) => {
+  await makeProject(env, { name: 'CopyFit', template: 'gates' });
+  await page.openProject('CopyFit');
+  for (const [w, hgt] of [[1366, 768], [1180, 820], [820, 1180], [390, 844]]) {
+    await page.setViewport(w, hgt);
+    await page.eval(async () => { (await import('/js/wizards.js')).addSourceDialog(); });   // (not awaited: it ends when closed)
+    await page.waitDialog('Add Copy of Source');
+    const g = await page.eval(() => {
+      const r = (s) => document.querySelector(`.dlg-overlay ${s}`).getBoundingClientRect();
+      const d = r('.dlg'), f = r('input[type=file]'), s = r('select');
+      return { inside: f.left >= d.left && f.right <= d.right + 0.5 && d.right <= innerWidth + 0.5, column: Math.abs(f.right - s.right) < 1.5 && Math.abs(f.left - s.left) < 1.5 };
+    });
+    assert.deepEqual(g, { inside: true, column: true }, `${w} px`);
+    await page.dialogButton('Cancel');
+    await page.waitNoDialog();
+  }
+  await page.setViewport(1366, 768);
+});
