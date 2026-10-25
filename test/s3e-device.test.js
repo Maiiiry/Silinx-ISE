@@ -19,6 +19,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs } from '../research/s3e-device/gen-obspins2.mjs';
+import { indexVariants, pipVariants, joinVariants, clockLineVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -868,4 +869,24 @@ test('prototype.mjs predict: the joins rules decided are hypotheses; a test not 
   const pred = JSON.parse(fs.readFileSync(path.join(dir, 'pred.json'), 'utf8')).map(j => j.join(' ')).sort();
   assert.deepEqual(pred, [a, c, d].map(j => j.join(' ')).sort());
   fs.rmSync(dir, { recursive: true });
+});
+
+test('varyjoins: a pair\'s index varied among the wires that exist; the clock column\'s PIPs and joins; the I/O columns\' clock lines at every index and tile (#3)', () => {
+  const ok = s => v => s.has(v);
+  // the same index at both ends: varied together; else each end alone
+  assert.deepEqual(indexVariants('CLKV_E2BEG1', 'CLKT_SELDUB1', ok(new Set(['CLKV_E2BEG0', 'CLKV_E2BEG1'])), ok(new Set(['CLKT_SELDUB0', 'CLKT_SELDUB1']))), [['CLKV_E2BEG0', 'CLKT_SELDUB0'], ['CLKV_E2BEG1', 'CLKT_SELDUB1']]);
+  assert.deepEqual(indexVariants('CLKV_E2BEG5', 'CLKT_SELDUB2', ok(new Set(['CLKV_E2BEG4', 'CLKV_E2BEG5'])), ok(new Set(['CLKT_SELDUB2']))).map(j => j.join(' ')).sort(), ['CLKV_E2BEG4 CLKT_SELDUB2', 'CLKV_E2BEG5 CLKT_SELDUB2']);
+  assert.deepEqual(indexVariants('A', 'B', () => true, () => true), []);
+  const W = { CLKT_X13Y35: new Set(['CLKV_E2BEG4', 'CLKV_E2BEG5', 'CLKT_SELDUB2']), TIBUFS_X13Y35: new Set(['E2BEG4', 'E2BEG5']), CLB_X1Y1: new Set(['E2BEG0', 'E2BEG1']) };
+  const wiresOf = t => W[t] || null;
+  // PIPs: the clock column only, none asked already
+  const pips = pipVariants([{ tile: 'CLKT_X13Y35', from: 'CLKV_E2BEG5', to: 'CLKT_SELDUB2' }, { tile: 'CLB_X1Y1', from: 'E2BEG0', to: 'E2BEG1' }], wiresOf, new Set(['CLKT_X13Y35 CLKV_E2BEG5 CLKT_SELDUB2']));
+  assert.deepEqual(pips, [{ tile: 'CLKT_X13Y35', from: 'CLKV_E2BEG4', to: 'CLKT_SELDUB2' }]);
+  assert.deepEqual(joinVariants([['TIBUFS_X13Y35/E2BEG5', 'CLKT_X13Y35/CLKV_E2BEG5']], wiresOf, new Set()), [['TIBUFS_X13Y35/E2BEG4', 'CLKT_X13Y35/CLKV_E2BEG4'], ['TIBUFS_X13Y35/E2BEG5', 'CLKT_X13Y35/CLKV_E2BEG5']]);
+  // clock lines: the join at every index the two tiles have, and at the other tile of the prefix at the same offset; the
+  // known one left out
+  const tiles = ['LIOIS_X0Y2', 'LIOIS_X0Y3', 'LIOIS_X0Y7', 'LIOIS_X0Y8'];
+  const C = Object.fromEntries(tiles.map(t => [t, new Set(['GCLK0', 'GCLK1'])]));
+  const h = clockLineVariants([['LIOIS_X0Y3/GCLK0', 'LIOIS_X0Y2/GCLK0']], tiles, t => C[t] || null, new Set(['LIOIS_X0Y2/GCLK0|LIOIS_X0Y3/GCLK0']));
+  assert.deepEqual(h.map(j => j.join(' ')).sort(), ['LIOIS_X0Y3/GCLK1 LIOIS_X0Y2/GCLK1', 'LIOIS_X0Y8/GCLK0 LIOIS_X0Y7/GCLK0', 'LIOIS_X0Y8/GCLK1 LIOIS_X0Y7/GCLK1'].sort());
 });
