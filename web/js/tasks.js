@@ -226,7 +226,8 @@ function tagDocs() {
     // (Simulate with no test bench yet: one to create, or a module simulated with stimuli drawn in SSim: #917, #1291)
     const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
     empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
-    empty.querySelector('.task-empty-bench').hidden = !noBench;
+    // (the wizard's button whenever there is a design module to test, a bench or not: no entry in the choice, #1312)
+    empty.querySelector('.task-empty-bench').hidden = !(current() === 'sim' && app.S.project && simChoices(app.S.project, app.S.modules).design.length);
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];

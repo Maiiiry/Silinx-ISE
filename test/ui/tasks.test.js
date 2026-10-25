@@ -932,7 +932,8 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.waitFor(() => !document.querySelector('#task-empty .task-empty-bench').hidden, [], { what: 'the wizard offered' });
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
     'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
-  assert.deepEqual(await bench(), { value: 'and2', options: [['Design modules', 'Design modules', true], ['and2', 'and2', false], ['+new', 'New Test Bench (Wizard)…', false]] });
+  // (no New Test Bench in the choice: the page's button, #1312)
+  assert.deepEqual(await bench(), { value: 'and2', options: [['Design modules', 'Design modules', true], ['and2', 'and2', false]] });
   // the wizard: its test bench becomes the one Simulate runs
   await page.click('#task-empty .task-empty-bench');
   await page.waitDialog('Test Bench Wizard');
@@ -942,8 +943,9 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.waitFor(() => window.Silinx.project.simTop === 'tb_and2', [], { what: 'the new test bench chosen' });
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.waitFor(() => document.getElementById('task-bench').value === 'tb_and2', [], { what: 'the choice' });
-  assert.deepEqual((await bench()).options.map(([v]) => v), ['Test Benches', 'tb_and2', 'Design modules', 'and2', '+new']);
-  assert.ok(await shown(page, '#task-empty') && !(await shown(page, '#task-empty .task-empty-bench')), 'a test bench: no offer');
+  assert.deepEqual((await bench()).options.map(([v]) => v), ['Test Benches', 'tb_and2', 'Design modules', 'and2']);
+  assert.ok(await shown(page, '#task-empty') && await shown(page, '#task-empty .task-empty-bench'), 'a test bench: the wizard still offered (#1312)');
+  assert.notEqual(await page.eval(() => document.querySelector('#task-empty p').textContent), 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   // a design module chosen instead: the simulation top (as Set as Top Module in the Simulation view), simulated at once (#1018)
   await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
   await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
@@ -957,7 +959,7 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await page.click('#task-switch .task-btn[data-task="sim"]');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('#task-empty .task-bench-edit').textContent === 'Editar', [], { what: 'Portuguese' });
-  assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2', 'Nova Bancada de Teste (Assistente)…']);
+  assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2']);
   assert.equal(await page.eval(() => document.getElementById('task-bench').title), 'A bancada de teste a simular');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the toolbar fits: a laptop, a tablet in either orientation
