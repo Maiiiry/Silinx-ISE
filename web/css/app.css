@@ -177,14 +177,12 @@ table.grid tr.sel td { background: #dbe8fb; }
 .start-box .entry .disabled, .start-box .entry.hint { color: #888; cursor: default; }
 /* New Project and Open Project at the top of the Start page, half of it each (#1216); a line between the Silinx and
    the Xilinx commands */
-.start-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.start-btns .btn.start-close { flex: 1 1 100%; }   /* (a line of its own, under New and Open: #1300) */
+.start-btns { display: flex; gap: 6px; margin-bottom: 12px; }
 .start-btns .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .start-box .start-sep { border: none; border-top: 1px solid #c9d7ed; margin: 4px 0; }
 /* an export with no project open: disabled (#1222: by the page's host, the page itself the same either way) */
 #start-page:not([data-project]) .start-export { color: #888; }
 #start-page:not([data-project]) .start-export a { color: inherit; cursor: default; pointer-events: none; text-decoration: none; }
-#start-page:not([data-project]) .start-close { opacity: .45; cursor: default; pointer-events: none; }   /* (no project to close: #1300) */
 .summary-table { border-collapse: collapse; margin-bottom: 16px; min-width: 640px; }
 .summary-table caption { text-align: left; font-weight: bold; background: linear-gradient(#e9eff8, #c9d7ed); color: #15428b; padding: 3px 8px; border: 1px solid #99bbe8; border-bottom: none; }
 .summary-table th, .summary-table td { border: 1px solid #c5d3e8; padding: 3px 8px; text-align: left; }
