@@ -34,6 +34,9 @@ uiTest('#1224 Tasks ▸ Implement with no top module: said so, Set Top Module…
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => !!document.querySelector('#procs .task-no-top'), [], { what: 'the note' });
   assert.deepEqual(await rows(page), [], 'no processes, no Design Summary/Reports (#1287)');
+  // nor the Design Summary itself, opened behind with the project (#1295)
+  await page.waitFor(() => !window.SilinxApp.findDoc('summary'), [], { what: 'no Design Summary' });
+  assert.ok(!(await page.eval(() => [...document.querySelectorAll('#doc-tabs > .tab')].some((t) => t.getClientRects().length && /Design Summary/.test(t.textContent)))), 'no Design Summary tab');
   assert.deepEqual(await note(page), { text: 'No top module is set: the design is implemented from its top module, so set one to see its processes.', button: 'Set Top Module…' });
   // Set Top Module…: the roots first (top, other), then the others (inv)
   await page.click('#procs .task-no-top button');
