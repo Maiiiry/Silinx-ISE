@@ -591,6 +591,8 @@ test('intersectAmbiguous: a wire\'s driver in every net\'s candidates; the nets\
     { tile: 'GCLKVML_X6Y17', from: 'GCLKVML_GCLK1', dir: '->', to: 'GCLKVMLR_GCLK_DN1' },
   ] }, ins);
   assert.deepEqual(a.ambiguous.find(x => x.from === 'CLKL_X0Y17/CLKL_GCLK_PWO1')?.src, true);
+  // and, the one undriven wire of the source's tile, the source pin's (a side BUFGMUX's O on CLKL_GCLK_PWO1)
+  assert.deepEqual(a.pins.filter(p => p.dir === 'o'), [{ site: 'BUFGMUX_X0Y3', pin: 'O', dir: 'o', tile: 'CLKL_X0Y17', wire: 'CLKL_GCLK_PWO1' }]);
 });
 
 test('gen-obsclk: 8 global clocks, each on a random half of the clock cells, one slice a clock, at most 4 a tile, read by Silinx\'s front end (#3, the clock network)', () => {
@@ -752,6 +754,63 @@ test('chipMeasurements: an I/O tile\'s database names as the probe found them (I
   assert.deepEqual(pips(chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs, probe })), ['IOIS_X0->OMUX3', 'IOIS_XQ0->OMUX3']);
 });
 
+test('observeNet and chipMeasurements: an F8\'s FXINB from the CLB above (FX -> FX_Sk there, nothing in its own tile), on its FXINA\'s wire with A and B swapped; FX<k> of F5<k> (#3, the wide multiplexers)', () => {
+  const ins = new Map([['a', { name: 'a', tile: 'CLB_X1Y2', site: 'SLICE_X0Y3' }], ['b', { name: 'b', tile: 'CLB_X1Y1', site: 'SLICE_X1Y1' }]]);
+  const r = observeNet({ name: 'f7', outpins: [{ inst: 'a', pin: 'FX' }], inpins: [{ inst: 'b', pin: 'FXINB' }], pips: [{ tile: 'CLB_X1Y2', from: 'FX2', dir: '->', to: 'FX_S2' }] }, ins);
+  assert.deepEqual(r.pinJoins, [{ site: 'SLICE_X1Y1', pin: 'FXINB', tile: 'CLB_X1Y1', end: 'CLB_X1Y2/FX_S2' }]);
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { CENTER_SMALL: { features: { 'FX2->FX_S2': [] } } } };
+  const obs = {
+    pips: [{ tile: 'CLB_X1Y2', from: 'FX2', dir: '->', to: 'FX_S2' }], joins: [], pinJoins: r.pinJoins,
+    pins: [{ site: 'SLICE_X1Y3', pin: 'FXINA', dir: 'i', tile: 'CLB_X1Y2', wire: 'FXINB3' }, { site: 'SLICE_X1Y3', pin: 'F5', dir: 'o', tile: 'CLB_X1Y2', wire: 'F53' }],
+  };
+  const pin = (m, n, site, p) => { const t = m.tiles.find(x => x.name === n); const i = t.sites.findIndex(([s]) => s === site); return m.types[t.type].sites[i].pins.find(x => x[0] === p); };
+  // without the rules: no FXINB, no join
+  const m0 = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs });
+  assert.equal(pin(m0, 'CLB_X1Y1', 'SLICE_X1Y1', 'FXINB'), undefined);
+  const m = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs, rules: true });
+  assert.deepEqual(pin(m, 'CLB_X1Y1', 'SLICE_X1Y1', 'FXINB'), ['FXINB', 'i', 'FXINA3']);
+  assert.deepEqual(pin(m, 'CLB_X1Y1', 'SLICE_X1Y1', 'FX'), ['FX', 'o', 'FX3']);
+  assert.ok(m.joins.some(j => j.includes('CLB_X1Y2/FX_S2') && j.includes('CLB_X1Y1/FXINA3')));
+});
+
+test('observeNet: the last loose ends paired with the undriven wires the one way the net is a tree from its source (a DCM\'s CLK0 to a BUFGMUX through DCM_OMUX, CLKV, CLKT_DLL_OUT) (#3)', () => {
+  const ins = new Map([['d', { name: 'd', tile: 'DCM_TL_CENTER_X13Y34', site: 'DCM_X0Y1' }], ['b', { name: 'b', tile: 'CLKT_X13Y35', site: 'BUFGMUX_X2Y11' }]]);
+  const net = { name: 'clk0', outpins: [{ inst: 'd', pin: 'CLK0' }], inpins: [{ inst: 'b', pin: 'I0' }], pips: [
+    { tile: 'CLKT_X13Y35', from: 'CLKT_DLL_OUTL0', dir: '->', to: 'CLKT_GCLK0' }, { tile: 'CLKT_X13Y35', from: 'CLKT_GCLK0', dir: '->', to: 'CLKT_GCLKIN00' },
+    { tile: 'CLKV_X13Y34', from: 'CLKV_OMUX10_OUTL0', dir: '->', to: 'CLKV_OUTL0' },
+    { tile: 'DCM_TL_CENTER_X13Y34', from: 'DCM_CLK0', dir: '->', to: 'OMUX10' }, { tile: 'DCM_TL_CENTER_X13Y34', from: 'OMUX10', dir: '->', to: 'DCM_OMUX10_CLKOUTL0' },
+  ] };
+  const r = observeNet(net, ins);
+  assert.deepEqual(r.joins.slice().sort(), [['CLKV_X13Y34/CLKV_OUTL0', 'CLKT_X13Y35/CLKT_DLL_OUTL0'], ['DCM_TL_CENTER_X13Y34/DCM_OMUX10_CLKOUTL0', 'CLKV_X13Y34/CLKV_OMUX10_OUTL0']].sort());
+  assert.deepEqual(r.unexplained, []);
+  // a third undriven wire and no loose end for it: nothing joined, all left unexplained
+  const r2 = observeNet({ ...net, pips: [...net.pips, { tile: 'CLKV_X13Y33', from: 'CLKV_X', dir: '->', to: 'CLKV_Y' }] }, ins);
+  assert.ok(!r2.joins.some(j => j.some(w => /CLKV_OMUX10_OUTL0|CLKT_DLL_OUTL0/.test(w))));
+  assert.equal(r2.unexplained.length, 3);
+});
+
+test('chipMeasurements, PINRULES: a pin joined to the next tile\'s wire in one tile joined so in every tile of its type; ICLK1 of ICLK2\'s wire; a DCM\'s pin in the other DCM tiles (#3)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { CENTER_SMALL: { features: { 'COUT1->COUT_N1': [] } } } };
+  const obs = {
+    pips: [{ tile: 'CLB_X1Y3', from: 'COUT1', dir: '->', to: 'COUT_N1' }], joins: [],
+    pins: [{ site: 'SLICE_X0Y4', pin: 'COUT', dir: 'o', tile: 'CLB_X1Y3', wire: 'COUT0' }, { site: 'SLICE_X0Y5', pin: 'COUT', dir: 'o', tile: 'CLB_X1Y3', wire: 'COUT1' },
+      { site: 'M4', pin: 'ICLK2', dir: 'i', tile: 'BIOIS_X11Y0', wire: 'ICLK20' }, { site: 'DCM_X0Y1', pin: 'PSCLK', dir: 'i', tile: 'DCM_TL_CENTER_X13Y34', wire: 'DCM_PSCLK_PINWIRE' }],
+    pinJoins: [{ site: 'SLICE_X0Y6', pin: 'CIN', tile: 'CLB_X1Y4', end: 'CLB_X1Y3/COUT_N1' }],
+  };
+  const m0 = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs });
+  const m = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs, rules: true });
+  // the observed one either way; with the rules, the tile above too (CLB_X1Y5's lower SLICEM on CLB_X1Y4's COUT_N1)
+  for (const x of [m0, m]) assert.ok(x.joins.some(j => j.includes('CLB_X1Y3/COUT_N1') && j.includes('CLB_X1Y4/CIN0')));
+  assert.ok(!m0.joins.some(j => j.includes('CLB_X1Y5/CIN0')));
+  assert.ok(m.joins.some(j => j.includes('CLB_X1Y4/COUT_N1') && j.includes('CLB_X1Y5/CIN0')));
+  assert.ok(m.joinsByRule > 0);
+  const pin = (n, site, p) => { const t = m.tiles.find(x => x.name === n); const i = t.sites.findIndex(([q]) => q === site); return m.types[t.type].sites[i].pins.find(x => x[0] === p); };
+  assert.deepEqual(pin('BIOIS_X11Y0', 'M4', 'ICLK1'), ['ICLK1', 'i', 'ICLK10']);
+  assert.deepEqual(pin('DCM_BL_CENTER_X13Y1', 'DCM_X0Y0', 'PSCLK'), ['PSCLK', 'i', 'DCM_PSCLK_PINWIRE']);
+});
+
 test('gen-obscarry, gen-obsslice, gen-obsmux: the carry chains in every slice column, a flip-flop on every slice, wide multiplexers and comparators, read by Silinx\'s front end (#3, step 5)', () => {
   const dev = loadDeviceCache('xc3s250ecp132-4');
   const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
@@ -781,16 +840,20 @@ test('gen-obspins2: a shift register in every CLB, a 32:1 multiplexer in every p
   assert.ok(ranges(sr).every(([x0, y0, x1, y1]) => x0 % 2 === 0 && y0 % 2 === 0 && x1 === x0 + 1 && y1 === y0 + 1));
   assert.equal(new Set(ranges(sr).map(r => r.join(','))).size, 612);
   // the pairs of CLBs one above the other, from CLB row 0 or 1: together every CLB that has one above or below it
-  const a = f8Muxes(dev, 0), b = f8Muxes(dev, 1);
-  for (const [d, off] of [[a, 0], [b, 1]]) assert.ok(ranges(d).every(([x0, y0, x1, y1]) => x1 === x0 + 1 && y1 === y0 + 3 && (y0 / 2) % 2 === off));
-  assert.deepEqual([a.n, b.n], [306, 272]);
+  const f8 = [0, 1].flatMap(o => [0, 1].map(c => [f8Muxes(dev, o, c), o, c]));
+  for (const [d, off, col] of f8) assert.ok(ranges(d).every(([x0, y0, x1, y1]) => x1 === x0 + 1 && y1 === y0 + 3 && (y0 / 2) % 2 === off && (x0 / 2) % 2 === col));
+  assert.deepEqual([f8[0][0].n + f8[1][0].n, f8[2][0].n + f8[3][0].n], [306, 272]);
+  const [a, b] = [f8[0][0], f8[3][0]];
   const rb = ramClkB(dev);
   assert.equal(rb.n, 12);
   assert.match(rb.v, /RAMB16_S1_S1 u0 \(\.CLKA\(clk\)[^;]*\.CLKB\(ck2\)/);
   // the BUFGMUXes of each clock tile: 8 on each side, 4 at the top and the bottom
-  const bg = ['CLKL', 'CLKR', 'CLKT', 'CLKB'].map(p => bufgs(dev, p));
-  assert.deepEqual(bg.map(d => d.n), [8, 8, 4, 4]);
+  const bg = ['CLKL', 'CLKR', 'CLKT', 'CLKB'].flatMap(p => [0, 1].map(o => bufgs(dev, p, o)));
+  assert.deepEqual(bg.map(d => d.n), [4, 4, 4, 4, 2, 2, 2, 2]);
   assert.match(bg[0].ucf, /^INST "u0" LOC = "BUFGMUX_X0Y2" ;/);
+  assert.match(bg[1].ucf, /^INST "u0" LOC = "BUFGMUX_X0Y3" ;/);
+  // every multiplexer its own data and selects (XST merges equal instances)
+  for (const d of [a, b]) assert.equal(new Set([...d.v.matchAll(/mux32 u\d+ \(\.d\((\{[^}]*\})\), \.s\((\{[^}]*\})\)/g)].map(x => x[1] + x[2])).size, d.n);
   for (const d of [sr, a, rb, ...bg]) assert.deepEqual(read(d.v), [[], []]);
 });
 

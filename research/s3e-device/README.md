@@ -783,3 +783,64 @@ node edgejoins.mjs obs.json edge.json t1 … u6
 node probe-run.mjs candidates.json probe.json        (SILINX_ISE_HOST: the I/O names, the PIPs of each tile)
 PINRULES=1 node chip.mjs measured.json.gz obs.json --ft … --probe probe7.json,io9.json,type.json,rest.json --tests t1,…,u7
 ```
+
+## 11. The pins of the features no example uses, and the open flow's designs on the measured graph (2026-10-25)
+
+**The designs.** ISE implemented for the XC3S250E 61 designs: the `test/fixtures/open-flow` and `test/fixtures/designs`
+designs (their UCF kept to the nets they have; those of a bigger package without their LOCs), and `gen-obspins2.mjs`'s:
+
+- `srlcasc`: a 64-bit shift register in every CLB (AREA_GROUP);
+- `f8-RC`: a 32:1 multiplexer in every pair of CLBs one above the other (MUXF8), in four designs (the rows from 0 or 1,
+  the CLB columns of one parity: all of them overfill the SLICELs);
+- `ramclkb`: every block RAM with port B on a clock of its own;
+- `bufg-xN`: the BUFGMUXes of each clock tile, even and odd places apart (two neighbours share their inputs).
+
+XST merges equal instances (`mux32` with the same data and selects): every multiplexer has its own permutation. Observed
+with the 117 earlier designs (178), merged with the earlier observation (`decided` keeps the 9 lost designs' joins):
+**55 081 pin facts, every one right**; 4448 joins more, every one right.
+
+**What the observer reads now** (`observe.mjs`):
+
+- **An F8's FXINB and a multiplier's BCIN** are on another tile's wire, as a carry chain's lower CIN (`pinJoins`): the F8
+  takes FXINB from the F7 of the CLB above (`FX2 -> FX_S2` there, nothing in the pin's tile), the cascade ends on
+  `MULT_CARRYB_BCOUTk` in the tile below.
+- **A side BUFGMUX's O.** `CLKL_GCLK_PWOk` is a clock line (in other nets a join reaches it), ambiguous in the source's
+  tile. When it is the one undriven wire there, the source pin is on its node: ISE's route is a tree from that pin.
+- **The last loose ends, several of them.** A DCM's output reaches its BUFGMUX through `DCM_OMUXm_CLKOUTLk` ->
+  `CLKV_OMUXm_OUTLk` -> `CLKV_OUTLk` -> `CLKT_DLL_OUTLk`, wires of no family: two undriven wires and two loose ends in
+  three tiles. The rule of one of each now takes up to five: the joins are the one pairing under which the net is a tree
+  from its source that reaches every PIP (the other pairing leaves `CLKV_OMUX10_OUTL0` fed by its own PIP's output).
+
+**Rules** (`PINRULES=1`; what a route uses of them ISE checks):
+
+- a slice's FXINB on its FXINA's wire with A and B swapped, FX<k> of its F5<k> (the three positions ISE showed);
+- a pin joined to another tile's wire in some tiles (the lower CIN, FXINB, BCIN) joined the same way in every tile of its
+  type: the chains ISE placed do not cross every boundary (125 joins);
+- an I/O block's ICLK1 / OTCLK1 on its ICLK2 / OTCLK2's wire with the 1 for the 2; a DCM's pin seen in one of the four
+  DCM tiles on the same wire in the others;
+- a multiplier's BCINk, which no route names, on a wire named as the pin: **216 pin wires differ from the shipped graph
+  by name** (`compare`'s pinsDiff). Their nodes are the shipped graph's: the name is never written (no PIP in that tile).
+
+The pins still missing are none the open flow uses: the SLICEM's ALTDIG / DIG / SLICEWE1 / BYOUT / BYINVOUT (inside the
+CLB), the shift-register cascade between two CLBs, the I/O sites no package bonds, the DCM's and the I/O blocks' test and
+differential pins, ICAP, BSCAN, PMV, PCILOGICSE, STARTUP, CAPTURE.
+
+**The open flow on the measured graph** (`open-flow.mjs`, `SILINX_CONFIG_DIR`), the 7 examples and the 36
+`test/fixtures/open-flow` designs of the XC3S250E CP132: **37 of 43 route.** Still failing:
+
+- `feat_iob_lines`, `feat_iob_pair`: the I/O registers' clocks (the I/O tiles' `GCLKk`, 581 clock-line nodes still split);
+- `feat_bufgmux`, `feat_bufgmux_1`: a BUFGMUX's S (`CLKT_SELDUBk`) from general routing, the PIPs and joins of the
+  doubles across the clock column at some indexes only;
+- `feat_manual_clock`: a clock pad into a BUFGMUX's I0;
+- `feat_clocks12`: the routing does not converge (5 nodes shared after 50 passes): the 13 691 nodes still split leave the
+  router fewer ways.
+
+Next: the clock column's PIPs and joins by index (an arc probe and join tests), the I/O tiles' clock lines (clock tests on
+the new designs' clock nets), then ISE's verdict on the 43 (`check-open-flow`).
+
+```
+node gen-obspins2.mjs feat && impl-remote.sh …         (and the fixtures, their UCF kept to their nets)
+INTERSECT=1 node prototype.mjs observe obsN.json …117 designs… feat*/*/top.xdl ; obsmerge (scratch) obs.json obsN.json
+PINRULES=1 node chip.mjs measured.json.gz obs.json --ft … --probe … --tests …
+SILINX_CONFIG_DIR=cfg node research/s3e-route/open-flow.mjs examples/gates out/gates      (the 43, one at a time)
+```
