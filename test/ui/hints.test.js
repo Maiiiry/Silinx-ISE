@@ -28,6 +28,7 @@ begin
 end rtl;
 `;
 
+// (the File and Edit menus: the classic interface's, the modern one has none, #1307)
 uiTest('latch warning with its explanation in the Warnings tab and the editor tooltip (English, Portuguese); suppression; Edit ▸ Design Checks; output read', E, async (page) => {
   await makeProject(env, { name: 'HintPj', files: { 'src/top.vhd': TOP }, top: 'top' });
   await page.openProject('HintPj');
@@ -121,7 +122,7 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   assert.match(await page.eval(() => document.querySelector('#console-errors .diag').textContent), /^ERROR:HDLCompiler - "src\/top\.vhd" Line 13: Object <q> of mode OUT can not be read\./);
   await page.click('#console-errors .diag .diag-more');
   assert.match(await page.eval(() => document.querySelector('#console-errors .diag-hint').textContent), /Explanation: 'q' is an output port \(mode out\)\. In VHDL-93[\s\S]*How to fix: Use an internal signal: declare 'signal q_reg/);
-});
+}, { ui: 'classic' });
 
 // #16, #38: a Verilog design with the unused bits of an input bus, two names that differ only in
 // case, a case without default (a check without an XST number) and $clog2 in a register's range:

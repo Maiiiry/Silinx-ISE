@@ -120,15 +120,16 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   // Unset as Top Module (#1220): tested by itself; here it would leave the processes below with no top
   const SKIP = new Set(['Close Project', 'Unset as Top Module']);
   const modern = await page.eval(() => document.documentElement.dataset.layout === 'tasks');
-  const GONE = ['Project', 'Process', 'Tools', 'Window'];   // (Window: #1253)
+  const GONE = ['File', 'Edit', 'Project', 'Process', 'Tools', 'Window'];   // (Window: #1253; File, Edit: #1307)
   const shownMenus = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
   assert.deepEqual(GONE.filter((m) => shownMenus.includes(m)), modern ? [] : GONE, `the menu bar: ${shownMenus}`);
   // (in Portuguese too: the menus hidden by their name, not their label)
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   const pt = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
-  assert.deepEqual(['Projeto', 'Processo', 'Ferramentas', 'Janela'].filter((m) => pt.includes(m)), modern ? [] : ['Projeto', 'Processo', 'Ferramentas', 'Janela'], `in Portuguese: ${pt}`);
+  const PT = ['Ficheiro', 'Editar', 'Projeto', 'Processo', 'Ferramentas', 'Janela'];
+  assert.deepEqual(PT.filter((m) => pt.includes(m)), modern ? [] : PT, `in Portuguese: ${pt}`);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  const MENUS = ['Edit', 'File', 'View', ...(modern ? [] : ['Project', 'Process', 'Tools']), 'Help', ...(modern ? [] : ['Window'])];
+  const MENUS = [...(modern ? [] : ['Edit', 'File']), 'View', ...(modern ? [] : ['Project', 'Process', 'Tools']), 'Help', ...(modern ? [] : ['Window'])];
   const acted = [], idle = [], disabled = [], log = [];
   for (const m of MENUS) {
     const items = await page.openMenu(m);
@@ -201,10 +202,10 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   }
   // no Project ▸ Sync with .xise (#1248): it only wrote the .xise, File ▸ Export Xilinx ISE Project gives ISE the project
   assert.ok(![...acted, ...disabled, ...idle].some((a) => a.includes('.xise')), `a .xise entry: ${[...acted, ...disabled].join(', ')}`);
-  // both exports were downloaded
+  // both exports were downloaded (the classic interface's File menu; the modern one's are the Start page's, #1307)
   const fs = await import('node:fs/promises');
   const files = await fs.readdir(page.downloadDir);
-  assert.ok(files.includes('MenuPj-silinx.zip') && files.includes('MenuPj.zip'), `downloads: ${files.join(', ')}`);
+  if (!modern) assert.ok(files.includes('MenuPj-silinx.zip') && files.includes('MenuPj.zip'), `downloads: ${files.join(', ')}`);
 });
 
 uiTest('dialogs close with Escape and only the topmost dialog handles Enter / Escape', E, async (page) => {
