@@ -44,7 +44,7 @@ export const TASKS_KEY = prefKey('silinx.tasks');
 // the design-flow button of the modern toolbar (web/js/menus.js, data-step) each task runs
 const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement' };
 const ACTION = { edit: 'Check', sim: 'Simulate', emu: 'Emulate', impl: 'Implement' };
-const NO_BENCH = 'The project has no test bench yet: create one with the wizard, or simulate the top with stimuli drawn in ISim.';
+const NO_BENCH = 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.';
 const HINT = {
   edit: 'Open a source from the Design panel, or check the design.',
   sim: 'Simulate the design: its waves open here.',
@@ -181,10 +181,6 @@ function apply() {
     view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && !OWN_SIDE.includes(t) ? drawerOpen() : a.side));
     view.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
     view.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
-    const main = bar.querySelector('[data-act=main]');
-    main.querySelector('.lbl').textContent = ACTION[t];
-    main.title = ACTION[t];
-    main.querySelector('.ico-inline').innerHTML = ICON[t];
   }
   tagDocs();
   // (the editors, the waves and the board measure their space again)
@@ -227,7 +223,7 @@ function tagDocs() {
     empty.hidden = !on() || mine > 0;
     empty.querySelector('h2').textContent = TASK_LABEL[current()];
     empty.querySelector('h2').dataset.i18nKeep = 'Design';   // (not "Projeto": the Project menu's, #1046)
-    // (Simulate with no test bench yet: one to create, or the top simulated with stimuli drawn in ISim: #917)
+    // (Simulate with no test bench yet: one to create, or a module simulated with stimuli drawn in SSim: #917, #1291)
     const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
     empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
     empty.querySelector('.task-empty-bench').hidden = !noBench;
@@ -322,12 +318,8 @@ function build() {
   $('toolbar').append(h('div', { id: 'task-bar', role: 'group', 'aria-label': 'Task' },
     h('span', { id: 'task-doc', hidden: true },
       h('span', { class: 'task-doc-mod', 'data-no-i18n': true }), h('span', { class: 'task-doc-model' }),
-      h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close })),
-    benchSelect(app),
-    h('button', { class: 'btn task-bench-edit', type: 'button', title: 'Open the test bench\'s source', onclick: () => editBench(app) }, 'Edit'),
-    modelSelect(app),
-    Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
-      { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
+      h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close }))));
+  // (no action button in it: each task's page has it, #1292)
   const onAct = e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else toggle({ side: !arr().side }); }
@@ -337,9 +329,14 @@ function build() {
   };
   $('task-bar').addEventListener('click', onAct);
   $('task-view').addEventListener('click', onAct);
+  // (Simulate's page: what to simulate, any module, its source and the model, shown above its Simulate button, the
+  // page's first button: web/css/tasks.css, #1291)
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
-    h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
+    h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…'),
+    h('div', { class: 'task-empty-sim' }, benchSelect(app),
+      h('button', { class: 'btn task-bench-edit', type: 'button', title: 'Open the test bench\'s source', onclick: () => editBench(app) }, 'Edit'),
+      modelSelect(app))));
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)

@@ -32,7 +32,10 @@ async function tapTask(page, task) {
   await page.waitFor((t) => document.documentElement.dataset.task === t, [task], { what: `task ${task}` });
 }
 async function tapAction(page) {
-  await page.tap(await page.eval(() => (document.getElementById('task-empty')?.getClientRects().length ? '#task-empty .m-step' : '#task-bar .task-main')));
+  // (the task's page; its document open (Implement's Design Summary): its design-flow button, no action button in the
+  // task's bar since #1292)
+  if (await page.eval(() => !!document.getElementById('task-empty')?.getClientRects().length)) await page.tap('#task-empty .m-step');
+  else await page.eval(() => document.querySelector(`#toolbar .m-step[data-step="${{ sim: 'simulate', emu: 'emulate', impl: 'implement' }[document.documentElement.dataset.task]}"]`).click());
 }
 // a box on the screen, wholly (a button a finger reaches)
 const onScreen = (page, sel) => page.eval((s) => {

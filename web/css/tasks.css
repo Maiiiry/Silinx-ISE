@@ -60,7 +60,6 @@ html[data-layout="tasks"] #task-bar { display: flex; align-items: center; gap: 2
 html[data-layout="tasks"] #task-view { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
 html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
 html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn svg { width: 18px; height: 18px; }
-html[data-layout="tasks"] #task-bar .task-main { margin-left: 8px; }
 /* a task with a single document (#854): no tab bar; its module and model in the task's bar */
 html[data-layout="tasks"]:is([data-single="on"], [data-nodocs="on"]) #doc-tabs { display: none; }   /* (no document: #1289) */
 html[data-layout="tasks"] #task-doc:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding-left: 10px;
@@ -107,7 +106,6 @@ html[data-layout="tasks"][data-max="on"] :is(#left, #v-split, #h-split, #console
 @media (pointer: coarse) {
   html[data-layout="tasks"] #task-switch .task-btn { height: 40px; }
   html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn { width: 40px; height: 40px; }
-  html[data-layout="tasks"] #task-bar .task-main { height: 40px; }
 }
 
 /* ------------------------------------------------------------------ the message centre in the Tasks interface (#798) */
@@ -146,19 +144,22 @@ html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-l
 html[data-layout="tasks"][data-task="sim"] #center { position: relative; }
 html[data-layout="tasks"][data-task="sim"] #doc-tabs { position: absolute; z-index: 2; top: 0; left: var(--sim-side, 0px); right: 0; }
 html[data-layout="tasks"][data-task="sim"] #workspace > .doc .isim-wavewin { margin-top: var(--sim-tabs, 0px); }
-/* the model to simulate; no Simulate button beside it: choosing the model or the test bench simulates (#1018) */
-html[data-layout="tasks"][data-task="sim"] #task-bar .task-main { display: none; }
-#task-model, #task-bench, .task-bench-edit { display: none; }
-html[data-layout="tasks"][data-task="sim"] #task-bench { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
+/* Simulate's page: what to simulate, its source and the model above its Simulate button (#1291; choosing the module or
+   the model simulates, #1018) */
+#task-model, #task-bench, .task-bench-edit, .task-empty-sim { display: none; }
+html[data-layout="tasks"][data-task="sim"] #task-empty .task-empty-sim { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-bottom: 4px; }
+html[data-layout="tasks"] #task-empty > .m-step { order: 2; }   /* (after the choices, the page's first button though) */
+html[data-layout="tasks"] #task-empty > .task-empty-bench { order: 3; }
+html[data-layout="tasks"][data-task="sim"] #task-bench { display: inline-block; height: 32px; max-width: 200px;
   border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
-html[data-layout="tasks"][data-task="sim"] .task-bench-edit { display: inline-flex; align-items: center; justify-content: center; margin-left: 4px; }   /* (its label centred, #1102) */
+html[data-layout="tasks"][data-task="sim"] .task-bench-edit { display: inline-flex; align-items: center; justify-content: center; }   /* (its label centred, #1102) */
 #task-empty .task-empty-bench[hidden] { display: none; }
 /* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
 @media (max-width: 1024px) {
   html[data-layout="tasks"] #toolbar { flex-wrap: wrap; height: auto; min-height: 44px; row-gap: 4px; padding-block: 4px; }
   html[data-layout="tasks"] #task-bar { flex-wrap: wrap; row-gap: 4px; }
 }
-html[data-layout="tasks"][data-task="sim"] #task-model { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
+html[data-layout="tasks"][data-task="sim"] #task-model { display: inline-block; height: 32px; max-width: 200px;
   border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
 @media (pointer: coarse) { html[data-layout="tasks"][data-task="sim"] #task-model { height: 40px; } }
 

@@ -334,7 +334,7 @@ const PT = {
   'The test bench to simulate': 'A bancada de teste a simular', 'Open the test bench\'s source': 'Abrir a fonte da bancada de teste',
   'Design modules': 'Módulos do projeto',
   'Create a test bench (Wizard)…': 'Criar uma bancada de teste (Assistente)…',
-  'The project has no test bench yet: create one with the wizard, or simulate the top with stimuli drawn in ISim.': 'O projeto ainda não tem bancada de teste: crie uma com o assistente, ou simule o topo com estímulos desenhados no ISim.',
+  'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.': 'O projeto ainda não tem bancada de teste: crie uma com o assistente, ou escolha um módulo para o simular com estímulos desenhados no SSim.',
   'The model to simulate': 'O modelo a simular',
   // the Edit task's one tree: its groups (#799)
   'Test Benches': 'Bancadas de Teste', 'Constraints': 'Restrições',
