@@ -278,7 +278,8 @@ function moduleContextMenu(e, mod, file) {
     { label: 'Rename…', action: () => renameDialog(file, mod) },
     { label: 'Check Syntax', action: () => checkSyntax(mod, isSimView) },
     { label: 'View RTL Schematic', action: () => openSchematic(mod) },
-    { label: 'Create Test Bench (Wizard)…', action: () => testBench(mod) },
+    // (the Tasks interface: its test benches on the Test page, New; not here)
+    document.documentElement.dataset.layout === 'tasks' ? null : { label: 'Create Test Bench (Wizard)…', action: () => testBench(mod) },
     // a plain HDL module can be drawn (the drawing then its base); a drawing's module, or a block of a
     // drawing's HDL (#175: its file is the drawing's), has the drawing's commands on the drawing's badge
     ...(S.hdlToSch?.[file] ? [] : [

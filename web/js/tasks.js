@@ -69,6 +69,10 @@ const DEFAULTS = {
   impl: { side: true, console: true },
 };
 
+/** The task of a document: the one it was opened in (doc.task: an HDL file from the Simulation tree, #1332), else its
+ *  id's. */
+const taskOf = d => d.task || taskOfDoc(d.id);
+
 /** The task a document belongs to, by its id (web/js/app.js openDoc and its callers). */
 export function taskOfDoc(id) {
   const s = String(id || '');
@@ -150,7 +154,7 @@ export function setTask(t, { fromDoc = false } = {}) {
   keep();
   if (!fromDoc && isNarrow() && drawerOpen()) setDrawer(false, { remember: false });   // (a task chosen: its document first)
   if (!fromDoc && app) {
-    const S = app.S, docs = S.docs.filter(d => taskOfDoc(d.id) === t);
+    const S = app.S, docs = S.docs.filter(d => taskOf(d) === t);
     const want = docs.find(d => d.id === state.tasks[t].doc) || docs.at(-1);
     if (want && want !== S.active) app.openDoc({ id: want.id });
     // the task's own page, cheap to open: the Design Summary, iMPACT
@@ -197,7 +201,7 @@ function tagDocs() {
   placeSimToolbar(on());   // (SSim's toolbar in its wave window's line: #1026)
   let mine = 0, only = null;
   for (const d of S.docs) {
-    const t = taskOfDoc(d.id);
+    const t = taskOf(d);
     if (d.el.dataset.task !== t) d.el.dataset.task = t;
     if (d.tab.dataset.task !== t) d.tab.dataset.task = t;
     if (t === current()) { mine++; only = d; }
@@ -261,11 +265,11 @@ function followActive() {
   // (the document in front was closed and another came forward in its place: the task stays, its page shown, #854)
   const closed = lastActive && !app.S.docs.includes(lastActive);
   lastActive = d;
-  if (closed && taskOfDoc(d.id) !== current()) { tagDocs(); return; }
+  if (closed && taskOf(d) !== current()) { tagDocs(); return; }
   // (a document opened behind, with the project (its Design Summary): the task stays the viewer's, until it is brought to the front)
   if (d.background && !d._taskSeen) { d._taskSeen = true; tagDocs(); return; }
   d._taskSeen = true;
-  const t = taskOfDoc(d.id);
+  const t = taskOf(d);
   state.tasks[t].doc = d.id;
   keep();
   if (t !== current()) setTask(t, { fromDoc: true }); else tagDocs();
@@ -351,8 +355,10 @@ function build() {
   $('hier').before(h('div', { id: 'task-src-bar' },
     h('button', { class: 'btn', type: 'button', onclick: wizard('newSourceWizard') }, 'New Source…'),
     h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Add Copy of Source…')));
-  // and Close Project at its end, under the tree (#1309)
+  // and Check Design and Close Project at its end, under the tree (#1309; Check Design: the top module's Check Syntax,
+  // its whole hierarchy, whatever the tree selects)
   $('hier').after(h('div', { id: 'task-close-bar' },
+    h('button', { class: 'btn', type: 'button', 'data-act': 'check-design', onclick: () => app.S.project?.top && import('./processes.js').then(p => p.checkSyntax(app.S.project.top)) }, 'Check Design'),
     h('button', { class: 'btn', type: 'button', onclick: () => app.S.project && app.closeProject() }, 'Close Project')));
   // the Files page: Add to Project (the folder's files not in the project) and Add Copy to Project (#1214)
   $('files-page').before(h('div', { id: 'task-files-bar' },
@@ -414,10 +420,10 @@ export function initTasks(a) {
   // its task forward (the tabs' observer sees no change then, #1191)
   addEventListener('silinx:doc-activated', e => {
     const { doc, background } = e.detail;
-    if (!on() || background || doc !== lastActive || taskOfDoc(doc.id) === current()) return;
-    state.tasks[taskOfDoc(doc.id)].doc = doc.id;
+    if (!on() || background || doc !== lastActive || taskOf(doc) === current()) return;
+    state.tasks[taskOf(doc)].doc = doc.id;
     keep();
-    setTask(taskOfDoc(doc.id), { fromDoc: true });
+    setTask(taskOf(doc), { fromDoc: true });
   });
   // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171)
   // (a narrow screen's drawer as it was: the Design pane in it, #266)
@@ -439,6 +445,6 @@ export function initTasks(a) {
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
   setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
-    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button')) b.disabled = !app.S.project; } }, 1000);
+    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button')) b.disabled = !app.S.project || (b.dataset.act === 'check-design' && !app.S.project.top); } }, 1000);
   apply();
 }

@@ -485,7 +485,9 @@ export async function restoreViewState(name) {
 export function closeDocByPath(path) { for (const d of [...S.docs]) if (d.path === path) { d.dirty = false; closeDoc(d); } }
 
 // ---- HDL / text editor
-export async function openFile(path, line, col) {
+// (task: the Tasks interface's task the document is shown in, `sim` from the Simulation tree's HDL badge, #1332; else
+// its id's, web/js/tasks.js taskOfDoc)
+export async function openFile(path, line, col, { task } = {}) {
   if (!S.project) return;
   if (path.endsWith('.asm.json')) return openAsm(path);
   if (path.endsWith('.sch.json')) return openSch(path);
@@ -501,7 +503,7 @@ export async function openFile(path, line, col) {
     catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
     const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : 'text';
     doc = openDoc({
-      id, path, title: path.split('/').pop(), tooltip: path, icon: lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'file',
+      id, path, task, title: path.split('/').pop(), tooltip: path, icon: lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'file',
       create(el, d) {
         // the HDL generated from a drawing is read-only: the drawing is the base, edited instead (#1176)
         const generated = () => !!S.hdlToSch?.[path];
@@ -619,7 +621,7 @@ export async function openFile(path, line, col) {
         };
       },
     });
-  } else activateDoc(doc);
+  } else { doc.task = task; activateDoc(doc); }   // (the task it is opened from now: Simulation's or Design's)
   // (opened again, no line asked for: where its cursor was, #1299)
   const kept = fresh && !line && doc?.editor && keptCursor(S.project.name, path);
   if (kept) setTimeout(() => { try { doc.editor?.setCursor(kept); } catch { /* the file is shorter now */ } }, 30);

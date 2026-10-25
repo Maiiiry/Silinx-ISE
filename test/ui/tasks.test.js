@@ -1278,17 +1278,56 @@ uiTest('#1309 Tasks ▸ Design: Close Project under the Design tree, off with no
   await tasksInterface(page);
   await page.openProject('TasksClose');
   await page.click('#left-tabs .tab[data-page="design"]');
-  const btn = () => page.eval(() => { const b = document.querySelector('#task-close-bar button'), t = document.getElementById('hier').getBoundingClientRect(); return b && b.getClientRects().length ? { text: b.textContent, off: b.disabled, under: b.getBoundingClientRect().top >= t.bottom - 1 } : null; });
+  const btn = () => page.eval(() => { const b = document.querySelector('#task-close-bar button:not([data-act])'), t = document.getElementById('hier').getBoundingClientRect(); return b && b.getClientRects().length ? { text: b.textContent, off: b.disabled, under: b.getBoundingClientRect().top >= t.bottom - 1 } : null; });
   assert.deepEqual(await btn(), { text: 'Close Project', off: false, under: true });
-  await page.click('#task-close-bar button');
+  await page.click('#task-close-bar button:not([data-act])');
   await page.waitFor(() => !window.Silinx.project, [], { what: 'closed' });
-  await page.waitFor(() => document.querySelector('#task-close-bar button').disabled, [], { what: 'off with no project' });
+  await page.waitFor(() => document.querySelector('#task-close-bar button:not([data-act])').disabled, [], { what: 'off with no project' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('#task-close-bar button').textContent === 'Fechar Projeto', [], { what: 'Portuguese' });
+  await page.waitFor(() => document.querySelector('#task-close-bar button:not([data-act])').textContent === 'Fechar Projeto', [], { what: 'Portuguese' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.equal(await page.eval(() => document.getElementById('task-close-bar')), null);
+  await noWarnings(page);
+}, { build: DEV });
+
+// #1329, #1330: Design's Check Design beside Close Project (the top's Check Syntax, whatever the tree selects; off with no
+// top); no Create Test Bench (Wizard) in a module's right-click menu (the classic interface keeps it); Portuguese
+uiTest('#1329 #1330 Tasks ▸ Design: Check Design beside Close Project, the top\'s Check Syntax; no Create Test Bench in a module\'s menu; Portuguese; classic keeps it', E, async (page) => {
+  await makeProject(env, { name: 'TasksCheckDesign', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksCheckDesign');
+  await page.click('#left-tabs .tab[data-page="design"]');
+  const bar = () => page.eval(() => [...document.querySelectorAll('#task-close-bar button')].map(b => [b.textContent, b.disabled]));
+  await page.waitFor(() => !document.querySelector('#task-close-bar [data-act="check-design"]').disabled, [], { what: 'Check Design on' });
+  assert.deepEqual(await bar(), [['Check Design', false], ['Close Project', false]]);
+  // the top's Check Syntax, with no module selected in the tree
+  await page.eval(() => document.querySelectorAll('#hier .row.sel').forEach(r => r.classList.remove('sel')));
+  await page.click('#task-close-bar [data-act="check-design"]');
+  await page.waitConsole(/Process "Check Syntax" completed successfully/);
+  // a module's right-click menu: Check Syntax and the others, no Create Test Bench (Wizard)
+  const top = await page.eval(() => window.Silinx.project.top);
+  await page.treeRow('#hier', top, { right: true });
+  const menu = await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map(i => i.textContent.trim()); return m.length ? m : null; }, [], { what: 'the menu' });
+  await page.closeMenus();
+  assert.ok(menu.includes('Check Syntax') && menu.includes('View RTL Schematic'), menu.join(' | '));
+  assert.ok(!menu.includes('Create Test Bench (Wizard)…'), menu.join(' | '));
+  // off with no top module
+  await page.eval(async () => (await import('/js/design.js')).unsetTop());
+  await page.waitFor(() => document.querySelector('#task-close-bar [data-act="check-design"]').disabled, [], { what: 'Check Design off with no top' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-close-bar [data-act="check-design"]').textContent === 'Verificar Projeto', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the classic interface: no bar, the wizard in the module's menu
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.getElementById('task-close-bar')), null);
+  await page.treeRow('#hier', top, { right: true });
+  const classic = await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map(i => i.textContent.trim()); return m.length ? m : null; }, [], { what: 'the classic menu' });
+  await page.closeMenus();
+  assert.ok(classic.includes('Create Test Bench (Wizard)…'), classic.join(' | '));
   await noWarnings(page);
 }, { build: DEV });
 
