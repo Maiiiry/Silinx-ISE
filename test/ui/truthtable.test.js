@@ -14,6 +14,9 @@ import { TEXTS, untranslated } from './i18n-check.js';
 import { truthTableFromModule, schematicFromTable } from '../../core/logic.js';
 import { netlist, generateHdl } from '../../core/schdoc.js';
 
+// a module's Create Test Bench (Wizard): the classic interface's only (the Tasks interface's test benches on its Test page, #1330)
+const TB = process.env.SILINX_UI_INTERFACE === 'classic' ? ['Create Test Bench (Wizard)…'] : [];
+
 let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
@@ -288,7 +291,7 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   // a module is made from a truth table, not a truth table from a module: the module's menu has none (#220)
   await page.treeRow('#hier', 'add1', { right: true });
   assert.deepEqual(await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }), [
-    'Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…',
+    'Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', ...TB,
     'Convert to Schematic (editable)…', 'Convert to State Machine (ASM)…', 'Convert to State Diagram (FSM)…',
     'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…',
   ]);

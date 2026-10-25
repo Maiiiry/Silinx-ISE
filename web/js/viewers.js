@@ -279,8 +279,11 @@ async function runSimulationInner(mod, model, stale) {
       const benches = () => S.modules.filter(m => m.role === 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b));
       const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, wcfg: wcfgFiles(mod), onOpenSource: ref => ref?.file && openFile(ref.file, ref.line),
         benches, onBench: name => { const d = findDoc(`isim:${name}`); if (d) openDoc({ id: d.id }); else runSimulation(name); },
-        // (each row's types, as Design's badges; a module simulated with stimuli drawn in SSim: [Waveform] first, #1316)
-        badges: name => [...(S.project.stimuli?.[name] ? [{ text: 'Waveform', base: true }] : []), ...moduleBadges(name).map(b => (S.project.stimuli?.[name] ? { ...b, base: false } : b))] });
+        // (each row's types: [Waveform], the simulation's own view, marked, its waveform brought to the front; then the
+        // module's HDL, opened here in Simulation; a drawing's badge Design's, not here: #1316, #1332)
+        badges: name => [{ text: 'Waveform', base: true, title: 'Show the waveform', open: () => openDoc({ id }) },
+          ...moduleBadges(name).filter(b => /^(VHDL|Verilog)$/.test(b.text)).map(b => ({ ...b, base: false, title: 'Open the HDL here, in Simulation',
+            open: () => { const i = moduleInfo(name); if (i) openFile(i.file, i.line, undefined, { task: 'sim' }); } }))] });
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0) };
     },

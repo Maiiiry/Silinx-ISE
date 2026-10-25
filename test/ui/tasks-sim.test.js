@@ -208,8 +208,9 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the tes
   assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
 });
 
-// #1316: the Simulation tree's rows show their sources' types, as Design's badges (the base marked)
-uiTest('#1316 Tasks ▸ Simulate: the Simulation tree\'s rows with their types as Design\'s badges ([ASM*] [VHDL], [VHDL*]); Portuguese', E, async (page) => {
+// #1316, #1332: the Simulation tree's rows show their types: [Waveform] marked, the simulation's view, then their HDL's
+// (no drawing's: Design's); [Waveform] brings the waveform to the front, the HDL's opens the file here, in Simulation
+uiTest('#1316 #1332 Tasks ▸ Simulate: the Simulation tree\'s rows [Waveform*] and their HDL; the HDL badge opens the file in Simulation, [Waveform] the waveform; Portuguese', E, async (page) => {
   await makeProject(env, { name: 'TasksSimBadges', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -221,9 +222,21 @@ uiTest('#1316 Tasks ▸ Simulate: the Simulation tree\'s rows with their types a
   const rows = () => page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .row')].filter((r) => r.querySelector('.lbl') && r.getClientRects().length)
     .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`)].join(' ')));
   const r = await rows();
-  for (const want of ['tb_top VHDL*', 'uut VHDL*', 'u_speed ASM* VHDL', 'u_pre Verilog*']) assert.ok(r.includes(want), `${want}: ${r.join(' | ')}`);
+  for (const want of ['tb_top Waveform* VHDL', 'uut Waveform* VHDL', 'u_speed Waveform* VHDL', 'u_pre Waveform* Verilog']) assert.ok(r.includes(want), `${want}: ${r.join(' | ')}`);
+  assert.ok(!r.some((x) => /ASM/.test(x)), r.join(' | '));
+  // u_pre's [Verilog]: its file opened here, the task still Simulation, the document Simulation's
+  const sim = await page.eval(() => window.Silinx.active.id);
+  const badgeOf = (name, text) => page.eval((n, t) => { const row = [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .row')].find((x) => x.querySelector('.lbl')?.textContent === n);
+    const b = [...row.querySelectorAll('.badge')].find((x) => x.textContent === t); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); }, name, text);
+  await badgeOf('u_pre', 'Verilog');
+  await page.waitFor(() => /^file:.*\.v$/.test(window.Silinx.active?.id || ''), [], { what: 'the Verilog file open' });
+  assert.deepEqual(await page.eval(() => [document.querySelector('#task-switch .task-btn[aria-current="true"]')?.dataset.task, window.Silinx.active.el.dataset.task, window.Silinx.active.task]), ['sim', 'sim', 'sim']);
+  // [Waveform] (the simulation in front again): its instance selected, the waveform in front
+  await page.eval(async (id) => (await import('/js/app.js')).openDoc({ id }), sim);
+  await badgeOf('u_speed', 'Waveform');
+  await page.waitFor((id) => window.Silinx.active?.id === id && document.querySelector('.doc:not([hidden]) .isim-tree .row.sel .lbl')?.textContent === 'u_speed', [sim], { what: 'u_speed selected, the waveform in front' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .badge')].some((b) => b.textContent === 'ASM'), [], { what: 'Portuguese' });
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .isim-tree .badge')].some((b) => b.textContent === 'Forma de Onda'), [], { what: 'Portuguese' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
 }, { build: DEV });

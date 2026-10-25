@@ -11,10 +11,19 @@ import { ICON, pathOf } from './isim.js';
 export function mountTree(ctx) {
   const { st, design, treeEl, benches, onBench, badges, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
 
-  // a module's types after its name, as Design's badges (#1316)
+  // a module's types after its name, as Design's badges (#1316); a badge's click its `open` (the instance), not the row's
   const badgesHtml = mod => {
     const b = badges?.(mod) || [];
-    return b.length ? `<span class="badges">${b.map(x => `<span class="badge${x.base ? ' base' : ''}">${esc(x.text)}</span>`).join('')}</span>` : '';
+    return b.length ? `<span class="badges">${b.map((x, i) => `<span class="badge${x.base ? ' base' : ''}" data-badge="${i}">${esc(x.text)}</span>`).join('')}</span>` : '';
+  };
+  const badgeClicks = (row, mod, inst) => {
+    const b = badges?.(mod) || [];
+    for (const el of row.querySelectorAll('.badge')) {
+      const x = b[+el.dataset.badge];
+      if (!x?.open) continue;
+      el.title = x.title || '';
+      el.addEventListener('mousedown', e => { e.stopPropagation(); if (e.button) return; st.curInst = inst; renderTree(); renderObjects(); x.open(inst); });
+    }
   };
   function renderTree() {
     treeEl.innerHTML = '';
@@ -25,6 +34,7 @@ export function mountTree(ctx) {
       const row = h('div', { class: 'row' + (inst === st.curInst ? ' sel' : ''),
         html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span>${badgesHtml(inst.module)}<span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
       row.title = pathOf(inst);
+      badgeClicks(row, inst.module, inst);
       row.draggable = true;
       row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-isim', JSON.stringify({ inst: inst.path })); e.dataTransfer.effectAllowed = 'copy'; });
       row.addEventListener('mousedown', (e) => {

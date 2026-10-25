@@ -16,6 +16,9 @@ import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { newDoc, normalizeDoc, symbolPins } from '../../core/schdoc.js';
 import { viewHdl } from '../../core/view-hdl.js';
 
+// a module's Create Test Bench (Wizard): the classic interface's only (the Tasks interface's test benches on its Test page, #1330)
+const TB = process.env.SILINX_UI_INTERFACE === 'classic' ? ['Create Test Bench (Wizard)…'] : [];
+
 let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
@@ -195,7 +198,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   // the schematic's commands (Export as ISE Schematic on the schematic, not on the module)
   assert.deepEqual(await badgeMenu(page, 'gates', 'Schematic'), ['Open', 'Export as ISE Schematic (.sch)…', 'Remove from Project']);
   // the HDL's: the module's, the same as the row's
-  const MODULE = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
+  const MODULE = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', ...TB, 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
   // (gates the top: Unset as Top Module, #1220)
   const TOP = ['Unset as Top Module', ...MODULE.slice(1)];
   assert.deepEqual(await badgeMenu(page, 'gates', 'VHDL'), TOP);
@@ -217,7 +220,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   await page.openProject('H_badges2');
   assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Open', 'Convert to ASM chart', 'Remove from Project']);
   assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Table'), ['Open', 'Remove from Project']);
-  const PLAIN = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…',
+  const PLAIN = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', ...TB,
     'Convert to Schematic (editable)…', 'Convert to State Machine (ASM)…', 'Convert to State Diagram (FSM)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
   assert.deepEqual(await badgeMenu(page, 'u_timer - timer', 'VHDL'), PLAIN);
   assert.deepEqual(await badgeMenu(page, 'u_display - sevenseg', 'Verilog'), PLAIN);
@@ -264,7 +267,7 @@ uiTest('every source has its HDL (#207): a schematic without an HDL file gets it
   ]);
   // the block's commands: the HDL module's, none of the schematic's
   await page.treeRow('#hier', 'xlxi_1 - esq_d2_4e', { right: true });
-  assert.deepEqual(await menuLabels(page), ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…']);
+  assert.deepEqual(await menuLabels(page), ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', ...TB, 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…']);
   await page.closeMenus();
   // opened again: nothing more to generate, the same rows
   await page.openProject('teste');
