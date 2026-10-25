@@ -6,7 +6,7 @@
 // clicked one at a time (#919), in the modern and classic interfaces and in the Tasks interface's Simulate.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs, writeWs, tick } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 
 let env;
@@ -181,7 +181,8 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
 });
 
 // a test bench simulated: Edit Stimuli draws its unit under test's inputs (its signals forced over what the bench
-// drives), the stimuli saved for the test bench; Save as Test Bench writes another one for the module
+// drives) in this simulation only, not saved for the bench (#1380); Save as Test Bench writes another one for the module;
+// the bench simulated again runs its own inputs
 const TB = `library ieee; use ieee.std_logic_1164.all;
 entity tb_ctr is end tb_ctr;
 architecture sim of tb_ctr is
@@ -194,8 +195,11 @@ begin
   d <= "0000";
 end sim;
 `;
-uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, forced over the bench, saved for the bench', E, async (page) => {
+uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, forced over the bench in that simulation only (#1380)', E, async (page) => {
+  // (stimuli kept for the bench before #1380: dropped, not applied)
   await makeProject(env, { name: 'StimTb', top: 'ctr', files: { 'src/ctr.vhd': CTR, 'sim/tb_ctr.vhd': TB }, roles: { 'sim/tb_ctr.vhd': 'sim' } });
+  const j0 = JSON.parse(await readWs(env, 'StimTb', 'silinx.json'));
+  await writeWs(env, 'StimTb', 'silinx.json', JSON.stringify({ ...j0, stimuli: { tb_ctr: { version: 1, clock: null, periodNs: 20, stepNs: 10, cycles: 2, inputs: { en: ['1', '1'] }, expected: {} } } }));
   await page.openProject('StimTb');
   await page.setView('sim');
   await simulate(page, 'tb_ctr');
@@ -213,7 +217,8 @@ uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, 
   await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.en.join('') === '011111', [], { what: 'en painted' });
   await simTime(page, '120,000');
   assert.equal(await value(page, 'q'), '0101');
-  await page.waitFor(async () => { const j = await (await fetch('/api/projects/StimTb')).json(); return j.stimuli?.tb_ctr?.inputs?.en?.[1] === '1' && !j.stimuli?.ctr; }, [], { what: 'saved for tb_ctr' });
+  await tick(800);
+  assert.deepEqual((await page.eval(async () => (await fetch('/api/projects/StimTb')).json())).stimuli || {}, {}, 'not saved, neither for tb_ctr nor for ctr');
   // Save as Test Bench: for ctr, tb_ctr exists: tb_ctr_2
   await page.click(`${DOC} .isim-stimbar [data-stim=fill]`);
   await page.click(`${DOC} .isim-stimbar [data-stim=save]`);
@@ -223,6 +228,11 @@ uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, 
   await page.waitFor(async () => (await (await fetch('/api/projects/StimTb')).json()).files.some((f) => f.path === 'src/tb_ctr_2.vhd' && f.role === 'sim'), [], { what: 'tb_ctr_2.vhd', timeout: 20000 });
   await simulate(page, 'tb_ctr_2');
   await page.waitFor((d) => /TEST PASSED: 6 vector/.test(Array.from(document.querySelector(`${d} .isim-console`)?.children || [], (e) => e.textContent).join('\n')), [DOC], { what: 'TEST PASSED', timeout: 20000 });
+  // tb_ctr simulated again: its own inputs (en 0: q stays 0000), no stimuli
+  await simulate(page, 'tb_ctr');
+  await simTime(page, '1,000,000');
+  assert.equal(await value(page, 'q'), '0000');
+  assert.equal(await page.eval(() => window.Silinx.active.view.state.stim.m), null);
   assert.deepEqual(page.dialogs, []);
 });
 
