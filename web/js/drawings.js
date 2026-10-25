@@ -26,9 +26,11 @@ export async function openAsm(path) {
   const id = `asm:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
   let model;
-  try { model = JSON.parse(await api.readFile(S.project.name, path)); }
+  const pj = S.project.name;
+  try { model = JSON.parse(await api.readFile(pj, path)); }
   catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
   const { mountAsmEditor } = await import('./asm-editor.js');
+  if (S.project?.name !== pj) return;   // another project opened meanwhile: not its drawing (#1231)
   openDoc({
     id, path, title: path.split('/').pop(), icon: 'asm',
     create(el, d) {
@@ -125,9 +127,11 @@ export async function openFsm(path) {
   const id = `fsm:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
   let model;
-  try { model = JSON.parse(await api.readFile(S.project.name, path)); }
+  const pj = S.project.name;
+  try { model = JSON.parse(await api.readFile(pj, path)); }
   catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
   const { mountFsmEditor } = await import('./fsm-editor.js');
+  if (S.project?.name !== pj) return;   // another project opened meanwhile: not its drawing (#1231)
   openDoc({
     id, path, title: path.split('/').pop(), icon: 'fsm',
     create(el, d) {
@@ -288,9 +292,11 @@ export async function openPetri(path) {
   const id = `pn:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
   let model;
-  try { model = JSON.parse(await api.readFile(S.project.name, path)); }
+  const pj = S.project.name;
+  try { model = JSON.parse(await api.readFile(pj, path)); }
   catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
   const { mountPetriEditor } = await import('./petri-editor.js');
+  if (S.project?.name !== pj) return;   // another project opened meanwhile: not its drawing (#1231)
   openDoc({
     id, path, title: path.split('/').pop(), icon: 'petri',
     create(el, d) {
@@ -365,10 +371,12 @@ export async function openSch(path) {
   const id = `sch:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
   let doc;
-  try { doc = JSON.parse(await api.readFile(S.project.name, path)); }
+  const pj = S.project.name;
+  try { doc = JSON.parse(await api.readFile(pj, path)); }
   catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
   const { mountSchEditor } = await import('./sch-editor.js');
   const modules = await schModules();
+  if (S.project?.name !== pj) return;   // another project opened meanwhile: not its drawing (#1231)
   openDoc({
     id, path, title: path.split('/').pop(), icon: 'schematic',
     create(el, d) {
