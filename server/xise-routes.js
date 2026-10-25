@@ -153,12 +153,13 @@ export function mountXiseRoutes(ctx) {
     if (!fss.existsSync(xfile)) throw bad(`${xiseName(project)} not found`, 404);
     let parsed;
     try { parsed = importXise(await fs.readFile(xfile, 'utf8')); } catch (e) { throw bad(e.message); }
-    // Paths in the .xise are relative to the project dir; keep only those inside it.
+    // Paths in the .xise are relative to the project dir; keep only those inside it (the constraints too, #1236).
+    // A Windows drive path (C:/work/x.vhd) is outside the project too, even though POSIX path.resolve keeps it inside.
+    const inProject = p => { try { if (/^[A-Za-z]:/.test(p)) throw new Error('absolute'); P.safeJoin(dir, p); return true; } catch { return false; } };
     const files = [];
     const skipped = [];
     for (const f of parsed.files) {
-      // a Windows drive path (C:/work/x.vhd) is outside the project too, even though POSIX path.resolve keeps it inside
-      try { if (/^[A-Za-z]:/.test(f.path)) throw new Error('absolute'); P.safeJoin(dir, f.path); files.push(f); } catch { skipped.push(f.path); }
+      if (inProject(f.path)) files.push(f); else skipped.push(f.path);
     }
     const saved = await P.updateProject(name, cur => ({
       ...cur,
@@ -167,7 +168,7 @@ export function mountXiseRoutes(ctx) {
       simTop: parsed.simTop || cur.simTop,
       topSourceType: parsed.topSourceType || cur.topSourceType || 'hdl',
       files,
-      constraints: parsed.constraints && !parsed.constraints.includes('..') ? parsed.constraints : cur.constraints,
+      constraints: parsed.constraints && inProject(parsed.constraints) ? parsed.constraints : cur.constraints,
       impl: { ...cur.impl, ...parsed.impl },
     }));
     return { direction, file: xfile, project: saved, skipped, warnings: parsed.warnings };

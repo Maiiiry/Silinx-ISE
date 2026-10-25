@@ -66,6 +66,10 @@ export async function createApp({ host = '127.0.0.1', token = null } = {}) {
   // Content-Security-Policy of the pages: scripts only from the server itself (and the pages' own
   // inline scripts, by their hashes), no plug-ins, no framing; so a script injected into a page
   // cannot run and reach the API above
+  // every response (#1236): served as the type it says (a project's text is never taken for a script), no
+  // address sent to another site, and no word of the server's software
+  app.disable('x-powered-by');
+  app.use((req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' }); next(); });
   app.use((req, res, next) => {
     const file = req.path.endsWith('/') ? `${req.path}index.html` : req.path;
     if (/\.html$/.test(file)) { const csp = pageCsp(path.join(ROOT, 'web', path.normalize(file))); if (csp) res.set('Content-Security-Policy', csp); }

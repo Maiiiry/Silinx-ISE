@@ -162,11 +162,17 @@ export function buildCommands(op, { tool, cable, device, position, bitfile }) {
 // Option resolution
 // ---------------------------------------------------------------------------------------------
 
+/** A cable or device name (openFPGALoader's digilent_hs2, xc3sprog's nexys2, iMPACT's usb21, djtgcfg's Nexys2, 0). */
+const VALUE = /^[\w.:@/][\w .:@/-]*$/;
+
 /**
  * Merge request options with board defaults and the global config.
  * Precedence: explicit request > board programmer defaults > config.programmer.
  */
 export function resolveOptions(req, cfg, boardId) {
+  // a cable or a device the page names is a value of the tool's option, never an option of its own (#1236)
+  for (const k of ['cable', 'device'])
+    if (req[k] != null && req[k] !== '' && !VALUE.test(String(req[k]))) throw Object.assign(new Error(`invalid ${k} '${req[k]}'`), { status: 400 });
   const b = boardId ? findBoard(boardId) : null;
   let tool = req.tool || (b?.programmer?.preferred) || cfg?.programmer?.tool || 'openFPGALoader';
   // Board default not installed: fall back to another installed tool that can use the board's own USB.
