@@ -6,6 +6,7 @@
 export class CompileError extends Error {}
 
 // ------------------------------------------------------------------ parameters, constants
+export const isConst = b => typeof b !== 'number';   // (a constant bit: '0', '1', 'x', 'z')
 export const int = s => (typeof s === 'number' ? s : parseInt(String(s).replace(/[xz]/gi, '0'), 2));
 // a parameter's bits, least significant first (x / z as 0)
 export const pbits = s => (typeof s === 'number' ? s.toString(2) : String(s)).split('').reverse().map(c => (c === '1' ? 1 : 0));

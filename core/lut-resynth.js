@@ -33,8 +33,8 @@
 export const RESYNTH_RULE = { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7, descend: 40, descendGain: 0.03 };
 
 const isLut = t => /^(LUT[1-4]|INV|BUF)$/.test(t);
-const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
-const COMB_CELL = t => /^(LUT[1-6]|INV|BUF|MUXF[5-8]|MUXCY|XORCY)$/.test(t);
+export const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
+export const COMB_CELL = t => /^(LUT[1-6]|INV|BUF|MUXF[5-8]|MUXCY|XORCY)$/.test(t);
 
 const lutInputs = c => (c.type === 'INV' || c.type === 'BUF' ? [c.connections.I[0]] : Array.from({ length: +c.type[3] }, (_, i) => c.connections[`I${i}`][0]));
 // a LUT's table: entry i (inputs I0 … as bits 0 …) 0 or 1

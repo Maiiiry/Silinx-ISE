@@ -18,7 +18,7 @@
 //   const r = placeS6(phys, s6Sites(device), { seed, effort, timing, nl })
 //     r = { site: [site name by inst], tile: [tile name by inst], pos: [[px, py]], wirelength, delay (the estimate's
 //           critical path, ns), warnings, stats: { moves, temps, seconds, objects, initialWirelength, initialDelay } }
-import { PlaceError, rng, vccoOfStandard } from '../place.js';
+import { PlaceError, crossing, rng, vccoOfStandard } from '../place.js';
 import { timingGraphS6, analyzeS6 } from './place-timing.js';
 import { mountMovesS6 } from './place-moves.js';
 
@@ -28,8 +28,7 @@ export { PlaceError };
 export const sliceFits = (need, site) => need === 'X' || site === need || (need === 'L' && site === 'M');
 const needOf = inst => inst.type.slice(5);
 // the expected wirelength of a net of n pins against its bounding box (VPR's crossing count)
-const CROSS = [1, 1, 1, 1, 1.0828, 1.1536, 1.2206, 1.2823, 1.3385, 1.3991, 1.4493, 1.4974, 1.5455, 1.5937, 1.6418, 1.6899, 1.7304, 1.7709, 1.8114, 1.8519, 1.8924, 1.9288, 1.9652, 2.0015, 2.0379, 2.0743, 2.1061, 2.1379, 2.1698, 2.2016, 2.2334, 2.2646, 2.2958, 2.3271, 2.3583, 2.3895, 2.4187, 2.4479, 2.4772, 2.5064, 2.5356, 2.5610, 2.5864, 2.6117, 2.6371, 2.6625, 2.6887, 2.7148, 2.7410, 2.7671, 2.7933];
-export const crossing = n => (n < CROSS.length ? CROSS[n] : 2.7933 + 0.02616 * (n - 50));
+export { crossing };   // (core/fpga/place.js's)
 /** The VCCO of an IOB: its I/O standard's (ISE's default LVCMOS25). */
 export const vccoOfIob = inst => vccoOfStandard(inst.cons?.iostandard || 'LVCMOS25');
 
