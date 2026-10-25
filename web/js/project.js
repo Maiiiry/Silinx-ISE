@@ -120,6 +120,8 @@ async function reloadProjectNow(render = true, depth = 0) {
   for (const d of S.docs) (d.ttEditor || d.fsmEditor || d.petriEditor)?.refreshLink?.();
   // the open HDL editors: read-only when their file is generated from a drawing (#1176)
   for (const d of S.docs) d.applyReadOnly?.();
+  // the open simulations: their trees list the project's test benches as they are now (#1364)
+  for (const d of S.docs) d.onProject?.();
   updateTitle();
   renderHierarchy();
   renderFilesPage();
