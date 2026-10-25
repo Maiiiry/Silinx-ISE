@@ -1,4 +1,4 @@
-// ISim's status bar and cursor (#405: out of mountISim in isim.js): the simulated time, the cursor and the marker's
+// SSim's status bar and cursor (#405: out of mountISim in isim.js): the simulated time, the cursor and the marker's
 // delta, the run buttons enabled while no run is going on and the run's progress, a message; the cursor set, the
 // markers added and removed, the cursor moved to the previous or next transition of the selected signals.
 import { clamp, fmtTime, lowerBound } from './isim.js';

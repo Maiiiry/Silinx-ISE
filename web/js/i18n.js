@@ -2,7 +2,7 @@
 //
 // The UI is written in English; this module translates the visible text of the page (text nodes,
 // title/placeholder/aria-label attributes, option labels) from per-language dictionaries, and keeps
-// translating whatever the app adds later (dialogs, menus, ISim, editors) through a MutationObserver.
+// translating whatever the app adds later (dialogs, menus, SSim, editors) through a MutationObserver.
 // User content is never translated: code editors, the console (tool output), the design hierarchy,
 // schematic/waveform drawings and anything inside [data-no-i18n].
 //
@@ -202,7 +202,7 @@ const PT = {
   'Toggle comment': 'Comentar/descomentar', 'Find / Replace': 'Procurar / Substituir', 'Go to line': 'Ir para a linha', 'Go to definition': 'Ir para a definição',
   'Fold block': 'Dobrar bloco', 'Run process': 'Executar processo', 'Push into instance': 'Entrar na instância',
   'Double-click process': 'Duplo clique num processo', 'Double-click instance (schematic)': 'Duplo clique numa instância (esquemático)',
-  // ISim
+  // SSim
   'Instances and Processes': 'Instâncias e Processos', 'Objects': 'Objetos', 'Object Name': 'Nome do Objeto', 'Value': 'Valor', 'Data Type': 'Tipo de Dados',
   'Name': 'Nome', 'Restart': 'Reiniciar', 'Run All': 'Executar Tudo', 'Break': 'Parar', 'Run for the specified time': 'Executar durante o tempo indicado',
   'Step (advance to the next scheduled event)': 'Passo (avançar para o próximo evento)', 'Zoom In': 'Ampliar', 'Zoom Out': 'Reduzir',

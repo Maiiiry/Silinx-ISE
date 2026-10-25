@@ -1,4 +1,4 @@
-// ISim's colours (#405: out of mountISim in isim.js): the wave window's and the names' colours and fonts read from
+// SSim's colours (#405: out of mountISim in isim.js): the wave window's and the names' colours and fonts read from
 // the theme's variables (web/css/modern.css and the classic theme), again when the theme changes.
 
 /** { readColors } of mountISim (setColors(v): the colours read, kept by the window). */

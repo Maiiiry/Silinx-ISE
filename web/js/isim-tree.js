@@ -1,4 +1,4 @@
-// ISim's instance tree (#405: out of mountISim): the design's instances and their processes, the one selected (its
+// SSim's instance tree (#405: out of mountISim): the design's instances and their processes, the one selected (its
 // signals in the Objects panel), dragged into the wave window or added from its menu (recursive: a divider before each
 // instance), its source. With `benches` (the project's test benches, #1161): each one a row, the one simulated here
 // opened as its instances' tree (openBench: again when shown), another one simulated (onBench, a document of its own) when clicked; the rows of
@@ -7,7 +7,7 @@
 import { esc, h } from './dom.js';
 import { ICON, pathOf } from './isim.js';
 
-/** { renderTree, addInstance } of an ISim window. */
+/** { renderTree, addInstance } of an SSim window. */
 export function mountTree(ctx) {
   const { st, design, treeEl, benches, onBench, badges, current, onOpenSource, openSource, showMenu, renderObjects, instSignals, newRow, rebuildFlat, updateVScroll, invalidate } = ctx;
 

@@ -8,8 +8,8 @@
 // - Filters by source follow the task in front in the Tasks interface (Implement: Implementation)
 //   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task).
 // - Folded (tasks.js), the panel shows its last line of the current filter.
-// - ISim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulation).
-// - One command line: ISim's commands while simulating (SSim> run 1 us; Simulate in front, or an ISim window in the
+// - SSim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulation).
+// - One command line: SSim's commands while simulating (SSim> run 1 us; Simulate in front, or an SSim window in the
 //   other interfaces; its history on ↑ / ↓), else the command palette.
 // The sources and the filters (sourceOf, filterSources) have no DOM and are unit tested (test/messages.test.js).
 
@@ -52,7 +52,7 @@ const $ = id => document.getElementById(id);
 const shownSources = () => filterSources(picked, task);
 // (the simulation in front: there may be several, #1161)
 const isimInput = () => document.querySelector('#workspace > .doc:not([hidden]) .isim .isim-cmdline input');
-// ISim's commands: in the Tasks interface while Simulate is in front, in the others while an ISim window is
+// SSim's commands: in the Tasks interface while Simulate is in front, in the others while an SSim window is
 const simulating = () => !!isimInput() && (task === 'sim' || (task === null && /^isim(:|$)/.test(app?.S.active?.id || '')));
 
 function tag(ln) {
@@ -83,7 +83,7 @@ function showLast() {
   last.className = ln ? ln.className.replace(/\bmc-off\b/, '') : '';
 }
 
-// a line of ISim's console or of the emulator's Messages box, written here with its source
+// a line of SSim's console or of the emulator's Messages box, written here with its source
 function mirror(text, cls, src) {
   app.log(text, cls, { diag: false });
   const ln = $('console-log').lastElementChild;
@@ -91,7 +91,7 @@ function mirror(text, cls, src) {
 }
 const ISIM_CLS = { 'k-error': 'err', 'k-failure': 'err', 'k-warning': 'warn', 'k-cmd': 'hdr' };
 const isimCls = el => Object.entries(ISIM_CLS).find(([k]) => el.classList.contains(k))?.[1] || '';
-// ISim's console and the emulator's log, followed while they are open (their own copies are hidden)
+// SSim's console and the emulator's log, followed while they are open (their own copies are hidden)
 const followed = new WeakSet();
 function follow() {
   if (!built) return;
@@ -110,7 +110,7 @@ function follow() {
   }
 }
 
-// the command line: ISim's commands while simulating, else the command palette
+// the command line: SSim's commands while simulating, else the command palette
 async function runCommand(input) {
   const v = input.value.trim();
   if (!v) return;
@@ -143,7 +143,7 @@ function build() {
   const input = h('input', { type: 'text', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Command line' });
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); runCommand(input); return; }
-    // (ISim's history: its own command line's, which keeps it)
+    // (SSim's history: its own command line's, which keeps it)
     const isim = isimInput();
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isim && simulating()) {
       e.preventDefault();
@@ -168,7 +168,7 @@ export function messagesTask(t) {
   prompt();
 }
 
-/** Builds the message centre and follows the Console's new lines, the documents opened (ISim, the emulator) and the
+/** Builds the message centre and follows the Console's new lines, the documents opened (SSim, the emulator) and the
  *  one in front (the command line's prompt). `a` is the app (web/js/app.js). */
 export function initMessages(a) {
   app = a;
@@ -179,7 +179,7 @@ export function initMessages(a) {
     if (ms.some(m => m.removedNodes.length) && !$('console-log').childElementCount) cur = 'app';   // (cleared)
     showLast();
   }).observe($('console-log'), { childList: true });
-  // (ISim and the emulator build their windows after their documents open: looked for once a frame at most)
+  // (SSim and the emulator build their windows after their documents open: looked for once a frame at most)
   let soon = false;
   new MutationObserver(() => {
     if (!built || soon) return;

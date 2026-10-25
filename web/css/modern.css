@@ -344,7 +344,7 @@ html[data-ui="modern"] .xl-editor .cm-tooltip.cm-tooltip-autocomplete { backgrou
 html[data-ui="modern"] .xl-editor .cm-tooltip-autocomplete > ul > li { color: var(--m-fg); border-radius: 5px; }
 html[data-ui="modern"] .xl-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--m-accent-soft); color: var(--m-fg); }
 
-/* ISim: the waveform stays black (as in ISim); the rest follows the interface */
+/* SSim: the waveform stays black (as in ISim); the rest follows the interface */
 html[data-ui="modern"] { --wave-names-bg: var(--m-surface); --wave-head-1: var(--m-surface-2); --wave-head-2: var(--m-surface-2); --wave-ruler-fg: var(--m-fg); --wave-ruler-tick: var(--m-muted); }
 html[data-ui="modern"] .isim .ise-panel { border: none; }
 html[data-ui="modern"] .isim .ise-panel > .caption { border-bottom: 1px solid var(--m-border); }

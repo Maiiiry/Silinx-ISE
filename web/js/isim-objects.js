@@ -1,10 +1,10 @@
-// ISim's Objects panel (#405: out of mountISim): the signals of the instance selected in the tree, their values at
+// SSim's Objects panel (#405: out of mountISim): the signals of the instance selected in the tree, their values at
 // the cursor, their selection, the drag into the wave window and their menu (add to the waves, the forces, the source,
 // the path). mountObjects(ctx) is called by mountISim where this code was.
 import { esc, h } from './dom.js';
 import { formatValue, pathOf, typeName, ICON } from './isim.js';
 
-/** { renderObjects, updateObjectValues } of an ISim window. */
+/** { renderObjects, updateObjectValues } of an SSim window. */
 export function mountObjects(ctx) {
   const { st, sim, $, objBody, instSignals, addSignals, rebuildFlat, updateVScroll, invalidate, showMenu, forceDialog, isForced, removeForces,
     onOpenSource, openSource } = ctx;

@@ -1,5 +1,5 @@
 /* The message centre (web/js/messages.js; #798, in every interface since #925): the bottom console's lines filtered
-   by source, ISim's console and the emulator's Messages box in it, one command line under it. Its folding is the
+   by source, SSim's console and the emulator's Messages box in it, one command line under it. Its folding is the
    Tasks interface's (web/css/tasks.css). The modern look's colours, with the classic look's as their fallbacks. */
 
 #console-tabs { min-width: 0; overflow: hidden; }
@@ -19,8 +19,8 @@ html[data-ui="modern"] #mc-cmd { grid-row: 3; grid-column: 1 / 3; height: 32px; 
 #mc-cmd .mc-prompt { color: var(--m-accent, #15428b); font-weight: 600; flex: none; }
 #mc-cmd input { flex: 1; min-width: 0; height: 24px; border: none; outline: none; background: transparent; color: var(--m-fg, #000); font: inherit; }
 
-/* ISim's console and the emulator's Messages box: their lines are in the message centre. ISim's stays in the page,
-   out of sight, as the engine of the command line's ISim commands (its history, its parser) */
+/* SSim's console and the emulator's Messages box: their lines are in the message centre. SSim's stays in the page,
+   out of sight, as the engine of the command line's SSim commands (its history, its parser) */
 .isim-split-bottom { display: none !important; }
 .isim-bottom { position: absolute !important; width: 0 !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important;
   border: 0 !important; padding: 0 !important; margin: 0 !important; opacity: 0; pointer-events: none; }

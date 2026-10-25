@@ -1,4 +1,4 @@
-// ISim's drawing of one wave (#405: out of mountDraw in isim-draw.js): a scalar's levels (0, 1, Z, X boxes) and a
+// SSim's drawing of one wave (#405: out of mountDraw in isim-draw.js): a scalar's levels (0, 1, Z, X boxes) and a
 // bus's hexagons with their values, scanned over the visible time with the sub-pixel transitions coalesced into
 // dense blocks.
 import { ROW_H, formatValue, idxAt, isScalarType, lowerBound } from './isim.js';

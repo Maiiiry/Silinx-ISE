@@ -10,13 +10,13 @@
 //   the last one in front; a document brought to the front makes its task the current one;
 // - the messages: the bottom panel's message centre (web/js/messages.js, #798; every interface's: #925), its filter
 //   following the task;
-// - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel ISim's Instances and Objects;
+// - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel SSim's Instances and Objects;
 //   it runs the test bench with the model chosen in the task's bar, as soon as either is chosen (no Simulate button, #1018);
 // - Emulate (web/js/tasks-emu.js, #801): the board at its proper size or larger (#1021), its side panel the emulator's Watch;
 // - Implement (web/js/tasks-impl.js, #802): its side panel the top's Processes, its page the Design Summary as cards;
 // - Implement programs the board too (#1172: no Program task): iMPACT, arranged by web/js/tasks-prog.js (#803), opens
 //   there, its Processes' Configure Target Device and the Design Summary's Program the board… open it;
-// - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
+// - a task whose document is single by nature (Simulate: SSim; Emulate: the board; Program: iMPACT, one each,
 //   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
 //   bar (#854);
 // - the task's bar (the toolbar's right end): the fold and maximize buttons and the task's main action
@@ -99,7 +99,7 @@ export function readState(raw) {
 
 /** A task's arrangement: what the viewer left, else its defaults; on a narrow screen the side panel
  *  is the drawer, closed when the task comes to the front (the document first). */
-// the tasks whose side panel is their document's own: ISim's Instances and Objects (#800), the emulator's Watch (#801)
+// the tasks whose side panel is their document's own: SSim's Instances and Objects (#800), the emulator's Watch (#801)
 export const OWN_SIDE = ['sim', 'emu'];
 export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
@@ -109,7 +109,7 @@ export function arrangement(task, kept = {}, narrow = false) {
 
 // the tasks whose document is single by nature: a new emulation replaces the old one
 export const SINGLE = ['emu'];   // (Simulate: its tabs, several simulations open, #1161)
-/** What a document's title says of it: "ISim (top, Post-Synthesis)" → { module: 'top', model: 'Post-Synthesis' }
+/** What a document's title says of it: "SSim (top, Post-Synthesis)" → { module: 'top', model: 'Post-Synthesis' }
  *  (a behavioural model: null); a title with no module (iMPACT): { module: null, model: null }. */
 export function docDetail(title) {
   const m = /\(([^,()]+)(?:, ([^()]+))?\)$/.exec(String(title || ''));
@@ -194,7 +194,7 @@ function apply() {
 function tagDocs() {
   const S = app?.S;
   if (!S) return;
-  placeSimToolbar(on());   // (ISim's toolbar in its wave window's line: #1026)
+  placeSimToolbar(on());   // (SSim's toolbar in its wave window's line: #1026)
   let mine = 0, only = null;
   for (const d of S.docs) {
     const t = taskOfDoc(d.id);

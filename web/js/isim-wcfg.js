@@ -1,4 +1,4 @@
-// ISim's wave configuration (#1019): the wave window's rows (the signals, their order and radix, the dividers, the
+// SSim's wave configuration (#1019): the wave window's rows (the signals, their order and radix, the dividers, the
 // groups) and the markers, as a .wcfg file (core/wcfg.js). Save Wave Configuration hands the text to the app, which
 // writes it to a file of the project; Load Wave Configuration applies a file's to the current simulation (a signal the
 // design does not have is said in the console and left out). opts.wcfg: { save(text) → its name | null, load() →

@@ -1,11 +1,11 @@
-// ISim's wave window, its pointer and keys (#405: out of mountISim): the names column (the selection, a group's or a
+// SSim's wave window, its pointer and keys (#405: out of mountISim): the names column (the selection, a group's or a
 // bus's twisty, the drag that reorders the rows or puts them in a group, the columns' widths, a double click, the menu)
 // and the waves (the cursor and the markers dragged, snapped to the transitions, two fingers that scroll and zoom, the
 // wheel, the menu), and the keys of both. mountInput(ctx) is called by mountISim where this code was.
 import { longPressMenu, twoFingerView } from './ui.js';
 import { ROW_H, RULER_H, clamp, lowerBound, isBitsType } from './isim.js';
 
-/** { rowAtY, selectRow, localXY, dragRow } of an ISim window (dragRow(): the drop line of a drag of rows, or null). */
+/** { rowAtY, selectRow, localXY, dragRow } of an SSim window (dragRow(): the drop line of a drag of rows, or null). */
 export function mountInput(ctx) {
   const { st, sim, $, on, track, cn, cw, vsc, treeEl, objBody, flat, sizes, layout, invalidate, rebuildFlat, updateVScroll, objectsChanged,
     xOf, tOf, clampView, zoomAt, zoomFit, itemWave, setCursor, addMarker, removeMarker, jumpEdge, selectedItems, removeSelectedRows,

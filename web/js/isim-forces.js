@@ -1,9 +1,9 @@
-// ISim's path resolution and forces (#405: out of mountISim): finding a signal or an instance by its path (absolute,
+// SSim's path resolution and forces (#405: out of mountISim): finding a signal or an instance by its path (absolute,
 // or relative to the selected instance), and the forces (isim force add / remove, the drawn stimuli) as
 // pseudo-processes of the simulator. mountForces(ctx) is called by mountISim where this code was.
 import { pathOf } from './isim.js';
 
-/** { findSignal, findInst, injectForce, isForced, addForce, removeForces } of an ISim window. */
+/** { findSignal, findInst, injectForce, isForced, addForce, removeForces } of an SSim window. */
 export function mountForces(ctx) {
   const { st, sim, design, invalidate, logLine, objectsChanged } = ctx;
 
