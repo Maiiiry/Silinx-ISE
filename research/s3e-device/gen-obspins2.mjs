@@ -3,11 +3,12 @@
 // of its net in the same tile (observe.mjs reads a sink pin only when it is its net's one sink there):
 //   srlcasc:  a 64-bit shift register in every CLB (AREA_GROUP: its four slices): map cascades the SLICEMs' SRL16s
 //             through SHIFTOUT -> SHIFTIN
-//   f8-0/1:   a 32:1 multiplexer in every pair of CLBs one above the other (MUXF8: FXINA / FXINB from the two F7s), the
-//             pairs from row 0 or 1
+//   f8-RC:    a 32:1 multiplexer in every pair of CLBs one above the other (MUXF8: FXINA / FXINB from the two F7s), the
+//             pairs from row R (0, 1), in the CLB columns of parity C
 //   ramclkb:  every block RAM (LOC'd) a RAMB16_S1_S1 with port B on a clock of its own (CLKB its net's one sink there)
-//   bufg-l/r/t/b: every BUFGMUX of one clock tile (LOC'd), its I0, I1 and S on signals of their own, its O a clock
-//   node gen-obspins2.mjs outdir      (folders srlcasc, f8-0, f8-1, ramclkb, bufg-l, bufg-r, bufg-t, bufg-b)
+//   bufg-l0/l1/r0/…: the BUFGMUXes of one clock tile at even or odd places (LOC'd), I0, I1 and S on signals of their
+//             own, O a clock
+//   node gen-obspins2.mjs outdir      (folders srlcasc, f8-00 … f8-11, ramclkb, bufg-l0 … bufg-b1)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { wrap } from './gen-obspins.mjs';
@@ -44,15 +45,19 @@ endmodule
   return { v, ucf, n: cs.length };
 }
 
-/** A 32:1 multiplexer in every pair of CLBs one above the other from row `off` (0 or 1), each with its data and selects
- *  permuted (or XST merges them): { v, ucf, n }. */
-export function f8Muxes(dev, off, part = PART) {
+/** A 32:1 multiplexer in every pair of CLBs one above the other from row `off` (0 or 1), in the CLB columns of parity
+ *  `col` (all of them overfill the SLICELs), each with its data and selects permuted (or XST merges them): { v, ucf, n }. */
+export function f8Muxes(dev, off, col, part = PART) {
   const have = new Set(clbs(dev).map(c => c.join(',')));
-  const pairs = clbs(dev).filter(([x, y]) => (y / 2) % 2 === off && have.has(`${x},${y + 2}`));
-  // (data d[0..31] and selects d[32..36] of s, rotated by i and by i / 32)
+  const pairs = clbs(dev).filter(([x, y]) => (y / 2) % 2 === off && (x / 2) % 2 === col && have.has(`${x},${y + 2}`));
+  // (data d[0..31] and selects d[32..36] of s: the data rotated by i, the selects the (i / 32)-th permutation of five: every
+  // multiplexer its own pair, or XST merges the equal ones)
+  const perms = [];
+  const perm = (a, l = []) => { if (!a.length) perms.push(l); a.forEach((x, j) => perm([...a.slice(0, j), ...a.slice(j + 1)], [...l, x])); };
+  perm([0, 1, 2, 3, 4]);
   const body = pairs.map((p, i) => {
     const data = Array.from({ length: 32 }, (_, k) => `s[${(k + i) % 32}]`).reverse().join(', ');
-    const sel = Array.from({ length: 5 }, (_, k) => `s[${32 + (k + (i >> 5)) % 5}]`).reverse().join(', ');
+    const sel = perms[(i >> 5) % perms.length].map(k => `s[${32 + k}]`).reverse().join(', ');
     return `  wire m${i};\n  mux32 u${i} (.d({${data}}), .s({${sel}}), .o(m${i}));`;
   }).join('\n');
   const v = `(* KEEP_HIERARCHY = "TRUE" *)
@@ -60,7 +65,7 @@ module mux32(input [31:0] d, input [4:0] s, output o);
   assign o = d[s];
 endmodule
 
-` + wrap(part, `a 32:1 multiplexer (MUXF8) in every pair of CLBs from row ${off}`, 40, '', body, pairs.map((p, i) => `m${i}`));
+` + wrap(part, `a 32:1 multiplexer (MUXF8) in every pair of CLBs from row ${off}, CLB columns of parity ${col}`, 40, '', body, pairs.map((p, i) => `m${i}`));
   const ucf = pairs.map(([x, y], i) => `INST "u${i}" AREA_GROUP = "ag${i}" ;\nAREA_GROUP "ag${i}" RANGE = SLICE_X${x}Y${y}:SLICE_X${x + 1}Y${y + 3} ;`).join('\n') + '\n';
   return { v, ucf, n: pairs.length };
 }
@@ -79,10 +84,11 @@ export function ramClkB(dev, part = PART) {
   return { v, ucf: rams.map((s, i) => `INST "u${i}" LOC = "${s}" ;`).join('\n') + '\n', n: rams.length };
 }
 
-/** Every BUFGMUX of the clock tile with prefix `prefix` (CLKL, CLKR, CLKT, CLKB), LOC'd, its inputs and select on signals
- *  of their own, its output the clock of a register: { v, ucf, n }. */
-export function bufgs(dev, prefix, part = PART) {
-  const sites = sitesOf(dev, 'BUFGMUX').filter(s => dev.tileNames[dev.site(s).tile].startsWith(`${prefix}_`));
+/** The BUFGMUXes of the clock tile with prefix `prefix` (CLKL, CLKR, CLKT, CLKB) at even or odd places (`odd`: two
+ *  neighbours share their inputs, a selectable mux in both is unroutable), LOC'd, their inputs and select on signals of
+ *  their own, each output the clock of a register: { v, ucf, n }. */
+export function bufgs(dev, prefix, odd, part = PART) {
+  const sites = sitesOf(dev, 'BUFGMUX').filter(s => dev.tileNames[dev.site(s).tile].startsWith(`${prefix}_`)).filter((s, i) => i % 2 === odd);
   const body = sites.map((s, i) => `  wire g${i}; reg r${i} = 0;
   BUFGMUX u${i} (.I0(s[${3 * i}]), .I1(s[${3 * i + 1}]), .S(s[${3 * i + 2}]), .O(g${i}));
   always @(posedge g${i}) r${i} <= s[${3 * i + 3}];`).join('\n');
@@ -93,8 +99,8 @@ export function bufgs(dev, prefix, part = PART) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [out] = process.argv.slice(2);
   const dev = loadDeviceCache(PART);
-  const designs = [['srlcasc', () => srlCascade(dev)], ['f8-0', () => f8Muxes(dev, 0)], ['f8-1', () => f8Muxes(dev, 1)], ['ramclkb', () => ramClkB(dev)],
-    ...['CLKL', 'CLKR', 'CLKT', 'CLKB'].map(p => [`bufg-${p.slice(3).toLowerCase()}`, () => bufgs(dev, p)])];
+  const designs = [['srlcasc', () => srlCascade(dev)], ...[0, 1].flatMap(o => [0, 1].map(c => [`f8-${o}${c}`, () => f8Muxes(dev, o, c)])), ['ramclkb', () => ramClkB(dev)],
+    ...['CLKL', 'CLKR', 'CLKT', 'CLKB'].flatMap(p => [0, 1].map(o => [`bufg-${p.slice(3).toLowerCase()}${o}`, () => bufgs(dev, p, o)]))];
   for (const [name, f] of designs) {
     const { v, ucf, n } = f();
     fs.mkdirSync(`${out}/${name}`, { recursive: true });

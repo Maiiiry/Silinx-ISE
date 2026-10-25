@@ -51,7 +51,7 @@ const splitKey = k => { const i = k.indexOf('/'); return [k.slice(0, i), k.slice
  *   joins: [[ 'TILE/WIRE', 'TILE/WIRE' ]] (a to-wire and a from-wire of different tiles that are one node)
  *   pins: [{ site, pin, dir: 'o' | 'i', tile, wire }] (the tile wire a site pin is attached to)
  *   pinJoins: [{ site, pin, tile, end: 'TILE/WIRE' }] (a sink pin on the node of another tile's wire, its own unnamed: a
- *     carry chain's lower CIN, #3)
+ *     carry chain's lower CIN, an F8's FXINB from the CLB above, #3)
  *   ambiguous: [{ from: 'TILE/WIRE', candidates: ['TILE/WIRE', ...] }]  unexplained: ['TILE/WIRE']
  */
 export function observeDesign(design) {
@@ -92,8 +92,13 @@ export function observeNet(net, instSite) {
   for (const p of dangling) {
     const cands = candsOf(p);
     if (cands.length === 1) { res.joins.push([cands[0], key(p.tile, p.from)]); continue; }
-    // (src: the net's source tile, where the wire may be the source pin's own, a side BUFGMUX's CLKL_GCLK_PWOk)
-    if (cands.length > 1) { res.ambiguous.push({ from: key(p.tile, p.from), candidates: cands, ...(p.tile === srcTile ? { src: true } : {}) }); continue; }
+    // (src: the net's source tile, where the wire may be the source pin's own, a side BUFGMUX's CLKL_GCLK_PWOk; when it is
+    // the one undriven wire there, the source pin is on its node: ISE's route is a tree from that pin, and starts there)
+    if (cands.length > 1) {
+      res.ambiguous.push({ from: key(p.tile, p.from), candidates: cands, ...(p.tile === srcTile ? { src: true } : {}) });
+      if (p.tile === srcTile && srcInst.site && dangling.filter(q => q.tile === srcTile).length === 1) res.pins.push({ site: srcInst.site, pin: net.outpins[0].pin, dir: 'o', tile: p.tile, wire: p.from });
+      continue;
+    }
     if (p.tile === srcTile && srcWires.length === 1 && srcWires[0] === p && srcInst.site) {
       res.pins.push({ site: srcInst.site, pin: net.outpins[0].pin, dir: 'o', tile: p.tile, wire: p.from });
       continue;
@@ -112,20 +117,48 @@ export function observeNet(net, instSite) {
     byTile.get(inst.tile).push({ ...ip, site: inst.site });
   }
   // (a sink in a tile where the net has no PIP: a carry chain's lower CIN, COUT -> COUT_Nk in the tile below and nothing
-  // in the pin's own tile: the pin is on that wire's node, its own wire not named by the route; pinJoins)
-  const carryEnds = ends.filter(p => wireFamily(p.to) === 'carry');
+  // in the pin's own tile, an F8's FXINB, FX -> FX_Sk in the CLB above, a multiplier's BCIN, MULT_CARRYB_BCOUTk in the
+  // tile below: the pin is on that wire's node, its own wire not named by the route; pinJoins)
+  const carryEnds = ends.filter(p => wireFamily(p.to) === 'carry' || /^FX_S\d$|^MULT_CARRYB_BCOUT\d+$/.test(p.to));
   for (const [tile, sinks] of byTile) {
     const e = endsIn(tile);
     if (sinks.length === 1 && e.length === 1) res.pins.push({ site: sinks[0].site, pin: sinks[0].pin, dir: 'i', tile, wire: e[0] });
     else if (sinks.length === 1 && !e.length && !pips.some(p => p.tile === tile) && carryEnds.length === 1) res.pinJoins.push({ site: sinks[0].site, pin: sinks[0].pin, tile, end: key(carryEnds[0].tile, carryEnds[0].to) });
   }
   // (the last ones, #3: in a legal tree a from-wire nothing drives is fed by a join, and an end no PIP continues and no
-  // pin takes feeds one; when exactly one of each is left, in two tiles, they are joined: a clock pad's IOIS_IBUFk into
-  // its clock tile's CLKT_CKIk, wires of no family)
+  // pin takes feeds one; when as many of each are left (at most 5), the joins are the one pairing of them, each pair in
+  // two tiles, under which the net is a tree from its source that reaches every PIP: a clock pad's IOIS_IBUFk into its
+  // clock tile's CLKT_CKIk, a DCM's output through DCM_OMUXm_CLKOUTLk -> CLKV_OMUXm_OUTLk -> CLKV_OUTLk -> CLKT_DLL_OUTLk,
+  // wires of no family)
   const taken = new Set([...res.pins.filter(p => p.dir === 'i').map(p => key(p.tile, p.wire)), ...res.joins.map(j => j[0]), ...res.ambiguous.flatMap(a => a.candidates)]);
   const loose = [...new Set(pips.filter(p => !fromSet.has(key(p.tile, p.to))).map(p => key(p.tile, p.to)))].filter(k => !taken.has(k));
-  if (res.unexplained.length === 1 && loose.length === 1 && splitKey(loose[0])[0] !== splitKey(res.unexplained[0])[0]) res.joins.push([loose[0], res.unexplained.pop()]);
+  const U = res.unexplained;
+  if (U.length && U.length === loose.length && U.length <= 5) {
+    const pairings = lastPairings(pips, loose, U, [...res.joins, ...res.ambiguous.map(a => [null, a.from])], srcTile);
+    if (pairings.length === 1) { for (const [l, u] of pairings[0]) res.joins.push([l, u]); res.unexplained = []; }
+  }
   return res;
+}
+
+/** The pairings of the loose ends with the undriven wires (one each, in two tiles) under which the net's PIPs and joins
+ *  make a tree from its source that reaches every PIP: [[[loose, undriven]…]…]. known: the net's joins found ([null, w]:
+ *  a wire fed from outside what is known, an ambiguous one); the source: the undriven from-wires of srcTile. */
+function lastPairings(pips, loose, undriven, known, srcTile) {
+  const out = [];
+  const perms = (a, l = []) => { if (!a.length) { out.push(l); return; } a.forEach((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)], [...l, x])); };
+  perms(undriven);
+  const toSet = new Set(pips.map(p => key(p.tile, p.to)));
+  return out.map(us => loose.map((l, i) => [l, us[i]])).filter(pairs => {
+    if (pairs.some(([l, u]) => splitKey(l)[0] === splitKey(u)[0])) return false;
+    const next = new Map(), add = (a, b) => { if (!next.has(a)) next.set(a, []); next.get(a).push(b); };
+    for (const p of pips) add(key(p.tile, p.from), key(p.tile, p.to));
+    for (const [a, b] of [...known, ...pairs]) if (a) { add(a, b); add(b, a); }
+    // (the starts: the source tile's undriven from-wires, and the wires fed from outside what is known)
+    const start = [...new Set([...pips.filter(p => p.tile === srcTile && !toSet.has(key(p.tile, p.from))).map(p => key(p.tile, p.from)), ...known.filter(([a]) => !a).map(([, b]) => b)])];
+    const seen = new Set(start), q = [...start];
+    while (q.length) for (const n of next.get(q.shift()) || []) if (!seen.has(n)) { seen.add(n); q.push(n); }
+    return pips.every(p => seen.has(key(p.tile, p.from)));
+  });
 }
 
 /** A join as a relative rule: 'CLB/E2BEG0 1,0 CLB/E2MID0' (prefixes and wires, offset in tile X / Y). */

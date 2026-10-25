@@ -82,20 +82,37 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
   // a carry chain's lower CIN (pinJoins: on the node of the tile below's COUT_Nk, its own wire not named by the route): the
   // wire CIN<k> of the slice's own COUT<k>, the index every observed carry pin follows (COUT3 / CIN3, COUT1 / CIN1)
   const pinJoins = [];
+  let byRule = 0;
+  // (PINRULES=1, the wide multiplexers: a slice's FXINB on its FXINA's wire with A and B swapped, FX<k> of its F5<k>: what
+  // the three positions ISE's routes showed follow (FXINA0 / FXINB0; FXINB2 / FXINA2, the upper-left slice's pins
+  // crossed), for the fourth's, whose F8 takes FXINB from the CLB above (FX -> FX_Sk there, nothing in its own tile))
+  if (rules) for (const [k, v] of [...pinAt]) {
+    const [tt, i, pin] = k.split('|');
+    if (pin === 'FXINA' && !pinAt.has(`${tt}|${i}|FXINB`)) { pinAt.set(`${tt}|${i}|FXINB`, ['i', v[1].replace(/FXIN([AB])/, (m, x) => `FXIN${x === 'A' ? 'B' : 'A'}`)]); byRule++; }
+    if (pin === 'F5' && !pinAt.has(`${tt}|${i}|FX`)) { pinAt.set(`${tt}|${i}|FX`, ['o', v[1].replace(/^F5/, 'FX')]); byRule++; }
+  }
+  // (the pin's tile type and site index, and its wire: CIN<k> of the slice's own COUT<k>; FXINB by the rule above; a
+  // multiplier's BCINk, which no route names (its cascade ends in the tile below, MULT_CARRYB_BCOUTk), on a wire named
+  // as the pin under PINRULES; patterns: each kind's offset and wire at the other end, for the rule below)
+  const pjPatterns = new Map();
   for (const pj of obs.pinJoins || []) {
     const s = dev.site(pj.site);
-    if (!s || pj.pin !== 'CIN') continue;
+    if (!s) continue;
     const i = dev.tileSites[s.tile].findIndex(([n]) => n === pj.site), tt = dev.templates[dev.tileTemplate[s.tile]].type;
-    const cout = pinAt.get(`${tt}|${i}|COUT`);
-    if (!cout) continue;
-    const w = `CIN${cout[1].replace(/^COUT/, '')}`;
-    if (!pinAt.has(`${tt}|${i}|CIN`)) pinAt.set(`${tt}|${i}|CIN`, ['i', w]);
-    pinJoins.push([pj.end, `${pj.tile}/${pinAt.get(`${tt}|${i}|CIN`)[1]}`]);
+    if (pj.pin === 'CIN' && !pinAt.has(`${tt}|${i}|CIN`)) {
+      const cout = pinAt.get(`${tt}|${i}|COUT`);
+      if (cout) pinAt.set(`${tt}|${i}|CIN`, ['i', `CIN${cout[1].replace(/^COUT/, '')}`]);
+    }
+    if (/^BCIN\d+$/.test(pj.pin) && rules && !pinAt.has(`${tt}|${i}|${pj.pin}`)) { pinAt.set(`${tt}|${i}|${pj.pin}`, ['i', pj.pin]); byRule++; }
+    const w = pinAt.get(`${tt}|${i}|${pj.pin}`);
+    if (!w) continue;
+    pinJoins.push([pj.end, `${pj.tile}/${w[1]}`]);
+    const a = tileXY(pj.tile), [et, ew] = [pj.end.slice(0, pj.end.indexOf('/')), pj.end.slice(pj.end.indexOf('/') + 1)], b = tileXY(et);
+    if (a && b) pjPatterns.set(`${tt}|${i}|${pj.pin}`, { dx: b.x - a.x, dy: b.y - a.y, prefix: b.prefix, wire: ew });
   }
   // (PINRULES=1: a slice pin no design showed in a tile type taken from the other CLB type's same position, CENTER_SMALL /
   // CENTER_SMALL_BRK being the same slices; an XB / YB not seen at a position, XB<k> / YB<k> of the position's COUT<k>.
   // Rules, not measurements: what a route uses of them ISE checks, scripts/check-open-flow.mjs)
-  let byRule = 0;
   if (rules) {
     const twin = { CENTER_SMALL: 'CENTER_SMALL_BRK', CENTER_SMALL_BRK: 'CENTER_SMALL' };
     for (const [k, v] of [...pinAt]) {
@@ -107,6 +124,40 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
       if (!cout) continue;
       const n = cout[1].replace(/^COUT/, '');
       for (const pin of ['XB', 'YB']) if (!pinAt.has(`${tt}|${i}|${pin}`)) { pinAt.set(`${tt}|${i}|${pin}`, ['o', `${pin}${n}`]); byRule++; }
+    }
+  }
+  // (PINRULES=1: a pin joined to another tile's wire in some tiles (a carry chain's lower CIN, an F8's FXINB, a
+  // multiplier's BCIN) is joined the same way in every tile of its type, and of its CLB twin, where that tile is: the
+  // chains ISE's designs placed do not cross every boundary; an I/O block's ICLK1 / OTCLK1 on the wire of its ICLK2 /
+  // OTCLK2 with the 2 for a 1 (and back); a DCM's pin seen in one of the four DCM tiles on the same wire in the others)
+  let joinsByRule = 0;
+  if (rules) {
+    const twin = { CENTER_SMALL: 'CENTER_SMALL_BRK', CENTER_SMALL_BRK: 'CENTER_SMALL' };
+    for (const [k, v] of [...pjPatterns]) { const [tt, i, pin] = k.split('|'); if (twin[tt] && !pjPatterns.has(`${twin[tt]}|${i}|${pin}`)) pjPatterns.set(`${twin[tt]}|${i}|${pin}`, v); }
+    const have = new Set(pinJoins.map(([, b]) => b));
+    for (let k = 0; k < dev.tileCount; k++) {
+      const name = dev.tileNames[k], tt = dev.templates[dev.tileTemplate[k]].type, a = tileXY(name);
+      if (!a) continue;
+      dev.tileSites[k].forEach((st, i) => {
+        for (const [pk, p] of pjPatterns) {
+          const [ptt, pi, pin] = pk.split('|');
+          if (ptt !== tt || +pi !== i) continue;
+          const w = pinAt.get(`${tt}|${i}|${pin}`), other = `${p.prefix}_X${a.x + p.dx}Y${a.y + p.dy}`;
+          if (!w || dev.tileIndex.get(other) === undefined || have.has(`${name}/${w[1]}`)) continue;
+          pinJoins.push([`${other}/${p.wire}`, `${name}/${w[1]}`]); joinsByRule++;
+        }
+      });
+    }
+    for (const [k, v] of [...pinAt]) {
+      const [tt, i, pin] = k.split('|'), m = /^(ICLK|OTCLK)([12])$/.exec(pin);
+      if (!m || !/IOIS|IBUFS/.test(tt)) continue;
+      const to = `${m[1]}${m[2] === '1' ? 2 : 1}`;
+      if (!pinAt.has(`${tt}|${i}|${to}`) && new RegExp(`^${pin}\\d$`).test(v[1])) { pinAt.set(`${tt}|${i}|${to}`, [v[0], `${to}${v[1].slice(-1)}`]); byRule++; }
+    }
+    const dcm = [...new Set(dev.templates.map(t => t.type).filter(t => /^DCM_[TB][LR]_CENTER$/.test(t)))];
+    for (const [k, v] of [...pinAt]) {
+      const [tt, i, pin] = k.split('|');
+      if (dcm.includes(tt)) for (const t of dcm) if (!pinAt.has(`${t}|${i}|${pin}`)) { pinAt.set(`${t}|${i}|${pin}`, v); byRule++; }
     }
   }
   const types = {}, variant = new Map(), tiles = [];
@@ -143,7 +194,7 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
   const has = k => { const i = k.indexOf('/'); return wiresOf.get(k.slice(0, i))?.has(k.slice(i + 1)); };
   const ord = ([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const all = [...new Map([...obs.joins, ...pinJoins, ...joins].filter(([a, b]) => has(a) && has(b)).map(j => [ord(j), j])).values()];
-  return { part: PART, family: 'spartan3e', types, tiles, joins: all, dropped: obs.joins.length + joins.length - all.length, byRule };
+  return { part: PART, family: 'spartan3e', types, tiles, joins: all, dropped: obs.joins.length + joins.length - all.length, byRule, joinsByRule };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -166,5 +217,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
   const packed = packMeasured(m);
   fs.writeFileSync(out, zlib.gzipSync(JSON.stringify(packed), { level: 9 }));
-  console.log(`${m.tiles.length} tiles of ${Object.keys(m.types).length} type variants, ${m.joins.length} joins (${m.dropped} with an end not among the measured wires)${m.byRule ? `, ${m.byRule} slice pins by rule` : ''}: ${JSON.stringify(packed.counts)}`);
+  console.log(`${m.tiles.length} tiles of ${Object.keys(m.types).length} type variants, ${m.joins.length} joins (${m.dropped} with an end not among the measured wires)${m.byRule ? `, ${m.byRule} pins by rule` : ''}${m.joinsByRule ? `, ${m.joinsByRule} pin joins by rule` : ''}: ${JSON.stringify(packed.counts)}`);
 }
