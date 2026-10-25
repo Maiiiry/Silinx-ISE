@@ -301,6 +301,8 @@ export async function renameFile(name, from, to) {
       return { ...f, path: np, lang: lang === 'vhdl' || lang === 'verilog' ? lang : f.lang };
     });
     if (pj.constraints) pj.constraints = remap(pj.constraints) ?? pj.constraints;
+    // the files removed from the project stay removed at their new paths (#1228)
+    if (pj.excluded) pj.excluded = pj.excluded.map(p => remap(p) ?? p);
     return writeProjectUnlocked(name, pj);
   });
 }
@@ -315,9 +317,13 @@ export async function deleteFile(name, rel) {
   await withProjectLock(name, async () => {
     await fs.rm(full, { recursive: true, force: true });
     const pj = await readProject(name);
-    const n = pj.files.length;
-    pj.files = pj.files.filter(f => f.path !== key && !f.path.startsWith(key + '/'));
-    if (pj.files.length !== n) await writeProjectUnlocked(name, pj);
+    const gone = p => p === key || p.startsWith(key + '/');
+    const before = JSON.stringify(pj);
+    pj.files = pj.files.filter(f => !gone(f.path));
+    // the constraints file deleted: none (as the browser store does, #1230); nothing left to exclude there
+    if (pj.constraints && gone(pj.constraints)) pj.constraints = null;
+    if (pj.excluded) pj.excluded = pj.excluded.filter(p => !gone(p));
+    if (JSON.stringify(pj) !== before) await writeProjectUnlocked(name, pj);
   });
 }
 

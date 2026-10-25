@@ -368,6 +368,39 @@ test('#483 projectFromZip: entries leaving the project skipped with a warning, s
   assert.throws(() => projectFromZip('X', [E('readme.txt', 'x')], { textOf }), { message: 'the zip contains no .xise (ISE project) and no silinx.json' });
 });
 
+test('#1228 #1230 a folder renamed or deleted: the files removed from the project stay removed, the deleted UCF is not the constraints, in both stores', async () => {
+  const { ops } = folder();
+  const both = async (fn, sfn) => { await fn(); await sfn(); };
+  await ops.create({ name: 'Excl' });
+  await P.createProject({ name: 'Excl' });
+  for (const [f, t] of [['src/a.vhd', 'entity a is end;\n'], ['src/x.sch.json', '{}'], ['src/old.vhd', 'entity old is end;\n'], ['notes.txt', 'n'], ['constraints/top.ucf', '']])
+    await both(() => ops.writeFile('Excl', f, t), () => P.writeFile('Excl', f, t));
+  await both(async () => ops.saveProject('Excl', { ...await ops.project('Excl'), excluded: ['src/x.sch.json', 'src/old.vhd', 'notes.txt'] }),
+    async () => P.writeProject('Excl', { ...await P.readProject('Excl'), excluded: ['src/x.sch.json', 'src/old.vhd', 'notes.txt'] }));
+  const json = async () => { const b = await ops.project('Excl'), sv = await P.readProject('Excl'); delete b.fileTree; delete sv.fileTree; assert.deepEqual(b, sv, 'the two stores agree'); return b; };
+  // a folder renamed: its removed files are removed at their new paths
+  await both(() => ops.renameFile('Excl', 'src', 'hdl'), () => P.renameFile('Excl', 'src', 'hdl'));
+  let pj = await json();
+  assert.deepEqual(pj.excluded, ['hdl/x.sch.json', 'hdl/old.vhd', 'notes.txt']);
+  assert.deepEqual(pj.files.map(f => f.path), ['hdl/a.vhd', 'hdl/old.vhd']);
+  // a removed file renamed: still removed
+  await both(() => ops.renameFile('Excl', 'notes.txt', 'doc/notes.txt'), () => P.renameFile('Excl', 'notes.txt', 'doc/notes.txt'));
+  assert.deepEqual((await json()).excluded, ['hdl/x.sch.json', 'hdl/old.vhd', 'doc/notes.txt']);
+  // the constraints' folder deleted: no constraints file (a UCF added later is adopted); a deleted folder's removed files forgotten
+  await both(() => ops.deleteFile('Excl', 'constraints'), () => P.deleteFile('Excl', 'constraints'));
+  assert.equal((await json()).constraints, null);
+  await both(() => ops.deleteFile('Excl', 'doc'), () => P.deleteFile('Excl', 'doc'));
+  pj = await json();
+  assert.deepEqual(pj.excluded, ['hdl/x.sch.json', 'hdl/old.vhd']);
+  // a file that is not the constraints deleted: the constraints stay
+  await both(() => ops.writeFile('Excl', 'ucf/top.ucf', ''), () => P.writeFile('Excl', 'ucf/top.ucf', ''));
+  await both(async () => ops.saveProject('Excl', { ...await ops.project('Excl'), constraints: 'ucf/top.ucf' }), async () => P.writeProject('Excl', { ...await P.readProject('Excl'), constraints: 'ucf/top.ucf' }));
+  await both(() => ops.deleteFile('Excl', 'hdl/a.vhd'), () => P.deleteFile('Excl', 'hdl/a.vhd'));
+  pj = await json();
+  assert.equal(pj.constraints, 'ucf/top.ucf');
+  assert.deepEqual(pj.files.map(f => f.path), ['hdl/old.vhd']);
+});
+
 test('#483 the project operations refuse a path that leaves the project, in both stores, and silinx.json as a file', async () => {
   for (const make of [() => folder(), () => { const s = browserStore(memStorage()); return { ops: projectOps(() => s, EXAMPLES) }; }]) {
     const { ops } = make();
