@@ -116,7 +116,7 @@ export const THIRD_PARTY = [
   },
   {
     "name": "body-parser",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "license": "MIT",
     "url": "expressjs/body-parser",
     "standalone": false
