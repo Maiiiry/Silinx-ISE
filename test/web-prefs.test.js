@@ -48,7 +48,7 @@ test('every localStorage key of web/js goes through prefKey (the projects\' own 
       for (const m of line.matchAll(/localStorage\.(?:getItem|setItem|removeItem)\(([^,)]+)/g)) {
         const arg = m[1].trim();
         // (a constant made by prefKey, checked below; PREF: api-local.js's storage in use, its own dev key)
-        if (/^(prefKey|VIEW_KEY)\(/.test(arg) || /^(KEY|[A-Z_]+_KEY|UPDATE_CACHE|UPDATE_ON_START|PREF|key)$/.test(arg)) continue;
+        if (/^(prefKey|[A-Z_]+_KEY)\(/.test(arg) || /^(KEY|[A-Z_]+_KEY|UPDATE_CACHE|UPDATE_ON_START|PREF|key)$/.test(arg)) continue;
         bad.push(`${f}:${i + 1}: ${arg}`);
       }
     });
@@ -70,6 +70,7 @@ test('the constants that name the settings\' keys are made by prefKey', () => {
   assert.match(src('ui.js'), /setItem\(prefKey\(storageKey\),/);
   assert.match(src('viewers.js'), /getItem\(prefKey\(ENGINE_KEY\)\)/);
   assert.match(src('app.js'), /const VIEW_KEY = name => prefKey\(`silinx\.view\.\$\{name\}`\);/);
+  assert.match(src('doc-cursor.js'), /const CURSOR_KEY = project => prefKey\(`silinx\.cursor\.\$\{project\}`\);/);   // (#1299)
   // index.html's early script: the interface, the theme and the drawer under the same keys
   const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
   assert.match(html, /var k = \/\\\/dev\\\/\/\.test\(location\.pathname\) \? 'silinx\.dev\.' : 'silinx\.';/);

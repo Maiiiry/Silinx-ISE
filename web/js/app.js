@@ -31,6 +31,7 @@ import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
 import { prefKey } from './prefs.js';
+import { keepCursor, keptCursor } from './doc-cursor.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -493,6 +494,7 @@ export async function openFile(path, line, col) {
   if (path.endsWith('.pn.json')) return openPetri(path);
   const id = `file:${path}`;
   let doc = findDoc(id);
+  const fresh = !doc;
   if (!doc) {
     let text;
     try { text = await api.readFile(S.project.name, path); }
@@ -533,7 +535,7 @@ export async function openFile(path, line, col) {
           onChange: (info) => { setDirty(d, !d.editor.isClean(), info); if (lang === 'ucf') liveUcf(); else if (lang === 'vhdl' || lang === 'verilog') liveHdl(); },
           onSave: () => flushDoc(d),
           onGotoDefinition: ({ file, line: ln }) => openFile(file, ln),
-          onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; },
+          onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; clearTimeout(d.cursorTimer); d.cursorTimer = setTimeout(() => keepCursor(S.project?.name, path, { line: l - 1, ch: c - 1 }), 300); },
           onRename: () => renameSymbolIn(d, lang, path),
           onFix: () => recheckFile(path),
         });
@@ -618,6 +620,9 @@ export async function openFile(path, line, col) {
       },
     });
   } else activateDoc(doc);
+  // (opened again, no line asked for: where its cursor was, #1299)
+  const kept = fresh && !line && doc?.editor && keptCursor(S.project.name, path);
+  if (kept) setTimeout(() => { try { doc.editor?.setCursor(kept); } catch { /* the file is shorter now */ } }, 30);
   if (line) {
     // jump once the editor is laid out, unless the user has already moved the cursor (a delayed
     // timer, e.g. in a background tab, must not pull the cursor away from where they type)
