@@ -29,7 +29,7 @@ const readJson = f => JSON.parse(/\.gz$/.test(f) ? zlib.gunzipSync(fs.readFileSy
 
 /**
  * The measurements (build.mjs's format) of the whole chip. dev: the device report's grid and sites (a Device: tile
- * names, their sites' names, types and bonding; nothing of its wires, PIPs or nodes is taken); tilesDb: the bit
+ * names, their rows and columns, their sites' names, types and bonding; nothing of its wires, PIPs or nodes is taken); tilesDb: the bit
  * database's s3e-tiles.json; layout: the device's layout (its break rows); obs: an observation (prototype.mjs observe);
  * others: other packages' observations (their pads renamed, pins.mjs); probe: { yes, no } of the arc probe; joins:
  * [[a, b]] confirmed by tests.
@@ -187,14 +187,14 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
       types[key] = { name: tp.type, wires: [...wires].sort(), pips: list, sites };
       variant.set(sig, key);
     }
-    tiles.push({ name, type: variant.get(sig), sites: dev.tileSites[k].map(([n, b]) => [n, b]) });
+    tiles.push({ name, type: variant.get(sig), sites: dev.tileSites[k].map(([n, b]) => [n, b]), r: dev.tileRow[k], c: dev.tileCol[k] });
   }
   // joins whose two ends are wires of the measured tiles
   const wiresOf = new Map(tiles.map(t => [t.name, new Set(types[t.type].wires)]));
   const has = k => { const i = k.indexOf('/'); return wiresOf.get(k.slice(0, i))?.has(k.slice(i + 1)); };
   const ord = ([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const all = [...new Map([...obs.joins, ...pinJoins, ...joins].filter(([a, b]) => has(a) && has(b)).map(j => [ord(j), j])).values()];
-  return { part: PART, family: 'spartan3e', types, tiles, joins: all, dropped: obs.joins.length + joins.length - all.length, byRule, joinsByRule };
+  return { part: PART, family: 'spartan3e', rows: dev.rows, cols: dev.cols, types, tiles, joins: all, dropped: obs.joins.length + joins.length - all.length, byRule, joinsByRule };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
