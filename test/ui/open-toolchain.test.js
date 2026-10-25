@@ -54,7 +54,7 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await page.waitDialog('Toolchain Settings');
   await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
   const modeSel = '.dlg-overlay .form-grid select';
-  assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Silinx toolchain (no ISE)');
+  assert.equal(await page.eval((s) => [...document.querySelector(s).options][0].textContent, modeSel), 'Silinx toolchain (no ISE)');   // (first, #1347)
   // not in open mode: no open status
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .open-status').style.display), 'none');
   await page.eval((s) => { const m = document.querySelector(s); m.value = 'silinx'; m.dispatchEvent(new Event('change')); }, modeSel);
