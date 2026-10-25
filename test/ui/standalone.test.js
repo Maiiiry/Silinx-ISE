@@ -16,6 +16,9 @@ import { pathToFileURL } from 'node:url';
 import { setupUi, uiTest, waitDownload, ROOT, chromeOnly, BROWSER } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { buildInfo } from '../../scripts/build-info.mjs';
+// the builds here are development builds of their own, also in the CI of a pushed tag, whose GITHUB_REF would make them the
+// release's (#1354)
+const devEnv = () => { const e = { ...process.env }; delete e.GITHUB_REF; return e; };
 import { VERSION, versionLabel } from '../../core/version.js';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
@@ -47,7 +50,7 @@ before(async () => {
   // a git checkout of its own, its commit untagged: a development build, labelled with it (#135)
   const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
   git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'build');
-  build = buildInfo(root, VERSION);
+  build = buildInfo(root, VERSION, devEnv());
   for (const d of ['web', 'core', 'server', 'examples', 'research', 'changes']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
@@ -74,7 +77,7 @@ before(async () => {
   siteUrl = `http://127.0.0.1:${server.address().port}/`;
   // built once the site's address is known: the single file fetches its assets from this site, which
   // its Content-Security-Policy names (--assets-url, #487)
-  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs'), '--site', site, '--assets-url', siteUrl], { cwd: root, encoding: 'utf8', timeout: 180000 });
+  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs'), '--site', site, '--assets-url', siteUrl], { cwd: root, encoding: 'utf8', timeout: 180000, env: devEnv() });
   if (r.status !== 0) throw new Error(`standalone build failed: ${r.stderr || r.stdout}`);
   html = path.join(root, 'dist', 'Silinx-ISE.html');
 });
@@ -1268,7 +1271,7 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
   // --assets-only: the same assets alone, into a site's assets folder (the Pages build keeps the last
   // releases' with it)
   const only = path.join(env.tmp, 'assets-only');
-  const r = spawnSync(process.execPath, [path.join(path.dirname(html), '..', 'scripts/build-standalone.mjs'), '--assets-only', only], { cwd: path.join(path.dirname(html), '..'), encoding: 'utf8', timeout: 120000 });
+  const r = spawnSync(process.execPath, [path.join(path.dirname(html), '..', 'scripts/build-standalone.mjs'), '--assets-only', only], { cwd: path.join(path.dirname(html), '..'), encoding: 'utf8', timeout: 120000, env: devEnv() });
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual((await fs.readdir(only)).sort(), [dir.slice(0, -1), 'vendor']);
   assert.deepEqual((await fs.readdir(path.join(only, dir))).sort(), ['bitdb', 'devices']);
