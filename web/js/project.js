@@ -182,7 +182,9 @@ export async function renderStartPage() {
     // New Project and Open Project: buttons at the top (#1216)
     h('div', { class: 'start-btns' },
       h('button', { class: 'btn', type: 'button', onclick: () => wiz.newProjectWizard() }, 'New Project…'),
-      h('button', { class: 'btn', type: 'button', onclick: () => wiz.openProjectDialog() }, 'Open Project…')),
+      h('button', { class: 'btn', type: 'button', onclick: () => wiz.openProjectDialog() }, 'Open Project…'),
+      // (off with none open, as the exports: the host's data-project, web/css/app.css, #1300)
+      h('button', { class: 'btn start-close', type: 'button', onclick: () => S.project && closeProject() }, 'Close Project')),
     // the Silinx and the Xilinx imports and exports, as the File menu has them, a line between (#1216)
     h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
       ...[['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Export Silinx ISE Project (.zip)…', 'save', exportZip('silinx'), true]].map(command),
