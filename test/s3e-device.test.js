@@ -2,6 +2,7 @@
 // the observation of ISE-routed nets, the join rules, the xdl2ncd probes, the DRC join tests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import zlib from 'node:zlib';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,7 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs } from '../research/s3e-device/gen-obspins2.mjs';
-import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants } from '../research/s3e-device/varyjoins.mjs';
+import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -700,6 +701,11 @@ test('edgeHypotheses: an edge tile\'s known join as a rule for the tiles of its 
   // the refused ones (the tests' islands) are not asked again, and make no rule
   const q = edgeHypotheses(obs, tiles, [['LTERM_X0Y3/W6BEG1', 'CLB_X1Y3/W6END1']], [['LTERM_X0Y4/W6BEG1', 'CLB_X1Y4/W6END1'], ['UL_X0Y35/N2BEG0', 'CLB_X1Y34/N2MID0']]);
   assert.deepEqual(q, { rules: [['LTERM_X0Y5/W6BEG1', 'CLB_X1Y5/W6END1']], ambiguous: [] });
+  // with a measured graph's wires: a rule also where no route showed the wires, only between tiles that have them
+  const obs2 = { ...obs, pips: obs.pips.filter(p => p.tile !== 'CLB_X1Y4' && p.tile !== 'CLB_X1Y3') };
+  assert.deepEqual(edgeHypotheses(obs2, tiles, [['LTERM_X0Y3/W6BEG1', 'CLB_X1Y3/W6END1']]).rules, []);
+  const W = { LTERM_X0Y4: new Set(['W6BEG1']), CLB_X1Y4: new Set(['W6END1']), LTERM_X0Y5: new Set(['W6BEG1']) };
+  assert.deepEqual(edgeHypotheses(obs2, tiles, [['LTERM_X0Y3/W6BEG1', 'CLB_X1Y3/W6END1']], [], t => W[t] || null).rules, [['LTERM_X0Y4/W6BEG1', 'CLB_X1Y4/W6END1']]);
   assert.deepEqual(['LTERM4_X0Y9', 'CNR_TTERM_X1Y35', 'COB_TERM_B_X9Y0', 'UL_X0Y35', 'CLB_X1Y1', 'TIOIS_X3Y35'].map(edgeTile), [true, true, true, true, false, false]);
 });
 
@@ -883,6 +889,10 @@ test('varyjoins: a pair\'s index varied among the wires that exist; the clock co
   const pips = pipVariants([{ tile: 'CLKT_X13Y35', from: 'CLKV_E2BEG5', to: 'CLKT_SELDUB2' }, { tile: 'CLB_X1Y1', from: 'E2BEG0', to: 'E2BEG1' }], wiresOf, new Set(['CLKT_X13Y35 CLKV_E2BEG5 CLKT_SELDUB2']));
   assert.deepEqual(pips, [{ tile: 'CLKT_X13Y35', from: 'CLKV_E2BEG4', to: 'CLKT_SELDUB2' }]);
   assert.deepEqual(joinVariants([['TIBUFS_X13Y35/E2BEG5', 'CLKT_X13Y35/CLKV_E2BEG5']], wiresOf, new Set()), [['TIBUFS_X13Y35/E2BEG4', 'CLKT_X13Y35/CLKV_E2BEG4'], ['TIBUFS_X13Y35/E2BEG5', 'CLKT_X13Y35/CLKV_E2BEG5']]);
+  // the edge tiles, the same way: a terminal tile's taps by index; the clock column's left out with that filter
+  const E = { CLB_X2Y33: new Set(['N6BEG0', 'N6BEG1']), TTERM_X2Y35: new Set(['TBTERM_N6B0', 'TBTERM_N6B1']) };
+  assert.deepEqual(joinVariants([['CLB_X2Y33/N6BEG0', 'TTERM_X2Y35/TBTERM_N6B0'], ['TIBUFS_X13Y35/E2BEG5', 'CLKT_X13Y35/CLKV_E2BEG5']], t => E[t] || W[t] || null, new Set(['CLB_X2Y33/N6BEG0|TTERM_X2Y35/TBTERM_N6B0']), /^TTERM/),
+    [['CLB_X2Y33/N6BEG1', 'TTERM_X2Y35/TBTERM_N6B1']]);
   // clock lines: the join at every index the two tiles have, and at the other tile of the prefix at the same offset; the
   // known one left out
   const tiles = ['LIOIS_X0Y2', 'LIOIS_X0Y3', 'LIOIS_X0Y7', 'LIOIS_X0Y8'];
@@ -912,4 +922,50 @@ test('chipMeasurements and packMeasured: the tiles on the device report\'s grid,
   // (measurements with no grid: the names' coordinates, as before)
   const old = loadDevice(packMeasured({ ...m, rows: undefined }));
   assert.equal(rc(old, 'CLB_X13Y15')[1], rc(old, 'CLKT_X13Y35')[1]);
+});
+
+test('varyjoins long: the long lines six tiles on, the index six on modulo 24 (eastwards LH, southwards LV); none on one node already (#3)', () => {
+  const tiles = ['TIOIS_X1Y35', 'TIOIS_X7Y35', 'TIBUFS_X13Y35', 'LIOIS_X0Y29', 'LIOIS_X0Y23'];
+  const W = { TIOIS_X1Y35: ['LH12'], TIOIS_X7Y35: ['LH18'], TIBUFS_X13Y35: ['LH0'], LIOIS_X0Y29: ['LV6'], LIOIS_X0Y23: ['LV12'] };
+  const wiresOf = t => (W[t] ? new Set(W[t]) : null);
+  const same = new Set(['TIOIS_X7Y35/LH18|TIBUFS_X13Y35/LH0']);
+  const h = longLineVariants(tiles, wiresOf, (a, b) => same.has(`${a}|${b}`), new Set());
+  // X1 -> X7 (12 -> 18), not X7 -> X13 (one node already: 18 -> 0, the index wrapping); Y29 -> Y23 (6 -> 12)
+  assert.deepEqual(h.map(j => j.join(' ')).sort(), ['LIOIS_X0Y29/LV6 LIOIS_X0Y23/LV12', 'TIOIS_X1Y35/LH12 TIOIS_X7Y35/LH18']);
+  // in switch boxes: the column's (the DCM tile Y34 one, its terminal rows 31-33 none) six on, nine tile rows down
+  const col = ['TIBUFS_X13Y35', 'DCM_TL_CENTER_X13Y34', 'CLB_X13Y30', 'CLB_X13Y29', 'CLB_X13Y28', 'CLB_X13Y27', 'CLB_X13Y26'];
+  const W2 = { TIBUFS_X13Y35: ['LV18'], CLB_X13Y26: ['LV0'], CLB_X13Y29: ['LV0'] };
+  const g = longLineVariants(col, t => (W2[t] ? new Set(W2[t]) : null), () => false, new Set(), switchGrid(col));
+  assert.deepEqual(g, [['TIBUFS_X13Y35/LV18', 'CLB_X13Y26/LV0']]);
+});
+
+test('varyjoins taps: a hex\'s other taps from any of them, whatever the prefix, in the tiles of their places (a segment from beyond the edge) (#3)', () => {
+  const tiles = ['TTERM_X2Y35', 'CLB_X2Y34', 'CLB_X2Y33', 'CLB_X2Y32'];
+  const W = { TTERM_X2Y35: ['TBTERM_S6A2'], CLB_X2Y34: ['S6B2'], CLB_X2Y33: ['S6MID2', 'S6MID3'], CLB_X2Y32: ['S6C2'] };
+  const h = tapVariants(tiles, t => (W[t] ? new Set(W[t]) : null), (a, b) => a === 'CLB_X2Y34/S6B2' && b === 'CLB_X2Y33/S6MID2', new Set());
+  // A (the terminal tile) to B, MID, C; B to C (B ~ MID one node already); MID to C; never index 3 with 2
+  assert.deepEqual(h.map(j => j.join(' ')).sort(), ['CLB_X2Y33/S6MID2 CLB_X2Y32/S6C2', 'CLB_X2Y34/S6B2 CLB_X2Y32/S6C2',
+    'TTERM_X2Y35/TBTERM_S6A2 CLB_X2Y32/S6C2', 'TTERM_X2Y35/TBTERM_S6A2 CLB_X2Y33/S6MID2', 'TTERM_X2Y35/TBTERM_S6A2 CLB_X2Y34/S6B2']);
+  // the same tap in another tile of the same place; an END's END_S one row down
+  const t2 = ['TTERM_X2Y35', 'TIBUFS_X2Y35', 'TIOIS_X1Y35', 'CLB_X1Y34'];
+  const W2 = { TTERM_X2Y35: ['TBTERM_N6BEG2'], TIBUFS_X2Y35: ['N6BEG2'], TIOIS_X1Y35: ['S6END1'], CLB_X1Y34: ['S6END_S1'] };
+  assert.deepEqual(tapVariants(t2, t => (W2[t] ? new Set(W2[t]) : null), () => false, new Set()).map(j => [...j].sort().join(' ')).sort(),
+    ['CLB_X1Y34/S6END_S1 TIOIS_X1Y35/S6END1', 'TIBUFS_X2Y35/N6BEG2 TTERM_X2Y35/TBTERM_N6BEG2']);
+});
+
+test('prototype.mjs predict, WIRES: a rule applied where a measured graph has the wires, though no route showed them in the tile type (#3, the I/O tiles\' OMUX)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'predictw-'));
+  // a rule from one observed join (OMUX_W14 of the tile west of an OMUX14), the tiles' wires only in the measured graph
+  const obs = { pips: [{ tile: 'CLB_X5Y5', from: 'X0', dir: '->', to: 'OMUX14' }, { tile: 'CLB_X4Y5', from: 'OMUX_W14', dir: '->', to: 'F1_B0' }], joins: [['CLB_X5Y5/OMUX14', 'CLB_X4Y5/OMUX_W14']] };
+  fs.writeFileSync(path.join(dir, 'obs.json'), JSON.stringify(obs));
+  fs.writeFileSync(path.join(dir, 'tiles.txt'), ['CLB_X4Y5', 'CLB_X5Y5', 'TIOIS_X4Y35', 'TIOIS_X5Y35'].join('\n') + '\n');
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const tilesDb = { types: { CENTER_SMALL: { features: { 'X0->OMUX14': [], 'OMUX_W14->F1_B0': [] } }, TIOIS: { features: { 'X0->OMUX14': [], 'OMUX_W14->F1_B0': [] } } } };
+  const m = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs: { pips: [], pins: [], pinJoins: [], joins: [] } });
+  fs.writeFileSync(path.join(dir, 'g.json.gz'), zlib.gzipSync(JSON.stringify(packMeasured(m))));
+  const run = env => { execFileSync(process.execPath, ['research/s3e-device/prototype.mjs', 'predict', path.join(dir, 'obs.json'), path.join(dir, 'tiles.txt'), path.join(dir, 'p.json')], { stdio: 'pipe', env: { ...process.env, ...env } }); return JSON.parse(fs.readFileSync(path.join(dir, 'p.json'), 'utf8')).map(j => j.join(' ')); };
+  // the I/O tiles' OMUX14 / OMUX_W14: predicted only with the measured graph's wires
+  assert.ok(!run({}).includes('TIOIS_X5Y35/OMUX14 TIOIS_X4Y35/OMUX_W14'));
+  assert.ok(run({ WIRES: path.join(dir, 'g.json.gz') }).some(j => j.split(' ').sort().join(' ') === 'TIOIS_X4Y35/OMUX_W14 TIOIS_X5Y35/OMUX14'));
+  fs.rmSync(dir, { recursive: true });
 });

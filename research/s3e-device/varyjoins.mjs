@@ -11,11 +11,20 @@
 //   rows:  each known join of two clock lines (GCLK…) whose ends are in one tile row or one tile column, moved to every
 //          other row (column) where tiles at the same X (Y) have the same wires, at every index 0-7: the clock rows and
 //          vertical lines ISE's designs did not use (the GCLKH row at Y13, GCLKV_X6Yk)
-//   node varyjoins.mjs pips|joins|clock|rows measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
+//   edge:  each known join (observed or confirmed) with an end in an edge tile or a corner, the index varied: the hexes
+//          and doubles a terminal tile turns back (CLB_X2Y33/N6BEG1 ~ TTERM_X2Y35/TBTERM_N6B1)
+//   taps:  the taps of each double and hex from any of them, whatever the wire's prefix, in the tiles of their places:
+//          the segments that start beyond the chip's edge (TTERM_X2Y35/TBTERM_S6A2 ~ CLB_X2Y33/S6MID2)
+//   long:  the long lines: every pair of tiles six apart along a row (LH) or a column (LV) that both have the wires, the
+//          index six on, modulo 24, eastwards (LH) or southwards (LV) — the rule every known long-line join follows
+//          (BIOIS_X11Y0/LH0 ~ BIOIS_X17Y0/LH6, LIOIS_X0Y29/LV6 ~ LIOIS_X0Y23/LV12): the I/O rows' and columns' ends no
+//          route took (TIOIS_X1Y35/LH12 ~ TIOIS_X7Y35/LH18)
+//   [SWITCHTILES=switch-tiles.txt] node varyjoins.mjs pips|joins|edge|taps|clock|rows|long measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { tileXY, wireFamily } from './observe.mjs';
+import { switchGrid } from './model.mjs';
 
 /** The pairs of wire names a pair takes with its last number varied over 0..n-1: the same index at both ends when they
  *  had the same, else each end alone; okA / okB: the names that exist. [[a, b]], the pair itself among them. */
@@ -31,6 +40,8 @@ export function indexVariants(a, b, okA, okB, n = 16) {
 }
 
 const CLOCK_COLUMN = /^(CLKT|CLKB|CLKV|CLKC|CLKL|CLKR|DCM|GCLK)/;
+// (the edge tiles and corners, edgejoins.mjs's edgeTile)
+const EDGE = /^(LTERM|RTERM|TTERM|BTERM|COB_|CNR_|UL_|UR_|LL_|LR_)/;
 const ord = j => [j[0], j[1]].sort().join('|');
 
 /** The arc-probe candidates: [{ tile, from, to }]. wiresOf(tile): the measured wires of a tile (a Set) or null; asked:
@@ -49,12 +60,13 @@ export function pipVariants(pips, wiresOf, asked) {
   return [...out.values()];
 }
 
-/** The join hypotheses of the clock column by index: [[a, b]], none known or tested. */
-export function joinVariants(joins, wiresOf, done) {
+/** The join hypotheses of the clock column (or of the tiles `tiles` matches: the edge tiles) by index: [[a, b]], none
+ *  known or tested. */
+export function joinVariants(joins, wiresOf, done, tiles = CLOCK_COLUMN) {
   const out = new Map();
   for (const [a, b] of joins) {
     const [ta, wa] = a.split('/'), [tb, wb] = b.split('/');
-    if (!CLOCK_COLUMN.test(ta) && !CLOCK_COLUMN.test(tb)) continue;
+    if (!tiles.test(ta) && !tiles.test(tb)) continue;
     const A = wiresOf(ta), B = wiresOf(tb);
     if (!A || !B) continue;
     for (const [x, y] of indexVariants(wa, wb, v => A.has(v), v => B.has(v))) { const j = [`${ta}/${x}`, `${tb}/${y}`]; if (!done.has(ord(j))) out.set(ord(j), j); }
@@ -110,6 +122,68 @@ export function clockRowVariants(joins, tiles, wiresOf, done) {
   return [...out.values()];
 }
 
+/** The taps of a double or a hex (BEG, MID, END; BEG, A, B, MID, C, D, END) from any of them, whatever the wire's prefix
+ *  (an edge tile's TBTERM_S6A2, a corner's W6END0): the other taps of the segment, each in the tile of its place on it
+ *  (one tile on per tap, in the line's direction) that has a wire of that tap: [[a, b]], none on one node already nor
+ *  tested. The segments that start beyond the chip's edge (a hex south from the top: its A in the terminal tile). */
+export function tapVariants(tiles, wiresOf, sameNode, done) {
+  const TAPS = { 2: ['BEG', 'MID', 'END'], 6: ['BEG', 'A', 'B', 'MID', 'C', 'D', 'END'] }, STEP = { N: [0, 1], S: [0, -1], E: [1, 0], W: [-1, 0] };
+  const re = /^(?:[A-Z0-9]+_)*?([NSEW])(2|6)(BEG|A|B|MID|C|D|END)(\d+)$/;
+  const at = new Map();
+  for (const t of tiles) { const x = tileXY(t); if (x) { const k = `${x.x},${x.y}`; if (!at.has(k)) at.set(k, []); at.get(k).push(t); } }
+  // (a tile's wire of a tap: its name with or without a prefix)
+  const tapWire = (x, y, d, len, tap, i) => {
+    for (const t of at.get(`${x},${y}`) || []) for (const w of wiresOf(t) || []) { const m = re.exec(w); if (m && m[1] === d && m[2] === len && m[3] === tap && m[4] === i) return `${t}/${w}`; }
+    return null;
+  };
+  const out = new Map();
+  for (const t of tiles) {
+    const p = tileXY(t);
+    if (!p) continue;
+    for (const w of wiresOf(t) || []) {
+      const m = re.exec(w);
+      if (!m) continue;
+      const [, d, len, tap, i] = m, taps = TAPS[len], k = taps.indexOf(tap), [sx, sy] = STEP[d];
+      const add = o => { if (!o) return; const h = [`${t}/${w}`, o]; if (h[0] !== h[1] && !done.has(ord(h)) && !sameNode(h[0], h[1])) out.set(ord(h), h); };
+      taps.forEach((tp, j) => { if (j > k) add(tapWire(p.x + sx * (j - k), p.y + sy * (j - k), d, len, tp, i)); });
+      // (the same tap in another tile of the same place: a terminal tile and the I/O tile it shares X / Y with,
+      // TTERM_X2Y35/TBTERM_N6BEG2 ~ TIBUFS_X2Y35/N6BEG2; the END's switch box one row down / up, END_S / END_N)
+      for (const u of at.get(`${p.x},${p.y}`) || []) if (u !== t) for (const v of wiresOf(u) || []) { const n = re.exec(v); if (n && n[1] === d && n[2] === len && n[3] === tap && n[4] === i) add(`${u}/${v}`); }
+      if (tap === 'END') for (const [dy, sfx] of [[-1, 'S'], [1, 'N']]) for (const u of at.get(`${p.x},${p.y + dy}`) || []) for (const v of wiresOf(u) || []) if (v.endsWith(`${d}${len}END_${sfx}${i}`)) add(`${u}/${v}`);
+    }
+  }
+  return [...out.values()];
+}
+
+/** The long lines' joins by their rule (six on, the index six on modulo 24: eastwards for LH, southwards for LV),
+ *  between the tiles that have the wires, none on one node already (sameNode(a, b)) nor tested: [[a, b]]. grid
+ *  (model.mjs switchGrid): six switch boxes of the row / column on, else six tile X / Y (a DCM's terminal rows in the
+ *  clock column's neighbours hold none: TIBUFS_X13Y35/LV18 ~ CLB_X13Y26/LV0, the DCM tile Y34 one of the six). */
+export function longLineVariants(tiles, wiresOf, sameNode, done, grid = null) {
+  const at = new Map();
+  for (const t of tiles) { const x = tileXY(t); if (x) { const k = `${x.x},${x.y}`; if (!at.has(k)) at.set(k, []); at.get(k).push(t); } }
+  const find = (x, y, w) => (at.get(`${x},${y}`) || []).find(t => wiresOf(t)?.has(w));
+  const out = new Map();
+  // (the place six on: in switch boxes when the tile is one of the grid's)
+  const step = (p, d, t) => {
+    if (!grid?.pos.has(t)) return d === 'H' ? [p.x + 6, p.y] : [p.x, p.y - 6];
+    const line = d === 'H' ? grid.rowXs.get(p.y) : grid.colYs.get(p.x), i = line.indexOf(d === 'H' ? p.x : p.y), o = line[d === 'H' ? i + 6 : i - 6];
+    return o === undefined ? [NaN, NaN] : d === 'H' ? [o, p.y] : [p.x, o];
+  };
+  for (const t of tiles) {
+    const p = tileXY(t), w = wiresOf(t);
+    if (!p || !w) continue;
+    for (let i = 0; i < 24; i++) for (const d of ['H', 'V']) {
+      if (!w.has(`L${d}${i}`)) continue;
+      const [x, y] = step(p, d, t), j = (i + 6) % 24, u = find(x, y, `L${d}${j}`);
+      if (!u) continue;
+      const h = [`${t}/L${d}${i}`, `${u}/L${d}${j}`];
+      if (!done.has(ord(h)) && !sameNode(h[0], h[1])) out.set(ord(h), h);
+    }
+  }
+  return [...out.values()];
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, gf, of, out, ...rest] = process.argv.slice(2);
   const { loadDevice } = await import('../../core/fpga/device.js');
@@ -127,7 +201,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const verdicts = rest.flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')));
     const known = [...obs.joins, ...verdicts.filter(v => v[2] === 'join').map(v => [v[0], v[1]])];
     const done = new Set([...known, ...verdicts.filter(v => v[2] === 'no-join')].map(ord));
-    const hyp = cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : cmd === 'rows' ? clockRowVariants(known, G.tileNames, wiresOf, done) : clockLineVariants(known, G.tileNames, wiresOf, done);
+    const node = k => { const i = k.indexOf('/'); return G.node(k.slice(0, i), k.slice(i + 1)); };
+    const hyp = cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : cmd === 'edge' ? joinVariants(known, wiresOf, done, EDGE) : cmd === 'rows' ? clockRowVariants(known, G.tileNames, wiresOf, done)
+      : cmd === 'taps' ? tapVariants(G.tileNames, wiresOf, (a, b) => node(a) >= 0 && node(a) === node(b), done)
+      : cmd === 'long' ? longLineVariants(G.tileNames, wiresOf, (a, b) => node(a) >= 0 && node(a) === node(b), done,
+        // (the DCM tiles hold a switch box too: TIBUFS_X13Y35/LV18 -> DCM_TL_CENTER_X13Y34/LV19 -> CLB_X13Y30/LV20)
+        process.env.SWITCHTILES ? switchGrid([...new Set([...fs.readFileSync(process.env.SWITCHTILES, 'utf8').split('\n').filter(Boolean), ...G.tileNames.filter(t => /^DCM_[TB][LR]_CENTER_/.test(t))])]) : null)
+        : clockLineVariants(known, G.tileNames, wiresOf, done);
     fs.writeFileSync(out, JSON.stringify(hyp));
     console.log(`${hyp.length} join hypotheses`);
   }

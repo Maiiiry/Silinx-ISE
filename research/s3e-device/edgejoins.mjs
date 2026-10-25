@@ -3,7 +3,7 @@
 // confirmed by the rounds' tests are rules here too (joinRule: the same wires at the same offset), applied to every tile
 // of the same prefix whose wires ISE's routes showed in a tile of that type; and the observations' ambiguous joins with
 // an end in such a tile (not the clock lines': clocktests.mjs) are taken with each candidate that has one.
-//   node edgejoins.mjs obs.json out.json [tested-dir…]      out.json: [[a, b]], neither observed nor tested
+//   [WIRES=measured.json.gz] node edgejoins.mjs obs.json out.json [tested-dir…]      out.json: [[a, b]], neither observed nor tested
 import fs from 'node:fs';
 import path from 'node:path';
 import { joinRule, tileXY, wireFamily } from './observe.mjs';
@@ -13,8 +13,9 @@ export const edgeTile = tile => /^(LTERM|RTERM|TTERM|BTERM|COB_|CNR_|UL_|UR_|LL_
 
 /** The hypotheses: { rules: [[a, b]] (the known joins' rules applied), ambiguous: [[a, b]] }, none known or refused.
  *  tiles: every tile name of the device (the grid); known: [[a, b]] (observed or confirmed); refused: [[a, b]] (the tests'
- *  islands: not asked again). */
-export function edgeHypotheses(obs, tiles, known, refused = []) {
+ *  islands: not asked again); wiresOf(tile): the tile's wires in a measured graph (a Set), else the wires ISE's routes
+ *  showed in its prefix. */
+export function edgeHypotheses(obs, tiles, known, refused = [], wiresOf = null) {
   const ord = ([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const have = new Set([...known, ...refused].map(ord));
   // the wires seen in each tile prefix (an end must be a wire a route named there)
@@ -33,11 +34,11 @@ export function edgeHypotheses(obs, tiles, known, refused = []) {
     const m = /^(\S+?)\/(\S+) (-?\d+),(-?\d+) (\S+?)\/(\S+)$/.exec(r);
     if (!m) continue;
     const [, pa, wa, dx, dy, pb, wb] = m;
-    if (!wires.get(pa)?.has(wa) || !wires.get(pb)?.has(wb)) continue;
+    if (!wiresOf && (!wires.get(pa)?.has(wa) || !wires.get(pb)?.has(wb))) continue;
     for (const A of byPrefix.get(pa) || []) {
-      const tb = at.get(`${pb}|${A.x + +dx},${A.y + +dy}`);
-      if (!tb) continue;
-      const j = [`${pa}_X${A.x}Y${A.y}/${wa}`, `${tb}/${wb}`];
+      const tb = at.get(`${pb}|${A.x + +dx},${A.y + +dy}`), ta = `${pa}_X${A.x}Y${A.y}`;
+      if (!tb || (wiresOf && (!wiresOf(ta)?.has(wa) || !wiresOf(tb)?.has(wb)))) continue;
+      const j = [`${ta}/${wa}`, `${tb}/${wb}`];
       if (!have.has(ord(j))) out.set(ord(j), j);
     }
   }
@@ -60,7 +61,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const tiles = loadDeviceCache(process.env.PART || 'xc3s250ecp132-4').tileNames;
   const verdicts = dirs.flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')));
   const known = [...obs.joins, ...verdicts.filter(v => v[2] === 'join').map(v => [v[0], v[1]])];
-  const r = edgeHypotheses(obs, tiles, known, verdicts.filter(v => v[2] === 'no-join').map(v => [v[0], v[1]]));
+  // (WIRES=measured.json.gz: the tiles' wires a measured graph has, chip.mjs's)
+  let wiresOf = null;
+  if (process.env.WIRES) {
+    const { loadDevice } = await import('../../core/fpga/device.js');
+    const zlib = await import('node:zlib');
+    const G = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(process.env.WIRES))));
+    const cache = new Map();
+    wiresOf = t => { if (!cache.has(t)) { const k = G.tile(t); cache.set(t, k === undefined ? null : new Set(Array.from(G.templates[G.tileTemplate[k]].wires, i => G.names[i]))); } return cache.get(t); };
+  }
+  const r = edgeHypotheses(obs, tiles, known, verdicts.filter(v => v[2] === 'no-join').map(v => [v[0], v[1]]), wiresOf);
   fs.writeFileSync(outFile, JSON.stringify([...r.rules, ...r.ambiguous]));
   console.log(`${r.rules.length} joins by the rules of the edge tiles' known joins, ${r.ambiguous.length} ambiguous candidates with an end in one`);
 }
