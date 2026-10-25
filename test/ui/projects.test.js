@@ -413,6 +413,8 @@ uiTest('Close Project while the project is still opening: closed after the openi
   assert.deepEqual(await closedState(), closed);
   // the Start page's recent project is there to click, even when the page is drawn again (a close's drawing
   // finishing late) between the press and the release: the page was rebuilt and the click lost (#494)
+  // (drawn again once the projects are listed: waited for, #1319)
+  await page.waitFor(() => [...document.querySelectorAll('#start-page a')].some((e) => e.textContent === 'Gamma' && e.getClientRects().length), [], { what: 'the recent project' });
   const at = await page.point('#start-page a', { text: 'Gamma' });
   await page.mouse('mouseMoved', at.x, at.y);
   await page.mouse('mousePressed', at.x, at.y);
