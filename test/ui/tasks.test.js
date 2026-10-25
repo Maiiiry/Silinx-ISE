@@ -1267,7 +1267,7 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
 }, { build: DEV });
 
 // #1309: Design's Close Project, under its tree; off with no project; Portuguese; not in the classic interface
-uiTest('#1309 Tasks ▸ Design: Close Project under the Design tree, off with no project; Portuguese; classic none', E, async (page) => {
+uiTest('#1309 #1384 Tasks ▸ Design: Close Project under the Design tree, off with no project; the tree\'s empty space\'s menu; Portuguese; classic none', E, async (page) => {
   await makeProject(env, { name: 'TasksClose', template: 'gates' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -1275,6 +1275,23 @@ uiTest('#1309 Tasks ▸ Design: Close Project under the Design tree, off with no
   await page.click('#left-tabs .tab[data-page="design"]');
   const btn = () => page.eval(() => { const b = document.querySelector('#task-close-bar button:not([data-act])'), t = document.getElementById('hier').getBoundingClientRect(); return b && b.getClientRects().length ? { text: b.textContent, off: b.disabled, under: b.getBoundingClientRect().top >= t.bottom - 1 } : null; });
   assert.deepEqual(await btn(), { text: 'Close Project', off: false, under: true });
+  // a right-click on the tree's empty space (under its rows): New Source, Add Copy of Source, Close Project (#1384); on a
+  // row, the row's menu
+  const empty = await page.eval(() => { const t = document.getElementById('hier').getBoundingClientRect(), rows = [...document.querySelectorAll('#hier .row')].filter((r) => r.getClientRects().length);
+    return { x: Math.round(t.left + 40), y: Math.round((rows.at(-1).getBoundingClientRect().bottom + t.bottom) / 2) }; });
+  const menu = () => page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }, [], { what: 'the context menu' });
+  await page.rightClick(empty);
+  assert.deepEqual(await menu(), ['New Source…', 'Add Copy of Source…', 'Close Project']);
+  await page.closeMenus();
+  await page.rightClick('#hier .row .lbl', { text: 'gates' });
+  assert.ok((await menu()).includes('Rename…'), 'a module\'s menu');
+  await page.closeMenus();
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.rightClick(empty);
+  assert.deepEqual(await menu(), ['Nova Fonte…', 'Adicionar Cópia de Fonte…', 'Fechar Projeto']);
+  await page.closeMenus();
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await page.click('#task-close-bar button:not([data-act])');
   await page.waitFor(() => !window.Silinx.project, [], { what: 'closed' });
   await page.waitFor(() => document.querySelector('#task-close-bar button:not([data-act])').disabled, [], { what: 'off with no project' });
