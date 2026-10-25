@@ -1,15 +1,15 @@
-// ISim's simulation control (#405: out of mountISim): the queue of commands (one given while a run goes on waits
+// SSim's simulation control (#405: out of mountISim): the queue of commands (one given while a run goes on waits
 // for it, Break cancels the ones still waiting, #215), a run for some time in chunks that keep the page responsive,
 // and Step. mountRun(ctx) is called by mountISim where this code was.
 import { fmtTime } from './isim.js';
 
-/** { enqueue, runTo, followEnd, step, breakCommands, destroy, isDestroyed } of an ISim window. */
+/** { enqueue, runTo, followEnd, step, breakCommands, destroy, isDestroyed } of an SSim window. */
 export function mountRun(ctx) {
   const { st, sim, runAllCap, logLine, setMsg, invalidate, setCursor, tOf, width, applyFit, objectsChanged } = ctx;
 
   const yieldUI = () => new Promise(r => setTimeout(r, 0));
   // Commands run in turn, as in ISim's console: one typed (or a Run button pressed) while a run goes on
-  // or before ISim's first run of 1 us starts waits for that run and for the commands given before it;
+  // or before SSim's first run of 1 us starts waits for that run and for the commands given before it;
   // it used to be dropped without a word (#215). Break cancels the commands still waiting.
   // runDone: the end of the run going on; cmdGen counts the Breaks.
   let runDone = Promise.resolve(), cmdGen = 0, destroyed = false, cmdTail = Promise.resolve(), cmdPending = 0;
@@ -29,7 +29,7 @@ export function mountRun(ctx) {
   // Break: the run going on stops at its next chunk, the commands waiting are cancelled
   function breakCommands() { st.breakReq = true; cmdGen++; }
   // runs for `dur` ps from the time the run starts: a run asked for during another (the Run for field
-  // while ISim's first run goes on) waits for it
+  // while SSim's first run goes on) waits for it
   async function runTo(dur, label) {
     const gen = cmdGen;
     while (st.running) await runDone;

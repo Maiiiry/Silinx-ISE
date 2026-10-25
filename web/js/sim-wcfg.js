@@ -1,6 +1,6 @@
 // The simulator's wave configurations as files of the project (#1019): Save Wave Configuration writes the wave
 // window's (web/js/isim-wcfg.js) to a .wcfg file, next to the simulated module's source unless another name is given;
-// Load Wave Configuration offers the project's .wcfg files, the module's own first. wcfgFiles(mod) is ISim's opts.wcfg
+// Load Wave Configuration offers the project's .wcfg files, the module's own first. wcfgFiles(mod) is SSim's opts.wcfg
 // (web/js/viewers.js runSimulation); the paths (wcfgPath, wcfgList) are core/wcfg.js's.
 import { wcfgList, wcfgPath } from '/core/wcfg.js';
 import { api } from './api.js';
@@ -12,7 +12,7 @@ const SAVE = 'Save Wave Configuration', LOAD = 'Load Wave Configuration';
 
 const projectFiles = () => S.diskTree || S.fileTree || [];
 
-/** ISim's opts.wcfg for a simulation of `mod`: { save(text), load() }. */
+/** SSim's opts.wcfg for a simulation of `mod`: { save(text), load() }. */
 export function wcfgFiles(mod) {
   let last = null;   // the file saved or loaded last: offered first
   const dir = () => { const f = moduleInfo(mod)?.file || ''; return f.includes('/') ? f.replace(/\/[^/]*$/, '/') : ''; };

@@ -1,4 +1,4 @@
-// ISim's toolbar (#405: out of mountISim in isim.js): restart, run all, run for a time (its value and unit), step,
+// SSim's toolbar (#405: out of mountISim in isim.js): restart, run all, run for a time (its value and unit), step,
 // break, the zooms, the cursor's moves, a marker, the radix, Save and Load Wave Configuration (#1019: with
 // opts.wcfg; no VCD export), and Edit Stimuli with its bar of commands (#336, #853) when the window can draw stimuli.
 import { h } from './dom.js';

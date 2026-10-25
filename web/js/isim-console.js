@@ -1,10 +1,10 @@
-// ISim's Console and command line (#405: out of mountISim): the simulator's messages and the commands' output, the
+// SSim's Console and command line (#405: out of mountISim): the simulator's messages and the commands' output, the
 // command line with its history, and the commands (run, restart, ssim force (isim force: its old name, still accepted), wave add, show, zoom, marker, help).
 // mountConsole(ctx) is called by mountISim where this code was, with what it uses of the simulator window.
 import { h } from './dom.js';
 import { fmtTime, parseTime, formatValue, parseValue } from './isim.js';
 
-/** The Console of the ISim window: { logLine(text, kind), echo(cmd), execCommand(line) }. */
+/** The Console of the SSim window: { logLine(text, kind), echo(cmd), execCommand(line) }. */
 export function mountConsole(ctx) {
   const { st, sim, design, cons, cmdInput, $, cleanups, onOpenSource, rfVal, rfUnit, enqueue, findSignal, findInst, addSignals,
     addInstance, addForce, removeForces, addMarker, zoomFit, zoomAt } = ctx;

@@ -1,20 +1,20 @@
 // The Tasks interface's Simulate task (#800, #782): the waves get the screen.
-// - ISim's own Instances and Objects are the task's side panel, folded at first (the Design pane is not shown in
+// - SSim's own Instances and Objects are the task's side panel, folded at first (the Design pane is not shown in
 //   Simulate), from the top of the work area as Design's and Implement's, the simulations' tabs to its right (fitSimTabs,
-//   #1259); ISim's title bar is the task's bar's (the module and the model, #854); its run controls stay its
+//   #1259); SSim's title bar is the task's bar's (the module and the model, #854); its run controls stay its
 //   toolbar, in the wave window's line (placeSimToolbar, #1026); no status line (#1017; web/css/tasks.css).
 // - Simulate runs the project's test bench whatever module is selected (simTarget), with the model chosen in the
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation). Choosing
 //   the model or the test bench simulates at once, the bar has no Simulate button (#1018; the task's page still has one).
-// - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in ISim), makes a new one
+// - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in SSim), makes a new one
 //   with the Test Bench Wizard, and opens the chosen one's source (#917): the design tree is Edit's.
 // simTarget and simChoices have no DOM and are unit tested (test/tasks.test.js).
 
 import { h } from './ui.js';
 
-/** ISim's toolbar in its wave window's line, where its name ("Default.wcfg") and the cursor's text were (`tasks`: the
+/** SSim's toolbar in its wave window's line, where its name ("Default.wcfg") and the cursor's text were (`tasks`: the
  *  Tasks interface, #1026; web/css/tasks.css hides them), its stimuli bar under it (#1270), else both back under its title
- *  bar, as ISim made them. */
+ *  bar, as SSim made them. */
 export function placeSimToolbar(tasks) {
   for (const root of document.querySelectorAll('#workspace .isim')) {
     watchSide(root.querySelector('.isim-left'));

@@ -1,10 +1,10 @@
-// ISim's dialogs (#405: out of mountISim): one at a time over the window (show, closeDialog), and Force Constant /
+// SSim's dialogs (#405: out of mountISim): one at a time over the window (show, closeDialog), and Force Constant /
 // Force Clock of the selected signal (forceDialog), which add the force and echo its ssim force add command.
 // mountDialogs(ctx) is called by mountISim where this code was.
 import { esc, h } from './dom.js';
 import { fmtTime, parseTime, formatValue, parseValue, pathOf } from './isim.js';
 
-/** { show, closeDialog, forceDialog } of an ISim window. */
+/** { show, closeDialog, forceDialog } of an SSim window. */
 export function mountDialogs(ctx) {
   const { root, sim, addForce, echo } = ctx;
 

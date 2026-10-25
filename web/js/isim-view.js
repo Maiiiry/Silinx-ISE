@@ -1,4 +1,4 @@
-// ISim's view of time (#405: out of mountISim in isim.js): time to x and back, the fit to the simulated time, the
+// SSim's view of time (#405: out of mountISim in isim.js): time to x and back, the fit to the simulated time, the
 // zoom about a point, the view kept in the simulated span, a time brought into view, and the scrollbars of the rows
 // and of the time (#915: the view's own scroll told from the user's).
 import { ROW_H, RULER_H, clamp } from './isim.js';

@@ -1,10 +1,10 @@
-// ISim's context menu (#405: out of mountISim): a menu of items ({ label, action, disabled, checked, sub } or
+// SSim's context menu (#405: out of mountISim): a menu of items ({ label, action, disabled, checked, sub } or
 // { sep: true }) at a point of the page, its submenus kept in the window, closed by a click elsewhere or Escape (which
 // closes the dialog too). mountMenu(ctx) is called by mountISim where this code was.
 import { esc, h } from './dom.js';
 import { clamp } from './isim.js';
 
-/** { showMenu, closeMenu } of an ISim window. */
+/** { showMenu, closeMenu } of an SSim window. */
 export function mountMenu(ctx) {
   const { cleanups, closeDialog } = ctx;
 

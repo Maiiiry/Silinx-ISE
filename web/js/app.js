@@ -426,7 +426,7 @@ export async function closeDoc(doc) {
 // and the Design view, kept in this browser (per project) so that a reload of the page, or opening
 // the project again, comes back to them instead of the Design Summary. The documents that open as
 // they were: the sources and their editors, the RTL schematic, the summary, the pin planner, iMPACT,
-// and the simulation (ISim) and the board emulator, run again for the same module and model (a
+// and the simulation (SSim) and the board emulator, run again for the same module and model (a
 // netlist model only while it exists); not a report or a technology schematic (a run's output).
 const VIEW_KEY = name => prefKey(`silinx.view.${name}`);
 const inProject = p => S.fileTree?.includes(p);
@@ -643,7 +643,7 @@ export async function openUcf() {
   openFile(pj.constraints);
 }
 
-// ------------------------------------------------------------------ viewers: schematics, ISim, Board Emulator (web/js/viewers.js)
+// ------------------------------------------------------------------ viewers: schematics, SSim, Board Emulator (web/js/viewers.js)
 
 // ------------------------------------------------------------------ drawings and their HDL (web/js/drawings.js)
 

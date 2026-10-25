@@ -1,4 +1,4 @@
-// ISim's rows of the wave window (#405: out of mountISim): the signals, dividers and groups shown (st.rows) and the
+// SSim's rows of the wave window (#405: out of mountISim): the signals, dividers and groups shown (st.rows) and the
 // lines drawn from them (flat: a bus expanded into its bits, a closed group's signals hidden), a bit's wave, the value
 // at a time; the rows' commands (Delete, New Group, Ungroup, the dividers, the radix) and their menu. mountRows(ctx) is
 // called by mountISim where the rows model was.
@@ -23,7 +23,7 @@ function bitIndices(t) {
 }
 
 /** { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix, selectedItems,
- *  removeSelectedRows, renameDivider, radixItems, waveRowMenu } of an ISim window (flat(): the lines shown). */
+ *  removeSelectedRows, renameDivider, radixItems, waveRowMenu } of an SSim window (flat(): the lines shown). */
 export function mountRows(ctx) {
   const { st, sim, onOpenSource, updateVScroll, invalidate, renderObjects, forceDialog, isForced, removeForces, openSource } = ctx;
 

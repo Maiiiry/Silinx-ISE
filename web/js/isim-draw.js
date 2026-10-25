@@ -1,11 +1,11 @@
-// ISim's rendering (#405: out of mountISim): the names column (names, the values at the cursor, groups, forces, the
+// SSim's rendering (#405: out of mountISim): the names column (names, the values at the cursor, groups, forces, the
 // drop line of a drag) and the wave window (the time ruler, the grid, the waves, the drawn stimuli, the markers, the
 // cursor and their delta), drawn on their canvases. mountDraw(ctx) is called by mountISim where this code was; the
 // scheduling of a frame (invalidate) stays there.
 import { ROW_H, RULER_H, fmtTime, trimNum, formatValue, clamp, isBitsType } from './isim.js';
 import { mountWaveDraw } from './isim-draw-wave.js';
 
-/** { drawNames, drawWaves, setFont, fitText } of an ISim window. */
+/** { drawNames, drawWaves, setFont, fitText } of an SSim window. */
 export function mountDraw(ctx) {
   const { st, sim, cn, cw, sizes, colors: getColors, flat: getFlat, dragRow: getDragRow, xOf, tOf, itemWave, valueOf, itemType, itemRadix,
     isForced, drawStim } = ctx;

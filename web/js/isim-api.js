@@ -1,4 +1,4 @@
-// ISim's public API (#405: out of mountISim in isim.js): what the app calls on a simulation window (refresh, run,
+// SSim's public API (#405: out of mountISim in isim.js): what the app calls on a simulation window (refresh, run,
 // step, restart, add signals, destroy, redraw, a command), its state saved and restored (the rows and their groups,
 // the cursor and markers, the view, the panels' sizes, the run time, the forces), its wave configuration as a .wcfg
 // file (isim-wcfg.js, #1019), and the waveform exported as VCD.

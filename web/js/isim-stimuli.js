@@ -1,4 +1,4 @@
-// ISim's drawn stimuli (#405: out of mountISim; #336, core/stimuli.js): Edit Stimuli on, a click on a cycle of an
+// SSim's drawn stimuli (#405: out of mountISim; #336, core/stimuli.js): Edit Stimuli on, a click on a cycle of an
 // input changes it there and up to its next change (0 → 1 → Z → X; a bus: a value typed in), on an output its expected
 // value (- → 0 → 1), a bit of a bus expanded as a 1-bit port (#919: the bus's value follows from its bits); the
 // simulation restarts and runs the stimuli at once, the expected outputs checked (the mismatches red); their timing
@@ -8,7 +8,7 @@ import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, editInp
 import { esc, h } from './dom.js';
 import { fmtTime, ROW_H, RULER_H } from './isim.js';
 
-/** { toggleStim, timingDialog, fillStim, stimClick, drawStim, runStim } of an ISim window. */
+/** { toggleStim, timingDialog, fillStim, stimClick, drawStim, runStim } of an SSim window. */
 export function mountStimuli(ctx) {
   const { st, sim, design, stimOpt, stimInst, topSig, stimPortOf, stimBar, btns, layout, invalidate, rowAtY, tOf, xOf, selectRow, setFont,
     flat, width, colors, api, echo, enqueue, runTo, logLine, showDialog, closeDialog } = ctx;

@@ -125,7 +125,7 @@ html[data-layout="tasks"][data-console="folded"] #mc-cmd { display: none; }
 }
 
 /* ------------------------------------------------------------------ Simulate (#800, web/js/tasks-sim.js) */
-/* the waves get the screen: ISim's title bar is the task's bar's; its side panel is ISim's Instances and Objects
+/* the waves get the screen: SSim's title bar is the task's bar's; its side panel is SSim's Instances and Objects
    (folded at first), not the Design pane */
 html[data-layout="tasks"] .isim-title { display: none; }
 /* no status line ("Ready … Sim Time"): the time is where the waves are, the state in the message centre (#1017) */
@@ -263,7 +263,7 @@ html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"]) #left-tabs 
 
 
 /* ------------------------------------------------------------------ Simulate's side panel: Simulation (#1161, #1257) */
-/* ISim's Instances and Processes under a tab, as Design's pages (its heading none); its tree the project's test benches,
+/* SSim's Instances and Processes under a tab, as Design's pages (its heading none); its tree the project's test benches,
    the one simulated opened as its instances (web/js/isim-tree.js); the other benches' rows here only */
 .task-sim-tabs, .task-bench { display: none; }
 html[data-layout="tasks"] .isim-tree li.task-bench { display: list-item; }

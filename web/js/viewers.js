@@ -1,4 +1,4 @@
-// The viewers of the design (#405: out of app.js): the RTL and technology schematics, the simulation in ISim (the
+// The viewers of the design (#405: out of app.js): the RTL and technology schematics, the simulation in SSim (the
 // behavioural model or a netlist model, with its test bench and data files) and the Board Emulator.
 import { api } from './api.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, toast } from './ui.js';
@@ -219,7 +219,7 @@ export async function openSchematic(mod, { netlist = null } = {}) {
   });
 }
 
-// ---- simulation (ISim)
+// ---- simulation (SSim)
 async function readDataFiles() {
   const map = new Map(S.sources.map(s => [s.path, s.text]));
   for (const f of S.fileTree.filter(f => /\.(mem|hex|txt|dat|coe|bin)$/i.test(f))) {
@@ -265,7 +265,7 @@ async function runSimulationInner(mod, model, stale) {
   openDoc({
     id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: id,
     create(el) {
-      // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
+      // SSim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
       // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with
       const inst = (design.top.ports || []).some(p => p.dir === 'in') ? design.top
         : (design.top.children || []).find(c => (c.ports || []).some(p => p.dir === 'in')) || design.top;
@@ -287,7 +287,7 @@ async function runSimulationInner(mod, model, stale) {
   });
 }
 
-// The stimuli drawn in ISim saved as a self-checking test bench (#336, core/stimuli.js -> core/testbench.js): next
+// The stimuli drawn in SSim saved as a self-checking test bench (#336, core/stimuli.js -> core/testbench.js): next
 // to the module's file, in the project's language, a simulation source
 async function saveStimTestbench(mod, inst, m) {
   const { tbPorts, generateTestbench } = await import('/core/testbench.js');
