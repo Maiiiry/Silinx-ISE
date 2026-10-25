@@ -7,7 +7,7 @@ import { EditorState, StateEffect, StateField, Compartment, Transaction } from '
 import { EditorView, Decoration, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
 import { StreamLanguage, syntaxHighlighting, bracketMatching, foldGutter, foldService, foldCode, indentUnit } from '@codemirror/language';
 import { history, historyKeymap, defaultKeymap, undo, redo, undoDepth, redoDepth, toggleComment, indentMore, indentLess, selectAll } from '@codemirror/commands';
-import { search, searchKeymap, openSearchPanel, findNext, gotoLine as gotoLinePanel, highlightSelectionMatches } from '@codemirror/search';
+import { search, searchKeymap, openSearchPanel, closeSearchPanel, searchPanelOpen, findNext, gotoLine as gotoLinePanel, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { linter, lintGutter, setDiagnostics as showDiagnostics } from '@codemirror/lint';
 import { tags, tagHighlighter } from '@lezer/highlight';
@@ -459,7 +459,9 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
   }
 
   // the editor's commands, by the names of the menus and buttons
-  const COMMANDS = { undo, redo, selectAll, findPersistent: openSearchPanel, replace: openSearchPanel, jumpToLine: gotoLinePanel, toggleComment };
+  // (findToggle: the Find buttons, a second click closing the find bar, #1328)
+  const COMMANDS = { undo, redo, selectAll, findPersistent: openSearchPanel, findToggle: v => (searchPanelOpen(v.state) ? closeSearchPanel(v) : openSearchPanel(v)),
+    replace: openSearchPanel, jumpToLine: gotoLinePanel, toggleComment };
 
   return {
     view,
