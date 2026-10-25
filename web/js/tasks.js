@@ -211,6 +211,8 @@ function tagDocs() {
   const single = on() && SINGLE.includes(current()) && mine <= 1;
   const r = root();
   if (single) r.dataset.single = 'on'; else delete r.dataset.single;
+  // (no document of the task open: no tab bar either, its page alone, #1289)
+  if (on() && !mine) r.dataset.nodocs = 'on'; else delete r.dataset.nodocs;
   const info = document.getElementById('task-doc');
   if (info) {
     const doc = single && mine === 1 ? only : null;
@@ -374,7 +376,7 @@ function unbuild() {
   shownTask = null;
   app.renderHierarchy();
   const r = root();
-  for (const k of ['task', 'side', 'console', 'max', 'single']) delete r.dataset[k];
+  for (const k of ['task', 'side', 'console', 'max', 'single', 'nodocs']) delete r.dataset[k];
 }
 
 /** The Tasks interface's behaviour; its parts are built while it is the interface. `a` is the app (web/js/app.js). */
