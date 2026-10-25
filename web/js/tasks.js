@@ -30,7 +30,7 @@ import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { layoutToggled } from './layout-fit.js';
 import { messagesTask, initMessages } from './messages.js';
-import { benchSelect, editBench, fitSimTabs, modelSelect, newBench, placeSimSide, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
+import { benchSelect, fitSimTabs, modelSelect, newBench, placeSimSide, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
@@ -343,9 +343,7 @@ function build() {
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
     h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…'),
-    h('div', { class: 'task-empty-sim' }, benchSelect(app),
-      h('button', { class: 'btn task-bench-edit', type: 'button', title: 'Open the test bench\'s source', onclick: () => editBench(app) }, 'Edit'),
-      modelSelect(app))));
+    h('div', { class: 'task-empty-sim' }, benchSelect(app), modelSelect(app))));   // (no Edit: a source from the Design panel, #1363)
   // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984); the test
   // benches a page of their own, after Design (#1016)
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
