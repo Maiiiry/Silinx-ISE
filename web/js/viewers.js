@@ -15,7 +15,7 @@ import { reloadProject } from './project.js';
 import { generateSimModel, readBuildFile, runImpl } from './implement.js';
 import { ucfPort } from './drawings.js';
 import { EXTRA_STEPS, ISE_ONLY, SIM_MODEL_NAMES, checkSyntax, diagsFor, loadUcfText, openMode, saveAll, setStatus } from './processes.js';
-import { inView, saveProjectJson } from './design.js';
+import { inView, moduleBadges, saveProjectJson } from './design.js';
 import { wcfgFiles } from './sim-wcfg.js';
 import { prefKey } from './prefs.js';
 
@@ -278,7 +278,9 @@ async function runSimulationInner(mod, model, stale) {
       // (the project's test benches in its tree, another one simulated in a document of its own: #1161)
       const benches = () => S.modules.filter(m => m.role === 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b));
       const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, wcfg: wcfgFiles(mod), onOpenSource: ref => ref?.file && openFile(ref.file, ref.line),
-        benches, onBench: name => { const d = findDoc(`isim:${name}`); if (d) openDoc({ id: d.id }); else runSimulation(name); } });
+        benches, onBench: name => { const d = findDoc(`isim:${name}`); if (d) openDoc({ id: d.id }); else runSimulation(name); },
+        // (each row's types, as Design's badges; a module simulated with stimuli drawn in SSim: [Waveform] first, #1316)
+        badges: name => [...(S.project.stimuli?.[name] ? [{ text: 'Waveform', base: true }] : []), ...moduleBadges(name).map(b => (S.project.stimuli?.[name] ? { ...b, base: false } : b))] });
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0) };
     },

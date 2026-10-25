@@ -148,6 +148,17 @@ function clashBadge(f) {
 
 // the view a module of an HDL file is synchronized with: only the module that drawing makes, not the
 // other modules of its file (a schematic's blocks, #175, are plain HDL modules, #207)
+/** A module's badges as its Design row has them ({ text, base }: the drawing's first, a truth table's schematic, a wizard's,
+ *  its HDL's last; the base marked): Simulate's tree shows them too (#1316). */
+export function moduleBadges(name) {
+  const info = moduleInfo(name);
+  if (!info) return [];
+  const drawn = /\.(sch|asm|tt|fsm|pn)\.json$/.test(info.file) ? info.file : null;
+  const sch = drawn || viewOfModule(info.name, info.file);
+  const wz = !sch ? wizardLabelOf(info.file) : null;
+  return [sch ? { text: viewBadge(sch), base: true } : null, isTt(sch) ? { text: 'Schematic' } : null, wz ? { text: wz, base: true } : null,
+    drawn ? null : { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog', base: !sch && !wz }].filter(Boolean);
+}
 function viewOfModule(name, file) {
   const v = S.hdlToSch?.[file];
   if (!v) return null;
