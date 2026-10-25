@@ -1,4 +1,4 @@
-// UI (#1224): Tasks ▸ Implement with no top module says so under its list (only Design Summary/Reports) and offers
+// UI (#1224): Tasks ▸ Implement with no top module says so in its empty list (no Design Summary/Reports either, #1287) and offers
 // Set Top Module…: the top chosen among the design's modules (the hierarchy's roots first, no test bench), then its
 // processes; in Portuguese; none in the classic interface. No warnings.
 import { before, after } from 'node:test';
@@ -33,7 +33,7 @@ uiTest('#1224 Tasks ▸ Implement with no top module: said so, Set Top Module…
   await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); window.SilinxApp.renderProcesses(); });
   await page.click('#task-switch .task-btn[data-task="impl"]');
   await page.waitFor(() => !!document.querySelector('#procs .task-no-top'), [], { what: 'the note' });
-  assert.deepEqual(await rows(page), ['Design Summary/Reports']);
+  assert.deepEqual(await rows(page), [], 'no processes, no Design Summary/Reports (#1287)');
   assert.deepEqual(await note(page), { text: 'No top module is set: the design is implemented from its top module, so set one to see its processes.', button: 'Set Top Module…' });
   // Set Top Module…: the roots first (top, other), then the others (inv)
   await page.click('#procs .task-no-top button');
@@ -43,6 +43,7 @@ uiTest('#1224 Tasks ▸ Implement with no top module: said so, Set Top Module…
   await page.dialogButton('OK');
   await page.waitFor(() => window.Silinx.project.top === 'top' && [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent.startsWith('Synthesize')), [], { what: 'the top set, its processes' });
   assert.equal(await note(page), null, 'no note with a top');
+  assert.equal((await rows(page))[0], 'Design Summary/Reports', 'the Design Summary with a top (#1287)');
   assert.equal((await env.server.api('GET', '/api/projects/NoTop')).top, 'top');
   // in Portuguese
   await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); window.SilinxApp.renderProcesses(); });

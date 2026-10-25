@@ -157,9 +157,11 @@ export function renderProcesses() {
   const host = $('procs');
   const { sel, view } = procsShown();
   $('proc-caption').textContent = `Processes: ${sel.module || (sel.file ? sel.file.split('/').pop() : '')}`;
-  renderProcessTree(host, processDefs(sel, view));
-  // Implement with no top module: why the list is empty, and a button to set one (#1224)
-  if (implTop() && S.project && !S.project.top) host.append(noTopNote());
+  // Implement with no top module: no processes, not even the Design Summary (#1287); why the list is empty, and a button to
+  // set one (#1224)
+  const noTop = implTop() && S.project && !S.project.top;
+  renderProcessTree(host, noTop ? [] : processDefs(sel, view));
+  if (noTop) host.append(noTopNote());
   // (Emulate's list in the Tasks interface: the states and the selection the same, #1204)
   for (const el of document.querySelectorAll('.task-emu-tree')) renderProcessTree(el, emulateProcesses());
 }
