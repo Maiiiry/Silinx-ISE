@@ -13,6 +13,7 @@
 // downloaded Silinx-ISE.html keeps the assets it was built with. --assets-only writes this version's
 // assets alone into an assets folder (the Pages build keeps the last releases' assets with it).
 // The page carries a Content-Security-Policy (server/csp.js) with the hashes of its inline scripts.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +38,20 @@ const LAYOUT = {
   yosys: `../vendor/yowasp-yosys/${YOSYS_VERSION}/gen/bundle.js`,
   site: new URL(arg('--assets-url') || (BUILD ? `${PUBLISHED}dev/` : PUBLISHED)).href,
 };
+// the assets this version publishes (writeAssets): their folder under assets/, where they come from, which files
+const ASSET_DIRS = [
+  [`${LAYOUT.dir}devices`, 'core/fpga/devices', f => f.endsWith('.json.gz')],
+  [`${LAYOUT.dir}bitdb`, 'research/s3e-bitstream/db', f => f.endsWith('.json')],
+  [`vendor/yowasp-yosys/${YOSYS_VERSION}/gen`, 'node_modules/@yowasp/yosys/gen', () => true],
+];
+// each one's SHA-256 by its path under assets/, checked by the browser's cache before it keeps or uses a copy (#1237)
+LAYOUT.integrity = {};
+for (const [dir, from, filter] of ASSET_DIRS) {
+  for (const f of fs.readdirSync(path.join(ROOT, from)).sort()) {
+    const src = path.join(ROOT, from, f);
+    if (fs.statSync(src).isFile() && filter(f)) LAYOUT.integrity[`${dir}/${f}`] = `sha256-${crypto.createHash('sha256').update(fs.readFileSync(src)).digest('base64')}`;
+  }
+}
 const copyDir = (from, to, filter = () => true) => {
   fs.mkdirSync(to, { recursive: true });
   let n = 0, bytes = 0;
@@ -50,13 +65,8 @@ const copyDir = (from, to, filter = () => true) => {
 };
 /** This version's assets in the folder `assets` (a site's assets/), as LAYOUT names them. */
 function writeAssets(assets) {
-  const own = path.join(assets, LAYOUT.dir);
   const yosys = path.join(assets, 'vendor/yowasp-yosys', YOSYS_VERSION);
-  const parts = [
-    [`${LAYOUT.dir}devices`, copyDir(path.join(ROOT, 'core/fpga/devices'), path.join(own, 'devices'), f => f.endsWith('.json.gz'))],
-    [`${LAYOUT.dir}bitdb`, copyDir(path.join(ROOT, 'research/s3e-bitstream/db'), path.join(own, 'bitdb'), f => f.endsWith('.json'))],
-    [`vendor/yowasp-yosys/${YOSYS_VERSION}/gen`, copyDir(path.join(ROOT, 'node_modules/@yowasp/yosys/gen'), path.join(yosys, 'gen'))],
-  ];
+  const parts = ASSET_DIRS.map(([dir, from, filter]) => [dir, copyDir(path.join(ROOT, from), path.join(assets, dir), filter)]);
   // the licence of the WebAssembly Yosys published with the site (ISC; THIRD-PARTY-NOTICES.md)
   for (const f of ['LICENSE.txt', 'LICENSE', 'package.json']) {
     const src = path.join(ROOT, 'node_modules/@yowasp/yosys', f);
