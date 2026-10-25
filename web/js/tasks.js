@@ -30,7 +30,7 @@ import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { layoutToggled } from './layout-fit.js';
 import { messagesTask, initMessages } from './messages.js';
-import { benchSelect, editBench, fitSimTabs, modelSelect, newBench, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
+import { benchSelect, editBench, fitSimTabs, modelSelect, newBench, placeSimSide, placeSimToolbar, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
@@ -206,6 +206,7 @@ function tagDocs() {
     if (d.tab.dataset.task !== t) d.tab.dataset.task = t;
     if (t === current()) { mine++; only = d; }
   }
+  placeSimSide(S, on() && current() === 'sim');   // (a source in front: the simulation's side panel beside it, #1343)
   // a task whose document is single by nature: no tab bar (none open: its page); the document's module and model,
   // and its close, in the task's bar (#854)
   const single = on() && SINGLE.includes(current()) && mine <= 1;

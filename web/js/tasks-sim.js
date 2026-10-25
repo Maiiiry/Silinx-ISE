@@ -35,10 +35,22 @@ export function placeSimToolbar(tasks) {
 export function fitSimTabs() {
   const center = document.getElementById('center'), tabs = document.getElementById('doc-tabs');
   if (!center) return;
-  const split = [...document.querySelectorAll('#workspace > .doc .isim-split-main')].find(e => e.getClientRects().length);
-  const side = split ? Math.max(0, Math.round(split.getBoundingClientRect().right - center.getBoundingClientRect().left)) : 0;
+  // (the side panel's right edge: its splitter's, or its own beside a source, #1343)
+  const shown = sel => [...document.querySelectorAll(`#workspace > .doc ${sel}`)].find(e => e.getClientRects().length);
+  const edge = shown('.isim-split-main') || shown('.isim-left');
+  const side = edge ? Math.max(0, Math.round(edge.getBoundingClientRect().right - center.getBoundingClientRect().left)) : 0;
   center.style.setProperty('--sim-side', `${side}px`);
   center.style.setProperty('--sim-tabs', `${tabs?.offsetHeight || 0}px`);
+}
+/** A source in front in Simulate (a module's HDL opened from the Simulation tree, #1332): the last simulation's side
+ *  panel (the Simulation tree, the Objects) stays shown at its left (`data-sim-side`, web/css/tasks.css, #1343). */
+let simSide = null;
+export function placeSimSide(S, sim) {
+  const isim = d => /^isim(:|$)/.test(d?.id || ''), a = S.active;
+  if (isim(a)) simSide = a;
+  if (simSide && !S.docs.includes(simSide)) simSide = null;
+  const side = sim && a && !isim(a) && a.el.dataset.task === 'sim' ? simSide || S.docs.filter(isim).at(-1) || null : null;
+  for (const d of S.docs) if (d === side) { if (!('simSide' in d.el.dataset)) d.el.dataset.simSide = ''; } else if ('simSide' in d.el.dataset) delete d.el.dataset.simSide;
 }
 // (measured again when a side panel is shown, folded or resized by its splitter)
 const watched = new WeakSet();

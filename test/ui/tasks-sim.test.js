@@ -208,6 +208,37 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the tes
   assert.deepEqual(await panel(), { tab: null, caption: true, rows: ['tb_top'], open: ['tb_top'] });
 });
 
+// #1343: a module's HDL opened from the Simulation tree: the simulation's side panel stays at its left, the source beside it
+uiTest('#1343 Tasks ▸ Simulate: a test bench\'s HDL from the Simulation tree opens beside the tree, not over it; folded: alone', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimHdl', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimHdl');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .badge', { text: 'VHDL' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:sim/tb_top.vhd' && window.Silinx.active.editor, [], { what: 'the test bench\'s HDL' });
+  const g = () => page.eval(() => {
+    const r = (e) => e && e.getClientRects().length ? e.getBoundingClientRect() : null;
+    const side = r(document.querySelector('#workspace > .doc .isim-left')), file = r(window.Silinx.active.el), tabs = r(document.getElementById('doc-tabs'));
+    return { task: document.documentElement.dataset.task, side: !!side && side.width > 100, besides: !!side && file.left >= side.right - 1, tabs: !!side && Math.abs(tabs.left - side.right) < 2,
+      waves: !!r(document.querySelector('#workspace > .doc .isim-wavewin')), tree: [...document.querySelectorAll('#workspace > .doc .isim-tree > li > .row .lbl')].filter((e) => e.getClientRects().length).map((e) => e.textContent) };
+  });
+  assert.deepEqual(await g(), { task: 'sim', side: true, besides: true, tabs: true, waves: false, tree: ['tb_top'] });
+  // folded: the source alone
+  await page.click('#task-view [data-act=side]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded');
+  assert.equal(await page.eval(() => Math.round(window.Silinx.active.el.getBoundingClientRect().left)), await page.eval(() => Math.round(document.getElementById('workspace').getBoundingClientRect().left)));
+  await page.click('#task-view [data-act=side]');
+  // the simulation's tab: the simulation again, its waves
+  await page.click('#doc-tabs > .tab', { text: 'SSim (tb_top)' });
+  await page.waitFor(() => /^isim:/.test(window.Silinx.active?.id || ''), [], { what: 'the simulation' });
+  assert.equal(await page.eval(() => !!document.querySelector('#workspace > .doc[data-sim-side]')), false);
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
+
 // #1316, #1332: the Simulation tree's rows show their types: [Waveform] marked, the simulation's view, then their HDL's
 // (no drawing's: Design's); [Waveform] brings the waveform to the front, the HDL's opens the file here, in Simulation
 uiTest('#1316 #1332 Tasks ▸ Simulate: the Simulation tree\'s rows [Waveform*] and their HDL; the HDL badge opens the file in Simulation, [Waveform] the waveform; Portuguese', E, async (page) => {
