@@ -789,7 +789,7 @@ export function t(text) {
     for (const [re, rep] of L.patterns) if (re.test(key)) { out = key.replace(re, rep); break; }   // rep: string or function
   }
   if (out === undefined) return s;
-  return s.replace(key, out);    // keep surrounding whitespace
+  return s.replace(key, () => out);    // keep surrounding whitespace ($& or $' in the text is text, #1232)
 }
 
 // ---------------------------------------------------------------- DOM translation

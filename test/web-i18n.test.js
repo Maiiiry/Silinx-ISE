@@ -69,6 +69,10 @@ test('t(): exact strings, patterns, surrounding whitespace, unknown text unchang
   assert.equal(t('Version 15.5.0'), 'Versão 15.5.0');
   assert.equal(t('SW3 = sw(3) (pin P11) — click to toggle'), 'SW3 = sw(3) (pino P11) — clique para comutar');
   assert.equal(t('Clock clk: 50 MHz on the board · not emulated: vga_red'), 'Relógio clk: 50 MHz na placa · não emulado: vga_red');
+  // #1232: a name with $&, $', $` or $$ (a project, a file) comes out as written, its surrounding whitespace kept
+  for (const n of ["a$&b", "x$'y", 'p$`q', 'm$$n', '$1'])
+    assert.equal(t(`  Reopen ${n} `), `  Reabrir ${n} `, n);
+  assert.equal(t("The top-level module 'a$&b' is not in the project."), "O módulo de topo 'a$&b' não está no projeto.");
   assert.equal(t('some text that is not in the dictionary'), 'some text that is not in the dictionary');
   assert.equal(t(''), '');
   assert.equal(t(null), null);
