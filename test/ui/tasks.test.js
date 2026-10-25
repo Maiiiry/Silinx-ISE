@@ -1264,6 +1264,27 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
   await noWarnings(page);
 }, { build: DEV });
 
+// #1309: Design's Close Project, under its tree; off with no project; Portuguese; not in the classic interface
+uiTest('#1309 Tasks ▸ Design: Close Project under the Design tree, off with no project; Portuguese; classic none', E, async (page) => {
+  await makeProject(env, { name: 'TasksClose', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksClose');
+  await page.click('#left-tabs .tab[data-page="design"]');
+  const btn = () => page.eval(() => { const b = document.querySelector('#task-close-bar button'), t = document.getElementById('hier').getBoundingClientRect(); return b && b.getClientRects().length ? { text: b.textContent, off: b.disabled, under: b.getBoundingClientRect().top >= t.bottom - 1 } : null; });
+  assert.deepEqual(await btn(), { text: 'Close Project', off: false, under: true });
+  await page.click('#task-close-bar button');
+  await page.waitFor(() => !window.Silinx.project, [], { what: 'closed' });
+  await page.waitFor(() => document.querySelector('#task-close-bar button').disabled, [], { what: 'off with no project' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-close-bar button').textContent === 'Fechar Projeto', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.getElementById('task-close-bar')), null);
+  await noWarnings(page);
+}, { build: DEV });
+
 // #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
 uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
   await makeProject(env, { name: 'TasksNoTabs', template: 'gates', files: {}, roles: {} });

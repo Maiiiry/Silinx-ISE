@@ -593,8 +593,8 @@ uiTest('Files view: rename a folder (its files and subfolders follow, still regi
   await assert.rejects(fs.access(path.join(env.server.workspace, 'FoldPj', 'old')));
 });
 
-// #1216: the Start page: New Project… and Open Project… buttons at the top, half of the page each, Close Project under them
-// (#1300); Project Commands
+// #1216: the Start page: New Project… and Open Project… buttons at the top, half of the page each (Close Project: under the
+// Design tree, #1309); Project Commands
 // the Silinx and the Xilinx imports and exports, a line between (the exports disabled with no project; with one,
 // they download its zips); in Portuguese
 const startPage = (page) => page.eval(() => {
@@ -603,17 +603,15 @@ const startPage = (page) => page.eval(() => {
   const box = p.querySelector('.start-box');
   return {
     buttons: btns.map((b) => b.textContent), top: p.querySelector('.page').firstElementChild === p.querySelector('.start-btns'),
-    halves: w.length === 3 && Math.abs(w[0] - w[1]) < 1 && Math.abs(w[2] - (w[0] + w[1] + 6)) < 2 && btns[2].getBoundingClientRect().top > btns[0].getBoundingClientRect().bottom
-      && btns.every((b) => b.scrollWidth <= b.clientWidth),
-    closeOff: getComputedStyle(p.querySelector('.start-close')).pointerEvents === 'none',
+    halves: w.length === 2 && Math.abs(w[0] - w[1]) < 1 && btns.every((b) => b.scrollWidth <= b.clientWidth),
     commands: [...box.children].slice(1).map((e) => (e.tagName === 'HR' ? '—' : `${e.textContent}${getComputedStyle(e.querySelector('a')).pointerEvents === 'none' ? ' (disabled)' : ''}`)),
   };
 });
 uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silinx and Xilinx imports and exports in Project Commands', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.leftTab('start');
-  await page.waitFor(() => document.querySelectorAll('#start-page .start-btns .btn').length === 3, [], { what: 'the Start page' });
-  assert.deepEqual(await startPage(page), { buttons: ['New Project…', 'Open Project…', 'Close Project'], top: true, halves: true, closeOff: true, commands: [
+  await page.waitFor(() => document.querySelectorAll('#start-page .start-btns .btn').length === 2, [], { what: 'the Start page' });
+  assert.deepEqual(await startPage(page), { buttons: ['New Project…', 'Open Project…'], top: true, halves: true, commands: [
     'Import Silinx ISE Project (.zip)…', 'Export Silinx ISE Project (.zip)… (disabled)', '—', 'Import Xilinx ISE Project (.zip)…', 'Export Xilinx ISE Project (.zip)… (disabled)'] });
   // drawn again with a project open (a late drawing while one opens): the same page kept, only its host's attribute
   // changes, so that a click pressed before is not lost (#494, #1222)
@@ -645,15 +643,10 @@ uiTest('#1216 Start page: New Project and Open Project buttons on top; the Silin
   await waitDownload(page, 'StartZip-silinx.zip');
   await page.click('#start-page .entry a', { text: 'Export Xilinx ISE Project (.zip)…' });
   await waitDownload(page, 'StartZip.zip');
-  // Close Project (#1300): on with a project, it closes it
-  assert.equal((await startPage(page)).closeOff, false);
-  await page.click('#start-page .start-btns .btn', { text: 'Close Project' });
-  await page.waitFor(() => !window.Silinx.project && !document.getElementById('start-page').hasAttribute('data-project'), [], { what: 'the project closed' });
-  assert.equal((await startPage(page)).closeOff, true);
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('#start-page .start-btns .btn')?.textContent !== 'New Project…', [], { what: 'Portuguese' });
-  assert.deepEqual((await startPage(page)).buttons, ['Novo Projeto…', 'Abrir Projeto…', 'Fechar Projeto']);
+  assert.deepEqual((await startPage(page)).buttons, ['Novo Projeto…', 'Abrir Projeto…']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
 });

@@ -48,8 +48,9 @@ html[data-layout="tasks"] :is(#design-panel .view-select, #left-split, #proc-pan
 html[data-layout="tasks"] #menubar .item:is([data-menu="Project"], [data-menu="Process"], [data-menu="Tools"], [data-menu="Window"]) { display: none; }
 /* the Design page's New Source and Add Copy of Source, above the tree, half of the panel each (#1210); the Files
    page's Add to Project and Add Copy to Project (#1214) */
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
+html[data-layout="tasks"] #task-close-bar { padding: 4px 6px 6px; border-top: 1px solid var(--m-border); }   /* (under the tree, #1309) */
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-layout="tasks"] #design-panel { flex: 1; }
 
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
