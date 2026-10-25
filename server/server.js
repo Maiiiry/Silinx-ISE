@@ -83,6 +83,8 @@ export async function createApp({ host = '127.0.0.1', token = null } = {}) {
 
   const api = express.Router();
   api.get('/projects', wrap(() => P.listProjects()));
+  // where the projects are kept: the Start page says it (#1297)
+  api.get('/workspace', wrap(() => ({ folder: P.workspaceDir() })));
   api.post('/projects', wrap(req => P.createProject(req.body || {})));
   api.get('/projects/:p', wrap(async req => ({ ...await P.readProject(req.params.p), fileTree: await P.fileTree(req.params.p) })));
   api.put('/projects/:p', wrap(req => {

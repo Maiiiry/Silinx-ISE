@@ -192,7 +192,7 @@ export async function renderStartPage() {
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
       projects.length ? null : h('div', { class: 'entry', style: { color: 'var(--grey-6)' } }, 'No projects yet.'),
       recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
-    api.standalone ? await storageBox() : null,
+    api.standalone ? await storageBox() : await workspaceBox(),
   );
   // the last render wins: an earlier one finishing later showed the list as it was (e.g. before a Clear)
   if (n !== startRenders) return;
@@ -202,6 +202,12 @@ export async function renderStartPage() {
   if (host.firstElementChild?.outerHTML === page.outerHTML) return;
   // replaced, not appended: two renders at once (the page shown again while a project closes) list it once
   host.replaceChildren(page);
+}
+// the application's Start page: where the projects are kept, the server's workspace folder (information only, #1297)
+async function workspaceBox() {
+  const folder = (await api.workspace?.().catch(() => null))?.folder;
+  return folder ? h('div', { class: 'start-box start-storage' }, h('h3', {}, 'Where Projects Are Kept'),
+    h('div', { class: 'entry' }, 'In the workspace folder on the disk:'), h('div', { class: 'entry start-folder', 'data-no-i18n': '' }, folder)) : null;
 }
 // the browser edition's Start page: where the projects are kept, and the folder commands
 async function storageBox() {

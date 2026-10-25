@@ -273,6 +273,18 @@ uiTest('Example traffic (New Project…), the second example: the state diagram 
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
+// #1297: the application's Start page says where its projects are kept (the server's workspace folder), information only
+uiTest('#1297 the Start page of the application: Where Projects Are Kept, the workspace folder, no browser commands; Portuguese', E, async (page) => {
+  await page.leftTab('start');
+  const box = () => page.eval(() => { const b = document.querySelector('#start-page .start-storage'); return b && { h3: b.querySelector('h3').textContent, entries: [...b.querySelectorAll('.entry')].map((e) => e.textContent), links: b.querySelectorAll('a').length }; });
+  await page.waitFor(() => !!document.querySelector('#start-page .start-storage'), [], { what: 'the box' });
+  assert.deepEqual(await box(), { h3: 'Where Projects Are Kept', entries: ['In the workspace folder on the disk:', env.server.workspace], links: 0 });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#start-page .start-storage h3')?.textContent === 'Onde Ficam os Projetos', [], { what: 'Portuguese' });
+  assert.deepEqual((await box()).entries, ['Na pasta de trabalho no disco:', env.server.workspace], 'the folder not translated');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+});
+
 uiTest('open, switch and close projects (Open Project dialog, Recent Projects, Start page)', E, async (page) => {
   for (const n of ['Alpha', 'Beta']) {
     await makeProject(env, { name: n, files: { [`src/${n.toLowerCase()}.vhd`]: `library ieee; use ieee.std_logic_1164.all;\nentity ${n.toLowerCase()} is port (a : in std_logic; y : out std_logic); end;\narchitecture r of ${n.toLowerCase()} is begin y <= not a; end r;\n` }, top: n.toLowerCase() });
