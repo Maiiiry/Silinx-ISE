@@ -12,7 +12,7 @@
 // transitions), a name already used in the drawing made new: _1, _2… (case-insensitive, as VHDL is); pasted into
 // a drawing with no initial state, the copy's initial state becomes its.
 
-export const DRAWINGS = {
+const DRAWINGS = {
   asm: { nodes: [['nodes', 'n']], edges: ['edges', 'e'], named: n => n.type === 'state' || n.type === 'always' },
   fsm: { nodes: [['states', 's']], edges: ['transitions', 't'], named: () => true },
   petri: { nodes: [['places', 'p'], ['transitions', 't']], edges: ['arcs', 'a'], named: () => true },

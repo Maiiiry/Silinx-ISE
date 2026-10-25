@@ -16,7 +16,7 @@ import { handDraw, writeText, rng } from './synth.js';
 import { ffPins, drawFlipFlop } from './synth-flipflop.js';
 
 const BASE = { and: 'and', nand: 'and', or: 'or', nor: 'or', xor: 'xor', xnor: 'xor', buf: 'buf', not: 'buf' };
-export const inverted = type => ['nand', 'nor', 'xnor', 'not'].includes(type);
+const inverted = type => ['nand', 'nor', 'xnor', 'not'].includes(type);
 
 /** Where a gate's input pin k (of n) and its output are, in gates' heights. */
 export function gatePins(g) {

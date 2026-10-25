@@ -6,9 +6,9 @@
 //     g: { type: 'ff', x, y, ins: ['D', 'C', ...] (from the top), outs: ['Q', 'QN'], wedge (the clock drawn as >) }
 import { handDraw, writeText } from './synth.js';
 
-export const FF_W = 1.3, FF_ROW = 0.45, FF_LABEL = 0.28;
+const FF_W = 1.3, FF_ROW = 0.45, FF_LABEL = 0.28;
 const rows = g => Math.max(g.ins.length, g.outs.length);
-export const ffHeight = g => 0.3 + FF_ROW * rows(g);
+const ffHeight = g => 0.3 + FF_ROW * rows(g);
 const rowY = (g, k) => g.y + 0.15 + FF_ROW * (k + 0.5);
 
 export function ffPins(g) {

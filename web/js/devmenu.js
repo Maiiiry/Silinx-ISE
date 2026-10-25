@@ -15,7 +15,7 @@ const issueUrl = n => `https://github.com/${REPOSITORY}/issues/${n}`;
 const open = url => window.open(url, '_blank', 'noopener');
 
 /** A fragment's text as nodes: **bold** and `code` as elements, the rest as text. */
-export function richText(text) {
+function richText(text) {
   const out = [];
   for (const part of String(text).split(/(\*\*[^*]+\*\*|`[^`]+`)/)) {
     if (!part) continue;
@@ -33,14 +33,14 @@ function changeBody(c) {
 }
 
 /** One change: its text, and its issue on GitHub. */
-export async function changeDialog(c) {
+async function changeDialog(c) {
   const r = await dialog({ title: `#${c.issue} ${c.title}`, body: changeBody(c), width: 620,
     buttons: [{ label: `Open Issue #${c.issue} on GitHub`, value: 'issue' }, { label: 'Close', value: null, primary: true }] });
   if (r === 'issue') open(issueUrl(c.issue));
 }
 
 /** Every change since the last release, by type. */
-export function changesDialog(build = BUILD) {
+function changesDialog(build = BUILD) {
   const body = h('div', { class: 'dev-changes' });
   for (const [t] of TYPES) {
     const list = build.changes.filter(c => c.type === t);

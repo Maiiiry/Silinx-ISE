@@ -8,7 +8,7 @@ import { lcdText } from '/core/emulate.js';
 
 /** { paint, setStat } of mountEmulator (compiled(), dirty(), lcd(), lcdDirty(), lcdView(), logN(), paints(), powered(), prev(), rateWin(), running(), vgaView(): its current values). */
 // (the status line's rewrites while running: twice a second at most, #1106)
-export const STAT_MS = 500;
+const STAT_MS = 500;
 
 export function mountEmuPaint(ctx) {
   const {

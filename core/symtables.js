@@ -13,9 +13,9 @@ import { buildLiveSim } from './schlive.js';
 import { oneSymbolDoc } from './symdocs.js';
 import * as V from './values.js';
 
-export const MAX_FULL = 6;          // input bits of a complete table shown row by row
-export const MAX_EXHAUSTIVE = 8;    // input bits simulated exhaustively (larger: representative rows)
-export const MAX_COMPACT = 16;      // rows of a compact table of more than MAX_FULL input bits
+const MAX_FULL = 6;          // input bits of a complete table shown row by row
+const MAX_EXHAUSTIVE = 8;    // input bits simulated exhaustively (larger: representative rows)
+const MAX_COMPACT = 16;      // rows of a compact table of more than MAX_FULL input bits
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const isSeq = type => !!SYMBOLS[type]?.ff || type === 'register' || type === 'counter';
 const bitwise = type => !!SYMBOLS[type]?.gate || ['mux2', 'mux4', 'mux8', 'mux16', 'demux', 'tbuf'].includes(type);

@@ -7,7 +7,7 @@
 import { VGA_STATE } from './compiled-sim.js';
 
 /** The 640x480 at 60 Hz mode (VESA / the IBM VGA): its pixel clock 25.175 MHz (25 MHz on the boards). */
-export const VGA_MODE = { width: 640, height: 480, lineUs: 31.778, frameHz: 59.94, lines: 525, hsyncUs: 3.813, vsyncLines: 2 };
+const VGA_MODE = { width: 640, height: 480, lineUs: 31.778, frameHz: 59.94, lines: 525, hsyncUs: 3.813, vsyncLines: 2 };
 
 /**
  * The VGA connector's port bits (boardWiring's): { hs, vs, red: [b], green: [b], blue: [b], widths: [r, g, b] }, the

@@ -60,7 +60,7 @@ const PORTED = [
     note: 'core/adept.js (the Digilent Adept USB programmer over WebUSB) is a JavaScript port of its USB and JTAG code.' },
 ];
 
-export function build() {
+function build() {
   const ported = PORTED.map(c => ({ ...c, source: null, text: fs.readFileSync(path.join(root, 'scripts', 'licences', `${c.name}.txt`), 'utf8').replace(/\r\n/g, '\n').trim() }));
   const comps = [...productionDeps().map(describe), ...ported].sort((a, b) => a.name.localeCompare(b.name));
   const own = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));

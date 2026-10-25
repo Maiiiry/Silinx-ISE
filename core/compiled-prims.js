@@ -279,7 +279,7 @@ const DCM_PARAMS = 'parameter real CLKDV_DIVIDE = 2.0, parameter integer CLKFX_D
   + 'parameter real CLKIN_PERIOD = 10.0, parameter CLKOUT_PHASE_SHIFT = "NONE", parameter CLK_FEEDBACK = "1X", parameter DESKEW_ADJUST = "SYSTEM_SYNCHRONOUS", '
   + 'parameter DFS_FREQUENCY_MODE = "LOW", parameter DLL_FREQUENCY_MODE = "LOW", parameter DSS_MODE = "NONE", parameter DUTY_CYCLE_CORRECTION = "TRUE", '
   + 'parameter [15:0] FACTORY_JF = 16\'hC080, parameter integer PHASE_SHIFT = 0, parameter STARTUP_WAIT = "FALSE", parameter SIM_MODE = "SAFE"';
-export const DCM_OUTPUTS = ['CLK0', 'CLK90', 'CLK180', 'CLK270', 'CLK2X', 'CLK2X180', 'CLKDV', 'CLKFX', 'CLKFX180', 'LOCKED', 'PSDONE', 'STATUS'];
+const DCM_OUTPUTS = ['CLK0', 'CLK90', 'CLK180', 'CLK270', 'CLK2X', 'CLK2X180', 'CLKDV', 'CLKFX', 'CLKFX180', 'LOCKED', 'PSDONE', 'STATUS'];
 const dcm = (name) => `(* blackbox *)
 module ${name} #(${DCM_PARAMS}) (input CLKIN, CLKFB, RST, DSSEN, PSCLK, PSEN, PSINCDEC,
   output ${DCM_OUTPUTS.slice(0, -1).join(', ')}, output [7:0] STATUS);
@@ -339,7 +339,7 @@ const delay = (w, d) => ({ pre: w.pre.map(([t, v]) => [add(t, d), v]), s: w.s &&
 const invLk = (w, L) => (eq(w.s, L) ? reg(add(L, half(w.q)), w.q) : { pre: [[L, 1], [w.s, 0]], s: add(w.s, half(w.q)), q: w.q });
 
 /** The waveforms of a DCM's outputs (name -> waveform): P its parameters (Yosys's), input its CLKIN's waveform. */
-export function dcmWaves(P, input, name) {
+function dcmWaves(P, input, name) {
   if (input.pre.length || !input.s) throw new Error(`the DCM '${name}' has a clock input that is not a steady clock`);
   // (unisim.js's CLK0 / CLK180 are its input and not the input: of 50 % duty)
   if (input.h && !eq(input.h, half(input.q))) throw new Error(`the DCM '${name}' has a clock input whose duty cycle is not 50 %`);
@@ -372,7 +372,7 @@ const num = (P, k, d, real) => (P[k] == null ? d : typeof P[k] === 'number' ? P[
  * q × DIVCLK_DIVIDE × CLKOUTn_DIVIDE / CLKFBOUT_MULT, high for its duty cycle, delayed by its phase (thousandths of
  * a degree of its own period, 0 … 359999; the duty cycle in thousandths).
  */
-export function pllWaves(P, input, name) {
+function pllWaves(P, input, name) {
   if (input.pre.length || !input.s) throw new Error(`the PLL '${name}' has a clock input that is not a steady clock`);
   const q = input.q, L = add(input.s, mul(q, F(2))), r4 = add(input.s, mul(q, F(3)));
   const M = num(P, 'CLKFBOUT_MULT', 1), D = num(P, 'DIVCLK_DIVIDE', 1);

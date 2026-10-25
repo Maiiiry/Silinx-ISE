@@ -34,7 +34,7 @@ function simplify(a, tol = 1) {
   return pts.filter((_, k) => keep[k]).flat();
 }
 
-export function buildTemplates() {
+function buildTemplates() {
   const rand = rng(7);
   const templates = [];
   for (const ch of SYMBOLS) {

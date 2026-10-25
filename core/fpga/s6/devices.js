@@ -18,7 +18,7 @@ export const S6_DEVICES = {
 export const S6_OPEN_STEPS = ['synth', 'postsynth'];
 
 /** The developer flag: SILINX_SPARTAN6_OPEN=1 in the environment of the server (none in the browser). */
-export const SPARTAN6_FLAG = 'SILINX_SPARTAN6_OPEN';
+const SPARTAN6_FLAG = 'SILINX_SPARTAN6_OPEN';
 export const spartan6Open = (env = globalThis.process?.env) => env?.[SPARTAN6_FLAG] === '1';
 
 /**

@@ -24,7 +24,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FIXTURE = path.join(ROOT, 'test/fixtures/power/xpower-examples.json');
 
 /** The numbers of XPower 14.7's verbose text report (xpwr -v): its summary, supplies and per-element tables. */
-export function parseXpower(text) {
+function parseXpower(text) {
   const lines = text.split('\n');
   const cells = l => l.split('|').slice(1, -1).map(s => s.trim());
   const num = s => (s === undefined || s === '' || s === 'NA' ? null : parseFloat(String(s).replace('~', '')));
@@ -63,7 +63,7 @@ export function parseXpower(text) {
 }
 
 /** What test/power.test.js and the fit need of a report: its totals and the sums of its elements. */
-export function summarize(x) {
+function summarize(x) {
   const sum = (l, f) => l.reduce((s, e) => s + (f(e) || 0), 0);
   const r4 = v => Math.round(v * 1e4) / 1e4;
   return {
@@ -97,7 +97,7 @@ export function mergeRuns(old, fresh, examples, targets) {
 }
 
 // least squares without an intercept: the b of y ≈ X b
-export function leastSquares(X, y) {
+function leastSquares(X, y) {
   const n = X[0].length, A = Array.from({ length: n }, () => new Array(n).fill(0)), v = new Array(n).fill(0);
   X.forEach((r, i) => { for (let a = 0; a < n; a++) { v[a] += r[a] * y[i]; for (let b = 0; b < n; b++) A[a][b] += r[a] * r[b]; } });
   for (let c = 0; c < n; c++) {

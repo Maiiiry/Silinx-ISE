@@ -128,7 +128,7 @@ export function sources(root = ROOT) {
 }
 
 /** The files changed from the merge base of base and head to head; null when base is unknown. */
-export function changedFiles(base, head, cwd = ROOT) {
+function changedFiles(base, head, cwd = ROOT) {
   try { return execFileSync('git', ['diff', '--name-only', `${base}...${head}`], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); }
   catch { return null; }
 }

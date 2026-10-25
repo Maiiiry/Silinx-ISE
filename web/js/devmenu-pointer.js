@@ -19,7 +19,7 @@ const yesNo = v => (v == null ? '—' : v ? 'yes' : 'no');
 const num = (v, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? String(+v.toFixed(d)) : '—');
 
 /** The screen's facts: its touch points, the media queries the app's layout reads, its pixel ratio, the viewport. */
-export function screenFacts(w = window) {
+function screenFacts(w = window) {
   const mq = q => (typeof w.matchMedia === 'function' ? w.matchMedia(q).matches : null);
   return [
     ['navigator.maxTouchPoints', String(w.navigator?.maxTouchPoints ?? '—')],
@@ -36,14 +36,14 @@ export function screenFacts(w = window) {
  * touch is down is the two-finger pan and zoom; a primary touch or pen edits, and held still opens the context menu;
  * the mouse edits.
  */
-export function silinxAction(type, isPrimary, otherTouches) {
+function silinxAction(type, isPrimary, otherTouches) {
   if (type === 'touch' && otherTouches > 0) return 'Two-finger pan and zoom';
   if ((type === 'touch' || type === 'pen') && isPrimary) return HELD;
   return 'Edits, as the mouse';
 }
 
 /** The report: the build, the browser, the screen's facts, the most pointers down at once and every pointer seen. */
-export function pointerReport({ facts, pointers, most, build = BUILD, version = VERSION, ua = navigator.userAgent }) {
+function pointerReport({ facts, pointers, most, build = BUILD, version = VERSION, ua = navigator.userAgent }) {
   return [
     'Silinx ISE: pen and touch test',
     `Silinx ISE ${version}${build?.commit ? ` (commit ${build.commit})` : ''}`,
