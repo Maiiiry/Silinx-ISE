@@ -21,6 +21,11 @@ async function rowMenu(page, label) {
 }
 const pick = (page, text) => page.click('body > .menu-popup .mi', { text });
 const savedTop = async (name) => (await env.server.api('GET', `/api/projects/${name}`)).top;
+// the top as saved, once the save asked for has reached the server (the app changes its project first, #1308)
+async function waitSaved(name, top) {
+  for (let t0 = Date.now(); Date.now() - t0 < 10000; await new Promise((r) => setTimeout(r, 100))) if (await savedTop(name) === top) return;
+  assert.equal(await savedTop(name), top, 'saved');
+}
 
 uiTest('#1220 Unset as Top Module: on the top\'s menu, the project without a top, Set as Top Module again; a drawing too; Portuguese', E, async (page) => {
   await makeProject(env, { name: 'UnsetPj', top: 'a', files: { 'src/a.vhd': A, 'src/b.v': B } });
@@ -35,7 +40,7 @@ uiTest('#1220 Unset as Top Module: on the top\'s menu, the project without a top
   await pick(page, 'Unset as Top Module');
   await page.waitFor(() => window.Silinx.project.top === '', [], { what: 'no top' });
   await page.waitConsole(/Top-level module 'a' unset: the project has no top module \(Set as Top Module makes one\)\./);
-  assert.equal(await savedTop('UnsetPj'), '');
+  await waitSaved('UnsetPj', '');
   assert.deepEqual(await rowMenu(page, 'a'), ['Set as Top Module']);
   await page.closeMenus();
   // the modern interface's Implement: no processes, its note (no Design Summary either, #1287, #1305)
@@ -53,7 +58,7 @@ uiTest('#1220 Unset as Top Module: on the top\'s menu, the project without a top
   await rowMenu(page, 'b');
   await pick(page, 'Set as Top Module');
   await page.waitFor(() => window.Silinx.project.top === 'b', [], { what: 'b the top' });
-  assert.equal(await savedTop('UnsetPj'), 'b');
+  await waitSaved('UnsetPj', 'b');
   if (!await page.eval(() => document.documentElement.dataset.layout === 'tasks')) {
     await page.treeRow('#hier', 'b', { exact: true });
     const items = (await page.openMenu('Project')).map((i) => i.label);
