@@ -86,7 +86,8 @@ uiTest('modern interface by default: the Tasks layout, header with search and th
     const vis = (sel) => { const e = document.querySelector(sel); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none'; };
     return {
       layout: [document.documentElement.dataset.layout, document.documentElement.dataset.task],
-      header: [Math.abs(r('titlebar').top - r('menubar').top) < 12, r('palette-btn').top < r('toolbar').top],
+      // (no menu bar: the toolbar in the header, in one line with the title and the search, #1321)
+      header: [!vis('#menubar'), Math.abs(r('titlebar').top - r('toolbar').top) < 12 && Math.abs(r('palette-btn').top - r('toolbar').top) < 12],
       tasks: [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.textContent.trim()),
       // Design's pages: a row of tabs above its panel
       pages: { dir: getComputedStyle(document.getElementById('left-tabs')).flexDirection, above: r('left-tabs').top < r('left-pages').top, icons: document.querySelectorAll('#left-tabs .tab-ico svg').length },

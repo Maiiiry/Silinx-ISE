@@ -1041,7 +1041,13 @@ uiTest('the site\'s development edition (dev/): says so, and keeps its projects 
 
 // View ▸ Interface, View ▸ Language: a submenu's entry chosen
 async function subMenu(page, menu, item, sub) {
-  const items = await page.openMenu(menu);
+  // (the modern interface: View's Interface and Language are the header's Settings', #1314; no menu bar, #1321)
+  let items;
+  if (await page.eval(() => !!document.getElementById('settings-btn')?.getClientRects().length)) {
+    await page.click('#settings-btn');
+    await page.waitForSelector('body > .menu-popup .mi');
+    items = await page.eval(() => [...document.querySelectorAll('body > .menu-popup > .mi .lbl')].map((l) => ({ label: l.textContent })));
+  } else items = await page.openMenu(menu);
   await page.hover(await page.point('body > .menu-popup > .mi', { index: items.findIndex((x) => x.label === item) }));
   await page.waitForSelector('.menu-popup.sub .mi');
   const subs = await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent));

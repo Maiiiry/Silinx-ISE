@@ -1292,6 +1292,26 @@ uiTest('#1309 Tasks ▸ Design: Close Project under the Design tree, off with no
   await noWarnings(page);
 }, { build: DEV });
 
+// #1321: no menu bar; the toolbar in the header where it was, without Stop, Toolchain Settings and About; back in classic
+uiTest('#1321 Tasks: no menu bar, the toolbar in the header in its place, without Stop, Toolchain Settings and About; classic as before', E, async (page) => {
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await makeProject(env, { name: 'TasksToolbar', template: 'gates' });
+  await page.openProject('TasksToolbar');
+  const L = () => page.eval(() => {
+    const vis = (e) => !!e && e.getClientRects().length > 0, tb = document.getElementById('toolbar');
+    return { menubar: vis(document.getElementById('menubar')), inHeader: tb.parentElement.id === 'topbar',
+      cmds: [...tb.querySelectorAll('.tb-btn')].filter(vis).map((b) => b.dataset.cmd), oneLine: document.getElementById('topbar').getBoundingClientRect().height <= 64 };
+  });
+  assert.deepEqual(await L(), { menubar: false, inHeader: true, cmds: ['newProject', 'open', 'print', 'undo', 'redo', 'cut', 'copy', 'paste', 'find'], oneLine: true });
+  assert.ok(await page.eval(() => document.getElementById('toolbar').getBoundingClientRect().left < document.getElementById('task-switch').getBoundingClientRect().left), 'before the tasks');
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  const c = await L();
+  assert.ok(c.menubar && !c.inHeader && ['stop', 'gear', 'help'].every((x) => c.cmds.includes(x)), JSON.stringify(c));
+  await noWarnings(page);
+}, { build: DEV });
+
 // #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
 uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
   await makeProject(env, { name: 'TasksNoTabs', template: 'gates', files: {}, roles: {} });

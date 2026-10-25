@@ -120,16 +120,18 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   // Unset as Top Module (#1220): tested by itself; here it would leave the processes below with no top
   const SKIP = new Set(['Close Project', 'Unset as Top Module']);
   const modern = await page.eval(() => document.documentElement.dataset.layout === 'tasks');
-  const GONE = ['File', 'Edit', 'Project', 'Process', 'Tools', 'Window'];   // (Window: #1253; File, Edit: #1307)
+  const GONE = ['File', 'Edit', 'View', 'Project', 'Process', 'Tools', 'Window', 'Help'];   // (Window: #1253; File, Edit: #1307; View, Help: no menu bar, #1321)
   const shownMenus = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
   assert.deepEqual(GONE.filter((m) => shownMenus.includes(m)), modern ? [] : GONE, `the menu bar: ${shownMenus}`);
   // (in Portuguese too: the menus hidden by their name, not their label)
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   const pt = await page.eval(() => [...document.querySelectorAll('#menubar .item')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()));
-  const PT = ['Ficheiro', 'Editar', 'Projeto', 'Processo', 'Ferramentas', 'Janela'];
+  const PT = ['Ficheiro', 'Editar', 'Ver', 'Projeto', 'Processo', 'Ferramentas', 'Janela', 'Ajuda'];
   assert.deepEqual(PT.filter((m) => pt.includes(m)), modern ? [] : PT, `in Portuguese: ${pt}`);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  const MENUS = [...(modern ? [] : ['Edit', 'File']), 'View', ...(modern ? [] : ['Project', 'Process', 'Tools']), 'Help', ...(modern ? [] : ['Window'])];
+  // (the modern interface: no menu bar, its commands the Start page's, the toolbar's, the header's Settings, #1321)
+  assert.equal(await page.eval(() => document.getElementById('menubar').getClientRects().length > 0), !modern, 'the menu bar');
+  const MENUS = modern ? [] : ['Edit', 'File', 'View', 'Project', 'Process', 'Tools', 'Help', 'Window'];
   const acted = [], idle = [], disabled = [], log = [];
   for (const m of MENUS) {
     const items = await page.openMenu(m);

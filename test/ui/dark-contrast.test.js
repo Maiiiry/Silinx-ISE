@@ -106,6 +106,11 @@ for (const theme of ['dark', 'light']) {
       await check(`menu ${m}`);
     }
     await page.closeMenus();
+    // the header's Settings menu (#1314; the menu bar gone, #1321)
+    await page.click('#settings-btn');
+    await page.waitForSelector('body > .menu-popup .mi');
+    await check('the Settings menu');
+    await page.closeMenus();
     for (const [menu, item] of [['Help', 'About Silinx ISE'], ['Help', 'Keyboard Shortcuts'], ['Help', 'Check for Updates…'], ['Help', 'Tell Us Who You Are…'], ['Tools', 'Toolchain Settings (ISE / Programmers)…'], ['File', 'Open Project…']]) {
       await page.menu(menu, item);
       await page.waitDialog();
@@ -160,18 +165,18 @@ for (const theme of ['dark', 'light']) {
     await check('Errors');
     await tab(page, 'console');
     await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-warning', { timeout: 8000 });
-    await page.hover('#menubar');
+    await page.hover('.app-logo');   // (the pointer away; no menu bar in the modern interface, #1321)
     await page.hover('.doc:not([hidden]) .cm-lint-marker-warning');
     await page.waitFor(() => document.querySelector('.xl-lint-tip')?.textContent, [], { what: 'lint tooltip' });
     await check('lint tooltip');
-    await page.hover('#menubar');
+    await page.hover('.app-logo');   // (the pointer away; no menu bar in the modern interface, #1321)
     // an error with a quick fix (#179): its button in the tooltip, "Fix: …" in the Errors tab
     await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('q <= d;', 'q <= d')); });
     await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-error', { timeout: 8000 });
     await page.hover('.doc:not([hidden]) .cm-lint-marker-error');
     await page.waitFor(() => !!document.querySelector('.xl-lint-tip .xl-fix'), [], { what: 'the quick fix in the tooltip' });
     await check('lint tooltip with a quick fix');
-    await page.hover('#menubar');
+    await page.hover('.app-logo');   // (the pointer away; no menu bar in the modern interface, #1321)
     await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
     await page.waitConsole(/Process "Check Syntax" failed/);
     await tab(page, 'errors');
