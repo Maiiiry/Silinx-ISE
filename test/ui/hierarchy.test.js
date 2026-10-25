@@ -152,6 +152,31 @@ for (const [ex, want] of Object.entries(EXAMPLES)) {
   }, { ui: 'classic' });
 }
 
+// #1303: a module defined again in another file: the library uses the last one, the first file's row stays, marked
+uiTest('Design pane (#1303): a module defined again in another file keeps the first file\'s row, marked "redefined in", opening its source', E, async (page) => {
+  const ent = (n, w) => `library ieee; use ieee.std_logic_1164.all;\nentity ${n} is port (a : in std_logic; y : out std_logic); end ${n};\narchitecture r of ${n} is begin y <= ${w}; end r;\n`;
+  await makeProject(env, { name: 'H_dup', top: '', files: { 'src/first.vhd': ent('xxx', 'a'), 'src/second.vhd': ent('xxx', 'not a') } });
+  await page.openProject('H_dup');
+  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => r.querySelector('.ico')?.dataset.ico === 'warn'), [], { what: 'the redefined row' });
+  const r = (await rows(page)).filter((x) => /xxx/.test(x));
+  assert.equal(r.length, 2, r.join(' | '));
+  assert.ok(r.some((x) => /^\s*vhdl xxx \[VHDL\*\] \(second\.vhd\)$/.test(x)), r.join(' | '));
+  assert.ok(r.some((x) => /^\s*warn xxx \(first\.vhd, redefined in second\.vhd\)$/.test(x)), r.join(' | '));
+  // (the library's warning, as before)
+  assert.deepEqual(await page.eval(() => window.SilinxApp.S.lib.errors.map((e) => `${e.severity} ${e.file}: ${e.message}`)), ["warning src/second.vhd: module 'xxx' redefined (previous in src/first.vhd)"]);
+  // its row opens the first file's source
+  await page.eval(() => { const row = [...document.querySelectorAll('#hier .row')].find((x) => x.querySelector('.ico')?.dataset.ico === 'warn'); row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/first.vhd', [], { what: 'the first source' });
+  // a drawing's module (gates' schematic) declared again in an HDL file: the schematic's row kept, opening the schematic
+  await makeProject(env, { name: 'H_dup_sch', template: 'gates', files: { 'src/zz_other.vhd': ent('gates', 'a') } });
+  await page.openProject('H_dup_sch');
+  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => x.querySelector('.ico')?.dataset.ico === 'warn'), [], { what: 'the schematic\'s row' });
+  const g = (await rows(page)).filter((x) => /gates/.test(x) && !/tb_/.test(x));
+  assert.ok(g.some((x) => /^\s*warn gates \(gates\.sch\.json, redefined in zz_other\.vhd\)$/.test(x)), g.join(' | '));
+  await page.eval(() => { const row = [...document.querySelectorAll('#hier .row')].find((x) => x.querySelector('.ico')?.dataset.ico === 'warn'); row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/gates.sch.json', [], { what: 'the schematic' });
+}, { ui: 'classic' });
+
 // the menus of every module's row and badge in the examples: none of the commands removed by #220
 uiTest('Design pane (#220): a badge opens its view, its right-click shows that view\'s commands; the module\'s menu; no Convert to HDL, HDL as base, Remove Synchronized, truth table of a module, Export as ISE Schematic on a module', E, async (page) => {
   await makeProject(env, { name: 'H_badges', template: 'gates' });

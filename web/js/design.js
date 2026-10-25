@@ -114,6 +114,18 @@ export function renderHierarchy() {
     const it = treeItem({ label: f.path.split('/').pop(), meta: '(no units)', ico: f.lang === 'vhdl' ? 'vhdl' : 'verilog', key: `f:${f.path}`, onSelect: () => select({ type: 'file', file: f.path }), onOpen: () => openFile(f.path), onContext: e => fileContextMenu(e, f.path) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
+  // a module defined again in another file (#1303): the library uses the last one ("module … redefined", a warning); the
+  // other file's row kept, marked, so that the clash is seen and its source opened
+  for (const p of lib.parsed) for (const u of p.units) {
+    const used = u.kind === 'module' && !u.entityOnly ? lib.modules.get(u.name) : null;
+    if (!used || used === u || used.file === p.file) continue;
+    const f = S.project.files.find(x => x.path === p.file);
+    if (!f || !(one || inView(f.role, sim))) continue;
+    const drawn = S.hdlToSch?.[p.file];
+    const it = treeItem({ label: u.name, meta: `(${(drawn || p.file).split('/').pop()}, redefined in ${used.file.split('/').pop()})`, ico: 'warn', key: `dup:${p.file}:${u.name}`,
+      onSelect: () => select({ type: 'file', file: p.file }), onOpen: () => (drawn ? openView(drawn) : openFile(p.file, u.loc?.line)), onContext: e => fileContextMenu(e, p.file) });
+    it.setLeaf(); devItem.ul.append(it.li);
+  }
   host.append(tree);
   // restore selection (a test bench's: the Test page's tree, #1016)
   const key = S.selKey;
