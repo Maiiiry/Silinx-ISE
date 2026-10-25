@@ -457,6 +457,7 @@ In detail:
   route (6377, now 478); `varyjoins.mjs long`, `edge` and `taps`, and `predict` / `edgejoins.mjs` on the measured graph's
   wires (`WIRES=`), closed them, every verdict agreeing with the shipped graph. The 43 designs pass ISE on it, 0.4% faster
   than on the shipped graph (research/s3e-device README section 14).
+- **The private-data check (#1336):** scripts/check-private-data.mjs allows the made-up /Users/Me of test/impl.test.js.
 
 ## 15.13.0
 
