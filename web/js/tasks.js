@@ -153,7 +153,7 @@ export function setTask(t, { fromDoc = false } = {}) {
     const want = docs.find(d => d.id === state.tasks[t].doc) || docs.at(-1);
     if (want && want !== S.active) app.openDoc({ id: want.id });
     // the task's own page, cheap to open: the Design Summary, iMPACT
-    else if (!want && S.project && t === 'impl') app.openSummary();
+    else if (!want && S.project?.top && t === 'impl') app.openSummary();   // (none with no top module: #1287)
   }
   apply();
 }
