@@ -3,6 +3,7 @@
 import {
   DEPTH_RULE, cellCounts, utilization
 } from './synth-open.js';
+import { LEVEL_CELL, COMB_CELL } from './lut-resynth.js';   // (the cells that add a logic level, and the combinational ones)
 
 // ------------------------------------------------------------- the critical path of a netlist
 // An estimate of the critical path (ns) of a mapped netlist of a 4-input-LUT family, from its cells
@@ -103,8 +104,6 @@ export function pathEnds(json, top) {
 
 // The logic levels of a mapped netlist: the LUTs (and MUXF5s, a LUT of 5 inputs) on its deepest path
 // between sequential cells, inputs and outputs (a carry chain's MUXCY / XORCY count none: its LUTs do)
-const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
-const COMB_CELL = t => /^(LUT[1-6]|INV|BUF|MUXF[5-8]|MUXCY|XORCY)$/.test(t);
 /** The logic levels of the deepest path of a Yosys JSON netlist (its top module). */
 export function logicLevels(json, top) {
   const nl = typeof json === 'string' ? JSON.parse(json) : json;

@@ -29,9 +29,8 @@ const EQ_MIN = 13;   // the bits an equality compares at least (fewer: a table's
 const EQ_MAX = 32;   // and at most (a number)
 
 import { wordLevel } from './compiled-words.js';
+import { int, isConst } from './compiled-helpers.js';
 
-const isConst = b => typeof b !== 'number';
-const int = s => (typeof s === 'number' ? s : parseInt(String(s).replace(/[xz]/gi, '0'), 2));
 const ANON = /^_\d+_(\.|$)/;   // (netgen's names of the nets it made: _418_, _418_.O)
 // the inputs of a one-bit cell a table computes (a gate, a multiplexer, a LUT), else null
 const insOf = c => {

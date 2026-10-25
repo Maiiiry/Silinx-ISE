@@ -22,6 +22,7 @@
 // Isomorphic ES module (browser + Node), no DOM.
 
 export const GATES = new Set(['$and', '$or', '$xor', '$not', '$mux']);
+import { int, pbits, isConst } from './compiled-helpers.js';
 import { mountBitCells } from './compiled-words-bits.js';
 import { mountRegisterProposals } from './compiled-words-regs.js';
 export const FFS = new Set(['$dff', '$dffe', '$aldff', '$aldffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce']);
@@ -35,9 +36,7 @@ export function permutations(n) {
   if (n === 0) return [[]];
   return permutations(n - 1).flatMap(p => Array.from({ length: n }, (_, i) => [...p.slice(0, i), n - 1, ...p.slice(i)]));
 }
-export const isConst = b => typeof b !== 'number';
-const pbits = s => (typeof s === 'number' ? s.toString(2) : String(s)).split('').reverse().map(c => (c === '1' ? 1 : 0));
-export const int = s => (typeof s === 'number' ? s : parseInt(String(s).replace(/[xz]/gi, '0'), 2));
+export { int, isConst };   // (core/compiled-helpers.js: compiled-words-bits.js and -regs.js import them from here)
 
 /** The netlist (Yosys's JSON) with its gate-level logic at word level: { json: a copy, stats }. */
 export function wordLevel(json, top) {
