@@ -15,11 +15,11 @@ In short:
 - **No menu bar in the modern interface:** the toolbar is in the header, and a Settings button holds About, Interface,
   Language, Theme, Toolchain Settings, Check for Updates, Keyboard Shortcuts and Tell Us Who You Are; the other commands
   are the pages' buttons, the processes, the right-click menus and the command palette.
-- **Design:** New Source and Add Copy of Source above the tree, Close Project under it; the Files page adds the
-  folder's files to the project, copies files in and deletes a file from the disk; the Start page has New Project and
-  Open Project buttons and says where the projects are kept.
-- **Simulate:** several simulations at once, each in its tab; its Simulation tree lists the test benches with their
-  types as Design's badges; what to simulate (any module, the model) is chosen on its page.
+- **Design:** New Source and Add Copy of Source above the tree, Check Design and Close Project under it; the Files page
+  adds the folder's files to the project, copies files in and deletes a file from the disk; the Start page has New
+  Project and Open Project buttons and says where the projects are kept.
+- **Simulate:** several simulations at once, each in its tab; its Simulation tree lists the test benches, each row with
+  [Waveform] and its HDL's badge (opening the file there); what to simulate (any module, the model) is chosen on its page.
 - **Implement:** the top module's processes, whatever is selected; with no top, it says so and offers Set Top Module…;
   a top can be unset from its right-click menu.
 - **Curved wires in the schematic editor,** hop-overs on them; ADD and SUB drawn as adders; turned or mirrored symbols
@@ -458,6 +458,15 @@ In detail:
   wires (`WIRES=`), closed them, every verdict agreeing with the shipped graph. The 43 designs pass ISE on it, 0.4% faster
   than on the shipped graph (research/s3e-device README section 14).
 - **The private-data check (#1336):** scripts/check-private-data.mjs allows the made-up /Users/Me of test/impl.test.js.
+- **Tasks ▸ Design: Check Design beside Close Project (#1329):** the bar under the Design tree runs Check Syntax of the
+  project's top module, whatever the tree selects; it is off with no project or no top module. The classic interface has
+  no such bar.
+- **Tasks ▸ Design: no Create Test Bench (Wizard) in a module's right-click menu (#1330):** the Tasks interface's test
+  benches are made on the Test page; the classic interface keeps the item and its Processes panel's entry.
+- **Simulation tree: [Waveform] in place of the drawing's badge; the HDL badge opens the file in Simulation (#1332):** the
+  rows show [Waveform] (marked, the simulation's view: its instance selected, the waveform in front) and their HDL's
+  badge, which opens the file in the Tasks interface's Simulation task (a document's task: the one it was opened in,
+  `openFile`'s `task`, else its id's).
 
 ## 15.13.0
 
