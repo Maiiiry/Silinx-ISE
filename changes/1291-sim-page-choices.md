@@ -11,3 +11,6 @@ In detail:
 - **No action button in the toolbar (#1292):** web/js/tasks.js (the task's bar keeps Emulate's document line only),
   web/css/tasks.css.
 - Tests: test/ui/tasks.test.js, test/ui/tasks-sim.test.js, test/ui/tablet.test.js.
+- **No New Test Bench in Simulate's choice (#1312):** web/js/tasks-sim.js (the choice lists the test benches and the
+  design modules), web/js/tasks.js (the page's Create a test bench (Wizard)… button shown whenever there is a design
+  module to test).

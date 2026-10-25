@@ -89,16 +89,14 @@ export function simChoices(project, modules = []) {
   return { benches, design };
 }
 
-export const NEW_BENCH = '+new';
 /** The task's bar's choice of the test bench (shown in Simulate only; its options follow the project: refreshBench): a
  *  test bench or a module chosen is simulated at once (#1018). */
 export function benchSelect(app) {
   const sel = h('select', { id: 'task-bench', title: 'The test bench to simulate', 'aria-label': 'The test bench to simulate' });
   sel.addEventListener('change', () => {
     const v = sel.value;
-    sel.value = simTarget(app.S.project, app.S.modules) || '';   // (until the choice is made: a wizard may be cancelled)
-    if (v === NEW_BENCH) newBench(app);
-    else if (v) app.setTop(v, true).then(() => { refreshBench(app); return simulate(app); });
+    sel.value = simTarget(app.S.project, app.S.modules) || '';   // (until the choice is made)
+    if (v) app.setTop(v, true).then(() => { refreshBench(app); return simulate(app); });
   });
   return sel;
 }
@@ -112,9 +110,8 @@ export function refreshBench(app) {
     sel.dataset.key = key;
     sel.replaceChildren(
       ...(benches.length ? [h('option', { disabled: true }, 'Test Benches'), ...benches.map(n => h('option', { value: n }, n))] : []),
-      h('option', { disabled: true }, 'Design modules'), ...design.map(n => h('option', { value: n }, n)),
-      h('option', { value: NEW_BENCH }, 'New Test Bench (Wizard)…'));
-    for (const o of sel.options) if (o.hasAttribute('value') && o.value !== NEW_BENCH) o.dataset.noI18n = '';   // (the modules' names)
+      h('option', { disabled: true }, 'Design modules'), ...design.map(n => h('option', { value: n }, n)));   // (a new test bench: the page's button, #1312)
+    for (const o of sel.options) if (o.hasAttribute('value')) o.dataset.noI18n = '';   // (the modules' names)
   }
   sel.value = simTarget(app.S.project, app.S.modules) || '';
 }
