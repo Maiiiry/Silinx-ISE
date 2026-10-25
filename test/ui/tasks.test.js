@@ -310,9 +310,10 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitForSelector('.doc:not([hidden]) .cm-editor');
   assert.deepEqual(await docInfo(page), { tabs: true, info: null }, 'Edit keeps its tabs, even with one file');
-  // Simulate: its tab bar, as Edit's (several simulations may be open, #1161), none open (its page), then ISim in its tab
+  // Simulate: none open, its page alone (no tab bar, #1289); then ISim in its tab, its tab bar as Edit's (several
+  // simulations may be open, #1161)
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  assert.deepEqual(await docInfo(page), { tabs: true, info: null });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: null });
   await page.click('#task-empty button');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
   assert.deepEqual(await docInfo(page), { tabs: true, info: null });
@@ -1260,6 +1261,31 @@ uiTest('#1159 #1160 #1207 Tasks: no heading under the side panel\'s tabs; Implem
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.equal(await page.eval(() => document.getElementById('task-procs-tab')), null);
   assert.ok((await heading()).length > 0);
+  await noWarnings(page);
+}, { build: DEV });
+
+// #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
+uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
+  await makeProject(env, { name: 'TasksNoTabs', template: 'gates', files: {}, roles: {} });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksNoTabs');
+  const bar = () => page.eval(() => { const t = document.getElementById('doc-tabs'); return t.getClientRects().length > 0 && t.getBoundingClientRect().height > 0; });
+  // Design, nothing open: no bar
+  await page.eval(() => [...window.SilinxApp.S.docs].forEach((d) => window.SilinxApp.closeDoc(d)));
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await page.waitFor(() => document.documentElement.dataset.nodocs === 'on', [], { what: 'Design with no document' });
+  assert.equal(await bar(), false, 'Design: no tab bar');
+  // Simulate with no test bench: its page alone, no bar
+  await page.eval(async () => { const A = window.SilinxApp; A.S.project.files = A.S.project.files.filter((f) => f.role !== 'sim'); await A.saveProjectJson(); await A.reloadProject(); });
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.waitFor(() => !document.getElementById('task-empty').hidden, [], { what: 'Simulate\'s page' });
+  assert.equal(await bar(), false, 'Simulate: no tab bar');
+  // a document open in Design: its bar again
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await page.eval(() => window.SilinxApp.openFile(window.SilinxApp.S.project.files.find((f) => /\.vhd$/.test(f.path)).path));
+  await page.waitFor(() => window.Silinx.active?.editor && document.documentElement.dataset.nodocs === undefined, [], { what: 'a document' });
+  assert.equal(await bar(), true, 'Design with a document: its tab bar');
   await noWarnings(page);
 }, { build: DEV });
 
