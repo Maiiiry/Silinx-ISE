@@ -152,7 +152,6 @@ html[data-ui="modern"] #top-actions { margin-left: auto; display: flex; align-it
 .m-search .ico-inline svg, .m-icon-btn .ico-inline svg { width: 16px; height: 16px; }
 .m-icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--m-radius); background: none; color: var(--m-muted); cursor: pointer; }
 .m-icon-btn:hover { background: var(--m-hover); color: var(--m-fg); }
-html[data-theme="dark"] .m-sun, html:not([data-theme="dark"]) .m-moon { display: none; }
 
 /* toolbar: icon buttons + the labelled steps of the design flow */
 html[data-ui="modern"] #toolbar { height: 44px; gap: 2px; padding: 0 12px; background: var(--m-surface); border-bottom: 1px solid var(--m-border); flex: none; }

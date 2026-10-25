@@ -8,7 +8,7 @@ import { primitiveSources } from '/core/unisim.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { startI18n, t } from './i18n.js';
-import { applyPrefs, toggleTheme } from './modern.js';
+import { applyPrefs } from './modern.js';
 import { initDrawer, drawerGiveWay, leftTabClicked } from './narrow.js';
 import { initTasks } from './tasks.js';
 import { registerServiceWorker } from './pwa.js';
@@ -26,7 +26,7 @@ import { adoptDrawnHdl, drawnHdlClashes, freshHdl, openAsm, openFsm, openPetri, 
   openTt, openTtSchematic, openView, projectPart, refreshSyncBanner, schModules, staleHdl, syncBanner, viewTitle } from './drawings.js';
 import { checkFileSyntax, hdlDiagnostics, markStale, openMode, renderProcesses, saveAll } from './processes.js';
 import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, serialOp, setTop, treeItem } from './design.js';
-import { printActive, refreshSteps, setupMenus, setupToolbar, showPalette } from './menus.js';
+import { printActive, refreshSteps, settingsItems, setupMenus, setupToolbar, showPalette } from './menus.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
@@ -898,11 +898,11 @@ async function boot() {
   // Clear: the console and the Warnings and Errors tabs, their counts too (#302; the editors' marks stay,
   // checked again at the next edit)
   $('console-clear').addEventListener('click', clearConsole);
-  // modern interface: header search / theme / project, keyboard access to the activity bar
+  // modern interface: header search / settings / project, keyboard access to the activity bar
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   for (const k of [$('palette-kbd'), ...document.querySelectorAll('.pal-key')]) k.textContent = mac ? '⌘ K' : 'Ctrl K';
   $('palette-btn').addEventListener('click', () => showPalette());
-  $('theme-btn').addEventListener('click', () => toggleTheme());
+  $('settings-btn').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); popupMenu(settingsItems(), r.right, r.bottom + 4); });   // (#1314)
   document.querySelectorAll('#left-tabs .tab').forEach(t => t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t.click(); } }));
   initTasks(app);   // the Tasks interface's switchers and bar (built in every interface, shown in that one: #804)
   for (const ev of ['click', 'keyup']) addEventListener(ev, () => setTimeout(refreshSteps), true);

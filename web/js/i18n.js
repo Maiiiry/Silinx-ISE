@@ -46,7 +46,7 @@ const PT = {
   // the browser edition: where the projects are kept (in the browser storage, or in a folder on the disk)
   'Open Workspace Folder…': 'Abrir Pasta de Trabalho…', 'Open Workspace Folder': 'Abrir Pasta de Trabalho',
   'Copy Browser Projects to the Folder': 'Copiar os Projetos do Navegador para a Pasta', 'Use Browser Storage': 'Usar o Armazenamento do Navegador',
-  'Waveform': 'Forma de Onda', 'Where Projects Are Kept': 'Onde Ficam os Projetos', 'In this browser\'s storage.': 'No armazenamento deste navegador.', 'In the workspace folder on the disk:': 'Na pasta de trabalho no disco:',
+  'Settings': 'Definições', 'Waveform': 'Forma de Onda', 'Where Projects Are Kept': 'Onde Ficam os Projetos', 'In this browser\'s storage.': 'No armazenamento deste navegador.', 'In the workspace folder on the disk:': 'Na pasta de trabalho no disco:',
   'A folder on the disk needs Chrome or Edge.': 'Uma pasta no disco precisa do Chrome ou do Edge.', 'Storage: this browser': 'Armazenamento: este navegador',
   'Projects are kept in a folder on the disk (File > Use Browser Storage to go back)': 'Os projetos ficam numa pasta no disco (Ficheiro > Usar o Armazenamento do Navegador para voltar)',
   'Projects are kept in the browser\'s storage (File > Open Workspace Folder… keeps them in a folder on the disk)': 'Os projetos ficam no armazenamento do navegador (Ficheiro > Abrir Pasta de Trabalho… guarda-os numa pasta no disco)',
@@ -352,7 +352,7 @@ const PT = {
   'Simulate Behavioral Model of the selected module': 'Simular o modelo comportamental do módulo selecionado',
   'No project open': 'Nenhum projeto aberto', 'Main menu': 'Menu principal', 'Panels': 'Painéis',
   'Search commands and files (Ctrl+K)': 'Procurar comandos e ficheiros (Ctrl+K)', 'Search commands and files…': 'Procurar comandos e ficheiros…',
-  'Search commands and files': 'Procurar comandos e ficheiros', 'Switch between light and dark theme': 'Alternar entre tema claro e escuro',
+  'Search commands and files': 'Procurar comandos e ficheiros',
   'Open a source from the Design panel, or search for any command or file.': 'Abra uma fonte no painel Projeto, ou procure qualquer comando ou ficheiro.',
   'No matching commands or files': 'Nenhum comando ou ficheiro corresponde', 'to navigate': 'para navegar', 'to run': 'para executar', 'to close': 'para fechar',
   'Clear Recent Projects': 'Limpar Projetos Recentes', 'Recent projects cleared (the projects themselves are kept)': 'Projetos recentes limpos (os projetos mantêm-se)',
