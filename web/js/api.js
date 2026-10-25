@@ -34,6 +34,7 @@ const enc = encodeURIComponent;
 
 export const api = {
   projects: () => req('GET', '/api/projects'),
+  workspace: () => req('GET', '/api/workspace'),
   templates: () => req('GET', '/api/templates'),
   createProject: p => req('POST', '/api/projects', p),
   project: name => req('GET', `/api/projects/${enc(name)}`),

@@ -31,6 +31,13 @@ const call = (...a) => app.call(...a);
 // projects
 // ------------------------------------------------------------------------------------------------
 
+test('workspace: the folder where the projects are kept (the Start page says it, #1297)', async () => {
+  const r = await call('GET', '/workspace');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { folder: P.workspaceDir() });
+  assert.equal(path.resolve(r.body.folder), path.resolve(process.env.SILINX_WORKSPACE));
+});
+
 test('projects: create (empty + template), list, read with file tree, write, delete to .trash', async () => {
   let r = await call('GET', '/projects');
   assert.deepEqual(r.body, []);   // the workspace is created on demand

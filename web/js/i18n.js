@@ -46,7 +46,7 @@ const PT = {
   // the browser edition: where the projects are kept (in the browser storage, or in a folder on the disk)
   'Open Workspace Folder…': 'Abrir Pasta de Trabalho…', 'Open Workspace Folder': 'Abrir Pasta de Trabalho',
   'Copy Browser Projects to the Folder': 'Copiar os Projetos do Navegador para a Pasta', 'Use Browser Storage': 'Usar o Armazenamento do Navegador',
-  'Where Projects Are Kept': 'Onde Ficam os Projetos', 'In this browser\'s storage.': 'No armazenamento deste navegador.',
+  'Where Projects Are Kept': 'Onde Ficam os Projetos', 'In this browser\'s storage.': 'No armazenamento deste navegador.', 'In the workspace folder on the disk:': 'Na pasta de trabalho no disco:',
   'A folder on the disk needs Chrome or Edge.': 'Uma pasta no disco precisa do Chrome ou do Edge.', 'Storage: this browser': 'Armazenamento: este navegador',
   'Projects are kept in a folder on the disk (File > Use Browser Storage to go back)': 'Os projetos ficam numa pasta no disco (Ficheiro > Usar o Armazenamento do Navegador para voltar)',
   'Projects are kept in the browser\'s storage (File > Open Workspace Folder… keeps them in a folder on the disk)': 'Os projetos ficam no armazenamento do navegador (Ficheiro > Abrir Pasta de Trabalho… guarda-os numa pasta no disco)',
