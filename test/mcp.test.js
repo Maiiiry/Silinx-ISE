@@ -110,6 +110,13 @@ test('read_file / write_file: a source read and written, a new HDL file added to
   assert.ok(JSON.parse(fs.readFileSync(path.join(ws, 'Blinky', 'silinx.json'), 'utf8')).files.some(f => f.path === 'src/inv.vhd' && f.role === 'design'));
   assert.equal((await srv.call('write_file', { project: 'Blinky', path: 'silinx.json', text: '{}' })).content[0].text, 'write_file: \'silinx.json\' is written by Silinx itself');
   assert.equal((await srv.call('write_file', { project: 'Blinky', path: 'build/top.bit', text: 'x' })).content[0].text, 'write_file: \'build/top.bit\' is written by Silinx itself');
+  // #1233: the same files spelt otherwise; a source spelt otherwise is written and listed once, by its plain path
+  for (const p of ['./silinx.json', 'src/../silinx.json', 'src//../silinx.json', './build/top.bit', 'build', 'src/../build/x.v'])
+    assert.equal((await srv.call('write_file', { project: 'Blinky', path: p, text: '{}' })).content[0].text, `write_file: '${p}' is written by Silinx itself`);
+  assert.equal((await srv.call('write_file', { project: 'Blinky', path: './src//inv.vhd', text: 'library ieee; use ieee.std_logic_1164.all;\nentity inv is port (a : in std_logic; y : out std_logic); end inv;\narchitecture rtl of inv is begin y <= not a; end rtl;\n' })).content[0].text, 'Wrote src/inv.vhd (164 characters).');
+  const listed = JSON.parse(fs.readFileSync(path.join(ws, 'Blinky', 'silinx.json'), 'utf8'));
+  assert.deepEqual(listed.files.filter(f => f.path.includes('inv')).map(f => f.path), ['src/inv.vhd']);
+  assert.equal(listed.name, 'Blinky');
   for (const [tool, args] of [['read_file', { path: '../TrafficN/silinx.json' }], ['read_file', { path: '/etc/hosts' }], ['write_file', { path: '../../escape.vhd', text: 'x' }]]) {
     const r = await srv.call(tool, { project: 'Blinky', ...args });
     assert.deepEqual(r, { content: [{ type: 'text', text: `${tool}: path escapes project` }], isError: true }, `${tool} ${args.path}`);
@@ -118,8 +125,8 @@ test('read_file / write_file: a source read and written, a new HDL file added to
   fs.mkdirSync(path.join(tmp, 'outside'));
   fs.writeFileSync(path.join(tmp, 'outside', 'secret.txt'), 'secret');
   fs.symlinkSync(path.join(tmp, 'outside'), path.join(ws, 'Blinky', 'link'), process.platform === 'win32' ? 'junction' : 'dir');   // (a junction: no rights needed on Windows)
-  assert.equal((await srv.call('read_file', { project: 'Blinky', path: 'link/secret.txt' })).content[0].text, 'read_file: \'link/secret.txt\' is outside the project \'Blinky\'');
-  assert.equal((await srv.call('write_file', { project: 'Blinky', path: 'link/new.vhd', text: 'x' })).content[0].text, 'write_file: \'link/new.vhd\' is outside the project \'Blinky\'');
+  assert.equal((await srv.call('read_file', { project: 'Blinky', path: 'link/secret.txt' })).content[0].text, 'read_file: path escapes project');
+  assert.equal((await srv.call('write_file', { project: 'Blinky', path: 'link/new.vhd', text: 'x' })).content[0].text, 'write_file: path escapes project');
   assert.equal(fs.readdirSync(path.join(tmp, 'outside')).join(), 'secret.txt');
   fs.rmSync(path.join(ws, 'Blinky', 'link'));
 });

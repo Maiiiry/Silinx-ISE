@@ -7,6 +7,7 @@ import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
 import { boardAutoAssign, generateUcf } from '../core/ucf.js';
 import { resolveBoard } from './devices.js';
+import { within } from './paths.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const EXAMPLES_DIR = path.join(HERE, '..', 'examples');
@@ -30,11 +31,11 @@ export function projectDir(name) {
   return path.join(workspaceDir(), name);
 }
 
-// Resolve a project-relative path, refusing anything that escapes the project folder.
+// Resolve a project-relative path, refusing anything that escapes the project folder (by a symbolic link too, #1234).
 export function safeJoin(dir, rel) {
   if (!rel || typeof rel !== 'string') throw new HttpError(400, 'missing path');
   const full = path.resolve(dir, rel);
-  if (full !== dir && !full.startsWith(dir + path.sep)) throw new HttpError(400, 'path escapes project');
+  if (!within(dir, full)) throw new HttpError(400, 'path escapes project');
   return full;
 }
 
@@ -227,15 +228,23 @@ export async function deleteProject(name) {
   await fs.rename(dir, path.join(trash, `${name}-${Date.now()}`));
 }
 
+// project-relative path normalised to forward slashes, without './' or a trailing '/'
+export const relKey = (dir, full) => path.relative(dir, full).split(path.sep).join('/');
+
 export async function readFile(name, rel) {
   const full = safeJoin(projectDir(name), rel);
   try { return await fs.readFile(full, 'utf8'); }
   catch { throw new HttpError(404, `file '${rel}' not found`); }
 }
 
-export async function writeFile(name, rel, text) {
+export async function writeFile(name, rel0, text) {
   const dir = projectDir(name);
-  const full = safeJoin(dir, rel);
+  const full = safeJoin(dir, rel0);
+  // the path as the project lists it (./src/a.vhd and src//a.vhd are src/a.vhd, #1229); silinx.json is the
+  // project's description, written by the project's own routes (as the browser store refuses it)
+  const rel = relKey(dir, full);
+  if (!rel) throw new HttpError(400, 'missing path');
+  if (rel === PROJECT_FILE) throw new HttpError(400, `${PROJECT_FILE} is the project's description`);
   await fs.mkdir(path.dirname(full), { recursive: true });
   // atomic: a reader (or a crash) never sees a half-written / empty file
   const tmp = path.join(path.dirname(full), `.${path.basename(full)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);   // hidden: not listed
@@ -262,8 +271,6 @@ export async function writeFile(name, rel, text) {
   }
 }
 
-// project-relative path normalised to forward slashes, without './' or a trailing '/'
-const relKey = (dir, full) => path.relative(dir, full).split(path.sep).join('/');
 
 /** Move/rename a project file (or folder), keeping the project's file list and constraints path. */
 export async function renameFile(name, from, to) {
