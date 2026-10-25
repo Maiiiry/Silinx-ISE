@@ -25,6 +25,9 @@ export const BROWSER_DEVICES = {
 // page opened from a file fetches them from (the site keeps the older releases' folders, so that a
 // downloaded Silinx-ISE.html keeps the assets it was tested with). Unbuilt (tests): the folder itself.
 const LAYOUT = globalThis.SILINX_ASSET_LAYOUT || { dir: '', yosys: 'vendor/yowasp-yosys/gen/bundle.js', site: 'https://pmnmalo.github.io/Silinx-ISE/' };
+// (and each asset's SHA-256, checked by the cache, web/js/asset-cache.js #1237: here, in the flow worker's messages
+// and in the Yosys workers' code)
+if (LAYOUT.integrity) globalThis.SILINX_ASSET_INTEGRITY ||= LAYOUT.integrity;
 
 /** Where the assets are: next to the page when it is served (the site), else the site's (a page
  *  opened from a file); globalThis.SILINX_ASSETS (a test) replaces both. */
@@ -147,7 +150,7 @@ export async function runBrowserFlow({ project, files, steps, resources = null, 
       fail: e => { end(); reject(e); },
     });
     signal?.addEventListener('abort', abort, { once: true });
-    w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase(), yosys: yosysBundleUrl() });
+    w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase(), yosys: yosysBundleUrl(), integrity: LAYOUT.integrity || null });
   });
 }
 
@@ -165,7 +168,7 @@ export function prepareBrowserFlow(device = {}) {
   const w = getWorker(), id = ++runSeq;
   return new Promise(resolve => {
     runs.set(id, { onData: data => { if (data.done) { runs.delete(id); resolve(data.done); } }, fail: () => { runs.delete(id); prepared.delete(st.graph); resolve(null); } });
-    w.postMessage({ id, prepare: { graph: st.graph, device: String(device.part).toLowerCase(), pkg: String(device.package).toLowerCase() }, assets: assetsBase(), yosys: yosysBundleUrl(), root: assetsRoot() });
+    w.postMessage({ id, prepare: { graph: st.graph, device: String(device.part).toLowerCase(), pkg: String(device.package).toLowerCase() }, assets: assetsBase(), yosys: yosysBundleUrl(), root: assetsRoot(), integrity: LAYOUT.integrity || null });
   });
 }
 

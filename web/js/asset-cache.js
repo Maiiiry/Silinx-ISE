@@ -9,6 +9,9 @@
 //   self-contained, its text goes into the Yosys Blob workers (assetFetchSource);
 // - prefetchAssets: what a device's Implement needs, fetched into the cache when a project opens;
 // - pruneAssetCache: the entries of this edition's other versions deleted.
+// Each asset's SHA-256, which the build writes into the page (scripts/build-standalone.mjs, #1237: the layout's
+// integrity, by the path under assets/; a worker's scope.SILINX_ASSET_INTEGRITY), is checked before a copy is
+// kept or used: a truncated download, or an entry another page of the same site put there, is not used.
 // Where Cache Storage is not available (a page opened from a file: an opaque origin; an http page that
 // is not localhost) nothing changes: the HTTP cache, as before.
 
@@ -23,19 +26,35 @@ export function assetFetch(scope = globalThis, name = 'silinx-assets') {
   if (typeof net !== 'function' || net.assetCache) return false;
   const versioned = url => /\/vendor\/yowasp-yosys\/\d[^/]*\/gen\/[^/?#]+$|\/assets\/(\d+\.\d+\.\d+[^/]*|dev-[0-9a-f]+)\/(devices|bitdb)\/[^/?#]+$/.test(url);
   const open = () => { try { return scope.caches ? scope.caches.open(name) : null; } catch { return null; } };   // (an opaque origin throws)
+  // the SHA-256 the build wrote for url (none: not checked), and a response's body checked against it (null: it differs)
+  const expected = url => { const i = url.lastIndexOf('/assets/'); return i >= 0 ? scope.SILINX_ASSET_INTEGRITY?.[url.slice(i + 8)] : undefined; };
+  const checked = async (res, want) => {
+    const buf = await res.arrayBuffer();
+    let bin = '';
+    for (const b of new Uint8Array(await scope.crypto.subtle.digest('SHA-256', buf))) bin += String.fromCharCode(b);
+    return `sha256-${scope.btoa(bin)}` === want ? new Response(buf, { status: res.status, statusText: res.statusText, headers: res.headers }) : null;
+  };
   const cached = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
     if (!url || !versioned(url) || (init?.method && init.method !== 'GET')) return net.call(scope, input, init);
+    const want = expected(url);
     let cache = null;
     try {
       cache = await open();
       const hit = cache && await cache.match(url);
-      if (hit) return hit;
+      if (hit && !want) return hit;
+      const ok = hit && await checked(hit, want);
+      if (ok) return ok;
+      if (hit) await cache.delete(url);   // (not the asset: fetched again)
     } catch { cache = null; }
     const res = await net.call(scope, input, init);
+    if (!cache || !res.ok || res.status !== 200) return res;
     // (kept as it is read: the copy goes into the cache while the caller reads the response; a full disk keeps nothing)
-    if (cache && res.ok && res.status === 200) cache.put(url, res.clone()).catch(() => {});
-    return res;
+    if (!want) { cache.put(url, res.clone()).catch(() => {}); return res; }
+    // checked first: kept only when it is the asset (a download that differs is given as it came, not kept)
+    const copy = res.clone(), ok = await checked(res, want);
+    if (ok) { cache.put(url, ok.clone()).catch(() => {}); return ok; }
+    return copy;
   };
   cached.assetCache = true;
   scope.fetch = cached;
@@ -44,9 +63,27 @@ export function assetFetch(scope = globalThis, name = 'silinx-assets') {
 
 /** The code that installs assetFetch in a worker, for the front of a Yosys Blob worker's code (core/synth-open.js
  *  yosysWorkerSource): run before its import of YoWASP's bundle. */
-export const assetFetchSource = () => `(${assetFetch})(self, ${JSON.stringify(ASSET_CACHE)});\n`;
+export const assetFetchSource = (integrity = globalThis.SILINX_ASSET_INTEGRITY) =>
+  `self.SILINX_ASSET_INTEGRITY = ${JSON.stringify(integrity || null)};\n(${assetFetch})(self, ${JSON.stringify(ASSET_CACHE)});\n`;
 
 const cacheOf = async (scope = globalThis) => { try { return scope.caches ? await scope.caches.open(ASSET_CACHE) : null; } catch { return null; } };
+
+/** check(url, res) -> the response to keep (its body checked against the asset's SHA-256, when the build gave one), or null. */
+function integrityCheck(scope) {
+  return async (url, res) => {
+    const i = url.lastIndexOf('/assets/');
+    const want = i >= 0 ? scope.SILINX_ASSET_INTEGRITY?.[url.slice(i + 8)] : undefined;
+    if (!want) return res;
+    const buf = await res.arrayBuffer();
+    return await assetDigest(buf, scope) === want ? new Response(buf, { status: res.status, statusText: res.statusText, headers: res.headers }) : null;
+  };
+}
+/** 'sha256-<base64>' of bytes, as the build writes it (scripts/build-standalone.mjs). */
+export async function assetDigest(buf, scope = globalThis) {
+  let bin = '';
+  for (const b of new Uint8Array(await scope.crypto.subtle.digest('SHA-256', buf))) bin += String.fromCharCode(b);
+  return `sha256-${scope.btoa(bin)}`;
+}
 
 /** Is url in the cache? (false where there is no cache) */
 export async function assetCached(url, scope = globalThis) {
@@ -66,13 +103,16 @@ export async function prefetchAssets(urls, { scope = globalThis, fetchFn = scope
   if (conn?.saveData || /(^|-)[23]g$/.test(conn?.effectiveType || '')) return out;
   const cache = await cacheOf(scope);
   if (!cache || !fetchFn) return out;
+  const check = integrityCheck(scope);
   for (const url of urls.map(String)) {
     try {
       if (await cache.match(url)) continue;
       const res = await fetchFn(url);
       if (!res.ok) continue;
       const bytes = Number(res.headers.get('content-length')) || 0;
-      await cache.put(url, res);
+      const ok = await check(url, res);
+      if (!ok) continue;   // (not the asset: not kept, the run fetches it)
+      await cache.put(url, ok);
       out.fetched++; out.bytes += bytes;
     } catch { break; }
   }

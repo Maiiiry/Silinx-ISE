@@ -1240,6 +1240,7 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
   const yosysVersion = JSON.parse(await fs.readFile(path.join(ROOT, 'node_modules/@yowasp/yosys/package.json'), 'utf8')).version;
   const dir = `dev-${build.commit}/`;
   const origin = new URL(siteUrl).origin;
+  let layout;
   for (const file of [html, path.join(site, 'index.html'), path.join(site, 'Silinx-ISE.html')]) {
     const text = await fs.readFile(file, 'utf8');
     const metas = [...text.matchAll(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/g)];
@@ -1256,7 +1257,8 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
     assert.deepEqual(d['object-src'], ["'none'"]);
     assert.deepEqual(d['base-uri'], ["'none'"]);
     assert.equal(d['frame-ancestors'], undefined, 'not in a <meta> (the browser reports it as an error)');
-    assert.match(text, new RegExp(`window\\.SILINX_ASSET_LAYOUT = ${JSON.stringify({ dir, yosys: `../vendor/yowasp-yosys/${yosysVersion}/gen/bundle.js`, site: siteUrl }).replace(/[.?*+^$()[\]{}|\\/]/g, '\\$&')};`));
+    layout = JSON.parse(text.match(/window\.SILINX_ASSET_LAYOUT = (\{.*?\});\n/)[1]);
+    assert.deepEqual({ ...layout, integrity: undefined }, { dir, yosys: `../vendor/yowasp-yosys/${yosysVersion}/gen/bundle.js`, site: siteUrl, integrity: undefined });
   }
   // the site's assets, versioned; none at the unversioned paths of before
   const ls = async (p) => (await fs.readdir(path.join(site, p))).sort();
@@ -1268,6 +1270,12 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
   assert.deepEqual(await ls('assets/vendor/yowasp-yosys'), [yosysVersion]);
   assert.ok((await ls(`assets/vendor/yowasp-yosys/${yosysVersion}/gen`)).includes('bundle.js'));
   assert.ok((await ls(`assets/vendor/yowasp-yosys/${yosysVersion}`)).includes('package.json'), 'its licence and package.json with it');
+  // #1237: each published asset's SHA-256 in the page (the cache checks it), and no other
+  const { createHash } = await import('node:crypto');
+  const published = [...(await ls(`assets/${dir}devices`)).map((f) => `${dir}devices/${f}`), ...(await ls(`assets/${dir}bitdb`)).map((f) => `${dir}bitdb/${f}`),
+    ...(await ls(`assets/vendor/yowasp-yosys/${yosysVersion}/gen`)).map((f) => `vendor/yowasp-yosys/${yosysVersion}/gen/${f}`)];
+  assert.deepEqual(Object.keys(layout.integrity).sort(), published.sort());
+  for (const f of published) assert.equal(layout.integrity[f], `sha256-${createHash('sha256').update(await fs.readFile(path.join(site, 'assets', f))).digest('base64')}`, f);
   // --assets-only: the same assets alone, into a site's assets folder (the Pages build keeps the last
   // releases' with it)
   const only = path.join(env.tmp, 'assets-only');

@@ -55,6 +55,7 @@ self.onmessage = async ({ data }) => {
   const { spec, sources, simSources = [], ucf, ucfName, files, assets, yosys: yosysUrl } = data;
   // every message carries the run's id (web/js/open-flow-browser.js: each run hears only its own)
   const post = m => self.postMessage({ ...m, id: data.id });
+  if (data.integrity) self.SILINX_ASSET_INTEGRITY = data.integrity;   // (the assets' SHA-256, #1237: this worker's fetches and its Yosys workers')
   if (data.prepare) { post({ done: await prepare(data).catch(e => ({ fetched: 0, bytes: 0, pruned: 0, error: e.message })) }); return; }
   try {
     const base = new URL(assets);
