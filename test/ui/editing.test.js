@@ -76,6 +76,29 @@ uiTest('editor: an edit made while the file is being saved is saved too, and sav
   assert.match(await readWs(env, 'SlowSave', 'src/top.vhd'), /^library ieee; -- one two\n/);
 });
 
+// #1299: a reload comes back to each source's cursor; a jump to a given line still wins
+uiTest('editor: a reload of the page, or the source opened again, comes back to its cursor; a line asked for wins (#1299)', E, async (page) => {
+  await project('CursorPj');
+  await page.openProject('CursorPj');
+  const at = () => page.eval(() => window.Silinx.active?.editor?.getCursor());
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  await page.eval(() => window.Silinx.active.editor.setCursor({ line: 6, ch: 2 }));
+  await page.waitFor(() => JSON.parse(localStorage.getItem('silinx.cursor.CursorPj') || '{}')['src/top.vhd']?.line === 6, [], { what: 'the cursor kept' });
+  // the page reloaded: the source again, at its cursor
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'CursorPj' && window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor, [], { what: 'the source again' });
+  await page.waitFor(() => window.Silinx.active.editor.getCursor().line === 6, [], { what: 'its cursor' });
+  assert.deepEqual(await at(), { line: 6, ch: 2 });
+  // closed and opened again: its cursor; a line asked for (an error's, Go to Source's): that line
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.editor?.getCursor().line === 6, [], { what: 'its cursor again' });
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd', 3));
+  await page.waitFor(() => window.Silinx.active?.editor?.getCursor().line === 2, [], { what: 'the line asked for' });
+});
+
 uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live error markers', E, async (page) => {
   await project('EdPj');
   await page.openProject('EdPj');
