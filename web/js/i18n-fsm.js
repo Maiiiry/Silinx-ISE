@@ -115,7 +115,4 @@ export const FSM_PT_PATTERNS = [
   [/^— the state diagram has errors: ([\s\S]*)$/, '— o diagrama de estados tem erros: $1'],
   [/^'(.*)' cannot be shown as a state diagram:\n\n([\s\S]*)$/, "'$1' não pode ser representado como diagrama de estados:\n\n$2"],
   [/^(\S+) cannot be shown as a state diagram:\n\n([\s\S]*)$/, '$1 não pode ser representado como diagrama de estados:\n\n$2'],
-  [/^A module named '(.*)' already exists in (\S+)\. Rename the state machine's module first\.$/, "Já existe um módulo chamado '$1' em $2. Mude primeiro o nome do módulo da máquina de estados."],
-  [/^(\S+) already exists and is not generated from this state diagram\. Overwrite it\?$/, '$1 já existe e não é gerado a partir deste diagrama de estados. Substituí-lo?'],
-  [/^(\S+) is generated from this state diagram\. Replace it with (\S+)\?$/, '$1 é gerado a partir deste diagrama de estados. Substituí-lo por $2?'],
 ];

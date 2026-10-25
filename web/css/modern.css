@@ -312,7 +312,7 @@ html[data-ui="modern"] .toast-error { background: #b42318; } html[data-ui="moder
 /* start page, design summary, links */
 html[data-ui="modern"] .page { padding: 18px 22px; }
 html[data-ui="modern"] .page h2 { color: var(--m-fg); font-weight: 650; font-size: 18px; }
-html[data-ui="modern"] .page a, html[data-ui="modern"] .linkish { color: var(--m-accent); }
+html[data-ui="modern"] .page a { color: var(--m-accent); }
 html[data-ui="modern"] .start-box h3 { color: var(--m-fg); border-bottom-color: var(--m-border); }
 html[data-ui="modern"] .start-box .start-sep { border-top-color: var(--m-border); }
 html[data-ui="modern"] .summary-table caption { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); border-radius: 8px 8px 0 0; padding: 6px 10px; }
@@ -460,7 +460,7 @@ html[data-ui="modern"][data-theme="dark"] .sch-editor .se-pv, html[data-ui="mode
 html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-cathead, .sch-editor .se-dhead) { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-cathead::before { color: var(--m-muted); }
 html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-pins, .sch-editor .se-symdoc .sd-formula code) { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
-html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-hint, .sch-editor .se-prompt, .sch-editor .lv-tip, .sch-editor .se-tip) { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border-strong); }
+html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-hint, .sch-editor .se-prompt, .sch-editor .lv-tip) { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border-strong); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-prompt label, html[data-ui="modern"][data-theme="dark"] .sch-editor .se-status { color: var(--m-muted); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code { background: var(--m-surface); color: #d6dae0; }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code .tk-kw { color: #c792ea; }
