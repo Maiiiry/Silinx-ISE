@@ -46,7 +46,7 @@ export function observedPads(obs) {
 }
 
 /** A design around n distinct signals s[0…n-1] (a shift register fed from the inputs d) and m results r (XORed into q). */
-function wrap(part, what, n, ports, body, results, pre = '') {
+export function wrap(part, what, n, ports, body, results, pre = '') {
   return `// ${part}: ${what} (#3, the sites' pins: research/s3e-device gen-obspins.mjs)
 module top(input clk, input [7:0] d${ports}, output reg [7:0] q);
 ${pre}  reg [${n - 1}:0] s = 0;

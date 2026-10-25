@@ -4,7 +4,7 @@
 //   node prototype.mjs observe obs.json routed.xdl...           what ISE's routed designs show
 //   node prototype.mjs predict obs.json switch-tiles.txt pred.json [tested-dir...]
 //                                                               rules -> predicted joins not yet observed or tested
-//                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too)
+//                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too; SEG=pairs: their taps pairwise)
 //   node prototype.mjs tests pred.json obs.json dir [tested-dir...]   join test designs (run: ise-remote.sh dir);
 //                                                               (SOURCES=1, DBPIPS=1, SOURCEXDL=routed.xdl,…: rounds 4-6;
 //                                                               PROBED=probe.json: 7; SOURCEOBS=obs.json, UNBONDED=1: 8)
@@ -89,15 +89,18 @@ if (cmd === 'observe') {
   // (INTERSECT=1: first the intersection of each wire's candidates over the nets, intersectAmbiguous)
   const ix = process.env.INTERSECT === '1' ? intersectAmbiguous(amb) : { joins: [], ambiguous: amb };
   const r = resolveAmbiguous(ix.ambiguous, [...all.joins, ...ix.joins]);
-  const joins = [...new Map([...all.joins, ...ix.joins, ...r.joins].map(j => [j.join('|'), j])).values()];
+  // (the joins rules decided are hypotheses, written apart, `decided`: twice wrong in the XC3S250E's routes, a known join
+  // the tests drive across and chip.mjs takes; they go to the tests with the predictions)
+  const joins = [...new Map([...all.joins, ...ix.joins].map(j => [j.join('|'), j])).values()];
+  const decided = [...new Map(r.joins.map(j => [j.join('|'), j])).values()].filter(j => !joins.some(k => k.join('|') === j.join('|')));
   const pips = [...new Map(all.pips.map(p => [`${p.tile} ${p.from} ${p.dir} ${p.to}`, p])).values()];
   const pins = [...new Map(all.pins.map(p => [`${p.site}.${p.pin}`, p])).values()];
   const sites = [...new Map(all.sites.map(s => [s.site, s])).values()];
   const pinJoins = [...new Map(all.pinJoins.map(p => [`${p.site}.${p.pin}`, p])).values()];
-  fs.writeFileSync(out, JSON.stringify({ pips, sites, pins, pinJoins, joins, ambiguous: r.ambiguous, unexplained: [...new Set(all.unexplained)] }));
+  fs.writeFileSync(out, JSON.stringify({ pips, sites, pins, pinJoins, joins, decided, ambiguous: r.ambiguous, unexplained: [...new Set(all.unexplained)] }));
   const direct = new Set(all.joins.map(j => j.join('|'))).size;
   const byIx = new Set(ix.joins.map(j => j.join('|'))).size;
-  console.log(`${files.length} designs: ${all.pips.length} PIPs (${pips.length} distinct), ${sites.length} sites, ${pins.length} pin wires, ${joins.length} joins (${direct} with one candidate, ${byIx ? `${byIx} by the intersection, ` : ''}${joins.length - direct - byIx} decided by rules), ${r.ambiguous.length} ambiguous, ${new Set(all.unexplained).size} unexplained`);
+  console.log(`${files.length} designs: ${all.pips.length} PIPs (${pips.length} distinct), ${sites.length} sites, ${pins.length} pin wires, ${joins.length} joins (${direct} with one candidate${byIx ? `, ${byIx} by the intersection` : ''}), ${decided.length} decided by rules, ${r.ambiguous.length} ambiguous, ${new Set(all.unexplained).size} unexplained`);
 } else if (cmd === 'predict') {
   const [obsFile, sbFile, out, ...tested] = args;
   const obs = readJson(obsFile);
@@ -108,12 +111,13 @@ if (cmd === 'observe') {
   const rules = new Set();
   for (const [a, b] of obs.joins) { const r = gridRule(a, b, grid); if (r) rules.add(r); }
   let closed = process.env.CLOSE === '1' ? closeRules(rules) : rules;
-  if (process.env.SEG === '1') closed = new Set([...closed, ...segmentRules()]);
-  const pred = applyRules(closed, grid, wiresOf);
+  if (process.env.SEG === '1' || process.env.SEG === 'pairs') closed = new Set([...closed, ...segmentRules(undefined, { pairs: process.env.SEG === 'pairs' })]);
+  const pred = [...applyRules(closed, grid, wiresOf), ...(obs.decided || [])];
   const ord = ([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const uniq = [...new Map(pred.map(j => [ord(j), ord(j).split('|')])).values()];
   // not observed, and not tested yet (the verdicts of earlier test folders)
-  const known = new Set([...obs.joins.map(ord), ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).map(v => ord(v)))]);
+  // (a test not run, or invalid: its route crossed a wrong join, is tested again)
+  const known = new Set([...obs.joins.map(ord), ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join' || v[2] === 'no-join').map(v => ord(v)))]);
   const fresh = uniq.filter(j => !known.has(ord(j)));
   fs.writeFileSync(out, JSON.stringify(fresh));
   console.log(`${rules.size} rules from ${obs.joins.length} observed joins, ${closed.size} with CLOSE / SEG: ${uniq.length} predicted joins, ${fresh.length} neither observed nor tested`);

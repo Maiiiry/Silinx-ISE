@@ -11,11 +11,12 @@ import { joinRule, tileXY, wireFamily } from './observe.mjs';
 /** An edge tile or a corner. */
 export const edgeTile = tile => /^(LTERM|RTERM|TTERM|BTERM|COB_|CNR_|UL_|UR_|LL_|LR_)/.test(tile);
 
-/** The hypotheses: { rules: [[a, b]] (the known joins' rules applied), ambiguous: [[a, b]] }, none known. tiles: every
- *  tile name of the device (the grid); known: [[a, b]] (observed or confirmed). */
-export function edgeHypotheses(obs, tiles, known) {
+/** The hypotheses: { rules: [[a, b]] (the known joins' rules applied), ambiguous: [[a, b]] }, none known or refused.
+ *  tiles: every tile name of the device (the grid); known: [[a, b]] (observed or confirmed); refused: [[a, b]] (the tests'
+ *  islands: not asked again). */
+export function edgeHypotheses(obs, tiles, known, refused = []) {
   const ord = ([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`);
-  const have = new Set(known.map(ord));
+  const have = new Set([...known, ...refused].map(ord));
   // the wires seen in each tile prefix (an end must be a wire a route named there)
   const wires = new Map();
   for (const p of obs.pips) {
@@ -57,8 +58,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const obs = JSON.parse(fs.readFileSync(obsFile, 'utf8'));
   const { loadDeviceCache } = await import('../../core/fpga/device-node.js');
   const tiles = loadDeviceCache(process.env.PART || 'xc3s250ecp132-4').tileNames;
-  const known = [...obs.joins, ...dirs.flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')).filter(v => v[2] === 'join').map(v => [v[0], v[1]]))];
-  const r = edgeHypotheses(obs, tiles, known);
+  const verdicts = dirs.flatMap(d => JSON.parse(fs.readFileSync(path.join(d, 'verdicts.json'), 'utf8')));
+  const known = [...obs.joins, ...verdicts.filter(v => v[2] === 'join').map(v => [v[0], v[1]])];
+  const r = edgeHypotheses(obs, tiles, known, verdicts.filter(v => v[2] === 'no-join').map(v => [v[0], v[1]]));
   fs.writeFileSync(outFile, JSON.stringify([...r.rules, ...r.ambiguous]));
   console.log(`${r.rules.length} joins by the rules of the edge tiles' known joins, ${r.ambiguous.length} ambiguous candidates with an end in one`);
 }

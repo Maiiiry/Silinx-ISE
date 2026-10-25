@@ -11,7 +11,7 @@
 //   joins: observed in ISE's routes, and confirmed by the tests (rounds 1-8, the edge tiles, the clock network); a carry
 //     chain's lower CIN on the tile below's COUT_Nk (observe.mjs pinJoins), its wire CIN<k> of its slice's COUT<k>.
 // The tiles of one type with different PIP sets are variants of it (the type's name kept).
-//   node chip.mjs out.json.gz obs.json --dev ref.json.gz [--ft obs.json,…] [--probe probe.json] [--tests dir,…] [--clock dir,…]
+//   node chip.mjs out.json.gz obs.json --dev ref.json.gz [--ft obs.json,…] [--probe probe.json,…] [--tests dir,…] [--clock dir,…]
 //   (--ft: observations whose pins only are taken: another package's, its pads renamed; designs whose pins ISE's DRC
 //   confirmed, such as Silinx's routes of the XB / YB outputs, which ISE's own designs never use)
 import fs from 'node:fs';
@@ -47,6 +47,8 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
     if (p.dir === '=-') m.set(`${p.to}->${p.from}`, PIP_BIDI);
     if (io(p.tile)) { ioWires.add(p.from); ioWires.add(p.to); }
   }
+  // and the ones the arc probe found there (IOIS_X0: no route of ISE's took an I/O tile's X output)
+  for (const p of probe.yes || []) if (io(p.tile)) { ioWires.add(p.from); ioWires.add(p.to); }
   // (the database's names of an I/O tile's wires: its rename table, IOIS_VCC_WIRE as VCC_PINWIRE, IOIS_<name> as <name>)
   const ioName = w => (w === 'VCC_PINWIRE' ? 'IOIS_VCC_WIRE' : ioWires.has(`IOIS_${w}`) ? `IOIS_${w}` : w);
   const featCache = new Map();
@@ -158,7 +160,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   ];
   const m = chipMeasurements({
     dev, tilesDb: readJson(path.join(DB, 's3e-tiles.json')), layout: readJson(path.join(DB, `${PART.replace(/(cp|fg|vq|tq|pq|ft)\d+-\d+$/, '')}-layout.json`)),
-    obs: readJson(obsFile), others: ft ? ft.split(',').map(readJson) : [], probe: probeFile ? readJson(probeFile).pips : undefined, joins,
+    obs: readJson(obsFile), others: ft ? ft.split(',').map(readJson) : [], joins,
+    probe: probeFile ? probeFile.split(',').map(f => readJson(f).pips).reduce((a, b) => ({ yes: [...a.yes, ...b.yes], no: [...a.no, ...b.no] })) : undefined,
     rules: process.env.PINRULES === '1',
   });
   const packed = packMeasured(m);
