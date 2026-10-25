@@ -10,7 +10,7 @@ import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { startI18n, t } from './i18n.js';
 import { applyPrefs } from './modern.js';
 import { initDrawer, drawerGiveWay, leftTabClicked } from './narrow.js';
-import { initTasks } from './tasks.js';
+import { initTasks, restoreStartTask } from './tasks.js';
 import { registerServiceWorker } from './pwa.js';
 import { createHistory } from './history.js';
 import { viewHdl } from '/core/view-hdl.js';
@@ -960,7 +960,11 @@ async function boot() {
   try { last = localStorage.getItem(prefKey('silinx.lastProject')); } catch { /* ignore */ }
   const projects = await api.projects().catch(() => []);
   // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
-  if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)
+  if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) {
+    await openProject(last, { startup: true });   // (where the user was: its tasks too, #1191)
+    await new Promise(r => setTimeout(r, 0));   // (the reopened documents' tasks followed first)
+    restoreStartTask();   // (and the task that was in front, #1337)
+  }
   else showLeftPage('start');
   // check for updates at start-up (a newer release opens the update dialog) unless the setting is off; not awaited
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
