@@ -168,9 +168,9 @@ test('yosys update: the workflow on pull requests that change @yowasp/yosys, Git
   assert.ok(!/runs-on: .*self-hosted/.test(yml));
   for (const m of yml.matchAll(/runs-on: (.+)/g)) assert.equal(m[1], 'ubuntu-latest');
   assert.match(yml, /\npermissions:\n  contents: read\n/);
-  // the check of the diff: the base's versions against the pull request's; the label
-  assert.match(yml, /BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n\s+run: \|\n\s+git show "\$BASE_SHA:package\.json"/);
-  assert.match(yml, /node scripts\/yosys-update-report\.mjs versions /);
+  // the check of the diff: the base's versions against the pull request's, by the base's script (#1440); the label
+  assert.match(yml, /\n      - id: v\n        run: node base\/scripts\/yosys-update-report\.mjs versions base\/package\.json base\/package-lock\.json package\.json package-lock\.json\n/);
+  assert.doesNotMatch(yml, /node scripts\/yosys-update-report\.mjs (versions|comment) /);
   assert.match(yml, /gh pr edit .* --add-label "yosys update"/);
   for (const job of ['measure', 'corpus']) assert.match(yml, new RegExp(`\\n  ${job}:\\n    needs: check\\n    if: needs\\.check\\.outputs\\.changed == 'true'\\n`), job);
   assert.match(yml, /\n  report:\n    needs: \[check, measure, corpus\]\n    if: always\(\) && needs\.check\.outputs\.changed == 'true'\n/);
@@ -190,9 +190,45 @@ test('yosys update: the workflow on pull requests that change @yowasp/yosys, Git
   // the table: the job summary, the artifact, and the comment (which may fail with a read-only token)
   assert.match(yml, /cat yosys-update\.md >> "\$GITHUB_STEP_SUMMARY"/);
   assert.match(yml, /name: yosys-update-report/);
-  assert.match(yml, /- name: The pull request's comment\n\s+continue-on-error: true\n\s+run: node scripts\/yosys-update-report\.mjs comment yosys-update\.md/);
+  assert.match(yml, /- name: The pull request's comment\n\s+continue-on-error: true\n\s+run: node base\/scripts\/yosys-update-report\.mjs comment yosys-update\.md/);
   const report = yml.slice(yml.indexOf('\n  report:\n'));
   assert.match(report, /pull-requests: write/);
+});
+
+test('yosys update: the steps with a writing token run the base\'s code, and the base\'s version is checked before npm install (#1440)', () => {
+  const yml = read('.github/workflows/yosys-update.yml');
+  // the jobs' lines: { name: [its lines] } (two-space keys under jobs:)
+  const j = {};
+  let name = null;
+  for (const line of yml.slice(yml.indexOf('\njobs:\n') + 7).split('\n')) {
+    const m = /^  ([\w-]+):$/.exec(line);
+    if (m) j[name = m[1]] = [];
+    else if (name && /^ {4}/.test(line)) j[name].push(line);
+  }
+  assert.deepEqual(Object.keys(j), ['check', 'measure', 'corpus', 'report']);
+  // the base checked out under base/ in the two jobs whose token writes (check: the label; report: the comment),
+  // with no credentials kept, and the pull request's script never run there with the token
+  const baseCheckout = /\n      - uses: actions\/checkout@[0-9a-f]{40} # v[\d.]+\n        with:\n          ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n          path: base\n          persist-credentials: false\n/;
+  for (const job of ['check', 'report']) {
+    assert.match(`\n${j[job].join('\n')}\n`, baseCheckout, job);
+    assert.ok(!j[job].some(l => /run: .*\bnode scripts\//.test(l) && /GITHUB_TOKEN|GH_TOKEN/.test(l)), job);
+  }
+  // the versions by the base's script, the comment by the base's script with the token
+  assert.ok(j.check.some(l => l === '        run: node base/scripts/yosys-update-report.mjs versions base/package.json base/package-lock.json package.json package-lock.json'));
+  const comment = j.report.indexOf('        run: node base/scripts/yosys-update-report.mjs comment yosys-update.md');
+  assert.ok(comment > 0);
+  assert.match(j.report.slice(comment, comment + 4).join('\n'), /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
+  // the measure job: the version checked by a step of the workflow (a version, nothing else) before the install
+  const m = j.measure;
+  const checked = m.indexOf('      - name: The base\'s version checked');
+  const install = m.findIndex(l => l.includes('npm install --no-save --ignore-scripts "@yowasp/yosys@$BASE_VERSION"'));
+  assert.ok(checked > 0 && install > checked, 'the check step before the install');
+  const step = m.slice(checked, install).join('\n');
+  assert.match(step, /^        if: matrix\.side == 'base'\n        env:\n          BASE_VERSION: \$\{\{ needs\.check\.outputs\.base \}\}\n        run: \|\n          \[\[ "\$BASE_VERSION" =~ \^\[0-9\]\+\(\\\.\[0-9\]\+\)\*\$ \]\] \|\| \{ .*exit 1; \}\n/m);
+  // the check's pattern accepts a version and refuses an alias or a tag (bash's =~ on the same pattern)
+  const re = /^[0-9]+(\.[0-9]+)*$/;
+  for (const v of ['0.70.1258', '1.0', '12']) assert.ok(re.test(v), v);
+  for (const v of ['npm:evil@1', 'latest', '^0.70.1258', '0.70.1258 x', '', '0.70.1258-rc1']) assert.ok(!re.test(v), v);
 });
 
 test('yosys update: Dependabot weekly, npm grouped but for Yosys, the majors with issues of their own ignored', () => {
