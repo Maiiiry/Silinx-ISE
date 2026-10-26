@@ -320,6 +320,13 @@ export function parseUcf(text, { ports } = {}) {
   return { assignments, clocks, other: other.map(o => o.text), netStatements };
 }
 
+/** Whether the UCF text gives a LOC to any net, the design's pins set (no text: none; an IOSTANDARD alone places
+ *  nothing). Emulate and Program FPGA ask first when not (web/js/pins-check.js, #1508). */
+export function ucfPlacesPins(text) {
+  if (!text) return false;
+  return Object.values(parseUcf(text).assignments).some(a => a.loc);
+}
+
 /** A UCF name with wildcards (* any characters, ? one character) as a RegExp of the whole name. */
 export function ucfPattern(name, flags = '') {
   return new RegExp(`^${String(name).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, flags);

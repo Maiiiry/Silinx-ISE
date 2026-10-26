@@ -6,6 +6,8 @@ import { S, app } from './app.js';
 import { countEvent } from './analytics.js';
 import { runImpl } from './implement.js';
 import { programFileState, implementFirstText } from './impact-file.js';
+import { pinsReady } from './pins-check.js';
+import { loadUcfText } from './processes.js';
 
 const roleOf = name => (/^xcf/i.test(name) ? 'prom' : /^(xc)?(3s|6s|4v|5v|6v|7[akvz])/i.test(name) ? 'fpga' : /^(xc)?(2c|95)/i.test(name) ? 'cpld' : 'other');
 
@@ -137,7 +139,9 @@ export function mountImpact(el) {
     loadBitInfo();
     return true;
   };
-  const programFpga = async () => (await fileReady()) && runJob('Programming FPGA (SRAM)', () => api.program({
+  // (the project's own design with no pins set: said first, I/O Pin Planning one click away, #1508)
+  const pinsFirst = async () => bitData || !pj?.top || bitfile.value.trim() !== fpgaFile || pinsReady(await loadUcfText(), 'program', () => app.openPinPlanner());
+  const programFpga = async () => (await pinsFirst()) && (await fileReady()) && runJob('Programming FPGA (SRAM)', () => api.program({
     project: pj?.name, tool: toolSel.value || undefined, cable: cable.value.trim() || undefined, board: board?.id, position: selPos + 1, bitfile: bitfile.value.trim(),
     ...(bitData ? { bitData } : {}),
   }), "'1': Programmed successfully.").then(r => { if (r?.status === 'ok') countEvent('program'); return r; });

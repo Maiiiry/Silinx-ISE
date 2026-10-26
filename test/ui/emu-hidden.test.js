@@ -167,6 +167,8 @@ uiTest('board emulator: paused while hidden and while its document tab is not ac
 uiTest('#1106 the status line while the emulator runs: rewritten twice a second at most (every frame, it flickered); at once when paused', E, async (page) => {
   await makeProject(env, { name: 'EmuStat', board: 'basys2', files: { 'src/cnt.vhd': COUNTER }, top: 'cnt' });
   await page.openProject('EmuStat');
+  // (its pins set: with none the emulator asks first, #1508)
+  assert.equal(await page.eval(() => window.SilinxApp.regenerateUcf()), true, 'every port is on a board resource');
   await openEmulator(page);
   await advances(page, 'running');
   // the line's rewrites over 3 s, counted where the page writes them

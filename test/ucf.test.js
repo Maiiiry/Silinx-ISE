@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateUcf, parseUcf, expandPort, normalizePort, periodNs, bitName, ucfPortName, boardAutoAssign, pinsUcf, backAnnotateUcf } from '../core/ucf.js';
+import { generateUcf, parseUcf, expandPort, normalizePort, periodNs, bitName, ucfPortName, boardAutoAssign, pinsUcf, backAnnotateUcf, ucfPlacesPins } from '../core/ucf.js';
 
 test('bus naming: led[7:0] bit 3 -> led<3>', () => {
   assert.equal(bitName('led', 3), 'led<3>');
@@ -470,4 +470,13 @@ test('checkUcf: NET wildcards matching port bits are accepted (any case), one ma
   ]);
   // without the ports (no elaboration): not checked
   assert.deepEqual(checkUcf('NET "foo*" IOSTANDARD = LVCMOS33;'), []);
+});
+
+// #1508: Emulate and Program FPGA ask first when the UCF places no pin
+test('ucfPlacesPins: a LOC on any net places the pins; no UCF, an empty one, comments, an IOSTANDARD or a timing constraint alone do not', () => {
+  assert.equal(ucfPlacesPins('NET "led<0>" LOC = "M5";'), true);
+  assert.equal(ucfPlacesPins('# the clock\nNET "clk" IOSTANDARD = LVCMOS33;\nNET "sw<1>" LOC = P11 | IOSTANDARD = LVCMOS33;'), true);
+  assert.equal(ucfPlacesPins('net clk loc = B8;'), true);   // (UCF keywords are case-insensitive)
+  for (const none of [null, undefined, '', '# nothing yet\n', 'NET "clk" IOSTANDARD = LVCMOS33;', 'NET "clk" TNM_NET = "clk";\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50%;'])
+    assert.equal(ucfPlacesPins(none), false, JSON.stringify(none));
 });
