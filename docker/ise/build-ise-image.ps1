@@ -10,6 +10,10 @@
 .NOTES
   Needs ~30 GB free disk during the build. The image contains AMD/Xilinx software and your
   license: never push it to a public registry.
+  Without -Installer or -License, the file is taken from $HOME\Downloads, and the script says which
+  it took. The MD5 check compares the installer with the sum AMD publishes: it tells a corrupt or a
+  different download apart (integrity), not who made the file (authenticity): download the installer
+  from AMD's site yourself, over https.
 #>
 param(
   [string]$Installer = "",
@@ -26,13 +30,14 @@ $SilinxDir = Resolve-Path (Join-Path $KitDir "..\..")
 
 function Die($msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
 function Info($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
+# (the default: $HOME\Downloads, said; not the current folder, #1442)
 function Find-Default($name) {
-  foreach ($d in @("$HOME\Downloads", (Get-Location).Path, $KitDir)) { $p = Join-Path $d $name; if (Test-Path $p) { return $p } }
+  $p = Join-Path "$HOME\Downloads" $name; if (Test-Path $p) { return $p }
   return ""
 }
 
-if (-not $Installer) { $Installer = Find-Default "Xilinx_ISE_DS_Lin_14.7_1015_1.tar" }
-if (-not $License) { $License = Find-Default "Xilinx.lic" }
+if (-not $Installer) { $Installer = Find-Default "Xilinx_ISE_DS_Lin_14.7_1015_1.tar"; if ($Installer) { Info "installer: $Installer (no -Installer given)" } }
+if (-not $License) { $License = Find-Default "Xilinx.lic"; if ($License) { Info "license: $License (no -License given)" } }
 if (-not $Installer -or -not (Test-Path $Installer)) { Die "installer not found. Download 'ISE Design Suite 14.7 - Full Installer for Linux' (Xilinx_ISE_DS_Lin_14.7_1015_1.tar) from AMD and pass -Installer <path>." }
 if (-not $License -or -not (Test-Path $License)) { Die "license not found. Get a free 'ISE WebPACK License' (Xilinx.lic) from the AMD/Xilinx licensing site and pass -License <path>." }
 $Installer = (Resolve-Path $Installer).Path
@@ -61,13 +66,12 @@ if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
 
 # Stage the installer in its own folder (hard link on the same NTFS volume, else copy) so that
 # BuildKit transfers only the tarball, then pass installer + license folders as build contexts.
-$Stage = Join-Path (Split-Path -Parent $Installer) ".silinx-ise-stage"
-New-Item -ItemType Directory -Force -Path $Stage | Out-Null
+# The folder is a new one of this run (#1442): the cleanup at the end removes nothing that was there before.
+$Stage = Join-Path (Split-Path -Parent $Installer) (".silinx-ise-stage." + [guid]::NewGuid().ToString("N").Substring(0, 8))
+New-Item -ItemType Directory -Path $Stage | Out-Null
 $StagedTar = Join-Path $Stage "Xilinx_ISE_DS_Lin_14.7_1015_1.tar"
-if (-not (Test-Path $StagedTar)) {
-  try { New-Item -ItemType HardLink -Path $StagedTar -Target $Installer | Out-Null }
-  catch { Info "copying the installer to a staging folder"; Copy-Item $Installer $StagedTar }
-}
+try { New-Item -ItemType HardLink -Path $StagedTar -Target $Installer | Out-Null }
+catch { Info "copying the installer to a staging folder"; Copy-Item $Installer $StagedTar }
 $LicDir = Join-Path ([System.IO.Path]::GetTempPath()) ("silinx-lic-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Force -Path $LicDir | Out-Null
 Copy-Item $License (Join-Path $LicDir "Xilinx.lic")

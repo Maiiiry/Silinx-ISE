@@ -138,8 +138,13 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
   - The runner refuses every other job before its first step, and is on line only in the two workflows'
     window (#482, `scripts/ise-runner/`: a job-started hook and a launchd daemon, installed on the Mac mini
     with `sudo sh scripts/ise-runner/install.sh --system <its user> <the runner's folder>`, again after
-    those scripts change). A run by hand outside the window: `sudo … window.sh open` there first (the
-    command `install.sh` prints), or it waits for the evening.
+    those scripts change; `--system` is the mode to use: without it the hook and the runner's `.env`
+    belong to the user the jobs run as, #1442). A run by hand outside the window: `sudo … window.sh open`
+    there first (the command `install.sh` prints), or it waits for the evening.
+  - After a run that looks wrong (a job that should not have run there, a design that is not ours),
+    clear the runner user's `silinx-cache` folder (the quality comparison's design corpus, under that
+    user's home: it persists from run to run, and the next run fetches it anew) and the runner's `_work`
+    folder, and run `install.sh --system` again.
   - The runner runs as a standard user of its own, with no keys or tokens, its folder in
     `/Users/Shared/silinx-ise/runner`; it reaches the Docker Desktop of the Mac mini's user through its
     socket (`install.sh --docker-acl`). Docker Desktop shares only `/Users/Shared/silinx-ise`, so that no
