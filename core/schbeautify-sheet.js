@@ -12,8 +12,8 @@ import { generateHdl } from './schdoc-hdl.js';
 import { placeAndRoute } from './schdoc-place.js';
 import { beautifyWires } from './schbeautify.js';
 import { segPoints, wireGrid } from './schpath.js';
+import { clone } from './util.js';
 
-const clone = o => JSON.parse(JSON.stringify(o));
 const epOf = e => (e.kind === 'pin' ? `${e.sym}.${e.pin}` : `port:${e.port}`);
 
 /** The meaning of a schematic: its nets (as their names, pins and markers), its diagnostics, its HDL in both languages. */
