@@ -268,6 +268,7 @@ export function setStatus(id, st) { S.status[id] = st; renderProcesses(); }
 export function markStale() {
   for (const k of Object.keys(S.status)) if (S.status[k] && S.status[k] !== 'running') S.status[k] = 'stale';
   renderProcesses();
+  dispatchEvent(new Event('silinx:design-changed'));   // (the Board Emulator refreshed, #1401)
 }
 
 // ------------------------------------------------------------------ check syntax / elaboration
