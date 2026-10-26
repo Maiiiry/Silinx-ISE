@@ -11,6 +11,7 @@ import { tbPorts, generateTestbench } from '../core/testbench.js';
 import {
   newStimuli, normalizeStimuli, cyclePs, nextBit, nextExpected, paintCells, editInput, editExpected, stimulusPlan,
   paintBit, editInputBit, editExpectedBit, checkExpected, fillExpected, testbenchOptions, applyStimuli, MAX_CYCLES,
+  combinationCycles,
 } from '../core/stimuli.js';
 
 const COUNTER_VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
@@ -104,6 +105,19 @@ test('stimuli model: new / normalised for the ports (clock, widths, values, cycl
   assert.equal(normalizeStimuli({ ...m, cycles: 1e6 }, ports).cycles, MAX_CYCLES);
   assert.deepEqual(normalizeStimuli(m, [{ name: 'b', dir: 'in', width: 2 }]).inputs, { b: ['00', '00', '00', '00'] });
   assert.equal(normalizeStimuli(null, ports).cycles, 16);
+});
+
+test('stimuli model (#1478): a combinational model\'s cycles, one per combination of the input bits', () => {
+  const p = (dir, width, name = `p${width}`) => ({ name, dir, width });
+  // comp_2bit: a(2) b(2) in, three 1-bit outputs: 16; outputs and inout ports do not count
+  assert.equal(combinationCycles([p('in', 2, 'a'), p('in', 2, 'b'), p('out', 1, 'gt'), p('out', 1, 'eq'), p('inout', 3)]), 16);
+  assert.equal(combinationCycles([p('in', 1)]), 2);
+  // no input: one cycle; 10 bits: 1024, MAX_CYCLES; more: still MAX_CYCLES
+  assert.equal(combinationCycles([p('out', 4)]), 1);
+  assert.equal(combinationCycles([]), 1);
+  assert.equal(combinationCycles([p('in', 10)]), MAX_CYCLES);
+  assert.equal(combinationCycles([p('in', 8, 'a'), p('in', 8, 'b')]), MAX_CYCLES);
+  assert.equal(combinationCycles([p('in', 2000)]), MAX_CYCLES);
 });
 
 test('stimuli model: a click paints from its cycle up to the next change, 0 → 1 → Z → X; expected - → 0 → 1', () => {

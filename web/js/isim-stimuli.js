@@ -4,7 +4,7 @@
 // simulation restarts and runs the stimuli at once, the expected outputs checked (the mismatches red); their timing
 // and a bus's value in dialogs. mountStimuli(ctx) is called by mountISim where this code was.
 import * as V from '/core/values.js';
-import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, editInputBit, editExpectedBit, checkExpected, fillExpected, stimulusPlan, parseCellValue } from '/core/stimuli.js';
+import { newStimuli, normalizeStimuli, combinationCycles, cyclePs, editInput, editExpected, editInputBit, editExpectedBit, checkExpected, fillExpected, stimulusPlan, parseCellValue } from '/core/stimuli.js';
 import { esc, h } from './dom.js';
 import { fmtTime, ROW_H, RULER_H } from './isim.js';
 
@@ -125,7 +125,7 @@ export function mountStimuli(ctx) {
       <div class="isim-dlg isim-stim-dlg" role="dialog">
         <div class="isim-dlg-title">Stimulus Timing<button class="isim-dlg-x" title="Close">✕</button></div>
         <div class="isim-dlg-body">
-          <div class="isim-dlg-hint">The inputs of ${esc(stimInst === design.top ? design.top.name : `${stimInst.module || stimInst.name} (${stimInst.path})`)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.</div>
+          <div class="isim-dlg-hint">The inputs of ${esc(stimInst === design.top ? design.top.name : `${stimInst.module || stimInst.name} (${stimInst.path})`)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, they change at every cycle, one for each combination of the inputs.</div>
           <div class="isim-dlg-grid">
             <label>Clock:</label><select name="clock"><option value="">None (combinational)</option>${clocks.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('')}</select>
             <label>Clock Period (ns):</label><input name="period" value="${esc(m?.periodNs ?? 20)}">
@@ -139,12 +139,20 @@ export function mountStimuli(ctx) {
     showDialog(ov);
     const q = (n) => ov.querySelector(`[name="${n}"]`);
     q('clock').value = guess || '';
-    const sync = () => { q('period').disabled = !q('clock').value; q('step').disabled = !!q('clock').value; };
+    // no clock (#1478): the period, the step and the cycles hidden; the step kept, one cycle per combination of the
+    // inputs (the saved ones when they were already combinational)
+    const combCycles = m && !m.clock ? m.cycles : combinationCycles(stimOpt.ports);
+    const sync = () => {
+      const clk = !!q('clock').value;
+      for (const n of ['period', 'step', 'cycles']) q(n).hidden = q(n).previousElementSibling.hidden = !clk;
+      q('step').disabled = clk;
+    };
     q('clock').onchange = sync; sync();
     const ok = () => {
       const num = (n, lo) => { const v = Number(q(n).value); if (!Number.isInteger(v) || v < lo) throw new Error(`${n === 'cycles' ? 'Cycles' : n === 'period' ? 'Clock Period' : 'Time Step'}: a whole number of at least ${lo}`); return v; };
       try {
-        const o = { clock: q('clock').value || null, periodNs: num('period', 2), stepNs: num('step', 1), cycles: num('cycles', 1) };
+        const o = q('clock').value ? { clock: q('clock').value, periodNs: num('period', 2), stepNs: num('step', 1), cycles: num('cycles', 1) }
+          : { clock: null, periodNs: m?.periodNs ?? 20, stepNs: m?.stepNs ?? 10, cycles: combCycles };
         st.stim.m = st.stim.m ? normalizeStimuli({ ...st.stim.m, ...o }, stimOpt.ports) : newStimuli(stimOpt.ports, o);
         closeDialog();
         stimChanged(true);
@@ -155,7 +163,7 @@ export function mountStimuli(ctx) {
     ov.querySelector('[data-a=cancel]').onclick = cancel;
     ov.querySelector('[data-a=ok]').onclick = ok;
     ov.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') cancel(); });
-    q('cycles').focus();
+    (q('clock').value ? q('cycles') : q('clock')).focus();
   }
   // the value of a bus from cycle k: an input's (bits 0 1 Z X, h… / d…) or an output's expected one (or -)
   function cellDialog(p, k, isIn) {

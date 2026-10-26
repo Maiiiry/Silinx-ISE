@@ -47,7 +47,7 @@ const MOUNT = async (model = null, bits = false) => {
     enqueue: (s, fn) => { calls.push(['enqueue', s]); return fn(); }, runTo: (ps, label) => { sim.now = ps; calls.push(['runTo', ps, label]); },
     logLine: rec('logLine'), showDialog: (ov) => { dlg?.remove(); root.append(ov); dlg = ov; }, closeDialog: () => { dlg?.remove(); dlg = null; } });
   const cell = (row, k) => [k * 100 + 50, RULER_H + row * ROW_H + ROW_H / 2];
-  const fields = () => Object.fromEntries([...root.querySelectorAll('.isim-dlg [name]')].map((e) => [e.name, e.disabled ? `${e.value} (disabled)` : e.value]));
+  const fields = () => Object.fromEntries([...root.querySelectorAll('.isim-dlg [name]')].map((e) => [e.name, e.hidden ? `${e.value} (hidden)` : e.disabled ? `${e.value} (disabled)` : e.value]));
   const set = (vals) => { for (const [n, v] of Object.entries(vals)) { const e = root.querySelector(`.isim-dlg [name="${n}"]`); e.value = v; e.dispatchEvent(new Event('change')); } };
   const press = (a) => root.querySelector(`.isim-dlg [data-a=${a}]`).click();
   const title = () => root.querySelector('.isim-dlg-title')?.firstChild.textContent ?? null;
@@ -63,16 +63,23 @@ uiTest('#405 ISim drawn stimuli: Edit Stimuli on, the timing dialog and its erro
   const out = await page.eval(async () => {
     const { stim, st, calls, stimBar, btn, cell, fields, set, press, title, err, status, settle } = window.__stim;
     const r = {};
-    // Edit Stimuli on, no model yet: the timing dialog, the clock guessed (none here)
+    // Edit Stimuli on, no model yet: the timing dialog, the clock guessed (none here): the period, the step and the
+    // cycles hidden with their labels (#1478)
     stim.toggleStim();
-    r.on = { on: st.stim.on, bar: stimBar.hidden, btn: btn.classList.contains('on'), title: title(), fields: fields(), focus: document.activeElement.name };
+    const shown = () => [...document.querySelectorAll('.isim-dlg-grid > *')].filter((e) => e.offsetParent).map((e) => e.name || e.textContent);
+    r.on = { on: st.stim.on, bar: stimBar.hidden, btn: btn.classList.contains('on'), title: title(), fields: fields(), shown: shown(), focus: document.activeElement.name };
+    // a clock chosen: they show again, live; their errors
+    set({ clock: 'a' });
+    r.clocked = { fields: fields(), shown: shown() };
     set({ cycles: '0' });
     press('ok');
     r.cyclesErr = err();
     set({ cycles: '4', step: '2.5' });
     press('ok');
     r.stepErr = err();
-    set({ step: '10' });
+    // back to none: hidden again, a bad hidden value no error; one cycle per combination of a and b (32), step 10 ns
+    set({ clock: '' });
+    r.unclocked = { fields: fields(), shown: shown() };
     press('ok');
     await settle();
     r.model = JSON.parse(JSON.stringify(st.stim.m));
@@ -81,12 +88,12 @@ uiTest('#405 ISim drawn stimuli: Edit Stimuli on, the timing dialog and its erro
     // a click on a cycle of input a: 0 → 1 there and after it; the run again
     r.clickA = stim.stimClick(...cell(0, 1));
     await settle();
-    r.a = [...st.stim.m.inputs.a];
+    r.a = st.stim.m.inputs.a.join('');
     r.afterA = calls.splice(0).map((c) => c[0]);
     // on output y: its expected value - → 0, checked at once, no run
     stim.stimClick(...cell(2, 3));
     stim.stimClick(...cell(2, 3));
-    r.y = [...st.stim.m.expected.y];
+    r.y = st.stim.m.expected.y.join('');
     r.afterY = calls.splice(0).map((c) => c[0]);
     r.statusY = status();
     // on bus b: its value dialog; a bad value, then h5 from cycle 2
@@ -98,14 +105,14 @@ uiTest('#405 ISim drawn stimuli: Edit Stimuli on, the timing dialog and its erro
     set({ value: 'h5' });
     press('ok');
     await settle();
-    r.b = [...st.stim.m.inputs.b];
+    r.b = st.stim.m.inputs.b.join(' ');
     r.afterB = calls.splice(0);
     // outside the cycles, or on no port: not a stimulus click
-    r.outside = [stim.stimClick(5 * 100 + 50, cell(0, 0)[1]), stim.stimClick(50, 1000)];
+    r.outside = [stim.stimClick(32 * 100 + 50, cell(0, 0)[1]), stim.stimClick(50, 1000)];
     // Fill Expected from the simulation: y from the run (1 from 20 ns), then the run checks it OK
     stim.fillStim();
     await settle();
-    r.filled = [...st.stim.m.expected.y];
+    r.filled = st.stim.m.expected.y.join('');
     r.statusFilled = status();
     r.afterFill = calls.splice(0);
     // the drawing: the expected values over the waves, a mismatch red
@@ -125,32 +132,37 @@ uiTest('#405 ISim drawn stimuli: Edit Stimuli on, the timing dialog and its erro
     r.off = { on: st.stim.on, bar: stimBar.hidden, btn: btn.classList.contains('on'), calls: calls.splice(0).map((c) => c[0]) };
     return r;
   });
-  assert.deepEqual(out.on, { on: true, bar: false, btn: true, title: 'Stimulus Timing', fields: { clock: '', period: '20 (disabled)', step: '10', cycles: '16' }, focus: 'cycles' });
+  assert.deepEqual(out.on, { on: true, bar: false, btn: true, title: 'Stimulus Timing',
+    fields: { clock: '', period: '20 (hidden)', step: '10 (hidden)', cycles: '16 (hidden)' }, shown: ['Clock:', 'clock'], focus: 'clock' });
+  assert.deepEqual(out.clocked, { fields: { clock: 'a', period: '20', step: '10 (disabled)', cycles: '16' },
+    shown: ['Clock:', 'clock', 'Clock Period (ns):', 'period', 'Time Step (ns):', 'step', 'Cycles:', 'cycles'] });
   assert.equal(out.cyclesErr, 'Cycles: a whole number of at least 1');
   assert.equal(out.stepErr, 'Time Step: a whole number of at least 1');
-  assert.deepEqual(out.model, { version: 1, clock: null, periodNs: 20, stepNs: 10, cycles: 4,
-    inputs: { a: ['0', '0', '0', '0'], b: ['0000', '0000', '0000', '0000'] }, expected: { y: ['-', '-', '-', '-'] } });
+  assert.deepEqual(out.unclocked, { fields: { clock: '', period: '20 (hidden)', step: '2.5 (hidden)', cycles: '4 (hidden)' }, shown: ['Clock:', 'clock'] });
+  assert.deepEqual(out.model, { version: 1, clock: null, periodNs: 20, stepNs: 10, cycles: 32,
+    inputs: { a: Array(32).fill('0'), b: Array(32).fill('0000') }, expected: { y: Array(32).fill('-') } });
   assert.deepEqual(out.afterOk.map((c) => c[0]), ['layout', 'onChange', 'restart', 'echo', 'enqueue', 'runTo']);
-  assert.deepEqual(out.afterOk.slice(2), [['restart', true], ['echo', 'run 40 ns'], ['enqueue', 'run 40 ns'], ['runTo', 40000, 'Run']]);
-  assert.deepEqual(out.status, ['4 cycles (combinational, step 10 ns): no expected outputs', false]);
+  assert.deepEqual(out.afterOk.slice(2), [['restart', true], ['echo', 'run 320 ns'], ['enqueue', 'run 320 ns'], ['runTo', 320000, 'Run']]);
+  assert.deepEqual(out.status, ['32 cycles (combinational, step 10 ns): no expected outputs', false]);
   assert.equal(out.clickA, true);
-  assert.deepEqual(out.a, ['0', '1', '1', '1']);
+  assert.equal(out.a, `0${'1'.repeat(31)}`);
   assert.deepEqual(out.afterA, ['selectRow', 'onChange', 'restart', 'echo', 'enqueue', 'runTo']);
-  assert.deepEqual(out.y, ['-', '-', '-', '1']);
+  assert.equal(out.y, `---${'1'.repeat(29)}`);
   assert.deepEqual(out.afterY, ['selectRow', 'onChange', 'invalidate', 'selectRow', 'onChange', 'invalidate']);
-  assert.deepEqual(out.statusY, ['4 cycles (combinational, step 10 ns): expected outputs OK', false]);
+  assert.deepEqual(out.statusY, ['32 cycles (combinational, step 10 ns): expected outputs OK', false]);
   assert.deepEqual(out.bus, { title: 'Input Value', fields: { sig: 'b', k: '2', value: '0000' } });
   assert.match(out.busErr, /./, 'a value too wide for 4 bits: an error, the dialog open');
-  assert.deepEqual(out.b, ['0000', '0000', '0101', '0101']);
+  assert.equal(out.b, ['0000', '0000', ...Array(30).fill('0101')].join(' '));
   assert.deepEqual(out.afterB.map((c) => c[0]), ['selectRow', 'onChange', 'restart', 'echo', 'enqueue', 'runTo', 'logLine']);
-  assert.deepEqual(out.afterB.at(-1), ['logLine', 'Stimuli: 4 cycles, the expected outputs match', 'info']);
+  assert.deepEqual(out.afterB.at(-1), ['logLine', 'Stimuli: 32 cycles, the expected outputs match', 'info']);
   assert.deepEqual(out.outside, [false, false]);
-  assert.deepEqual(out.filled, ['0', '0', '1', '1']);
-  assert.deepEqual(out.statusFilled, ['4 cycles (combinational, step 10 ns): expected outputs OK', false]);
+  assert.equal(out.filled, `00${'1'.repeat(30)}`);
+  assert.deepEqual(out.statusFilled, ['32 cycles (combinational, step 10 ns): expected outputs OK', false]);
   assert.deepEqual(out.afterFill.map((c) => c[0]), ['logLine', 'onChange', 'invalidate']);
   assert.deepEqual(out.afterFill[0], ['logLine', 'Stimuli: the expected outputs filled in from the simulation', 'info']);
-  assert.deepEqual(out.statusBad, ['4 cycles (combinational, step 10 ns): 1 mismatch(es)', true]);
-  assert.deepEqual(out.fills, ['rgba(230, 40, 40, 0.35)', '#ff6b6b', '#5fbf6a', '#5fbf6a', '#5fbf6a']);
+  assert.deepEqual(out.statusBad, ['32 cycles (combinational, step 10 ns): 1 mismatch(es)', true]);
+  // (the cycles 0 to 8 in the 800 px)
+  assert.deepEqual(out.fills, ['rgba(230, 40, 40, 0.35)', '#ff6b6b', ...Array(8).fill('#5fbf6a')]);
   assert.deepEqual(out.off, { on: false, bar: true, btn: false, calls: ['layout', 'invalidate'] });
 });
 
@@ -167,8 +179,22 @@ uiTest('#405 ISim drawn stimuli: saved stimuli run and their mismatches logged; 
     r.fields = fields();
     set({ clock: '' });
     r.noClock = fields();
+    set({ clock: 'a' });
+    r.clockAgain = fields();
     press('cancel');
     r.closed = title();
+    // no clock now (#1478): one cycle per combination of a and b, the saved step; then the cycles of a model already
+    // combinational kept
+    stim.timingDialog();
+    set({ clock: '' });
+    press('ok');
+    r.comb = (({ clock, periodNs, stepNs, cycles }) => ({ clock, periodNs, stepNs, cycles }))(st.stim.m);
+    st.stim.m = { ...st.stim.m, cycles: 3, stepNs: 7 };
+    stim.timingDialog();
+    r.combFields = fields();
+    press('ok');
+    r.kept = (({ clock, stepNs, cycles }) => ({ clock, stepNs, cycles }))(st.stim.m);
+    calls.splice(0);
     // editing on with no model, then Cancel: editing off again
     st.stim.m = null;
     stim.toggleStim(true);
@@ -183,7 +209,11 @@ uiTest('#405 ISim drawn stimuli: saved stimuli run and their mismatches logged; 
     ['logLine', '  y at cycle 0 (0 ns): expected 1, got 0', 'warning']]);
   assert.deepEqual(out.status, ['2 cycles (clock a, period 20 ns): 1 mismatch(es)', true]);
   assert.deepEqual(out.fields, { clock: 'a', period: '20', step: '10 (disabled)', cycles: '2' });
-  assert.deepEqual(out.noClock, { clock: '', period: '20 (disabled)', step: '10', cycles: '2' });
+  assert.deepEqual(out.noClock, { clock: '', period: '20 (hidden)', step: '10 (hidden)', cycles: '2 (hidden)' });
+  assert.deepEqual(out.clockAgain, out.fields);
+  assert.deepEqual(out.comb, { clock: null, periodNs: 20, stepNs: 10, cycles: 32 });
+  assert.deepEqual(out.combFields, { clock: '', period: '20 (hidden)', step: '7 (hidden)', cycles: '3 (hidden)' });
+  assert.deepEqual(out.kept, { clock: null, stepNs: 7, cycles: 3 });
   assert.equal(out.closed, null);
   assert.equal(out.opened, 'Stimulus Timing');
   assert.deepEqual(out.cancelled, { on: false, dialog: null });

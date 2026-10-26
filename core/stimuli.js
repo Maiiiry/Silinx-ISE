@@ -30,6 +30,9 @@ export function newStimuli(ports, { clock = null, periodNs = 20, stepNs = 10, cy
   return normalizeStimuli({ ...m, clock, periodNs, stepNs, cycles }, ports);
 }
 
+/** The cycles of a combinational model (#1478): one per combination of the input bits, 1 with none, at most MAX_CYCLES. */
+export const combinationCycles = ports => Math.min(MAX_CYCLES, 2 ** stimPorts(ports).ins.reduce((n, p) => n + p.width, 0));
+
 /**
  * A saved model made right for the module's current ports: the timing in range, a clock that is a 1-bit input,
  * every input and output with one cell a cycle of its width (new ports 0 / not checked, removed ones dropped).
