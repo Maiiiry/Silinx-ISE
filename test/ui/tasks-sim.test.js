@@ -449,6 +449,7 @@ uiTest('#1385 Tasks ▸ Simulate: the Simulation hierarchy\'s buttons and right-
   assert.deepEqual(await bars('#task-sim-panel'), ['New Test Bench…', 'Add Copy of TB…']);
   await page.rightClick('#task-sim-panel .task-sim-bench .row');
   assert.deepEqual((await appMenu()).map((x) => x.replace(' (off)', '')), BENCH);
+  assert.equal(await page.eval(() => Math.round(document.querySelector('body > .menu-popup .mi').getBoundingClientRect().height)), 30);
   assert.ok(!(await page.eval(() => window.SilinxApp.S.docs.some((d) => /^isim:/.test(d.id)))), 'a right-click simulates nothing');
   await page.closeMenus();
   await page.rightClick(await below('#task-sim-panel .task-sim-trees'));
@@ -461,6 +462,8 @@ uiTest('#1385 Tasks ▸ Simulate: the Simulation hierarchy\'s buttons and right-
   assert.deepEqual(await bars('.doc:not([hidden]) .isim-inst-panel'), ['New Test Bench…', 'Add Copy of TB…']);
   await page.rightClick('.doc:not([hidden]) .isim-tree > li > .row .lbl', { text: 'tb_top' });
   const m = await ssimMenu();
+  // (its items as the app's menus' items: #1409)
+  assert.equal(await page.eval(() => Math.round(document.querySelector('.isim-menu-root > .isim-menu-item').getBoundingClientRect().height)), 30);
   assert.deepEqual(m.slice(0, 3), ['Add to Wave Window', 'Add to Wave Window (Recursive)', 'Go To Source']);
   assert.deepEqual(m.slice(-BENCH.length), BENCH);
   await page.eval(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));

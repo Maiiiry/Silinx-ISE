@@ -1664,3 +1664,35 @@ uiTest('#1398 Tasks ▸ Implement: I/O Pin Planning and Program FPGA above the P
   assert.equal(await page.eval(() => document.getElementById('task-impl-bar')), null);
   await noWarnings(page);
 }, { build: DEV });
+
+// #1409: the four tasks' side panels alike: their width (as the viewer leaves it), background and text, their tabs'
+// row and label, the bar above the tree and its buttons, the tree's rows
+uiTest('#1409 Tasks: the side panels of Design, Simulate, Emulate and Implement alike (width, background, text, tabs, bars, rows)', E, async (page) => {
+  await makeProject(env, { name: 'TasksAlike', template: 'blinky' });
+  await page.setViewport(1440, 900);
+  await tasksInterface(page);
+  await page.openProject('TasksAlike');
+  const look = (panel, tabs, lbl, bar, btn, row) => page.eval((p, t, l, b, bt, rw) => {
+    const vis = (e) => e && e.getClientRects().length > 0;
+    const q = (s) => [...document.querySelectorAll(s)].find(vis);
+    const c = (s, f) => { const e = q(s); return e ? f(getComputedStyle(e), e.getBoundingClientRect()) : null; };
+    return { width: c(p, (s, r) => Math.round(r.width)), bg: c(p, (s) => s.backgroundColor), text: c(p, (s) => s.fontSize),
+      tabs: c(t, (s, r) => Math.round(r.height)), label: c(l, (s) => `${s.fontSize} ${s.fontWeight}`), bar: c(b, (s, r) => Math.round(r.height)),
+      button: c(bt, (s, r) => `${Math.round(r.height)} ${s.fontSize}`), row: c(rw, (s, r) => `${Math.round(r.height)} ${s.fontSize}`) };
+  }, panel, tabs, lbl, bar, btn, row);
+  const go = async (t) => { await page.click(`#task-switch .task-btn[data-task="${t}"]`); await page.waitFor((x) => document.documentElement.dataset.task === x, [t]); };
+  await go('edit');
+  // (the side panel made wider by the viewer: every task's the same)
+  await page.eval(() => { document.getElementById('left').style.width = '380px'; });
+  await go('impl');
+  const impl = await look('#left', '#left-tabs', '#task-procs-tab .tab-lbl', '#task-impl-bar', '#task-impl-bar .btn', '#procs .row');
+  await go('edit');
+  const edit = await look('#left', '#left-tabs', '#left-tabs .tab.active .tab-lbl', '#task-src-bar', '#task-src-bar .btn', '#hier .row');
+  await go('emu');
+  const emu = await look('#left', '#left-tabs', '#task-emu-tab .tab-lbl', '#task-emu-bar', '#task-emu-bar .btn', '#task-emu-panel .row');
+  await go('sim');
+  await page.waitFor(() => document.getElementById('task-sim-panel')?.getClientRects().length > 0, [], { what: 'Simulate\'s panel' });
+  const sim = await look('#task-sim-panel', '#task-sim-panel .task-sim-tabs', '#task-sim-panel .task-sim-tabs .tab.active .tab-lbl', '#task-sim-panel .task-sim-src-bar', '#task-sim-panel .task-sim-src-bar .btn', '#task-sim-panel .row');
+  assert.equal(impl.width, 380);
+  for (const [name, x] of Object.entries({ edit, sim, emu })) assert.deepEqual(x, impl, `${name} as Implement's`);
+});

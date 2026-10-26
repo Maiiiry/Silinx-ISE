@@ -175,6 +175,9 @@ function apply() {
   const r = root();
   if (!on()) { if (document.getElementById('task-bar')) { unbuild(); placeSimToolbar(false); fitBoard(false); arrangeProgram(false); dispatchEvent(new Event('resize')); } return; }
   build();
+  // (the side panel's width, as the viewer left it, for Simulate's own panel too, #1409)
+  const lw = document.getElementById('left')?.style.width;
+  if (lw) r.style.setProperty('--left-w', lw);
   const t = current(), a = arr(t);
   const changed = t !== shownTask;
   if (changed) { shownTask = t; messagesTask(t); }

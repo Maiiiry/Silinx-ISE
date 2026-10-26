@@ -167,8 +167,8 @@ html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"], [data-max="
    (choosing either simulates, #1018), Simulate and the wizard as Implement's processes; the page beside it */
 #task-sim-panel { display: none; }
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="folded"]) #task-sim-panel:not([hidden]) { display: flex; flex-direction: column; position: absolute; z-index: 1;
-  top: 0; bottom: 0; left: 0; width: min(300px, 45%); border-right: 1px solid var(--m-border); background: var(--m-surface-2); font-size: 12px; }
-html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="folded"]) #workspace:has(> #task-sim-panel:not([hidden])) > #task-empty { left: min(300px, 45%); }
+  top: 0; bottom: 0; left: 0; width: min(var(--left-w, 344px), 45%); border-right: 1px solid var(--m-border); background: var(--m-surface); }   /* (as the other tasks' side panel: its width, its background, its text, #1409) */
+html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="folded"]) #workspace:has(> #task-sim-panel:not([hidden])) > #task-empty { left: min(var(--left-w, 344px), 45%); }
 /* (a test bench's HDL open, no simulation: beside the panel, under the tabs that start at its edge, #1396) */
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="folded"]) #workspace:has(> #task-sim-panel:not([hidden])) > .doc:not([hidden]) { left: var(--sim-side, 0px); }
 /* (folded by the side panel's button, as the other tasks' side panels: #1428) */
