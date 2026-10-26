@@ -98,19 +98,18 @@ async function reloadProjectNow(render = true, depth = 0) {
   delete pj.fileTree;
   S.project = pj;
   S.sources = await api.sources(pj.name);
-  S.schOwners = {};
-  S.hdlToSch = {};
-  S.viewModule = {};
-  // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
-  S.viewTexts = {};
+  // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync); the maps made first
+  // and set together, never empty while the drawings are read (#1543)
+  const schOwners = {}, hdlToSch = {}, viewModule = {}, viewTexts = {};
   for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/.test(f))) {
     try {
       const t = await api.readFile(pj.name, f);
-      S.viewTexts[f] = t;
+      viewTexts[f] = t;
       const d = JSON.parse(t);
-      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.viewModule[f] = d.name; }
+      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !hdlToSch[d.generatedFile]) { schOwners[f] = d.generatedFile; hdlToSch[d.generatedFile] = f; viewModule[f] = d.name; }
     } catch { /* unreadable */ }
   }
+  Object.assign(S, { schOwners, hdlToSch, viewModule, viewTexts });
   compileProject();
   // a drawing whose base was its HDL (before #220) is made the base; a drawn source without its HDL
   // file gets it (#207): read the project again with them
