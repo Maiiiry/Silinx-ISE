@@ -1,0 +1,348 @@
+// Silinx C (docs/c-to-hdl.md, #1524): the checks of a parsed C source: names and calls, the top function, and
+// what can be synthesized (UG1399's rules: the whole functionality in the top function and what it calls, no
+// system calls, fixed or bounded sizes, unambiguous constructs, no visible undefined behaviour).
+// Isomorphic ES module: no DOM and no Node APIs.
+//
+//   checkC(source, file) -> { ast, top, funcs, loops, diagnostics, ok }
+//     top:         the top function's name (#pragma HLS TOP name=, else the file's last function other than main)
+//     funcs:       Map name -> Func, the functions defined
+//     loops:       [{ loc, trip }]: each loop of the synthesized code, its trip count (a constant, or a
+//                  LOOP_TRIPCOUNT max), null when it has none
+//     diagnostics: [{ file, line, col, message, severity: 'error' | 'warning' }], in the order of the source
+//     ok:          no error
+// The synthesized code is the top function and the functions it calls; main() and what only it calls are the
+// test bench, checked for names and calls only.
+import { parse } from './c-parse.js';
+
+// the library calls Silinx C refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
+const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
+  'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy', 'assert']);
+const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
+// the member functions of ap_int / ap_uint Silinx C knows
+const AP_MEMBERS = new Set(['range', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
+export const MAX_AP_WIDTH = 1024;
+
+/** The value of a constant expression (numbers, the constants known, C's operators), or null if it is not one. */
+export function constValue(e, consts = new Map()) {
+  if (!e) return null;
+  switch (e.kind) {
+    case 'num': case 'chr': return e.value;
+    case 'id': return consts.has(e.name) ? consts.get(e.name) : null;
+    case 'unary': {
+      const v = constValue(e.e, consts);
+      if (v === null) return null;
+      return e.op === '-' ? -v : e.op === '+' ? v : e.op === '!' ? (v ? 0n : 1n) : e.op === '~' ? ~v : null;
+    }
+    case 'cast': return constValue(e.e, consts);
+    case 'cond': { const c = constValue(e.c, consts); return c === null ? null : constValue(c ? e.a : e.b, consts); }
+    case 'binary': {
+      const a = constValue(e.l, consts), b = constValue(e.r, consts);
+      if (a === null || b === null) return null;
+      switch (e.op) {
+        case '+': return a + b; case '-': return a - b; case '*': return a * b;
+        case '/': return b ? a / b : null; case '%': return b ? a % b : null;
+        case '<<': return b >= 0n && b < 4096n ? a << b : null; case '>>': return b >= 0n ? a >> b : null;
+        case '&': return a & b; case '|': return a | b; case '^': return a ^ b;
+        case '&&': return a && b ? 1n : 0n; case '||': return a || b ? 1n : 0n;
+        case '==': return a === b ? 1n : 0n; case '!=': return a !== b ? 1n : 0n;
+        case '<': return a < b ? 1n : 0n; case '>': return a > b ? 1n : 0n; case '<=': return a <= b ? 1n : 0n; case '>=': return a >= b ? 1n : 0n;
+        default: return null;
+      }
+    }
+    default: return null;
+  }
+}
+
+export function checkC(source, file = 'input.c') {
+  const ast = parse(source, file);
+  const diags = [...ast.errors];
+  const report = (loc, message, severity = 'error') => diags.push({ file, line: loc?.line || 1, col: loc?.col || 1, message, severity });
+  const funcs = new Map();
+  const globals = new Map();
+  const consts = new Map();   // the global const integers: array sizes and widths may use them
+  for (const it of ast.items) {
+    if (it.kind === 'func') {
+      const prev = funcs.get(it.name);
+      if (prev?.body && it.body) report(it.loc, `the function '${it.name}' is defined twice (first at line ${prev.loc.line})`);
+      if (!prev || it.body) funcs.set(it.name, it);
+    } else if (it.kind === 'var') {
+      if (globals.has(it.name)) report(it.loc, `'${it.name}' is declared twice`);
+      globals.set(it.name, it);
+      if (it.const && it.type.kind === 'int' && it.init && it.init.kind !== 'init') { const v = constValue(it.init, consts); if (v !== null) consts.set(it.name, v); }
+    }
+  }
+  // the widths of the ap_int / ap_uint types and the sizes of the arrays: constants
+  const typeOk = (t, loc) => {
+    if (!t) return;
+    if (t.kind === 'int' && t.ap && t.bits === null) {
+      const w = constValue(t.widthExpr, consts);
+      if (w === null) report(loc, `the width of ${t.name}<…> must be a constant`);
+      else if (w < 1n || w > BigInt(MAX_AP_WIDTH)) report(loc, `the width of ${t.name}<${w}> must be from 1 to ${MAX_AP_WIDTH}`);
+      else t.bits = Number(w);
+    }
+    if (t.kind === 'array') {
+      typeOk(t.of, loc);
+      if (t.size) {
+        const n = constValue(t.size, consts);
+        if (n === null) report(loc, 'the size of an array must be a constant (Silinx C: fixed sizes)');
+        else if (n < 1n) report(loc, 'the size of an array must be 1 or more');
+        else t.length = Number(n);
+      }
+    }
+    if (t.kind === 'ptr') typeOk(t.to, loc);
+  };
+  for (const it of ast.items) {
+    if (it.kind === 'var') typeOk(it.type, it.loc);
+    if (it.kind === 'func') { typeOk(it.ret, it.loc); for (const pa of it.params) typeOk(pa.type, pa.loc); }
+  }
+
+  // ---------------------------------------------------------------- the top function
+  let top = null;
+  const topPragma = ast.pragmas.find((pg) => pg.name === 'TOP');
+  if (topPragma) top = topPragma.args.name || null;
+  for (const f of funcs.values()) for (const st of f.body?.items || []) if (st.kind === 'pragma' && st.pragma.name === 'TOP') top = st.pragma.args.name || f.name;
+  if (top && !funcs.get(top)?.body) { report(topPragma?.loc, `the top function '${top}' is not defined`); top = null; }
+  if (!top) top = [...ast.items].reverse().find((it) => it.kind === 'func' && it.body && it.name !== 'main')?.name || null;
+  if (!top && !diags.some((d) => d.severity === 'error')) report({ line: 1, col: 1 }, 'no function to synthesize: Silinx C makes the top function into a module (main() is the test bench)');
+
+  // ---------------------------------------------------------------- the call graph: what is synthesized
+  const calls = new Map();   // name -> Set of the functions it calls
+  const walk = (n, fn) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const x of n) walk(x, fn); return; }
+    fn(n);
+    for (const [k, v] of Object.entries(n)) if (k !== 'loc' && k !== 'type' && v && typeof v === 'object') walk(v, fn);
+  };
+  for (const f of funcs.values()) {
+    const s = new Set();
+    walk(f.body, (n) => { if (n.kind === 'call' && n.callee.kind === 'id' && funcs.has(n.callee.name)) s.add(n.callee.name); });
+    calls.set(f.name, s);
+  }
+  const synth = new Set();
+  const visit = (name) => { if (synth.has(name)) return; synth.add(name); for (const c of calls.get(name) || []) visit(c); };
+  if (top) visit(top);
+  // recursion: a call cycle among the synthesized functions
+  const onStack = new Set(), done = new Set();
+  const cycle = (name, path) => {
+    if (onStack.has(name)) return [...path.slice(path.indexOf(name)), name];
+    if (done.has(name)) return null;
+    onStack.add(name);
+    for (const c of calls.get(name) || []) { const r = cycle(c, [...path, name]); if (r) return r; }
+    onStack.delete(name); done.add(name);
+    return null;
+  };
+  if (top) {
+    const c = cycle(top, []);
+    if (c) report(funcs.get(c[0]).loc, `recursion is not possible in hardware (Silinx C, as Vitis HLS): ${c.join(' → ')}`);
+  }
+
+  // ---------------------------------------------------------------- each function: names, calls, constructs
+  const loops = [];
+  for (const f of funcs.values()) {
+    if (!f.body) continue;
+    const hw = synth.has(f.name);
+    checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk });
+  }
+  diags.sort((a, b) => a.line - b.line || a.col - b.col);
+  return { ast, top, funcs, loops, diagnostics: diags, ok: !diags.some((d) => d.severity === 'error') };
+}
+
+/** The checks of one function's body (hw: it is synthesized). */
+function checkFunction(f, ctx) {
+  const { hw, funcs, globals, consts, report, loops, typeOk } = ctx;
+  const scopes = [new Map()];
+  for (const pa of f.params) {
+    if (!pa.name) report(pa.loc, `a parameter of '${f.name}' has no name`);
+    else scopes[0].set(pa.name, { kind: 'param', type: pa.type });
+    if (hw) typeHw(pa.type, pa.loc, `the parameter '${pa.name}'`);
+  }
+  if (hw) typeHw(f.ret, f.loc, `the result of '${f.name}'`);
+  const lookup = (name) => { for (let k = scopes.length - 1; k >= 0; k--) if (scopes[k].has(name)) return scopes[k].get(name); return globals.has(name) ? { kind: 'global', type: globals.get(name).type } : null; };
+  function typeHw(t, loc, what) {
+    if (!t) return;
+    if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx C yet: use integers or ap_int<W>`);
+    else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx C yet`);
+    else if (t.kind === 'array') typeHw(t.of, loc, what);
+    else if (t.kind === 'ptr') {
+      if (t.to.kind === 'ptr') report(loc, `${what}: a pointer to a pointer is not possible (Silinx C: pointers only to arguments)`);
+      else typeHw(t.to, loc, what);
+    }
+  }
+  const declare = (v) => {
+    if (scopes.at(-1).has(v.name)) report(v.loc, `'${v.name}' is declared twice in the same block`);
+    scopes.at(-1).set(v.name, { kind: v.static ? 'static' : 'local', type: v.type });
+    typeOk(v.type, v.loc);
+    if (hw) {
+      typeHw(v.type, v.loc, `'${v.name}'`);
+      if (v.type.kind === 'ptr') report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)`);
+      if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
+    }
+    if (v.init) expr(v.init);
+    if (v.const && v.type.kind === 'int' && v.init && v.init.kind !== 'init') { const c = constValue(v.init, consts); if (c !== null) consts.set(v.name, c); }
+  };
+  const isPtr = (e) => {
+    if (e.kind !== 'id') return false;
+    const s = lookup(e.name);
+    return !!s && (s.type.kind === 'ptr' || s.type.kind === 'array');
+  };
+  // ------------------------------------------------ expressions
+  function expr(e, how = {}) {
+    if (!e) return;
+    switch (e.kind) {
+      case 'num': case 'chr': return;
+      case 'float': if (hw) report(e.loc, `floating point (${e.text}) is not supported in Silinx C yet`); return;
+      case 'str': if (hw && !how.printf) report(e.loc, 'a string is only possible in printf (ignored by synthesis)'); return;
+      case 'init': for (const x of e.items) expr(x); return;
+      case 'id':
+        if (!lookup(e.name) && !funcs.has(e.name)) report(e.loc, `'${e.name}' is not declared`);
+        else if (hw && !how.call && funcs.has(e.name) && !lookup(e.name)) report(e.loc, `a function as a value is not possible (Silinx C, as Vitis HLS: no function pointers)`);
+        return;
+      case 'unary':
+        if (e.op === '&') {
+          if (hw && !how.arg) report(e.loc, "'&' only to pass a variable to a function's pointer parameter (Silinx C: no pointer variables)");
+          if (e.e.kind !== 'id' && e.e.kind !== 'index') report(e.loc, "'&' takes a variable");
+        }
+        if (e.op === '*' && hw && !isPtr(e.e) && !(e.e.kind === 'binary' && (isPtr(e.e.l) || isPtr(e.e.r)))) report(e.loc, "'*' reads a pointer parameter (Silinx C: pointers only as arguments)");
+        expr(e.e); return;
+      case 'postfix': expr(e.e); return;
+      case 'binary':
+        if (hw && (e.op === '+' || e.op === '-') && (isPtr(e.l) || isPtr(e.r))) report(e.loc, 'pointer arithmetic is not possible in Silinx C: index the array instead');
+        if (e.op === '/' || e.op === '%') { const d = constValue(e.r, consts); if (d === 0n) report(e.loc, 'division by zero'); }
+        if (e.op === '<<' || e.op === '>>') { const s = constValue(e.r, consts); if (s !== null && s < 0n) report(e.loc, `a shift by a negative amount (${s}) is undefined in C`); }
+        expr(e.l); expr(e.r); return;
+      case 'assign': expr(e.l); expr(e.r); return;
+      case 'cond': expr(e.c); expr(e.a); expr(e.b); return;
+      case 'comma': expr(e.l); expr(e.r); return;
+      case 'index': expr(e.e); expr(e.i); return;
+      case 'cast':
+        typeOk(e.type, e.loc);
+        if (hw) {
+          if (e.type.kind === 'ptr' || isPtr(e.e)) report(e.loc, 'a cast of a pointer is not possible in Silinx C');
+          typeHw(e.type, e.loc, 'a cast');
+        }
+        expr(e.e); return;
+      case 'sizeof': if (e.e) expr(e.e); return;
+      case 'member':
+        if (e.arrow) report(e.loc, `'->' : structures are not supported in Silinx C yet`);
+        else if (e.name !== 'range' && !AP_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function Silinx C knows (ap_int / ap_uint: ${[...AP_MEMBERS].join(', ')})`);
+        expr(e.e); return;
+      case 'call': return call(e);
+      default: return;
+    }
+  }
+  function call(e) {
+    if (e.callee.kind === 'member') {
+      expr(e.callee);
+      for (const a of e.args) expr(a);
+      return;
+    }
+    if (e.callee.kind !== 'id') { report(e.loc, 'a call of a function by its name only (Silinx C: no function pointers)'); return; }
+    const name = e.callee.name;
+    const fn = funcs.get(name);
+    if (fn) {
+      if (fn.params.length !== e.args.length) report(e.loc, `'${name}' takes ${fn.params.length} argument(s), not ${e.args.length}`);
+      e.args.forEach((a, k) => expr(a, { arg: fn.params[k]?.type?.kind === 'ptr' || fn.params[k]?.type?.kind === 'array' }));
+      if (name === 'main' && hw) report(e.loc, 'main() is the test bench: the synthesized code cannot call it');
+      return;
+    }
+    if (IGNORED.has(name)) {
+      if (hw) report(e.loc, `${name} is ignored by synthesis (it only prints in C simulation)`, 'warning');
+      for (const a of e.args) expr(a, { printf: true });
+      return;
+    }
+    if (REFUSED.has(name)) {
+      if (hw) report(e.loc, name === 'malloc' || name === 'calloc' || name === 'realloc' || name === 'free'
+        ? `${name}: dynamic memory is not possible in hardware (Silinx C, as Vitis HLS: fixed sizes; use an array)`
+        : `${name} is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)`);
+      for (const a of e.args) expr(a, { printf: true });
+      return;
+    }
+    if (!lookup(name)) report(e.loc, `the function '${name}' is not declared`);
+    for (const a of e.args) expr(a);
+  }
+  // ------------------------------------------------ loops: their trip count
+  const assigns = (n, name) => {
+    let hit = false;
+    const w = (x) => {
+      if (!x || typeof x !== 'object' || hit) return;
+      if (Array.isArray(x)) { x.forEach(w); return; }
+      if ((x.kind === 'assign' && x.l.kind === 'id' && x.l.name === name) || ((x.kind === 'postfix' || (x.kind === 'unary' && (x.op === '++' || x.op === '--'))) && x.e.kind === 'id' && x.e.name === name)
+        || (x.kind === 'unary' && x.op === '&' && x.e.kind === 'id' && x.e.name === name)) { hit = true; return; }
+      for (const [k, v] of Object.entries(x)) if (k !== 'loc' && k !== 'type') w(v);
+    };
+    w(n);
+    return hit;
+  };
+  /** The trip count of a canonical for loop (i from a constant, compared with a constant, stepped by a constant, not
+   *  changed in its body), else null. */
+  function tripCount(st) {
+    let v = null, start = null;
+    const init = st.init;
+    if (init?.kind === 'decl' && init.vars.length === 1) { v = init.vars[0].name; start = constValue(init.vars[0].init, consts); }
+    else if (init?.kind === 'expr' && init.e.kind === 'assign' && init.e.op === '=' && init.e.l.kind === 'id') { v = init.e.l.name; start = constValue(init.e.r, consts); }
+    if (v === null || start === null || !st.cond || st.cond.kind !== 'binary' || st.cond.l.kind !== 'id' || st.cond.l.name !== v) return null;
+    const end = constValue(st.cond.r, consts);
+    if (end === null) return null;
+    let step = null;
+    const s = st.step;
+    if (s && (s.kind === 'postfix' || s.kind === 'unary') && s.e?.kind === 'id' && s.e.name === v) step = s.op === '++' ? 1n : s.op === '--' ? -1n : null;
+    else if (s?.kind === 'assign' && s.l.kind === 'id' && s.l.name === v) {
+      const k = constValue(s.r, consts);
+      if (k !== null && s.op === '+=') step = k;
+      if (k !== null && s.op === '-=') step = -k;
+    }
+    if (!step || assigns(st.body, v)) return null;
+    let n = 0n;
+    const ok = (x) => ({ '<': x < end, '<=': x <= end, '>': x > end, '>=': x >= end, '!=': x !== end })[st.cond.op];
+    if (ok(start) === undefined) return null;
+    // the count by arithmetic: (end - start) / step, rounded as the comparison says
+    const span = st.cond.op === '<=' || st.cond.op === '>=' ? end - start + (step > 0n ? 1n : -1n) : end - start;
+    if ((span > 0n) !== (step > 0n)) return 0;
+    if (st.cond.op === '!=' && span % step) return null;   // (never equal: an endless loop)
+    n = (span + step - (step > 0n ? 1n : -1n)) / step;
+    return n > 0n ? Number(n) : 0;
+  }
+  const tripPragma = (body) => {
+    const items = body?.kind === 'block' ? body.items : [body];
+    const pg = items.find((s) => s?.kind === 'pragma' && s.pragma.name === 'LOOP_TRIPCOUNT');
+    if (!pg) return null;
+    const max = Number(pg.pragma.args.max);
+    return Number.isFinite(max) && max >= 0 ? max : null;
+  };
+  // ------------------------------------------------ statements
+  function stmt(s) {
+    if (!s) return;
+    switch (s.kind) {
+      case 'block': scopes.push(new Map()); s.items.forEach(stmt); scopes.pop(); return;
+      case 'decl': s.vars.forEach(declare); return;
+      case 'expr': expr(s.e); return;
+      case 'if': expr(s.cond); stmt(s.then); stmt(s.else); return;
+      case 'switch': expr(s.e); stmt(s.body); return;
+      case 'case': if (constValue(s.value, consts) === null) report(s.loc, "a 'case' value must be a constant"); return;
+      case 'return':
+        if (s.e) { if (f.ret.kind === 'void') report(s.loc, `'${f.name}' returns nothing (void): 'return' with no value`); expr(s.e); }
+        else if (f.ret.kind !== 'void' && f.name !== 'main') report(s.loc, `'${f.name}' returns a value: 'return' needs one`);
+        return;
+      case 'goto': if (hw) report(s.loc, "'goto' is not supported in Silinx C (use loops, 'break' and 'continue')"); return;
+      case 'label': if (hw) report(s.loc, `labels are not supported in Silinx C ('${s.name}:')`); stmt(s.stmt); return;
+      case 'for': case 'while': case 'do': {
+        scopes.push(new Map());
+        if (s.kind === 'for') { if (s.init) stmt(s.init); if (s.cond) expr(s.cond); if (s.step) expr(s.step); }
+        else expr(s.cond);
+        if (hw) {
+          const trip = s.kind === 'for' ? tripCount(s) : null;
+          const max = trip === null ? tripPragma(s.body) : trip;
+          if (max === null) report(s.loc, `the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it`);
+          loops.push({ loc: s.loc, trip, max, fn: f.name });
+        }
+        stmt(s.body);
+        scopes.pop();
+        return;
+      }
+      case 'pragma': return;
+      default: return;
+    }
+  }
+  scopes.push(new Map());
+  for (const st of f.body.items) stmt(st);
+}

@@ -5,6 +5,7 @@ import { icons, icon } from './icons.js';
 import { h, dialog, popupMenu, toast, longPressMenu } from './ui.js';
 import { compile, elaborate } from '/core/compile.js';
 import { reservedModuleDiags } from '/core/reserved.js';
+import { checkC } from '/core/c-check.js';
 import * as wiz from './wizards.js';
 import { designDiags, sevWord } from './diaghelp.js';
 import { S, flushDoc, openFile, openFpgaView, openImpact, openPinPlanner, openSummary, openUcf,
@@ -345,9 +346,10 @@ export function hdlDiagnostics(path, text, info = []) {
 export async function checkFileSyntax(path) {
   await saveAll();
   log(`\nStarted : "Check Syntax" of ${path}.\n`, 'hdr');
-  log(`${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
+  const isC = /\.c$/i.test(path);
+  log(isC ? `Analyzing Silinx C file "${path}"` : `${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
   const info = [];
-  const diags = hdlDiagnostics(path, null, info);
+  const diags = isC ? await cDiagnostics(path, info) : hdlDiagnostics(path, null, info);
   for (const l of info) log(l);
   setDiagnostics(diags);
   const ne = diags.filter(d => d.severity === 'error').length, nw = diags.length - ne;
@@ -356,6 +358,14 @@ export async function checkFileSyntax(path) {
   log(`\nProcess "Check Syntax" completed successfully${nw ? ` with ${nw} warning(s)` : ''}`, 'ok');
   status(`Check Syntax: ${path.split('/').pop()} OK${nw ? ` (${nw} warning(s))` : ''}`);
   return true;
+}
+
+// Silinx C (#1524): the checks of a C source (core/c-check.js), its top function said
+async function cDiagnostics(path, info) {
+  const text = await api.readFile(S.project.name, path);
+  const r = checkC(text, path);
+  if (r.top) info.push(`Top function: ${r.top}`);
+  return r.diagnostics.map(d => ({ ...d, file: path, tool: 'SilinxC' }));
 }
 
 // ------------------------------------------------------------------ process status persistence

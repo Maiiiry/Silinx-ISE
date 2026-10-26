@@ -13,6 +13,8 @@ import { linter, lintGutter, setDiagnostics as showDiagnostics } from '@codemirr
 import { tags, tagHighlighter } from '@lezer/highlight';
 import { vhdl } from '@codemirror/legacy-modes/mode/vhdl';
 import { verilog } from '@codemirror/legacy-modes/mode/verilog';
+import { c } from '@codemirror/legacy-modes/mode/clike';
+import { checkC } from '/core/c-check.js';
 import { parse as parseVerilog } from '/core/verilog/parser.js';
 import { parse as parseVhdl } from '/core/vhdl/parser.js';
 import { quickFixes } from '/core/quickfix.js';
@@ -164,7 +166,7 @@ const ucf = {
 };
 const LANGUAGES = {};
 const languageOf = lang => {
-  const mode = { vhdl, verilog, ucf }[lang];
+  const mode = { vhdl, verilog, ucf, c }[lang];   // (c: Silinx C, #1524)
   return mode ? (LANGUAGES[lang] ??= StreamLanguage.define(mode)) : [];
 };
 
@@ -199,6 +201,14 @@ const flashField = StateField.define({
 // the texts of the editor's own panels (search, go to line, folding), in the interface's language
 const phrases = () => (getLanguage() === 'pt' ? EDITOR_PHRASES_PT : {});
 
+/** The parse of a source for the lint and the symbols: VHDL, Verilog, or Silinx C (its checks' messages as the parse
+ *  errors, #1524). */
+function parseSource(lang, text, path) {
+  if (lang === 'c') return { units: [], errors: checkC(text, path).diagnostics };
+  try { return (lang === 'vhdl' ? parseVhdl : parseVerilog)(text, path); }
+  catch (e) { return { units: [], errors: [{ line: 1, col: 1, message: 'parser crashed: ' + e.message, severity: 'error' }] }; }
+}
+
 // ------------------------------------------------------------------ editor factory
 export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename, onFix } = {}) {
   // (onChange({ user }): user says whether the change was the user's own in the editor, #534)
@@ -220,10 +230,9 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
   const lineAtY = y => view.state.doc.lineAt(view.lineBlockAtHeight(y - view.documentTop).from).number - 1;
 
   const reparse = () => {
-    if (lang !== 'vhdl' && lang !== 'verilog') return;
+    if (lang !== 'vhdl' && lang !== 'verilog' && lang !== 'c') return;
     parsedDoc = view.state.doc;
-    try { parsed = (lang === 'vhdl' ? parseVhdl : parseVerilog)(view.state.doc.toString(), path); }
-    catch (e) { parsed = { units: [], errors: [{ line: 1, col: 1, message: 'parser crashed: ' + e.message, severity: 'error' }] }; }
+    parsed = parseSource(lang, parsedDoc.toString(), path);
     syms = symbolsOf(parsed, lang);
   };
 
@@ -350,7 +359,7 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
     { key: 'Tab', run: v => (v.state.selection.ranges.some(r => !r.empty) ? indentMore(v) : insertSoftTab(v)), shift: indentLess },
   ];
 
-  const lints = lang === 'vhdl' || lang === 'verilog' || lang === 'ucf';
+  const lints = lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' || lang === 'c';
   const phrasing = new Compartment(), readOnliness = new Compartment();
   view = new EditorView({
     parent: container,
