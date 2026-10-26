@@ -198,5 +198,5 @@ export function mountImpact(el) {
     help);
   renderHelp();
   selectDevice(selPos);
-  return { onActivate: loadBitInfo };
+  return { onActivate: loadBitInfo, program: programFpga };   // (Program FPGA from Implement's bar too, #1398)
 }

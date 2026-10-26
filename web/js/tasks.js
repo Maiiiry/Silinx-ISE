@@ -312,7 +312,7 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-sim-panel', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-sim-panel', 'task-impl-bar', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
 const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implementation' };
 function build() {
   const $ = id => document.getElementById(id);
@@ -361,6 +361,14 @@ function build() {
   $('hier').after(h('div', { id: 'task-close-bar' },
     h('button', { class: 'btn', type: 'button', 'data-act': 'check-design', onclick: () => app.S.project?.top && import('./processes.js').then(p => p.checkSyntax(app.S.project.top)) }, 'Check Design'),
     h('button', { class: 'btn', type: 'button', onclick: () => app.S.project && app.closeProject() }, 'Close Project')));
+  // Implement's Processes: I/O Pin Planning and Program FPGA above them (#1398; Program FPGA iMPACT's, opened beside)
+  $('procs').before(h('div', { id: 'task-impl-bar' },
+    h('button', { class: 'btn', type: 'button', 'data-act': 'pins', onclick: () => app.S.project?.top && app.openPinPlanner() }, 'I/O Pin Planning'),
+    h('button', { class: 'btn', type: 'button', 'data-act': 'program', onclick: async () => {
+      if (!app.S.project) return;
+      await app.openImpact();
+      app.findDoc('impact')?.program?.();
+    } }, 'Program FPGA')));
   // the Files page: Add to Project (the folder's files not in the project) and Add Copy to Project (#1214)
   $('files-page').before(h('div', { id: 'task-files-bar' },
     h('button', { class: 'btn', type: 'button', onclick: () => import('./design.js').then(d => d.addFromFolderDialog()) }, 'Add to Project…'),
@@ -458,6 +466,6 @@ export function initTasks(a) {
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
   setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { if (simPanel) simPanel.refresh(); else refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
-    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button')) b.disabled = !app.S.project || (b.dataset.act === 'check-design' && !app.S.project.top); } }, 1000);
+    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button, #task-impl-bar button')) b.disabled = !app.S.project || (['check-design', 'pins'].includes(b.dataset.act) && !app.S.project.top); } }, 1000);
   apply();
 }

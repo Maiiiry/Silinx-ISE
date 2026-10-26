@@ -1572,3 +1572,39 @@ uiTest('#1260 Tasks: with no project, Simulate, Emulate and Implement are off an
   assert.deepEqual(await btns(), { edit: true, sim: false, emu: false, impl: false });
   await noWarnings(page);
 }, { build: DEV });
+
+// #1398: Implement's I/O Pin Planning and Program FPGA above its Processes (I/O Pin Planning off with no top); Program FPGA
+// iMPACT's (the design implemented first when it is not); Portuguese; classic none
+uiTest('#1398 Tasks ▸ Implement: I/O Pin Planning and Program FPGA above the Processes; Portuguese; classic none', E, async (page) => {
+  await makeProject(env, { name: 'TasksImplBar', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksImplBar');
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  const bar = () => page.eval(() => {
+    const b = [...document.querySelectorAll('#task-impl-bar .btn')].filter((x) => x.getClientRects().length), p = document.getElementById('procs').getBoundingClientRect();
+    return { buttons: b.map((x) => `${x.textContent}${x.disabled ? ' (off)' : ''}`), above: b.every((x) => x.getBoundingClientRect().bottom <= p.top + 1) };
+  });
+  await page.waitFor(() => !document.querySelector('#task-impl-bar [data-act=pins]')?.disabled, [], { what: 'on' });
+  assert.deepEqual(await bar(), { buttons: ['I/O Pin Planning', 'Program FPGA'], above: true });
+  await page.click('#task-impl-bar [data-act=pins]');
+  await page.waitFor(() => window.Silinx.active?.id === 'pins', [], { what: 'I/O Pin Planning' });
+  // Program FPGA: iMPACT opened beside, its Program FPGA run: not implemented yet, offered first
+  await page.click('#task-impl-bar [data-act=program]');
+  await page.waitDialog('Program FPGA');
+  await page.dialogButton('No');
+  await page.waitNoDialog();
+  assert.deepEqual(await page.eval(() => [window.Silinx.active?.id, document.documentElement.dataset.task]), ['impact', 'impl']);
+  // no top: I/O Pin Planning off
+  await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); });
+  await page.waitFor(() => document.querySelector('#task-impl-bar [data-act=pins]').disabled, [], { what: 'off with no top' });
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-impl-bar [data-act=program]').textContent === 'Programar FPGA', [], { what: 'Portuguese' });
+  assert.deepEqual((await bar()).buttons, ['Planeamento de Pinos de E/S (off)', 'Programar FPGA']);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.getElementById('task-impl-bar')), null);
+  await noWarnings(page);
+}, { build: DEV });
