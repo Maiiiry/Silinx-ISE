@@ -3,6 +3,105 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.18.0
+
+In short:
+
+- A design module simulated with no test bench opens SSim's wave window with its inputs and outputs only, in their order; add its internal signals from the Objects panel (Add to Wave Window).
+- Emulate and Program FPGA with no pins set: an alert says the pins are not set yet and should be set first, with
+  I/O Pin Planning one click away; nothing emulated nor programmed.
+- Beautify in the schematic editor now lays out the whole schematic when nothing is selected: the inputs on the
+  left, the outputs on the right, the symbols in the order of the signals, then the wires. The connections stay the
+  same; with a selection it still draws only the selected wires again.
+- Implement ▸ iMPACT: the "Board, programming tool and cable…" button's text centred in it.
+- The modern interface names Add Copy of Source… **Import Source…**, and Simulate's Add Copy of TB… **Import Test
+  Bench…**, and neither asks an association (a source is for both, a test bench for Simulation only); the classic
+  interface keeps ISE's names and its Association choice.
+- The 3D Karnaugh map draws each group as its exact shape through the layers it covers: a group across the map's edges or corners split into the same pieces as in the flat map, open on the edge, and joined between its neighbouring layers by the walls of their closed sides only.
+- **The single file:** opened from the disk, it no longer downloads what Implement needs (Yosys, about 17 MB) in
+  the background when a project opens; the first Implement downloads it, as before.
+- **Dialogs alike:** SSim's dialogs (Force Selected Signal, Define Clock) and the schematic editor's Symbol Info look
+  as the app's other dialogs, their primary button filled; a dialog's title bar no longer shrinks when its content is
+  tall; the lists in dialogs (Open Project, Toolchain Settings) have rows as a tree's; the Design Summary's first card has
+  its caption, the cards' tops in line.
+- **Side panels alike:** in the Tasks interface the side panel's tabs are as high as the documents' tabs beside them, the
+  trees of Simulate and Emulate start as far from the edge as Design's and Implement's, Simulate's side panel keeps its
+  width once a simulation runs, the Start page's buttons are a bar as the other pages', its commands show their icons, and
+  the Files page's rows are as high as a tree's.
+- **Toolbars alike:** every document's toolbar (the HDL editor's, the schematic's, the truth table's, the ASM and FSM
+  editors', SSim's, the board emulator's, the pin planner's) is as high, with the same padding and its buttons and fields
+  as high; a page's fields are as high as its buttons; on a touch screen every button is 40 px and a tree's rows 32 px.
+- **Faster wide adders from the Silinx synthesis:** an adder, subtractor or comparator of 64 bits or more is tried as
+  carry-select segments, and kept when faster: the EPFL benchmark's 128-bit adder 24 % faster.
+- The HDL generated from a drawing says in its header that it is generated from the drawing and is edited there, not "kept in sync (edit either one)".
+
+In detail:
+
+- **The wave window of a module simulated with no test bench: its ports (#1519):** Simulate Behavioral Model of a design module, Tasks ▸ Simulate's module and a module simulated with stimuli drawn in SSim put the module's inputs and outputs in the wave window, in the port order, not every signal of the module; the others are added from the Objects and Instances panes. A test bench (no ports) keeps its top-level signals, as ISE adds them, and a saved wave configuration (.wcfg) restores what it saved.
+- Emulate (the Board Emulator, every model) and Program FPGA (iMPACT, the project's own file) ask first when the
+  project has no UCF or its UCF places no port (no LOC): "Pins not set", I/O Pin Planning (opens it) or Cancel; the
+  emulator's re-runs on a change say nothing (core/ucf.js ucfPlacesPins, web/js/pins-check.js) (#1508).
+- **Beautify lays out the whole sheet (#1506):** with nothing selected, the schematic is laid out again as Convert to
+  Schematic lays one out (`core/schdoc-place.js`: ELK's layered layout, the input markers first and the output
+  markers last, or its columns without ELK), fed with the drawing's own nets; the symbols are turned upright, the
+  wires routed and then made clearer (#1481), and a net name the placer does not draw (a second name, a name on a
+  marker's net) is put back on its net. The new drawing is taken only when it means the same (the same nets, names,
+  pins and markers, the same diagnostics, the same VHDL and Verilog) and no two symbols overlap; otherwise only the
+  wires are drawn again. One undo step (ELK lays it out on a copy; an edit made meanwhile cancels it). With a
+  selection Beautify draws the selected wires again, as before. Tested on every example's modules (with ELK, with
+  the columns, and from HDL without a layout), the gates schematic, the truth tables' schematics and ISE's
+  schematics (`core/schbeautify-sheet.js`).
+- Tasks ▸ Implement ▸ iMPACT: the "Board, programming tool and cable…" button centres its text (the flex box's
+  alignment: WebKit put it at the top), whatever its height (#1504).
+- Modern interface (the Tasks layout): Import Source… for Add Copy of Source… (the Design page's button, its tree's
+  menus, the Project menu, the dialog and its messages) and Import Test Bench… for Add Copy of TB… (Simulate's bars and
+  menus); in Portuguese Importar Fonte… and Importar Bancada de Teste…; their dialog has no Association field (Import Source's
+  All, Import Test Bench's Simulation only); the classic interface keeps ISE's names and its Association (#1501).
+- Tests: the schematic editor's toolbar lists (its parts, the buttons a read-only schematic hides) with Beautify (#1481), as 15.17.0's CI found (#1499).
+- Truth tables: the 3D Karnaugh map of 5 or 6 variables draws a group as the extrusion of its exact 2D shape (`core/kmap3d.js` `kmapSolid`): on each layer it covers the flat map's pieces, flush with the map's edge and without a border where they wrap around it, and between neighbouring layers it covers the walls of the pieces' closed sides, no longer a box of four sides around each piece; a group on the first and last of four layers only has no solid through the layers between (#1491).
+- **No prefetch of Implement's assets in a page opened from a file (#1450):** the background download of #967
+  was meant only for the site, but WebKit and Firefox give a file:// page a Cache Storage and call it a secure
+  context, so the single file downloaded Yosys, the device description and its bit database from the site; a
+  navigation that cancelled it (a reload) was a console error in WebKit ("Fetch API cannot load … due to access
+  control checks"), the failure at times of the standalone edition's test in the release CI.
+- **The dialogs and the Design Summary (#1409):** the modern interface's tokens for a dialog's title bar (48 px) and
+  corners (14 px), used by the app's dialogs, SSim's (a 40 px title, 12 px corners, 10/12 px padding, their primary button
+  not filled: a rule of SSim's buttons overrode it) and Symbol Info (the classic gradient header, square corners); a
+  dialog's title bar and buttons no longer shrink under a tall body (Toolchain Settings' was 45 px; classic's too); a
+  list in a dialog 26 px rows with lines between them only; the Design Summary's first table a "Project Status" caption in
+  the Tasks interface, where its tables are cards side by side (it started 32 px above the card beside it).
+- **The interface's shared sizes (#1409):** the modern interface's tokens for a row of tabs (38 px), a tree's row (26 px)
+  and padding, a bar of buttons' padding, a button's height and small text, used by the side panels' tabs, the documents'
+  and the messages' tabs, the trees and the bars above them; Simulate's and Emulate's trees had no side padding (their
+  selection ran to the panel's edges), Simulate's side panel was 290 px wide with a simulation (SSim's own; now the side
+  panel's width, as the viewer left it) and transparent; the Start page's commands' icons were 0 px wide in every
+  interface; the Files page's folders an emoji, now the app's folder icon.
+- **The documents' toolbars and the fields (#1409):** the modern interface's tokens for a document's toolbar (40 px, its
+  controls 28 px) and a field (as high as a button, 32 px) used by every toolbar under a document's tab (they were 36 to
+  41 px high, their icon buttons 28 or 32 px, their text buttons 28 or 32 px, their fields 20 to 28 px) and by the fields
+  of the dialogs and pages (Find in Project's were 24 px beside 32 px buttons); on a touch screen the tokens grow (buttons
+  40 px, a document's tools 36 px, a tree's rows 32 px) where only the task switcher and the task's buttons did; the pin
+  planner's bar the toolbars' background in the light theme too. The classic interface keeps its sizes.
+- **Carry-select adders (#1361):** a carry chain of `CSEL_RULE.chain` (64) stages or more is one ripple through every
+  bit: the EPFL adder's 128 bits took 10.6 ns of logic where ISE's XST has 8 LUT levels. A design whose netlist has such
+  a chain (`longestCarryChain`) is now synthesized once more with its `$alu` cells that wide as segments of
+  `CSEL_RULE.segment` (32) bits, each but the first computed for a carry in of 0 and of 1 (two chains) and chosen by the
+  carry out of the segment below (`CSEL_MAP`, a techmap given to Yosys before synth_xilinx's fine step, in
+  `core/synth-open.js`); kept when 3 % faster by the estimate with no more slices in proportion (`r.depth.csel`), at both
+  efforts, for designs of 5000 LUTs at most. The EPFL adder: 12.7 → 9.6 ns by Silinx's static timing, 171 → 270 LUTs,
+  194 → 232 slices (ISE's 446); segments of 16 bits were slower once routed. No other design of the corpus or the examples
+  has a chain that long; their netlists are the same.
+- The headers of the HDL generated from a schematic, an ASM chart, a state diagram and a truth table (VHDL and Verilog) say to edit the drawing, not the file, as the Petri net's did: the file is read-only since #1176. The examples' generated HDL (gates, blinky, traffic) differs in that header line only (#1186).
+- **The measured XC3S250E description: the clock pads' dedicated paths to the DCMs, an input-only pad's clock pins
+  (#3):** a design of the four DCMs on their clock pads, implemented by ISE, gives pad A9's path to DCM_X1Y1 (no design
+  had taken it); a rule gives an I/O site's clock pins still not seen. The DCM and differential-pair tests pass on the
+  measured graph (research/s3e-device README section 15).
+- **The measured XC3S250E description and its measurements in the repository (#3):** `research/s3e-device/data/xc3s250e`
+  holds the observation of ISE's routed designs, the arc probes and the verdicts of every round of join tests (6.3 MB
+  gzipped) and the description built from them; `build-measured.mjs` rebuilds it, and a test checks the rebuild is the
+  committed file. Step 1 of the plan for replacing the shipped description (research/s3e-device/REPLACING.md); the
+  shipped graph is unchanged.
+
 ## 15.17.0
 
 In short:
