@@ -173,7 +173,8 @@ html[data-layout="tasks"][data-task="sim"]:has(#task-sim-panel:not([hidden])) #t
 #task-sim-panel :is(.task-sim-act, .task-sim-bench > .row) { cursor: pointer; }
 #task-sim-panel .tree[hidden] { display: none; }
 /* the simulation's model at the right end of its toolbar (#1353) */
-html[data-layout="tasks"] .isim-toolbar .isim-model { margin-left: auto; height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
+html[data-layout="tasks"] .isim-toolbar .isim-model-field { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+html[data-layout="tasks"] .isim-toolbar .isim-model { height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
   border-radius: 6px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
 #task-empty .m-step[hidden] { display: none; }
 /* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
