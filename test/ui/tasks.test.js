@@ -851,6 +851,18 @@ uiTest('#803 #1172 Tasks ▸ Implement ▸ iMPACT: the chain and Program; settin
   // no implementation yet: no line about it (#1024); the board (Basys2) chose the tool and cable: folded
   assert.deepEqual(await P(), { added: 0, chainFirst: true, settings: false, prom: [] });
   assert.doesNotMatch(await page.eval(() => document.querySelector('.doc:not([hidden]) > .page').innerText), /No programming file yet|Up to date with the sources/);
+  // (its text centred in it, vertically too, however tall the button: a touch screen's, #1504)
+  assert.ok(await page.eval(() => {
+    const b = document.querySelector('.doc:not([hidden]) .task-prog-settings');
+    b.style.height = '44px';
+    const r = b.getBoundingClientRect(), rg = document.createRange();
+    rg.selectNodeContents(b);
+    const t = rg.getBoundingClientRect();
+    b.style.height = '';
+    // (centred by the flex box itself, as WebKit does not centre a flex button's text as Chromium does)
+    if (getComputedStyle(b).alignItems !== 'center') return false;
+    return Math.abs((t.top + t.bottom) / 2 - (r.top + r.bottom) / 2) <= 1.5 && Math.abs((t.left + t.right) / 2 - (r.left + r.right) / 2) <= 1.5;
+  }), 'the button\'s text centred');
   await page.click('.doc:not([hidden]) .task-prog-settings');
   assert.equal((await P()).settings, true);
   // the PROM selected in the chain: Program PROM and its other operations, all shown (#1025)
