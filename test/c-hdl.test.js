@@ -6,55 +6,10 @@
 // from Vitis HLS's rules (no C compiler knows them).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { cToHdl } from '../core/c-hdl.js';
 import { simulate } from '../core/compile.js';
 import { binaryType, compareType, literalType, wrap } from '../core/c-types.js';
-
-const CC = (() => { for (const c of ['cc', 'gcc', 'clang']) { try { execFileSync(c, ['--version'], { stdio: 'ignore' }); return c; } catch { /* next */ } } return null; })();
-const noCC = CC ? false : 'no C compiler on this machine';
-
-function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s; }; }
-const mask = (w) => (1n << BigInt(w)) - 1n;
-
-/** Edge and random values of an input of w bits, signed or not, as BigInt. */
-function values(w, s, n, r) {
-  const lo = s ? -(1n << BigInt(w - 1)) : 0n, hi = s ? (1n << BigInt(w - 1)) - 1n : mask(w);
-  const out = [0n, 1n, hi, lo, s ? -1n : hi - 1n, 2n, 100n, -100n].map((v) => wrap(v, { w, s }));
-  while (out.length < n) {
-    let v = 0n;
-    for (let k = 0; k < w; k += 32) v = (v << 32n) | BigInt(r());
-    const small = r() % 3 === 0;
-    out.push(wrap(small ? BigInt(r() % 512) - 256n : v, { w, s }));
-  }
-  return out;
-}
-
-/** The C program's outputs on the vectors: lines "ap_return p p_written …" in hex of their widths. */
-function runC(src, top, ins, outs, ret, vectors) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-c-'));
-  const ctype = (w, s) => `${s ? '' : 'unsigned '}${w <= 8 ? 'char' : w <= 16 ? 'short' : w <= 32 ? 'int' : 'long long'}`;
-  const lit = (v, w, s) => (w > 32 ? `${v}LL` : `${v}`).replace(/^(-?)(\d+)LL$/, (m, sg, d) => (BigInt(`${sg}${d}`) === -(1n << 63n) ? '(-9223372036854775807LL - 1)' : m)) + (s || w <= 31 ? '' : 'u');
-  const calls = vectors.map((v) => {
-    const decl = outs.map((o) => `${ctype(o.w, o.s)} ${o.name} = (${ctype(o.w, o.s)})0x5A5A5A5A5A5A5A5ALL; ${ctype(o.w, o.s)} ${o.name}_0 = ${o.name};`).join(' ');
-    const args = [...ins.map((i) => (i.ptrIn ? `&${i.name}` : `(${ctype(i.w, i.s)})${lit(v[i.name], i.w, i.s)}`))];
-    const pre = ins.filter((i) => i.ptrIn).map((i) => `${ctype(i.w, i.s)} ${i.name} = (${ctype(i.w, i.s)})${lit(v[i.name], i.w, i.s)};`).join(' ');
-    const call = `${top}(${[...args, ...outs.map((o) => `&${o.name}`)].join(', ')})`;
-    const prints = [ret ? `(unsigned long long)(r & 0x${mask(ret.w).toString(16)}ULL)` : null,
-      ...outs.flatMap((o) => [`(unsigned long long)(${o.name} & 0x${mask(o.w).toString(16)}ULL)`, `(unsigned long long)(${o.name} != ${o.name}_0)`]),
-      ...ins.filter((i) => i.ptrIn).map((i) => `(unsigned long long)(${i.name} & 0x${mask(i.w).toString(16)}ULL)`)].filter(Boolean);
-    return `  { ${pre} ${decl} ${ret ? `${ctype(ret.w, ret.s)} r = ` : ''}${call}; printf("${prints.map(() => '%llx').join(' ')}\\n", ${prints.join(', ')}); }`;
-  });
-  const prog = `#include <stdio.h>\n${src}\nint main(void) {\n${calls.join('\n')}\n  return 0;\n}\n`;
-  fs.writeFileSync(path.join(dir, 't.c'), prog);
-  execFileSync(CC, ['-std=c99', '-w', '-fsigned-char', '-fwrapv', '-O0', '-o', path.join(dir, 't'), path.join(dir, 't.c')]);
-  const out = execFileSync(path.join(dir, 't'), { encoding: 'utf8' }).trim().split('\n');
-  fs.rmSync(dir, { recursive: true, force: true });
-  return out;
-}
+import { noCC, rng, mask, values, runC } from './c-helpers.js';
 
 /** The generated HDL's outputs on the vectors (Silinx's simulator), in the same form; vld outputs checked against
  *  the C's "changed" (a write of the same value is a write the C cannot see). */
@@ -244,16 +199,17 @@ void apx(ap_uint<8> a, ap_uint<8> b, ap_int<4> c, ap_uint<9> *sum, ap_int<9> *di
   }
 });
 
-test('C to HDL: what is not combinational (yet) is said: a loop whose count depends on the inputs, static and global variables, division by a non-constant or a non-power of 2, array arguments', () => {
+test('C to HDL: what is not combinational is a sequential module (#1526): a loop whose count depends on the inputs, static and global variables; what is not supported yet is said: division by a non-constant or a non-power of 2, array arguments', () => {
   const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line}:${d.col} ${d.message}`);
+  const seq = (src) => { const r = cToHdl(src); return [r.ok, r.sequential, r.diagnostics.length]; };
   assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < n; i++) s += i;\n  return s;\n}'),
     ['3:3 the number of iterations of this loop is not known: give its bound (a \'for\' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it']);
-  assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < 8; i++) {\n#pragma HLS LOOP_TRIPCOUNT max=8\n    if (s > n) break;\n    s += i;\n  }\n  while (s < n) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    s++;\n  }\n  return s;\n}'),
-    ['8:3 this loop runs a number of times that depends on the inputs (a sequential module: not supported yet, #1526)']);
-  assert.deepEqual(msgs('int f(int a) {\n  static int acc = 0;\n  acc += a;\n  return acc;\n}'), ["2:14 the static variable 'acc' keeps a value between calls (a sequential module: not supported yet, #1526)"]);
-  assert.deepEqual(msgs('int total;\nint f(int a) { total += a; return total; }'), ["1:5 the global variable 'total' keeps a value between calls (a sequential module: not supported yet, #1526)"]);
-  assert.deepEqual(msgs('int f(int a, int b) { return a / b; }'), ['1:32 a division by a value that is not a constant (a sequential module: not supported yet, #1526)']);
-  assert.deepEqual(msgs('int f(int a) { return a / 3; }'), ['1:25 a division by 3, not a power of 2 (a sequential module: not supported yet, #1526)']);
+  assert.deepEqual(seq('int f(int n) {\n  int s = 0;\n  while (s < n) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    s++;\n  }\n  return s;\n}'), [true, true, 0]);
+  assert.deepEqual(seq('int f(int a) {\n  static int acc = 0;\n  acc += a;\n  return acc;\n}'), [true, true, 0]);
+  assert.deepEqual(seq('int total;\nint f(int a) { total += a; return total; }'), [true, true, 0]);
+  assert.deepEqual(seq('int f(int a) { return a + 1; }'), [true, false, 0]);
+  assert.deepEqual(msgs('int f(int a, int b) { return a / b; }'), ['1:32 a division by a value that is not a constant is not supported yet (#1526)']);
+  assert.deepEqual(msgs('int f(int a) { return a / 3; }'), ['1:25 a division by 3 (not a power of 2) is not supported yet (#1526)']);
   assert.deepEqual(msgs('int f(int a[4]) { return a[0]; }'), ["1:7 the array argument 'a': array arguments (ap_memory) are not supported yet (#1527)"]);
   // constants divide at any value (folded)
   assert.deepEqual(msgs('int f(int a) { return a + 100 / 3 + 7 % 3; }'), []);

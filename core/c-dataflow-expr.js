@@ -127,7 +127,7 @@ export const exprMethods = {
   },
   /** a / b and a % b (C: truncated toward zero): by constants folded; by a constant power of 2 with shifts. */
   divide(op, a, b, res, e) {
-    if (!this.g.isConst(b.id)) this.error(e.loc, `a division by a value that is not a constant ${NOT_COMB}`);
+    if (!this.g.isConst(b.id)) this.error(e.loc, 'a division by a value that is not a constant is not supported yet (#1526)');
     const d = this.g.k(b.id);
     if (d === 0n) this.error(e.loc, 'division by zero');
     if (this.g.isConst(a.id)) {
@@ -137,7 +137,7 @@ export const exprMethods = {
     }
     const ad = d < 0n ? -d : d;
     const k = ad.toString(2).length - 1;
-    if (ad !== 1n << BigInt(k)) this.error(e.loc, `a division by ${d}, not a power of 2 ${NOT_COMB}`);
+    if (ad !== 1n << BigInt(k)) this.error(e.loc, `a division by ${d} (not a power of 2) is not supported yet (#1526)`);
     const t = a.t, K = this.g.const(k, INT);
     let q;
     if (!t.s) q = this.g.add('shr', [a.id, K], t);
