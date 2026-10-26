@@ -21,7 +21,7 @@
 // Returns { ok, report }.
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
-import { synthesizeOpen, cellCounts } from './synth-open.js';
+import { synthesizeOpen, cellCounts, DEEP_RULE } from './synth-open.js';
 import { usedOfPrimitives, overResources, overMessage } from './resource-check.js';
 import { parseXdl, writeXdl } from './xdl.js';
 import { parseUcf } from './ucf.js';
@@ -89,7 +89,7 @@ export async function runOpenFlow(spec, io) {
     // (Normal: a small design synthesized as at High, #652)
     if (r.depth?.small) log(`Optimization Effort Normal: a small design (${r.depth.small.luts} LUTs): the mappings for speed tried too, ${r.depth.small.kept ? 'the fastest kept.' : `not faster (${r.depth.small.ns[1].toFixed(1)} ns estimated against ${r.depth.small.ns[0].toFixed(1)}): the one mapping kept.`}`);
     // (Normal: a design limited by its depth got the mappings for speed too, #468)
-    if (r.depth?.auto) log(`Optimization Effort Normal: ${r.depth.levels} levels of logic: the mappings for speed tried too, ${r.depth.normal?.kept ? `not a quarter faster (${r.depth.high.ns.toFixed(1)} ns estimated against ${r.depth.normal.ns.toFixed(1)}): the one mapping kept.` : 'the fastest kept.'}`);
+    if (r.depth?.auto) log(`Optimization Effort Normal: ${r.depth.levels} levels of logic: the mappings for speed tried too, ${r.depth.normal?.kept ? `not ${Math.round(100 * (spec.deepRule || DEEP_RULE).gain)} % faster (${r.depth.high.ns.toFixed(1)} ns estimated against ${r.depth.normal.ns.toFixed(1)}): the one mapping kept.` : 'the fastest kept.'}`);
     for (const w of r.warnings.filter(w => !/^Warning:/.test(w))) log(`WARNING:Synthesis - ${w}`);
     const paths = {};
     for (const [name, text] of Object.entries(r.files)) paths[name] = io.write(`open/${name}`, text);
