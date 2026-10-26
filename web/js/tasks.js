@@ -374,11 +374,11 @@ function build() {
       h('button', { class: 'btn', type: 'button', 'data-act': 'emulate', onclick: () => app.S.project?.top && import('./viewers.js').then(v => v.openEmulator(app.S.project.top)) }, 'Emulate on Board')),
     h('div', { class: 'body task-emu-tree' })));
   for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
-  // the Design page: New Source and Add Copy of Source above the tree (#1210; Design's only, web/css/tasks.css)
+  // the Design page: New Source and Import Source above the tree (#1210, #1501; Design's only, web/css/tasks.css)
   const wizard = f => () => import('./wizards.js').then(w => w[f]());
   $('hier').before(h('div', { id: 'task-src-bar' },
     h('button', { class: 'btn', type: 'button', onclick: wizard('newSourceWizard') }, 'New Source…'),
-    h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Add Copy of Source…')));
+    h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Import Source…')));
   // and Check Design and Close Project at its end, under the tree (#1309; Check Design: the top module's Check Syntax,
   // its whole hierarchy, whatever the tree selects)
   $('hier').after(h('div', { id: 'task-close-bar' },

@@ -300,7 +300,7 @@ function moduleContextMenu(e, mod, file) {
     isSimView ? { label: 'Simulate Behavioral Model', action: () => runSimulation(mod) } : null,
     '-',
     { label: 'New Source…', action: () => wiz.newSourceWizard() },
-    { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog() },
+    { label: `${wiz.addSourceTitle()}…`, action: () => wiz.addSourceDialog() },
     { label: 'Remove from Project', action: () => removeModule(file) },
     '-',
     { label: 'Source Properties…', action: () => wiz.sourceProperties(file) },
@@ -368,7 +368,7 @@ export async function addFromFolderDialog() {
 function projectContextMenu(e) {
   popupMenu([
     { label: 'New Source…', action: () => wiz.newSourceWizard() },
-    { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog() },
+    { label: `${wiz.addSourceTitle()}…`, action: () => wiz.addSourceDialog() },
     '-',
     { label: 'Design Properties…', action: () => wiz.projectProperties() },
     '-',

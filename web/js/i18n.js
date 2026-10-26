@@ -54,7 +54,7 @@ const PT = {
   'New Source…': 'Nova Fonte…', 'Save': 'Guardar', 'Recent Projects': 'Projetos Recentes',
   'Undo': 'Anular', 'Redo': 'Refazer', 'Replace…': 'Substituir…', 'Go to Line…': 'Ir para a Linha…',
   'Implementation': 'Implementação', 'Simulation': 'Simulação',
-  'Design Summary': 'Resumo do Projeto', 'Add Copy of Source…': 'Adicionar Cópia de Fonte…',
+  'Design Summary': 'Resumo do Projeto', 'Add Copy of Source…': 'Adicionar Cópia de Fonte…', 'Import Source…': 'Importar Fonte…', 'Import Source': 'Importar Fonte',
   'Set as Top Module': 'Definir como Módulo de Topo', 'Unset as Top Module': 'Retirar como Módulo de Topo', 'Set Top Module…': 'Definir Módulo de Topo…', 'The module the design is implemented from:': 'O módulo a partir do qual o projeto é implementado:',
   'No top module is set: the design is implemented from its top module, so set one to see its processes.': 'Não está definido nenhum módulo de topo: o projeto é implementado a partir do seu módulo de topo, por isso defina um para ver os seus processos.', 'The project has no module that can be the top yet': 'O projeto ainda não tem nenhum módulo que possa ser o topo',
   'Design Properties…': 'Propriedades do Projeto…',
@@ -329,7 +329,7 @@ const PT = {
   // the Simulate task (#800)
   'The test bench to simulate': 'A bancada de teste a simular',
   'Design modules': 'Módulos do projeto',
-  'New Test Bench…': 'Nova Bancada de Teste…', 'Add Copy of TB…': 'Adicionar Cópia de TB…', 'Add Copy of Test Bench': 'Adicionar Cópia de Bancada de Teste',
+  'New Test Bench…': 'Nova Bancada de Teste…', 'Import Test Bench…': 'Importar Bancada de Teste…', 'Import Test Bench': 'Importar Bancada de Teste',
   'Go To Source': 'Ir para a Fonte',
   // Find in Project (#1430)
   'Find in Project': 'Procurar no Projeto', 'Find in Project…': 'Procurar no Projeto…', 'Replace All': 'Substituir Tudo', 'Match case': 'Maiúsculas e minúsculas',

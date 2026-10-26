@@ -13,6 +13,7 @@ import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { truthTableFromModule, schematicFromTable } from '../../core/logic.js';
 import { netlist, generateHdl } from '../../core/schdoc.js';
+const IMPORT = process.env.SILINX_UI_INTERFACE === 'classic' ? 'Add Copy of Source' : 'Import Source';   // (#1501)
 
 // a module's Create Test Bench (Wizard): the classic interface's only (the Tasks interface's test benches on its Test page, #1330)
 const TB = process.env.SILINX_UI_INTERFACE === 'classic' ? ['Create Test Bench (Wizard)…'] : [];
@@ -297,7 +298,7 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   assert.deepEqual(await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }), [
     'Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', ...TB,
     'Convert to Schematic (editable)…', 'Convert to State Machine (ASM)…', 'Convert to State Diagram (FSM)…',
-    'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…',
+    'New Source…', `${IMPORT}…`, 'Remove from Project', 'Source Properties…',
   ]);
   await page.closeMenus();
   // the editor's "Truth Table from Module…" on a new table (with its HDL file, #207)

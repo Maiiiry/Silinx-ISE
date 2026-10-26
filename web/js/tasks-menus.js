@@ -1,4 +1,4 @@
-// The Tasks interface's menus of a panel's empty space: Design's tree, New Source…, Add Copy of Source… and Close
+// The Tasks interface's menus of a panel's empty space: Design's tree, New Source…, Import Source… (#1501) and Close
 // Project, as the buttons around it (#1384).
 
 import { popupMenu } from './ui.js';
@@ -11,7 +11,7 @@ export function initTreeMenus(app, { on, task }) {
     e.preventDefault();
     popupMenu([
       { label: 'New Source…', action: wizard('newSourceWizard') },
-      { label: 'Add Copy of Source…', action: wizard('addSourceDialog') },
+      { label: 'Import Source…', action: wizard('addSourceDialog') },
       '-',
       { label: 'Close Project', action: () => app.closeProject() },
     ], e.clientX, e.clientY);

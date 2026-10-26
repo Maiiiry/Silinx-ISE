@@ -1,5 +1,5 @@
-// UI (#1210): Tasks ▸ Design has New Source… and Add Copy of Source… above the Design tree, half of the panel each:
-// they open the New Source Wizard and the Add Copy of Source dialog; disabled with no project; in Portuguese; not in
+// UI (#1210): Tasks ▸ Design has New Source… and Import Source… (#1501) above the Design tree, half of the panel each:
+// they open the New Source Wizard and the Import Source dialog; disabled with no project; in Portuguese; not in
 // Implement; none in the classic interface. No warnings.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,7 +35,7 @@ const bar = (page) => page.eval(() => {
 });
 const dlgTitle = (page) => page.waitFor(() => document.querySelector('.dlg-overlay .dlg-title span')?.textContent, [], { what: 'a dialog' });
 
-uiTest('#1210 Tasks ▸ Design: New Source and Add Copy of Source above the tree, each opening its dialog; Portuguese; not in Implement; classic none', E, async (page) => {
+uiTest('#1210 #1501 Tasks ▸ Design: New Source and Import Source above the tree, each opening its dialog; Portuguese; not in Implement; classic none', E, async (page) => {
   await makeProject(env, { name: 'SrcBar', template: 'gates' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -47,21 +47,21 @@ uiTest('#1210 Tasks ▸ Design: New Source and Add Copy of Source above the tree
   await page.click('#task-switch .task-btn[data-task="edit"]');
   await page.click('#left-tabs .tab[data-page=design]');
   await page.waitFor(() => [...document.querySelectorAll('#task-src-bar button')].every((b) => !b.disabled), [], { what: 'enabled' });
-  assert.deepEqual(await bar(page), { labels: ['New Source…', 'Add Copy of Source…'], enabled: [true, true], whole: true, halves: true, above: true });
+  assert.deepEqual(await bar(page), { labels: ['New Source…', 'Import Source…'], enabled: [true, true], whole: true, halves: true, above: true });
   // New Source…: the wizard
   await page.click('#task-src-bar button:nth-child(1)');
   assert.equal(await dlgTitle(page), 'New Source Wizard');
   await page.click('.dlg-overlay .dlg-x');
   await page.waitFor(() => !document.querySelector('.dlg-overlay'), [], { what: 'closed' });
-  // Add Copy of Source…: its dialog
+  // Import Source…: its dialog
   await page.click('#task-src-bar button:nth-child(2)');
-  assert.equal(await dlgTitle(page), 'Add Copy of Source');
+  assert.equal(await dlgTitle(page), 'Import Source');
   await page.click('.dlg-overlay .dlg-x');
   await page.waitFor(() => !document.querySelector('.dlg-overlay'), [], { what: 'closed' });
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('#task-src-bar button')?.textContent === 'Nova Fonte…', [], { what: 'Portuguese' });
-  assert.deepEqual((await bar(page)).labels, ['Nova Fonte…', 'Adicionar Cópia de Fonte…']);
+  assert.deepEqual((await bar(page)).labels, ['Nova Fonte…', 'Importar Fonte…']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // not in Implement
   await page.click('#task-switch .task-btn[data-task="impl"]');

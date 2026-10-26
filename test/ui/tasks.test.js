@@ -1350,7 +1350,7 @@ uiTest('#1309 #1384 Tasks ▸ Design: Close Project under the Design tree, off w
     return { x: Math.round(t.left + 40), y: Math.round((rows.at(-1).getBoundingClientRect().bottom + t.bottom) / 2) }; });
   const menu = () => page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }, [], { what: 'the context menu' });
   await page.rightClick(empty);
-  assert.deepEqual(await menu(), ['New Source…', 'Add Copy of Source…', 'Close Project']);
+  assert.deepEqual(await menu(), ['New Source…', 'Import Source…', 'Close Project']);
   await page.closeMenus();
   await page.rightClick('#hier .row .lbl', { text: 'gates' });
   assert.ok((await menu()).includes('Rename…'), 'a module\'s menu');
@@ -1358,7 +1358,7 @@ uiTest('#1309 #1384 Tasks ▸ Design: Close Project under the Design tree, off w
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.rightClick(empty);
-  assert.deepEqual(await menu(), ['Nova Fonte…', 'Adicionar Cópia de Fonte…', 'Fechar Projeto']);
+  assert.deepEqual(await menu(), ['Nova Fonte…', 'Importar Fonte…', 'Fechar Projeto']);
   await page.closeMenus();
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await page.click('#task-close-bar button:not([data-act])');

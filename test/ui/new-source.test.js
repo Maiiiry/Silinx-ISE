@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { newSourceWizardOf, pickSourceType, waitNewSourcePage } from './new-source-helpers.js';
 import { compile, elaborate } from '../../core/compile.js';
+const IMPORT = process.env.SILINX_UI_INTERFACE === 'classic' ? 'Add Copy of Source' : 'Import Source';   // (#1501)
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -171,10 +172,11 @@ uiTest('#1326 Add Copy of Source: the Files input inside the dialog, as wide as 
   for (const [w, hgt] of [[1366, 768], [1180, 820], [820, 1180], [390, 844]]) {
     await page.setViewport(w, hgt);
     await page.eval(async () => { (await import('/js/wizards.js')).addSourceDialog(); });   // (not awaited: it ends when closed)
-    await page.waitDialog('Add Copy of Source');
+    await page.waitDialog(IMPORT);
     const g = await page.eval(() => {
       const r = (s) => document.querySelector(`.dlg-overlay ${s}`).getBoundingClientRect();
-      const d = r('.dlg'), f = r('input[type=file]'), s = r('select');
+      // (the modern interface asks no association, #1501: the Files input alone in its column)
+      const d = r('.dlg'), f = r('input[type=file]'), s = document.querySelector('.dlg-overlay select') ? r('select') : f;
       return { inside: f.left >= d.left && f.right <= d.right + 0.5 && d.right <= innerWidth + 0.5, column: Math.abs(f.right - s.right) < 1.5 && Math.abs(f.left - s.left) < 1.5 };
     });
     assert.deepEqual(g, { inside: true, column: true }, `${w} px`);
