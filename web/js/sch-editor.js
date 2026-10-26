@@ -150,7 +150,7 @@ export function mountSchEditor(container, opts = {}) {
   const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => view, live: () => live, readOnly, edit: (...a) => edit(...a), render: (...a) => render(...a), renderProps: (...a) => renderProps(...a), snapshot: (...a) => snapshot(...a), pushUndo: (...a) => pushUndo(...a), changed: (...a) => changed(...a), contentG: () => contentG });
   // (the toolbar's buttons and their clicks: sch-toolbar.js)
   // Beautify (#1481, sch-beautify.js): the wires drawn again
-  const { beautify } = mountSchBeautify({ doc: () => doc, edit: (...a) => edit(...a), flash: (...a) => flash(...a), modules: () => modules, sel: () => sel });
+  const { beautify } = mountSchBeautify({ doc: () => doc, edit: (...a) => edit(...a), fit: (...a) => fit(...a), flash: (...a) => flash(...a), modules: () => modules, sel: () => sel, snapshot: (...a) => snapshot(...a) });
   const { optBox } = mountSchToolbar({
     beautify, container, btn, canSim, curvedBox: curve.box, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
     fit: (...a) => fit(...a), hopsBox, infoTarget: (...a) => infoTarget(...a), keepBox,
