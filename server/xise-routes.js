@@ -2,7 +2,7 @@
 // project file written from a project and read back into it, and a whole project as a zip (Xilinx ISE or Silinx).
 import fs from 'node:fs/promises';
 import express from 'express';
-import { createZip, readZip } from '../core/zip.js';
+import { createZip, readZip, ZIP_LIMITS } from '../core/zip.js';
 import fss from 'node:fs';
 import path from 'node:path';
 import { exportIseSchematics, exportXise, importXise } from './xise.js';
@@ -75,7 +75,11 @@ export function mountXiseRoutes(ctx) {
     res.type('application/zip').attachment(`${name}.zip`).send(Buffer.from(zip));
   }));
 
-  api.post('/projects/import-zip', express.raw({ type: () => true, limit: '200mb' }), wrap(async req => {
+  // the upload is held in memory: at most the size of one entry readZip inflates (64 MB, #1434), said in the error
+  const uploadMb = ZIP_LIMITS.maxEntry >> 20;
+  const tooLarge = (err, req, res, next) => (err?.type === 'entity.too.large'
+    ? res.status(413).json({ error: `the zip is larger than ${uploadMb} MB, the most an import takes` }) : next(err));
+  api.post('/projects/import-zip', express.raw({ type: () => true, limit: ZIP_LIMITS.maxEntry }), tooLarge, wrap(async req => {
     const name = String(req.query.name || '');
     if (!name) throw bad('missing project name (?name=)');
     if (!Buffer.isBuffer(req.body) || !req.body.length) throw bad('empty upload');

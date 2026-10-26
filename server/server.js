@@ -38,16 +38,21 @@ export async function createApp({ host = '127.0.0.1', token = null } = {}) {
   // A request from another web origin (a malicious page in the same browser) is refused, and when
   // bound to localhost the Host header must be local too (DNS rebinding). Bound to another address
   // (--host 0.0.0.0, a LAN address), the API answers only this machine's own requests (a loopback
-  // client and a local Host) or those carrying the server's token (X-Silinx-Token, or ?token= on a
-  // GET a link opens; printed in the URL at start-up): another machine, or a page rebinding its name to this one, has neither.
+  // client and a local Host) or those carrying the server's token (X-Silinx-Token; printed in the URL at
+  // start-up): another machine, or a page rebinding its name to this one, has neither. ?token= is taken on
+  // the download links only (export.xise, export.zip: a GET a link opens, #1434): an address stays in the
+  // browser's history and in proxies' logs.
   const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+  const DOWNLOAD = /^\/projects\/[^/]+\/export\.(xise|zip)$/;
   const exposed = !isLoopback(host);
   if (exposed && !token) throw new Error('a server on a non-loopback address needs a token');
   const tokenOk = t => typeof t === 'string' && t.length === token.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(token));
   app.use('/api', (req, res, next) => {
+    // never cached (#1434): a project's text would stay in the browser's disk cache after the project is deleted
+    res.set('Cache-Control', 'no-store');
     const hostName = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
     if (exposed) {
-      if (!(isLoopback(req.socket.remoteAddress || '') && LOCAL.has(hostName)) && !tokenOk(req.headers['x-silinx-token']) && !(req.method === 'GET' && tokenOk(req.query.token)))
+      if (!(isLoopback(req.socket.remoteAddress || '') && LOCAL.has(hostName)) && !tokenOk(req.headers['x-silinx-token']) && !(req.method === 'GET' && DOWNLOAD.test(req.path) && tokenOk(req.query.token)))
         return res.status(403).json({ error: 'this Silinx server needs its token: open the URL it printed at start-up' });
     } else if (hostName && !LOCAL.has(hostName) && hostName !== String(host).toLowerCase()) return res.status(403).json({ error: 'forbidden host' });
     // a request another site's page made (an <img>, a link, a form: the browser says so in
