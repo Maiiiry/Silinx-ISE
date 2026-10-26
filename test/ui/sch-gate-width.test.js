@@ -1,6 +1,6 @@
 // UI: a gate wider than one bit (AND, INV, BUFE…) shows its width at its input and output pins, as the other symbols
 // (a constant, an adder), and nothing inside its shape; a one-bit gate none; the same in the dark theme and in the
-// printed SVG (#1486).
+// printed SVG (#1486); the bus join and the bus tap their widths on their pins too (#1488).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, waitDownload } from './harness.js';
@@ -56,4 +56,25 @@ uiTest('#1486 schematic: a bus-wide AND and INV show their width at their pins, 
   const widths = [...svg.matchAll(/<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size:8px[^>]*>([^<]*)</g)].map((m) => `${m[3]} at ${m[1]},${m[2]}`);
   assert.deepEqual(widths, ['8 at 110,73', '8 at 110,93', '8 at 170,83', '4 at 310,73', '4 at 350,73', '8 at 310,233', '8 at 350,233', '4 at 530,73']);
   await page.key('Escape');
+});
+
+uiTest('#1488 schematic: the bus join shows its width on its inputs and output, the bus tap on its output, as the other symbols', E, async (page) => {
+  const doc = newDoc('bj', 'vhdl');
+  const add = (id, type, x, y, rot, params) => doc.symbols.push({ id, type, x, y, rot, mirror: false, name: `XLXI_${id}`, params });
+  add('J', 'busjoin', 100, 60, 0, { widths: '4,4' }); add('J1', 'busjoin', 300, 60, 0, { widths: '1,7' });
+  add('T', 'slice', 100, 200, 0, { msb: 7, lsb: 4 }); add('T90', 'slice', 300, 200, 90, { msb: 7, lsb: 4 }); add('T1', 'slice', 500, 200, 0, { msb: 3, lsb: 3 });
+  await makeProject(env, { name: 'BusW', files: { 'src/bj.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('BusW');
+  await page.eval(() => window.SilinxApp.openSch('src/bj.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} .se-svg g.sym`).length === 5, [ED], { what: 'the symbols drawn' });
+  // each symbol's widths, the same style as a constant's, and the tap's range clear of them
+  const drawn = await page.eval((ed) => Object.fromEntries([...document.querySelectorAll(`${ed} .se-svg g.sym`)].map((g) => {
+    const ws = [...g.querySelectorAll('.pwidth')], r = g.querySelector('.stext')?.getBoundingClientRect();
+    const clear = !r || ws.every((t) => { const b = t.getBoundingClientRect(); return b.right <= r.left || r.right <= b.left || b.bottom <= r.top || r.bottom <= b.top; });
+    return [g.dataset.id, { widths: ws.map((t) => t.textContent), on: ws.every((t) => t.classList.contains('on')), clear }];
+  })), ED);
+  assert.deepEqual(drawn, {
+    J: { widths: ['4', '4', '8'], on: true, clear: true }, J1: { widths: ['7', '8'], on: true, clear: true },
+    T: { widths: ['4'], on: true, clear: true }, T90: { widths: ['4'], on: true, clear: true }, T1: { widths: [], on: true, clear: true },
+  });
 });
