@@ -394,6 +394,26 @@ test('security: a project\'s top (and simTop) is an identifier: refused where th
   assert.equal((await call('DELETE', '/projects/TopId')).status, 200);
 });
 
+test('security: every API response says Cache-Control: no-store (#1434)', async () => {
+  assert.equal((await call('POST', '/projects', { name: 'NoStore' })).status, 200);
+  await call('PUT', '/projects/NoStore/file?path=src/a.vhd', 'entity a is end;\n');
+  for (const [method, url, body, status] of [
+    ['GET', '/projects', undefined, 200], ['GET', '/projects/NoStore', undefined, 200], ['GET', '/devices', undefined, 200],
+    ['GET', '/projects/NoStore/file?path=src/a.vhd', undefined, 200],   // a project's text (text/plain)
+    ['GET', '/projects/NoStore/export.xise', undefined, 200], ['GET', '/projects/NoStore/export.zip', undefined, 200],
+    ['GET', '/projects/Nope', undefined, 404], ['PUT', '/projects/NoStore', [], 400], ['GET', '/projects/NoStore/bitinfo', undefined, 200],
+  ]) {
+    const r = await call(method, url, body);
+    assert.equal(r.status, status, `${method} ${url}`);
+    assert.equal(r.headers.get('cache-control'), 'no-store', `${method} ${url}`);
+  }
+  const r = await app.raw('GET', '/api/projects', { headers: { host: 'evil.example' } });
+  assert.deepEqual([r.status, r.headers['cache-control']], [403, 'no-store'], 'a refused request too');
+  // the static files are not the API: cached as express.static says
+  assert.equal((await app.raw('GET', '/', { headers: { host: 'localhost' } })).headers['cache-control'], 'public, max-age=0');
+  assert.equal((await call('DELETE', '/projects/NoStore')).status, 200);
+});
+
 test('security: the client sends the token in a header only, never in an address (#479)', async () => {
   // a token in a URL stays in the browser's history and in proxies' logs: the downloads fetch with the header too
   const js = await fs.readFile(path.join(HERE, '..', 'web', 'js', 'api.js'), 'utf8');
@@ -465,17 +485,32 @@ test('security: bound to another address than loopback, the API needs the token 
     assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': token } })).status, 200);
     assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': 'j'.repeat(24) } })).status, 403);
     assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': 'short' } })).status, 403);
-    // ?token= only on a GET (a link the page opens), never on a write
-    assert.equal((await any.raw('GET', `/api/templates?token=${token}`, { headers: { host: 'fpga-lab.local' } })).status, 200);
+    // ?token= only on the download links (a GET a link opens: export.xise, export.zip), never on another
+    // GET nor on a write (#1434: an address stays in the browser's history and in proxies' logs)
+    assert.equal((await call('POST', '/projects', { name: 'Tok' })).status, 200);
+    for (const url of [`/api/projects/Tok/export.xise?token=${token}`, `/api/projects/Tok/export.zip?token=${token}`, `/api/projects/Tok/export.zip?kind=silinx&token=${token}`]) {
+      r = await any.raw('GET', url, { headers: { host: 'fpga-lab.local' } });
+      assert.equal(r.status, 200, url);
+      assert.match(r.headers['content-disposition'], /^attachment; filename=Tok/);
+      assert.equal(r.headers['cache-control'], 'no-store');
+    }
+    for (const url of [`/api/templates?token=${token}`, `/api/projects/Tok?token=${token}`, `/api/projects/Tok/file?path=silinx.json&token=${token}`, `/api/projects/Tok/exports.zip?token=${token}`, `/api/projects/Tok/export.zip/x?token=${token}`]) {
+      r = await any.raw('GET', url, { headers: { host: 'fpga-lab.local' } });
+      assert.deepEqual([r.status, r.body], [403, refused], url);
+      assert.equal(r.headers['cache-control'], 'no-store');
+    }
     r = await any.raw('PUT', `/api/toolchain?token=${token}`, { headers: { host: 'fpga-lab.local', 'content-type': 'application/json' }, body: '{"mode":"silinx"}' });
     assert.deepEqual([r.status, r.body], [403, refused]);
+    r = await any.raw('DELETE', `/api/projects/Tok?token=${token}`, { headers: { host: 'fpga-lab.local' } });
+    assert.deepEqual([r.status, r.body], [403, refused]);
+    assert.equal((await any.raw('GET', `/api/projects/Tok/export.zip`, { headers: { host: 'fpga-lab.local', 'x-silinx-token': token } })).status, 200, 'the header everywhere');
     // this machine's own browser (a loopback client, a local Host) needs no token
     assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'localhost:8642' } })).status, 200);
     // cross-origin writes are still refused, token or not
     assert.equal((await any.raw('POST', '/api/projects', { headers: { host: 'fpga-lab.local', 'x-silinx-token': token, origin: 'http://evil.example', 'content-type': 'application/json' }, body: '{}' })).status, 403);
     // the static UI is not guarded (it holds no data): the token comes in the address
     assert.equal((await any.raw('GET', '/', { headers: { host: 'fpga-lab.local' } })).status, 200);
-  } finally { await any.close(); }
+  } finally { await any.close(); await call('DELETE', '/projects/Tok'); }
   const named = await startApp({ host: 'FPGA-Box', token });
   try {
     assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'fpga-box:8642' } })).status, 403);
@@ -813,6 +848,21 @@ test('zip import: a broken silinx.json is ignored; a Silinx zip with a traversal
   const r4 = await call('POST', '/projects/import-zip?name=Zb4', new Uint8Array(z4));
   assert.deepEqual(r4.body.warnings, ['silinx.json: constraints path outside the project dropped (/etc/x.ucf)']);
   assert.notEqual(r4.body.project.constraints, '/etc/x.ucf');
+});
+
+test('zip import: an upload larger than one entry may inflate to (64 MB) is refused with 413, as JSON, before it is read (#1434)', async () => {
+  const { ZIP_LIMITS } = await import('../core/zip.js');
+  assert.equal(ZIP_LIMITS.maxEntry, 64 << 20);
+  const r = await call('POST', '/projects/import-zip?name=Huge', new Uint8Array(ZIP_LIMITS.maxEntry + 1));
+  assert.equal(r.status, 413);
+  assert.deepEqual(r.body, { error: 'the zip is larger than 64 MB, the most an import takes' });
+  assert.equal(r.headers.get('cache-control'), 'no-store');
+  assert.equal((await call('GET', '/projects/Huge')).status, 404, 'nothing created');
+  // exactly the limit: read (and refused as a zip, not for its size)
+  const at = await call('POST', '/projects/import-zip?name=Huge', new Uint8Array(ZIP_LIMITS.maxEntry));
+  assert.deepEqual([at.status, at.body.error], [400, 'cannot read zip: not a zip file']);
+  // the server keeps answering
+  assert.equal((await call('GET', '/projects')).status, 200);
 });
 
 test('zip import: a zip bomb (an entry larger than it declares) is refused, the server keeps running', async () => {
