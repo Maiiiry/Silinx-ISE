@@ -353,11 +353,12 @@
 .sch-editor.sim-mode .se-toolbar .se-btn:not([data-act="sim"]):not([data-act="zin"]):not([data-act="zout"]):not([data-act="fit"]):not([data-act="view"]):not([data-act="check"]):not([data-act="info"]),
 .sch-editor.sim-mode .se-toolbar .tb-btn, .sch-editor.sim-mode .se-toolbar .se-keep { opacity: .35; pointer-events: none; }
 .sch-editor.sim-mode .se-canvas { cursor: default; }
-/* wires by value: 1 bright green, 0 dark green, X/U red, Z blue, no value grey */
-.sch-editor.sim-mode svg .wire.lv-1 .wline { stroke: #00c800; stroke-width: 2; }
-.sch-editor.sim-mode svg .wire.lv-0 .wline { stroke: #1d5c1d; stroke-width: 2; }
-.sch-editor.sim-mode svg .wire.lv-x .wline { stroke: #e00000; stroke-width: 2; }
-.sch-editor.sim-mode svg .wire.lv-z .wline { stroke: #1f5fff; stroke-width: 2; }
+/* wires by value: 1 bright green, 0 dark green, X/U red, Z blue, no value grey; a single-bit wire keeps its width,
+   only a bus is thick (#1552) */
+.sch-editor.sim-mode svg .wire.lv-1 .wline { stroke: #00c800; }
+.sch-editor.sim-mode svg .wire.lv-0 .wline { stroke: #1d5c1d; }
+.sch-editor.sim-mode svg .wire.lv-x .wline { stroke: #e00000; }
+.sch-editor.sim-mode svg .wire.lv-z .wline { stroke: #1f5fff; }
 .sch-editor.sim-mode svg .wire.lv-n .wline { stroke: #9a9a9a; stroke-dasharray: 4 3; }
 .sch-editor.sim-mode svg .wire.bus.lv-1 .wline, .sch-editor.sim-mode svg .wire.bus.lv-0 .wline,
 .sch-editor.sim-mode svg .wire.bus.lv-x .wline, .sch-editor.sim-mode svg .wire.bus.lv-z .wline { stroke-width: 4.4; }
