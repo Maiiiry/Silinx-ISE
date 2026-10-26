@@ -34,7 +34,7 @@ async function simulateTable(page) {
   const doc = await viewerDoc(page);
   const port = (n) => doc.ports.find((p) => p.name === n).id;
   assert.ok(await shown(page, `${ED} .se-btn[data-act=sim]`), 'Try it shown');
-  for (const act of ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo']) assert.ok(!(await shown(page, `${ED} [data-act=${act}]`)), `${act} hidden`);
+  for (const act of ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'beautify', 'undo', 'redo']) assert.ok(!(await shown(page, `${ED} [data-act=${act}]`)), `${act} hidden`);
   await page.click(`${ED} .se-btn[data-act=sim]`);
   await page.waitFor((sel) => document.querySelector(sel)?.classList.contains('sim-mode') && document.querySelector(`${sel} .se-simlayer .lv-sw`), [ED], { what: 'simulation mode' });
   assert.equal(await page.eval(() => window.Silinx.active.viewer.simulating), true);
