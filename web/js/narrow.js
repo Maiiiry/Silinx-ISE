@@ -1,5 +1,5 @@
-// Narrow screens (#266): an iPad in portrait, a narrow window. At 1024 px wide or less (NARROW_QUERY:
-// every iPad in portrait, 768 to 1024 px; in landscape, from 1080 px, the layout is the desktop's):
+// Narrow screens (#266): an iPad in portrait, a narrow window. Under 1024 px wide (NARROW_QUERY:
+// every iPad in portrait, 768 to 1023 px; at 1024 px, an iPad in landscape, the layout is the desktop's, #1418):
 // - the left side (Start / Design / Files / Libraries and the Processes) is a drawer over the
 //   workspace, shown and hidden by the header's button (#drawer-btn) and, in the modern interface,
 //   by the activity bar; a tap beside it, or a document opened, closes it;
@@ -11,7 +11,7 @@
 
 import { prefKey } from './prefs.js';
 
-export const NARROW_QUERY = '(max-width: 1024px)';
+export const NARROW_QUERY = '(max-width: 1023px)';
 export const DRAWER_KEY = prefKey('silinx.drawer');
 export const PROPS_KEY = prefKey('silinx.narrow.props');       // the diagram editors' properties panel
 export const SYMBOLS_KEY = prefKey('silinx.narrow.symbols');   // the schematic editor's symbols

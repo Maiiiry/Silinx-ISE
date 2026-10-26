@@ -489,9 +489,9 @@ html[data-ui="modern"][data-theme="dark"] .sch-editor .lv-clock { background: tr
   html[data-ui="modern"] .m-search { width: 32px; padding: 0; justify-content: center; }
   html[data-ui="modern"] .menubar .item { padding: 0 7px; }
 }
-/* 1024 px or less (#266, web/js/narrow.js): the activity bar stays, the pages beside it are a drawer
+/* under 1024 px (#266, #1418, web/js/narrow.js): the activity bar stays, the pages beside it are a drawer
    over the workspace; with the drawer closed no page's button looks pressed */
-@media (max-width: 1024px) {
+@media (max-width: 1023px) {
   html[data-ui="modern"] #drawer-btn { width: 32px; height: 32px; border-radius: var(--m-radius); color: var(--m-muted); }
   html[data-ui="modern"] #drawer-btn:hover { border-color: transparent; background: var(--m-hover); color: var(--m-fg); }
   html[data-ui="modern"] #drawer-btn .ico-inline, html[data-ui="modern"] #drawer-btn .ico-inline svg { width: 18px; height: 18px; }
