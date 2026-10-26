@@ -3,6 +3,186 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.17.0
+
+In short:
+
+- Truth tables: the expressions' AND is written '.' by default (/a.b + c), the keyboard's, so an expression shown can be
+  typed as it reads.
+- Karnaugh maps: with SOP groups only the 1s (and the don't cares) are written, with POS groups only the 0s; the
+  other cells blank, the map easier to read.
+- Truth tables of 5 or 6 inputs: the Notes box under the table keeps its height (it was squeezed to a sliver).
+- Schematic editor: the bus join and the bus tap show their width on their pins, as every other symbol.
+- Schematic editor: a gate wider than one bit (AND, OR, XOR, INV, BUF, BUFE, BUFT…) shows its width at its input and
+  output pins, as the other symbols do, no longer inside its shape.
+- Tasks: with the document maximized, the side panel's button brings the side panel back (and the messages' button the
+  messages): Simulate's side panel no longer seems lost.
+- Tasks interface: View RTL Schematic asked from Design (a module's menu, View ▸ RTL Schematic) opens the schematic in
+  Design; from Implement's Synthesize, in Implement, as before.
+- The schematic editor has a **Beautify** button: it draws the wires again so that the schematic is easier to read
+  (fewer bends and crossings, none through a symbol), the selected wires or the whole sheet, in one undo step. The
+  symbols and the connections stay the same.
+- Stimulus Timing: with no clock (combinational), only the Clock is asked; the stimuli get one cycle for each
+  combination of the inputs.
+- **Preferred Language switches the drawings:** changing a project's Preferred Language in Design Properties makes
+  every schematic, ASM chart, state diagram, truth table and Petri net's HDL again in that language (`.vhd` ↔ `.v`),
+  the old file removed; the HDL written by hand stays as it is.
+- The schematic editor's Properties panel works on several objects selected: it shows what they have in common
+  (the direction or width of I/O markers, the width of gates, "Draw as bus" of wires) and sets it for all of them
+  at once.
+- **Replacing a source:** New Source on a name that exists asks Replace or Cancel; Cancel goes back to the name, selected to edit it.
+- Tasks on a tablet in portrait: the Design hierarchy shown beside the document, as on a wide screen, not hidden in a
+  closed drawer; Implement's Processes too; Emulate's folded at first, the board its room.
+
+In detail:
+
+- Truth tables: the / notation, the default, writes AND as '.' rather than '·' (results, K-map groups, the Expression
+  field's example, the notations' list; the operators' line lists '.' first); the textbook notation keeps '·' and the
+  HDL modules' comments are unchanged (#1496).
+- Truth tables: the Karnaugh map, flat and in 3D, writes a cell's value as its groups read it: SOP groups the 1s and
+  the X, its 0s left blank; POS groups the 0s and the X, its 1s blank; every cell keeps its minterm number and its
+  click (0 → 1 → X) (#1494).
+- Truth tables: the left column (the table, its notes) scrolls as a whole, its parts keeping their height: the Notes box
+  keeps its three rows under a table of 32 or 64 rows, instead of shrinking to a few pixels (#1492).
+- Schematic editor: the bus join (BUSJOIN) showed no width and the bus tap (SLICE) only its bus's range (A(7:4)). The
+  join now draws the width of each input wider than a bit and of its output, the tap the width of its output when
+  wider than a bit, on the pin's lead in the style of the other symbols (its input takes its bus's). The tap's range,
+  which lay on the bus turned 90° or 180°, is drawn above the bus, or beside it when turned 90° / 270° (#1488).
+- Schematic editor: the gates (AND … XNOR and their inverted-input forms, INV, BUF, BUFE / BUFT) wider than one bit
+  drew their width inside the gate's shape. They now draw it on each bus pin's lead, in the style and place of the
+  other symbols' widths (multiplexers, adders, constants); an inverted input's in the middle of its lead, clear of its
+  bubble. The same in the printed SVG and the dark theme; a one-bit gate shows none (#1486).
+- Tasks: a maximized document (its tab double-clicked, Ctrl/Cmd+Shift+Enter, Maximize) hides the side panel and the
+  messages; their buttons only flipped open / folded, showing nothing. Now either restores the document and shows its
+  panel; while maximized they are shown not pressed (#1484).
+- **The RTL Schematic opens in the task it is asked from (#1483):** in the Tasks interface the RTL Schematic was
+  Implement's document by its id (#1063), so View RTL Schematic from Design's hierarchy switched to Implement. It now
+  keeps the task it was asked from (`openSchematic`'s `task`, the document's `task` as an HDL file's from the
+  Simulation tree, #1332): Design's menus open it in Design, Implement's Synthesize in Implement. A schematic reopened
+  with the project goes to Implement as before. The Technology Schematic and the FPGA view are only asked from
+  Implement's processes (or the View menu, a run's output): they stay Implement's.
+- **Beautify in the schematic editor (#1481):** a toolbar button (Embelezar in Portuguese) that routes the wires
+  again on the editor's own grid and router (`core/schpath.js`): orthogonal paths, never through a symbol, never along
+  another wire nor bending on one. The symbols, the I/O markers, the net names and every wire's ends stay; a wire
+  takes a new path only when it is clear and has no more bends and no more crossings than the old one (a wire that
+  broke a rule takes any clear path), so the drawing never gets worse by these measures, and if the nets were to
+  change the drawing is left as it was. With a selection it works on the selected wires and the wires of the selected
+  symbols and markers; without one, on the whole sheet. One undo step; hidden in a read-only view. Tested on every
+  example's modules (with ELK's layout and without), the gates schematic, the truth tables' schematics and ISE's
+  schematics: the same netlist and the same VHDL and Verilog (`core/schbeautify.js`, `web/js/sch-beautify.js`).
+- **Stimulus Timing with Clock None (combinational) (#1478):** Clock Period, Time Step and Cycles are hidden with
+  their labels while no clock is chosen, live as the Clock changes, and shown again when one is. Without a clock the
+  stimuli keep the saved time step (10 ns for new ones) and get as many cycles as the combinations of the input bits
+  (`combinationCycles` in `core/stimuli.js`: 2^bits, 1 with no input, at most 1024), or keep their cycles when they
+  were already combinational; the dialog's text no longer names the time step.
+- **Design Properties: the Preferred Language changed, every drawing in it (#1477):** each drawing gets the new
+  language and its generated HDL file is made again in it, the file in the other language removed, as when its
+  editor's HDL language changes; the project's file list, the drawing's link, an open editor and the Design pane's
+  badges follow, the top module and the constraints as they were. A drawing with errors gets the language, its HDL
+  made in it once it has none. `drawingInLanguage` (core/view-hdl.js) makes a drawing in a language, also used by
+  the editors' language change.
+- **Several objects' common properties in the schematic editor (#1471):** with several objects selected, the
+  Properties panel shows, under "N objects selected", the fields every one of them has, with the same kind and
+  choices: an I/O marker's Direction, Width and HDL type, a wire's "Draw as bus", a symbol's parameters (the width
+  of gates of any kind, a flip-flop's INIT...). A field whose value differs between them shows "(mixed)" and is
+  left as it is until a value is given; a value set applies to all of them in one edit (one undo step). What must
+  stay unique per object (an instance name, a marker's or a net's name) and what changes a symbol's type (a gate's
+  inputs) are left out. `core/schmulti.js` (new) finds the fields and applies them; `web/js/sch-multi.js` (new) draws
+  them in the panel. `test/schmulti.test.js` (new) and `test/ui/sch-props.test.js` check them, in Portuguese too.
+- **Replacing a source from a wizard (#1467):** the question of New Source (and of the Module, Schematic, Test
+  Bench, Petri Net, Clocking and Block Memory wizards) on a file that exists answers Replace / Cancel (Substituir /
+  Cancelar) instead of Yes / No; after Cancel, New Source's file name is kept and selected. A drawing replaced
+  takes its HDL file, generated from it, with it: made again from the new drawing (it was left in the new drawing's
+  way, a warning that its HDL file exists already). A name typed with a drawing's extension (`ctl.fsm.json`,
+  `ctl.pn.json`) is written as `src/ctl.fsm.json`, the file the replace question was about (not
+  `src/ctl.fsm.json.fsm.json`).
+- Tasks on a screen under 1024 px wide: the side panel of Design and Implement docked beside the document as on a wide
+  screen (open by default, folded and opened again by the bar's side button, its width as resized, at most 45 % of the
+  window, as Simulate's), not a drawer closed when the task comes to the front or a document opens; no drawer button
+  nor scrim in the Tasks interface. Emulate's folded there at first, its board needing the room, the viewer's choice
+  there kept apart from the wide screen's (#1463).
+- **Static editions: Yosys's bundle checked before it is imported (#1445):** the Yosys workers of the single-file edition
+  and of the site fetch YoWASP's bundle.js and compare its SHA-256 with the one the build wrote into the page (the
+  assets' integrity map, with the WebAssembly and the device files already in it) before importing it; a bundle that
+  differs is refused with a message, Yosys is not run (`core/synth-open-yosys.js` verifiedYosysUrl). Nothing changes
+  where the build wrote no digest (the local server). ELK needs no check: it is inlined in the page, never loaded from
+  the site.
+- **Check for Updates: links only to GitHub's own URLs (#1444):** the release's page and its downloads, from GitHub's
+  release object (kept in localStorage for the next sessions), are made into anchors only when their URL is of
+  https://github.com, api.github.com or objects.githubusercontent.com (`web/js/release-url.js`); any other URL
+  (javascript:, http:, another host) shows the name as text. A unit test on the check, a UI test on the dialog.
+- **Every interpolation into the interface's HTML / SVG strings checked (#1443):** a test scans web/js for the `${…}` of
+  every markup template (innerHTML, `html:`, the drawings' SVG) and requires each to be escaped (`esc`), a number, a
+  literal or one of a few listed shapes with their reasons (a coordinate in a numeric attribute, markup made by another
+  template); the counts, widths, kinds and names it found written raw now go through `esc`. A drawing whose file holds
+  markup where a coordinate or a name should be draws nothing of it (the editors normalize their model when they mount):
+  a UI test on the ASM, FSM and schematic editors.
+- **The ISE image's build scripts and the runner's installer, tidier (#1442):** `docker/ise/build-ise-image.sh`
+  (and `.ps1`) stage the installer in a folder made for the run (`mktemp -d`), so the cleanup removes nothing
+  that was there before; without `--installer` / `--license` they take the files from `~/Downloads` only (not
+  the current folder) and say which they took; their help says the MD5 check is integrity against the
+  published sum, not authenticity. `scripts/ise-runner/install.sh` documents `--system` as the mode to use,
+  warns in the other mode that the hook and `.env` belong to the user the jobs run as, and says (with
+  ONBOARDING.md) to clear the runner user's `silinx-cache` and `_work` folders after a suspicious run.
+  `test/ise-image-kit.test.js` (new) and `test/ise-runner.test.js` check them.
+- **The private-data scan looks further (#1441):** `scripts/check-private-data.mjs` also finds IPv6 and MAC
+  addresses (but loopback, the documentation prefix, the broadcast address), computer names on their own
+  (under `.lan` / `.home.arpa`, or with a hyphen or a digit under `.local` / `.internal`), network paths
+  (`\\server\share`, in text), SSH public keys, PGP and PuTTY private keys, an AWS secret key as a value and a
+  bearer token written out; a Xilinx bitstream is recognized by its header under any name, a compressed file
+  (`.gz`) by what it holds, the other binary files by their readable strings, and a line over 20000 characters is
+  scanned in chunks instead of skipped. The rules that need a character (`@`, `:`, `://`) skip a line without
+  it: the scan of the repository takes 2.6 s instead of the 34 s the e-mail rule alone took on the device graphs.
+  `test/private-data.test.js` has a sample per rule; the repository and its history stay clean.
+- **The Yosys update workflow's writing steps run the base's code; the base's version checked before `npm install`
+  (#1440):** `yosys-update.yml`'s `check` and `report` jobs check out the pull request's base (`base.sha`, under
+  `base/`) and run its `scripts/yosys-update-report.mjs` for the `versions` and `comment` commands, the two steps
+  whose job holds a writing token; the pull request's own scripts run only where the token reads. The `measure`
+  job's own step refuses a `BASE_VERSION` that is not a version (digits and dots) before it reaches
+  `npm install`. `test/yosys-update.test.js` checks the steps and their order.
+- **The site's usage counter pinned (#1439):** the published site loads GoatCounter's versioned script
+  (`count.v5.js`, which never changes) with its published subresource integrity hash and `crossorigin="anonymous"`,
+  so that a changed script does not run; the page's policy allows that one URL instead of the host. The loader's
+  comment says how to move to a newer version (`scripts/site-analytics.mjs`).
+- **The workflows' tests check `*.yaml` files too (#1438):** `test/workflows.test.js`, `test/workflows-permissions.test.js`
+  and `test/ise-runner.test.js` list the workflows with one shared filter (`test/workflows-lib.mjs`, `.yml` and
+  `.yaml`, as GitHub runs both), so a `*.yaml` workflow can no longer escape the self-hosted runner's guard, the
+  pinning of the actions, the permissions and the other rules; a test checks the filter.
+- **A scheduled failure's log lines cleaned of computer names, the runner's folders, IPv6 and MAC addresses,
+  container ids (#1437):** `scripts/report-failure.mjs` also replaces names under `.local` / `.lan` / `.home` /
+  `.internal`, the runner's own name and folders (`RUNNER_NAME`, `HOSTNAME`, `RUNNER_DIR`, `RUNNER_TEMP`,
+  `RUNNER_WORKSPACE`, `GITHUB_WORKSPACE`, `RUNNER_TOOL_CACHE`, when set), `/Volumes/<name>`, IPv6 (but `::1`) and
+  MAC addresses and 12 / 64-digit hexadecimal ids, and a line that still matches a rule of
+  `scripts/check-private-data.mjs` is withheld from the issue (a last line says how many were).
+  `test/report-failure.test.js` checks each.
+- **The workflows' dependencies installed without their install scripts, their checkouts without credentials (#1436):**
+  the setup action runs `npm ci` with `NPM_CONFIG_IGNORE_SCRIPTS` on every runner (the Pages builds of the older
+  tags too), every checkout sets `persist-credentials: false`, and the token reaches only the step that publishes
+  (the development build's tag and files, the quality results' branch, the deployment of the site, whose
+  `pages` / `id-token` permissions moved from the workflow to its deploy job); Dependabot proposes an npm version
+  a week after it is published. `test/workflows-permissions.test.js` checks it.
+- **The ISE container isolated (#1435):** every `docker run` of ISE (the docker mode, the ssh host's image, the
+  open-flow check, the netlist fixtures and the quality comparison) runs with `--network none --cap-drop ALL
+  --security-opt no-new-privileges --pids-limit 512`, and with `--memory` when Toolchain Settings' configuration
+  file sets `docker.memory` (8g); the image's base, `ubuntu:14.04`, pinned by its digest in the Dockerfile.
+- **API hardening (#1434):** on a server exposed to other computers, `?token=` in the address is taken on the
+  download links only (`export.xise`, `export.zip`); every other request sends the token in its header, as the
+  page does. Every `/api` response says `Cache-Control: no-store` (a project's text leaves no copy in the
+  browser's disk cache). `POST /api/projects/import-zip` holds at most 64 MB (the size one entry of a zip may
+  inflate to, `core/zip.js`), not 200 MB; a larger upload gets a JSON 413 that says so.
+- **Toolchain Settings' command-line values checked when saved (#1433):** `docker.platform` must be `os/arch`
+  (`linux/amd64`, `linux/arm64/v8`) or empty, `programmer.tool` one of the programming tools or empty, and
+  `programmer.cable` / `programmer.device` cable or device names (as a request's own are), through the API
+  (400) or the configuration file; the tools' names and the values' shape in `server/programmer-values.js`,
+  shared by `server/programmer.js` and `server/toolchain.js`.
+- **`GET /api/projects/:p/export.xise` writes nothing (#1432):** the .xise is sent as before but no longer saved into
+  the project folder on the way (a GET changes no file); `POST …/sync-xise` writes it on request, as it did.
+- **A project's top module name checked as an identifier (#1431):** `top` and `simTop` must be HDL identifiers
+  wherever a project is written (`PUT /api/projects/:p`, the .xise and zip imports, the .xise sync: 400 otherwise;
+  an empty name, no top yet, stays valid), and the routes that name the build's files from the top (`bitinfo`,
+  `fpga-view`, `reports`, `program`, `prom`, `implement`) refuse one that is not (`server/ident.js`, shared with the
+  ISE build's own check), so a `top` holding `..` can no longer name a `.bit` outside the project.
+
 ## 15.16.0
 
 In short:
