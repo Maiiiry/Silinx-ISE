@@ -22,8 +22,6 @@ permissions:
   contents: read
   # the development edition's Development menu reads its changes' issue labels (#707)
   issues: read
-  pages: write
-  id-token: write
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -34,12 +32,16 @@ jobs:
       github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # the editions' dependencies (this commit's and the older tags') installed without their install scripts (#1436)
+    env:
+      NPM_CONFIG_IGNORE_SCRIPTS: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # the commit pushed; after a release or on demand, main's latest commit
           ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -114,6 +116,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # the deployment's token on this job only (the build job, which runs the repository's code, has none, #1436)
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

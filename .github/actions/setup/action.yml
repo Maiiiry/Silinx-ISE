@@ -1,6 +1,7 @@
 # The setup of a job that runs the repository's code (#417): Node.js 22 and the dependencies (npm ci), after
 # the job's own checkout (a local action is read from the checkout). npm's download cache kept by GitHub, but
-# on the self-hosted runner (npm-cache: false).
+# on the self-hosted runner (npm-cache: false). The dependencies' install scripts never run (#1436): a
+# compromised version of one would otherwise run with the job's token (the launchers install the same way).
 name: Setup
 description: Node.js 22 and npm ci, with npm's cache
 inputs:
@@ -16,3 +17,5 @@ runs:
         cache: ${{ inputs.npm-cache == 'true' && 'npm' || '' }}
     - run: npm ci
       shell: bash
+      env:
+        NPM_CONFIG_IGNORE_SCRIPTS: 'true'

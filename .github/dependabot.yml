@@ -10,6 +10,8 @@
 # elkjs is no longer ignored (0.9 to 0.12 in #351): a 0.x minor update may change the schematic layout;
 # its pull request runs test/hdl-to-sch.test.js, which checks every example's Convert to Schematic.
 # A dependency update changes NOTICE / THIRD-PARTY-NOTICES when its licence or authors change (CLAUDE.md).
+# An npm version is proposed a week after it is published (cooldown, #1436): a compromised version is usually
+# found and pulled within days.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -17,6 +19,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     labels: [dependencies]
     groups:
