@@ -1,5 +1,5 @@
 // The schematic editor's toolbar (#405: out of mountSchEditor in sch-editor.js): its tools and buttons (Select, Wire,
-// Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Beautify (#1481), Undo / Redo, the zooms, Symbol Info, Hop-overs,
+// Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Beautify (#1481, #1506), Undo / Redo, the zooms, Symbol Info, Hop-overs,
 // Names, Curved wires (#1144), Check, Try it, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
 import { PROPS_KEY, SYMBOLS_KEY, panelToggle } from './narrow.js';
 import { h } from './dom.js';
@@ -19,7 +19,7 @@ export function mountSchToolbar(ctx) {
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
-    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'beautify', title: 'Beautify: draw the wires again, easier to read (fewer bends and crossings, none through a symbol), the selected ones or the whole sheet; the symbols and the connections stay the same', html: `${ICON.beautify}<span>Beautify</span>` }),
+    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'beautify', title: 'Beautify: lay the schematic out again, easier to read (the inputs on the left, the outputs on the right, the symbols in the order of the signals, the wires with few bends and crossings); with a selection, only its wires drawn again. The connections stay the same', html: `${ICON.beautify}<span>Beautify</span>` }),
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),

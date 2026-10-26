@@ -31,10 +31,12 @@ export const SCH_PT = {
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   // a net name another net has (#689)
   'Hop-overs': 'Saltos', 'Draw a small arc where two wires cross without connecting': 'Desenhar um pequeno arco onde dois fios se cruzam sem se ligarem',
-  // Beautify (#1481)
+  // Beautify (#1481, #1506)
   'Beautify': 'Embelezar',
-  'Beautify: draw the wires again, easier to read (fewer bends and crossings, none through a symbol), the selected ones or the whole sheet; the symbols and the connections stay the same':
-    'Embelezar: desenhar de novo os fios, mais fáceis de ler (menos dobras e cruzamentos, nenhum através de um símbolo), os selecionados ou a folha toda; os símbolos e as ligações ficam iguais',
+  'Beautify: lay the schematic out again, easier to read (the inputs on the left, the outputs on the right, the symbols in the order of the signals, the wires with few bends and crossings); with a selection, only its wires drawn again. The connections stay the same':
+    'Embelezar: dispor de novo o esquemático, mais fácil de ler (as entradas à esquerda, as saídas à direita, os símbolos pela ordem dos sinais, os fios com poucas dobras e cruzamentos); com uma seleção, só os seus fios desenhados de novo. As ligações ficam iguais',
+  'Beautify: the schematic laid out again': 'Embelezar: esquemático disposto de novo',
+  'Beautify: the schematic is already laid out this way': 'Embelezar: o esquemático já está disposto assim',
   'Beautify: no wire in the selection': 'Embelezar: nenhum fio na seleção',
   'Beautify: the wires are already as clear as they can be': 'Embelezar: os fios já estão tão claros quanto possível',
   // curved wires (#1144)
