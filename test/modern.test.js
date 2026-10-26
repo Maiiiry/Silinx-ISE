@@ -186,8 +186,8 @@ test('modern.css: the modern look applies only under data-ui="modern"; the class
   // every theme token has a dark value
   const light = css.slice(css.indexOf('html[data-ui="modern"] {'), css.indexOf('}', css.indexOf('html[data-ui="modern"] {')));
   const dark = css.slice(css.indexOf('html[data-ui="modern"][data-theme="dark"] {'));
-  // (the sizes, lengths only, are the same in both themes: the radius, the rows', bars' and controls' sizes, #1409)
-  const tokens = [...light.matchAll(/(--m-[\w-]+):\s*([^;]+);/g)].filter((m) => !/^[\d.]+px( [\d.]+px)*$/.test(m[2].trim())).map((m) => m[1]);
+  // (the sizes, lengths only or another token, are the same in both themes: the radius, the rows', bars' and controls' sizes, #1409)
+  const tokens = [...light.matchAll(/(--m-[\w-]+):\s*([^;]+);/g)].filter((m) => !/^([\d.]+px( [\d.]+px)*|var\(--m-[\w-]+\))$/.test(m[2].trim())).map((m) => m[1]);
   assert.ok(tokens.includes('--m-bg') && !tokens.includes('--m-radius') && !tokens.includes('--m-row-h'), tokens.join(' '));
   for (const t of tokens) assert.ok(dark.slice(0, dark.indexOf('}')).includes(`${t}:`), `${t} has a dark value`);
   assert.match(css, /html:not\(\[data-ui="modern"\]\) #top-actions/);
