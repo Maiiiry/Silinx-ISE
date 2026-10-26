@@ -58,6 +58,11 @@ html[data-ui="modern"] {
   --m-ctl-h: 32px;
   --m-fs-sm: 12px;
   --m-radius-sm: 6px;
+  /* a document's toolbar (under its tab: the HDL editor's, the drawings', SSim's, the emulator's, the pin planner's): its
+     height and its controls' (buttons, icon buttons, fields); a field elsewhere (dialogs, pages) as high as a button */
+  --m-toolbar-h: 40px;
+  --m-tool-h: 28px;
+  --m-field-h: var(--m-ctl-h);
 
   /* the variables of theme.css, used by the editors and views */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -83,6 +88,10 @@ html[data-ui="modern"] {
   --toolbar-grad: var(--m-surface);
   --menu-bg: var(--m-surface);
   color-scheme: light;
+}
+/* a touch screen: targets of 40 px (a document's tools 36 px, a tree's rows 32 px), the same everywhere (#1409) */
+@media (pointer: coarse) {
+  html[data-ui="modern"] { --m-ctl-h: 40px; --m-tool-h: 36px; --m-row-h: 32px; --m-toolbar-h: 48px; }
 }
 html[data-ui="modern"][data-theme="dark"] {
   --m-bg: #0f1115;
@@ -164,7 +173,7 @@ html[data-ui="modern"] #top-actions { margin-left: auto; display: flex; align-it
 
 /* toolbar: icon buttons + the labelled steps of the design flow */
 html[data-ui="modern"] #toolbar { height: 44px; gap: 2px; padding: 0 12px; background: var(--m-surface); border-bottom: 1px solid var(--m-border); flex: none; }
-html[data-ui="modern"] .tb-btn { width: 32px; height: 32px; border-radius: 6px; border: none; color: var(--m-fg); cursor: pointer; }
+html[data-ui="modern"] .tb-btn { width: var(--m-ctl-h); height: var(--m-ctl-h); border-radius: 6px; border: none; color: var(--m-fg); cursor: pointer; }
 html[data-ui="modern"] .tb-btn:hover { background: var(--m-hover); border: none; }
 html[data-ui="modern"] .tb-btn[data-cmd="asm"], html[data-ui="modern"] .tb-btn[data-cmd="run"], html[data-ui="modern"] .tb-btn[data-cmd="wave"],
 html[data-ui="modern"] .tb-btn[data-cmd="impact"] { display: none; }
@@ -292,7 +301,8 @@ html[data-ui="modern"] .btn.primary:hover { background: var(--m-accent-hover); b
 html[data-ui="modern"] .btn:disabled { opacity: .5; background: var(--m-surface); color: var(--m-muted); border-color: var(--m-border); cursor: default; }
 html[data-ui="modern"] input:is(:not([type]), [type=text], [type=number], [type=search]), html[data-ui="modern"] select, html[data-ui="modern"] textarea {
   background: var(--m-surface); color: var(--m-fg); border: 1px solid var(--m-border-strong); border-radius: 6px; }
-html[data-ui="modern"] .dlg input[type=text], html[data-ui="modern"] .dlg input[type=number], html[data-ui="modern"] .dlg select { height: 30px; padding: 0 8px; }
+/* a field as high as the buttons beside it, in a dialog and on a page (Find in Project, #1409) */
+html[data-ui="modern"] :is(.dlg, .page) :is(input:is(:not([type]), [type=text], [type=number], [type=search]), select) { height: var(--m-field-h); padding: 0 8px; }
 html[data-ui="modern"] .dlg textarea { padding: 6px 8px; }
 html[data-ui="modern"] .dlg input:focus, html[data-ui="modern"] .dlg select:focus, html[data-ui="modern"] .dlg textarea:focus { outline: none; border-color: var(--m-accent); box-shadow: var(--m-focus); }
 html[data-ui="modern"] .form-grid { gap: 8px 12px; }
@@ -332,17 +342,31 @@ html[data-ui="modern"] .util-bar { background: var(--m-surface-2); border-color:
 html[data-ui="modern"] .util-bar > div { background: var(--m-accent); }
 
 /* buttons of the editors' toolbars */
-html[data-ui="modern"] .sch-editor .se-btn { height: 28px; min-width: 28px; border: none; border-radius: 6px; cursor: pointer; color: var(--m-fg); }
+html[data-ui="modern"] .sch-editor .se-btn { height: var(--m-tool-h); min-width: var(--m-tool-h); border: none; border-radius: 6px; cursor: pointer; color: var(--m-fg); }
 html[data-ui="modern"] .sch-editor .se-btn:hover:not(:disabled) { background: var(--m-hover); border: none; }
 html[data-ui="modern"] .sch-editor .se-btn:active:not(:disabled), html[data-ui="modern"] .sch-editor .se-btn.on { background: var(--m-accent-soft); border: none; }
 html[data-ui="modern"] .sch-editor .se-sep { background: var(--m-border); box-shadow: none; }
 html[data-ui="modern"] .sch-editor .se-ptitle, html[data-ui="modern"] .sch-editor .se-sec > summary { color: var(--m-fg); }
 html[data-ui="modern"] .sch-editor .se-cap { height: 32px; padding: 0 10px; background: none; color: var(--m-muted); border-color: var(--m-border); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 html[data-ui="modern"] .sch-editor :is(.se-left, .se-right) { border-color: var(--m-border); }
-html[data-ui="modern"] .sch-editor .btn { height: 28px; padding: 0 10px; }
+html[data-ui="modern"] .sch-editor .btn { height: var(--m-tool-h); padding: 0 10px; }
+
+/* the documents' toolbars alike (#1409): one height, the same padding, their buttons, icon buttons and fields
+   --m-tool-h (the HDL editor's, the RTL / FPGA viewers', SSim's, the truth table's, the schematic's, the ASM and FSM
+   editors', the board emulator's, the pin planner's) */
+html[data-ui="modern"] :is(.editor-bar, .doc-toolbar, .isim-toolbar, .tt-toolbar, .sch-editor .se-toolbar, .asm-editor .asm-toolbar, .emu-bar, .pin-planner .pp-bar) {
+  min-height: var(--m-toolbar-h); padding: 6px 8px; background: var(--m-surface); border-bottom: 1px solid var(--m-border); }   /* (each its own gap) */
+html[data-ui="modern"] :is(.editor-bar, .doc-toolbar, .isim-toolbar, .tt-toolbar, .sch-editor .se-toolbar, .emu-bar, .pin-planner .pp-bar) .btn,
+html[data-ui="modern"] .asm-editor .asm-toolbar .asm-btn { height: var(--m-tool-h); min-width: 0; padding: 0 10px; font-size: var(--fs); }
+html[data-ui="modern"] :is(.editor-bar, .doc-toolbar, .isim-toolbar, .tt-toolbar, .sch-editor .se-toolbar, .asm-editor .asm-toolbar, .emu-bar, .pin-planner .pp-bar) .tb-btn, html[data-ui="modern"] .sch-editor .se-toolbar .se-btn:not(.wide) { width: var(--m-tool-h); min-width: var(--m-tool-h); height: var(--m-tool-h); }
+html[data-ui="modern"] .sch-editor .se-toolbar .se-btn.wide, html[data-ui="modern"] .isim-toolbar .tb-btn:has(.tb-label) { width: auto; height: var(--m-tool-h); }
+html[data-ui="modern"] :is(.editor-bar, .doc-toolbar, .isim-toolbar, .tt-toolbar, .sch-editor .se-toolbar, .asm-editor .asm-toolbar, .emu-bar, .pin-planner .pp-bar)
+  :is(select, input:is(:not([type]), [type=text], [type=number])) { height: var(--m-tool-h); padding: 0 6px; border-radius: var(--m-radius-sm); }
+/* (in the Tasks interface SSim's toolbar is its wave window's line: its own padding none, the line's) */
+html[data-ui="modern"] .isim-wavewin > .caption > .isim-toolbar { min-height: 0; }
+html[data-ui="modern"] .editor-bar { gap: 4px; }
 
 /* HDL editor */
-html[data-ui="modern"] .editor-bar, html[data-ui="modern"] .doc-toolbar { min-height: 36px; padding: 2px 8px; gap: 4px; background: var(--m-surface); border-bottom: 1px solid var(--m-border); }
 html[data-ui="modern"] .editor-bar .path { color: var(--m-muted); }
 html[data-ui="modern"] .editor-bar .gen-banner { border-radius: 6px; }
 html[data-ui="modern"] .editor-bar .gen-banner a, html[data-ui="modern"] .rtl-crumbs a { color: var(--m-accent); }
@@ -358,7 +382,6 @@ html[data-ui="modern"] .xl-editor .cm-tooltip-autocomplete > ul > li[aria-select
 html[data-ui="modern"] { --wave-names-bg: var(--m-surface); --wave-head-1: var(--m-surface-2); --wave-head-2: var(--m-surface-2); --wave-ruler-fg: var(--m-fg); --wave-ruler-tick: var(--m-muted); }
 html[data-ui="modern"] .isim .ise-panel { border: none; }
 html[data-ui="modern"] .isim .ise-panel > .caption { border-bottom: 1px solid var(--m-border); }
-html[data-ui="modern"] .isim-toolbar { background: var(--m-surface); border-color: var(--m-border); min-height: 36px; }
 html[data-ui="modern"] .isim-toolbar .tb-btn:hover:not(:disabled) { background: var(--m-hover); }
 html[data-ui="modern"] .isim-toolbar .tb-btn:has(.tb-label) { width: auto; padding: 0 10px; }
 html[data-ui="modern"] .isim-toolbar .tb-sep { background: var(--m-border); box-shadow: none; }
@@ -395,7 +418,6 @@ html[data-ui="modern"] :is(.fsm-link, .tt-link, .editor-bar) .gen-banner { borde
 html[data-ui="modern"] :is(.fsm-link, .tt-link) .gen-banner a { color: var(--m-accent); }
 
 /* truth table / Karnaugh map: the map is a light card (paper) in both themes */
-html[data-ui="modern"] .tt-toolbar { background: var(--m-surface); border-color: var(--m-border); min-height: 40px; }
 html[data-ui="modern"] .tt-sep { background: var(--m-border); }
 html[data-ui="modern"] .tt-left { border-color: var(--m-border); }
 html[data-ui="modern"] .tt-caption { color: var(--m-fg); }
@@ -449,7 +471,7 @@ html[data-ui="modern"][data-theme="dark"] .editor-bar .gen-banner { background: 
 html[data-ui="modern"][data-theme="dark"] .gen-banner.out-of-sync { background: rgba(240, 113, 107, .14); border-color: rgba(240, 113, 107, .45); color: #ffb4ae; }
 html[data-ui="modern"][data-theme="dark"] .msg-warn .msg-icon { color: #000; }
 html[data-ui="modern"][data-theme="dark"] .impact-chain { background: var(--m-surface-2); border-color: var(--m-border); }
-html[data-ui="modern"][data-theme="dark"] .pin-planner .pp-bar, html[data-ui="modern"][data-theme="dark"] .pin-planner .pp-res { background: var(--m-surface-2); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .pin-planner .pp-res { background: var(--m-surface-2); border-color: var(--m-border); }
 html[data-ui="modern"][data-theme="dark"] .pin-planner .pp-res .grp { color: var(--m-fg); }
 html[data-ui="modern"][data-theme="dark"] .pin-planner td.conflict input { background: rgba(240, 113, 107, .25) !important; }
 html[data-ui="modern"][data-theme="dark"] .console-page .diag-hint b { color: var(--m-fg); }

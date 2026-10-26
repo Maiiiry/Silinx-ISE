@@ -11,7 +11,7 @@ html[data-layout="tasks"] #statusbar { display: none; }
 /* ------------------------------------------------------------------ the task switcher */
 html[data-layout="tasks"] #task-switch { display: flex; gap: 2px; padding: 3px; margin: 0 auto; flex: none;
   background: var(--m-surface-2); border: 1px solid var(--m-border); border-radius: 10px; }
-.task-btn { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border: none; border-radius: 7px;
+.task-btn { position: relative; display: inline-flex; align-items: center; gap: 7px; height: var(--m-ctl-h, 32px); padding: 0 12px; border: none; border-radius: 7px;
   background: none; color: var(--m-muted); font: inherit; font-weight: 550; white-space: nowrap; cursor: pointer; }
 .task-btn:hover { background: var(--m-hover); color: var(--m-fg); }
 .task-btn:disabled { opacity: .4; cursor: default; }   /* (no project: #1260) */
@@ -113,11 +113,7 @@ html[data-layout="tasks"][data-max="on"] :is(#left, #v-split, #h-split, #console
   html[data-layout="tasks"] #task-tabs .task-dot { position: absolute; top: 6px; right: calc(50% - 18px); }
   html[data-layout="tasks"] #task-tabs .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
-/* touch: targets of 40 px or more */
-@media (pointer: coarse) {
-  html[data-layout="tasks"] #task-switch .task-btn { height: 40px; }
-  html[data-layout="tasks"] :is(#task-bar, #task-view) .tb-btn { width: 40px; height: 40px; }
-}
+/* (touch: targets of 40 px, --m-ctl-h, as every button: web/css/modern.css, #1409) */
 
 /* ------------------------------------------------------------------ the message centre in the Tasks interface (#798) */
 /* (its look in every interface: web/css/messages.css, #925) folded: the last line of the filter instead of the filters */
@@ -143,9 +139,9 @@ html[data-layout="tasks"] .isim-status { display: none; }
 /* the toolbar's icons in the wave window's line (web/js/tasks-sim.js placeSimToolbar), not its name ("Default.wcfg") and
    the cursor's text: the waves get the toolbar's height (#1026) */
 html[data-layout="tasks"] .isim-wavewin > .caption :is(.isim-wcfg, .isim-cursor-info, .spacer) { display: none; }
-html[data-layout="tasks"] .isim-wavewin > .caption { height: auto; min-height: 36px; padding: 0 6px; color: var(--m-fg);
+html[data-layout="tasks"] .isim-wavewin > .caption { height: auto; min-height: var(--m-toolbar-h); padding: 0 8px; color: var(--m-fg);
   font-size: inherit; font-weight: normal; letter-spacing: normal; text-transform: none; overflow: visible; }
-html[data-layout="tasks"] .isim-wavewin > .caption > .isim-toolbar { flex: 1; min-width: 0; min-height: 0; padding: 2px 0; border: none; background: none; }
+html[data-layout="tasks"] .isim-wavewin > .caption > .isim-toolbar { flex: 1; min-width: 0; min-height: 0; padding: 6px 0; border: none; background: none; }
 html[data-layout="tasks"][data-task="sim"] :is(#left-pages, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
 /* (#left the activity bar only, open or folded: no empty column of the Design pane's width, #882) */
 html[data-layout="tasks"][data-task="sim"] #left { width: auto !important; min-width: 0; }
@@ -174,13 +170,13 @@ html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="fold
 /* (folded by the side panel's button, as the other tasks' side panels: #1428) */
 #task-sim-panel > .task-sim-trees { flex: 1; min-height: 0; overflow: auto; }
 #task-sim-panel .task-sim-choice { padding: 3px 0; }
-#task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: 28px; margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
+#task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: var(--m-tool-h); margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
   background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
 #task-sim-panel .task-sim-bench > .row { cursor: pointer; }
 #task-sim-panel .tree[hidden] { display: none; }
 /* the simulation's model at the right end of its toolbar (#1353) */
 html[data-layout="tasks"] .isim-toolbar .isim-model-field { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
-html[data-layout="tasks"] .isim-toolbar .isim-model { height: 28px; max-width: 180px; border: 1px solid var(--m-border-strong);
+html[data-layout="tasks"] .isim-toolbar .isim-model { height: var(--m-tool-h); max-width: 180px; border: 1px solid var(--m-border-strong);
   border-radius: 6px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
 #task-empty .m-step[hidden] { display: none; }
 /* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
@@ -195,7 +191,6 @@ html[data-layout="tasks"] .isim-toolbar .isim-model { height: 28px; max-width: 1
   html[data-layout="tasks"] #topbar #task-doc :is(.task-doc-mod, .task-doc-model) { min-width: 0; }
   html[data-layout="tasks"] #topbar #task-doc .task-doc-mod { flex-shrink: 0.1; }   /* (the model shortened first) */
 }
-@media (pointer: coarse) { #task-sim-panel .task-sim-choice select { height: 40px; } }
 
 /* ------------------------------------------------------------------ Emulate (#801, web/js/tasks-emu.js) */
 /* the board gets the screen at its proper size at least (zoomed up by tasks-emu.js, never down: #1021); its side
