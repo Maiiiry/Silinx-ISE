@@ -326,8 +326,8 @@ test('#1405 every Portuguese translation is of a text the sources still have', (
       else if (parts.join('').trim().length >= 4) made.push(new RegExp(`^${parts.map(esc).join('[\\s\\S]*?')}$`));
     }
   }
-  // (a text written in pieces: 'a ' + 'b')
-  const joined = tracked.filter((x) => /\.(m?js|html)$/.test(x) && !/^web\/js\/i18n[^/]*\.js$/.test(x)).map(read).join('\n').replace(/(['"`])\s*\+\s*(['"`])/g, '');
+  // (a text written in pieces: 'a ' + 'b', its quotes escaped in them: \' and \")
+  const joined = tracked.filter((x) => /\.(m?js|html)$/.test(x) && !/^web\/js\/i18n[^/]*\.js$/.test(x)).map(read).join('\n').replace(/(['"`])\s*\+\s*(['"`])/g, '').replace(/\\(['"`])/g, '$1');
   const unused = Object.keys(PT.strings).filter((k) => !texts.has(k) && !joined.includes(k) && !made.some((re) => re.test(k)));
   assert.deepEqual(unused, [], 'translations of texts no source has: remove them from web/js/i18n*.js');
 });
