@@ -37,7 +37,7 @@ export function wavePrintView({ draw, colors, NW, WW }) {
   const info = [['Cursor', fmtTime(st.cursor)], ['Time shown', shown], ['Simulation time', fmtTime(draw.sim.now)]].map(([k, v]) => `${t(k)}: ${v}`)
     .concat(st.markers.map((m, i) => `${t('Marker')} ${i + 1}: ${fmtTime(m.t)}`));
   if (draw.flat().length > rows) info.push(t(`The first ${rows} of ${draw.flat().length} rows`));
-  const img = (c, w, cls) => `<img class="${cls}" src="${c.toDataURL('image/png')}" alt="" style="width:${w}px;height:${H}px">`;
+  const img = (c, w, cls) => `<img class="${cls}" src="${c.toDataURL('image/png')}" alt="" style="width:${+w}px;height:${H}px">`;
   return {
     fit: { page: true },
     css: `.pv-wave { display: flex; border: 1px solid #999; width: max-content; }

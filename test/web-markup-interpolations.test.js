@@ -59,8 +59,12 @@ const SAFE = [
   [/^uidE?$/, 'id'],
   // markup made by another template (scanned on its own): a local that collects it, a symbol's drawing (s.body), or a function
   // of this module that returns it
-  [/^(?:inner|body|s\.body|label|svg|rows|labels|holes|lcdChars|extra|eh|jh|nh|ch|pts|line|css|pages\.join\('\\n'\)|content\(\))$/, 'markup'],
-  [/^(?:bodySvg|symbolSvg|textsSvg|matrixOf|previewSvg|badgesHtml|pmod|pmod12|db|chip|holes4|pathD|hopPath|cv\.hopD|curve\.previewD|lvClass)\(.*\)$/s, 'markup'],
+  [/^(?:inner|body|s\.body|label|svg|rows|rows\.join\(''\)|labels|holes|lcdChars|extra|eh|jh|nh|ch|pts|line|css|pages\.join\('\\n'\)|content\(\))$/, 'markup'],
+  [/^(?:bodySvg|symbolSvg|textsSvg|matrixOf|previewSvg|badgesHtml|pmod|pmod12|db|chip|holes4|pathD|hopPath|cv\.hopD|curve\.previewD|lvClass|domSnapshot|appCss|img)\(.*\)$/s, 'markup'],
+  // a copy of the page's own elements (print-view.js: the browser escapes their text and attributes) and a canvas's picture
+  [/^clone\.outerHTML$/, 'markup'], [/^\w+\.toDataURL\('image\/png'\)$/, 'data URL'],
+  // a loop's index counted from 1
+  [/^[ijkn] \+ 1$/, 'number'],
   // a class name or a selector's marker chosen among literals by the renderer
   [/^(?:cls|cls\.join\(' '\)|selc|free|kcls|midClass|bus|lv|tick|shape|ico|bg|fill|silk)$/, 'class'],
 ];

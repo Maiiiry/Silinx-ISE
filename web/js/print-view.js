@@ -106,7 +106,7 @@ export function domSnapshot(el, { drop = [] } = {}) {
 /** The print view of a source's text: its lines numbered, HDL highlighted, long lines wrapped. */
 export function textBody(text, lang) {
   const html = lang === 'vhdl' || lang === 'verilog' ? highlightHdl(text, lang) : esc(text);
-  const rows = html.replace(/\n$/, '').split('\n').map((l, i) => `<tr><td class="n">${i + 1}</td><td>${l || ' '}</td></tr>`);
+  const rows = html.replace(/\n$/, '').split('\n').map((line, i) => `<tr><td class="n">${i + 1}</td><td>${line || ' '}</td></tr>`);
   return `<table class="pv-code">${rows.join('')}</table>`;
 }
 export const TEXT_CSS = `.pv-code { border-collapse: collapse; width: 100%; font: 8.5pt/1.35 Consolas, Menlo, "DejaVu Sans Mono", monospace; }
