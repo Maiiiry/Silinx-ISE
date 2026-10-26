@@ -1358,6 +1358,17 @@ pool: blinky 2.0 → 4.3 s, pong 3.1 → 6.2, itc99-b11 2.6 → 8.4, epfl-i2c's 
 ISE's check (the routings that change at Normal, 16; 14 timed): trce 8.0 % shorter in geometric mean (2.0 % over the 57
 timed designs at Normal), every DRC 0 errors and 0 warnings, every `.bit` byte-identical to ISE's bitgen.
 
+### A long adder as carry-select segments (#1361, 2026-10-26)
+
+epfl-adder (128 bits) was 1.09× ISE by trce at both efforts: one carry chain of 64 slices (10.59 ns of logic, 2.80 of
+routing) against XST's tree of 8 LUT levels (6.75 + 5.32). A techmap (`CSEL_MAP`) before synth_xilinx's fine step makes an
+`$alu` of 64 bits or more segments of 32: the first on its chain, each other twice (carry in 0 and 1) and chosen by the
+segment below, the choices a short chain of LUT3 multiplexers. Silinx's static timing, routed: segments of 32 bits 12.72 →
+9.62 ns (270 LUTs, 232 slices), of 16 bits 10.61-10.86 ns (293 LUTs, 260 slices): more segments add multiplexer levels
+faster than they shorten the chains. DEPTH_RULE's LUT bound refused it (58 % more LUTs for 48 % by the estimate, which
+over-states the long chain: 17.8 ns estimated, 12.7 routed), so the candidate is judged by its slices. A threshold of 48
+stages (secworks-siphash's 63) changed nothing. Only epfl-adder of the corpus and the examples has such a chain.
+
 ## 4:1 multiplexers in the wider mapping (#54)
 
 The EPFL barrel shifter (`bar`, 128 bits shifted by 7, written as gates: decoded 4:1 multiplexers on the shift
