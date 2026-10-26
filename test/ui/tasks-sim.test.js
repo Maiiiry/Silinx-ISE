@@ -269,6 +269,45 @@ uiTest('#1345 Tasks ▸ Simulate: Maximize hides the side panel too, the waves f
   assert.deepEqual(await g(), { side: true, fromLeft: false, console: true });
 }, { build: DEV });
 
+// #1484: maximized (a tab double-clicked, Ctrl+Shift+Enter), the side panel's button brought the side panel back: it only
+// flipped open / folded, nothing shown; now it restores the document and shows the panel, the messages' button the messages
+uiTest('#1484 Tasks ▸ Simulate: maximized, the side panel\'s button shows the side panel again, the messages\' the messages', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimMaxSide', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimMaxSide');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await choose(page, 'task-bench', 'tb_top');
+  await simShown(page, 'tb_top', 'Behavioral');
+  await page.showSide();
+  const g = () => page.eval(() => {
+    const p = (a) => document.querySelector(`#task-view [data-act=${a}]`).getAttribute('aria-pressed');
+    return { max: document.documentElement.dataset.max, side: !!document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length,
+      console: !!document.getElementById('console-wrap').getClientRects().length, pressed: [p('side'), p('console'), p('max')] };
+  });
+  // maximized by the keys: neither panel, their buttons not pressed
+  await page.eval(() => dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true })));
+  await page.waitFor(() => document.documentElement.dataset.max === 'on');
+  assert.deepEqual(await g(), { max: 'on', side: false, console: false, pressed: ['false', 'false', 'true'] });
+  // the side panel's button: the document restored, the side panel shown (the messages as they were)
+  await page.click('#task-view [data-act=side]');
+  await page.waitFor(() => document.documentElement.dataset.max === 'off', [], { what: 'restored' });
+  assert.deepEqual(await g(), { max: 'off', side: true, console: true, pressed: ['true', 'true', 'false'] });
+  // folded, then maximized: the side panel's button shows it (not folded again)
+  await page.click('#task-view [data-act=side]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded');
+  await page.click('#task-view [data-act=max]');
+  await page.click('#task-view [data-act=side]');
+  await page.waitFor(() => document.documentElement.dataset.max === 'off' && document.documentElement.dataset.side === 'open', [], { what: 'shown' });
+  assert.equal((await g()).side, true);
+  // the messages' button, maximized: the messages shown
+  await page.click('#task-view [data-act=max]');
+  await page.click('#task-view [data-act=console]');
+  await page.waitFor(() => document.documentElement.dataset.max === 'off', [], { what: 'restored by the messages\' button' });
+  assert.deepEqual(await g(), { max: 'off', side: true, console: true, pressed: ['true', 'true', 'false'] });
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
+
 // #1353: the simulation's model at the right end of its toolbar, after Edit Stimuli: its own model shown; another one
 // chosen simulates the module with it, in a tab of its own
 uiTest('#1353 #1391 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar, after Edit Stimuli, "Model:" before it; Portuguese', E, async (page) => {

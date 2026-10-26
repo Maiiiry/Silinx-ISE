@@ -196,8 +196,9 @@ function apply() {
   fitHeader();
   const bar = document.getElementById('task-bar'), view = document.getElementById('task-view');
   if (bar) {
-    view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(a.side));
-    view.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
+    // (maximized: the side panel and the messages hidden, their buttons not pressed, #1484)
+    view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(a.side && !a.max));
+    view.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console && !a.max));
     view.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
   }
   tagDocs();
@@ -346,8 +347,9 @@ function build() {
   // (no action button in it: each task's page has it, #1292)
   const onAct = e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'side') toggle({ [sideKey()]: !arr().side });
-    else if (act === 'console') toggle({ console: !arr().console });
+    // (maximized, the side panel's or the messages' button shows them: the document restored, #1484)
+    if (act === 'side') toggle(arr().max ? { max: false, [sideKey()]: true } : { [sideKey()]: !arr().side });
+    else if (act === 'console') toggle(arr().max ? { max: false, console: true } : { console: !arr().console });
     else if (act === 'max') toggle({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
   };
