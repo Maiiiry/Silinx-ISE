@@ -170,7 +170,7 @@ export function refreshBench(app) {
 export async function newBench(app) {
   const before = new Set(simChoices(app.S.project, app.S.modules).benches);
   const { testBenchWizard } = await import('./tbwizard.js');   // (not at load: it loads the app)
-  await testBenchWizard({ module: app.S.project.top });
+  await testBenchWizard({ module: app.S.project.top, task: 'sim' });   // (its file opened in Simulate, #1392)
   const made = simChoices(app.S.project, app.S.modules).benches.find(n => !before.has(n));
   if (made) await app.setTop(made, true);
   refreshBench(app);

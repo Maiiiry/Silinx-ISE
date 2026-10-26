@@ -18,7 +18,7 @@ const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 export const designSources = () => S.sources.filter(s => s.role === 'design' && (s.lang === 'vhdl' || s.lang === 'verilog'));
 
-export async function testBenchWizard({ module, name = null, location = null, lang: langPick = null } = {}) {
+export async function testBenchWizard({ module, name = null, location = null, lang: langPick = null, task = null } = {}) {
   if (!S.project) return;
   await app.saveAll?.();
   const guard = replaceGuard('Test Bench Wizard');
@@ -247,6 +247,6 @@ export async function testBenchWizard({ module, name = null, location = null, la
   app.log(st.mode === 'none' ? `Test Bench Wizard: created the test bench skeleton ${path()} for '${uut.name}' (selected in the Simulation view): write the stimulus, then Simulate Behavioral Model.`
     : `Test Bench Wizard: created ${path()} (${rows.length} vector(s)) for '${uut.name}' (selected in the Simulation view). Run Simulate Behavioral Model to check the design.`, 'ok');
   toast(`Test bench ${path()} created`, 'ok');
-  app.openFile(path());
+  app.openFile(path(), undefined, undefined, task ? { task } : undefined);   // (`task`: opened there, Simulate's, #1392)
 }
 
