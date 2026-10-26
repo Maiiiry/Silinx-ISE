@@ -18,7 +18,9 @@
 .tt-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tt-expr-lbl { font-family: var(--mono, monospace); font-weight: bold; }
 .tt-expr-in { flex: 1; min-width: 200px; max-width: 460px; font-family: var(--mono, monospace); }
-.tt-notes { width: 100%; min-width: 220px; font-family: var(--font, sans-serif); resize: vertical; }
+/* (the column scrolls: its parts keep their height, the notes their rows, however long the table: #1492) */
+.tt-left > * { flex: none; }
+.tt-notes { width: 100%; min-width: 220px; min-height: 4.5em; font-family: var(--font, sans-serif); resize: vertical; }
 .tt-table { border-collapse: collapse; font-family: var(--mono, monospace); }
 .tt-table th, .tt-table td { border: 1px solid var(--border-light, #ccc); padding: 1px 8px; text-align: center; }
 .tt-table th { background: var(--panel-alt, #f4f4f4); }

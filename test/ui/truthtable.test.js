@@ -598,6 +598,29 @@ uiTest('#1427 Truth Table: Least number of gates and Least delay, every form\'s 
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
 });
 
+// #1492: the Notes box under a long table (5 or 6 inputs: 32, 64 rows) kept its rows, not squeezed by the scrolling column
+uiTest('#1492 Truth Table: the Notes box keeps its height under a table of 5 or 6 inputs, the column scrolling to it', E, async (page) => {
+  const tt = (name, n) => JSON.stringify({ version: 1, name, inputs: ['a', 'b', 'c', 'd', 'e', 'g'].slice(0, n), outputs: ['f'], table: { f: '0'.repeat(2 ** n) }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' });
+  await makeProject(env, { name: 'TtNotes', files: { 'src/n3.tt.json': tt('n3', 3), 'src/n5.tt.json': tt('n5', 5), 'src/n6.tt.json': tt('n6', 6) } });
+  await page.setViewport(1366, 768);
+  await page.openProject('TtNotes');
+  const heights = {};
+  for (const n of [3, 5, 6]) {
+    await page.eval((p) => window.SilinxApp.openTt(p), `src/n${n}.tt.json`);
+    await page.waitFor((p) => window.Silinx.active?.id === `tt:${p}` && document.querySelector('.doc:not([hidden]) .tt-notes'), [`src/n${n}.tt.json`], { what: `n${n}` });
+    heights[n] = await page.eval(() => {
+      const t = document.querySelector('.doc:not([hidden]) .tt-notes'), lh = parseFloat(getComputedStyle(t).lineHeight) || 16;
+      return Math.round(t.getBoundingClientRect().height) >= 3 * lh - 1 && t.getBoundingClientRect().width >= 220;
+    });
+  }
+  assert.deepEqual(heights, { 3: true, 5: true, 6: true });
+  // (scrolled to, typed in)
+  await page.eval(() => document.querySelector('.doc:not([hidden]) .tt-notes').scrollIntoView());
+  await page.click('.doc:not([hidden]) .tt-notes');
+  await page.type('a note');
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .tt-notes').value), 'a note');
+});
+
 // #1407: the K-map of 5 or 6 inputs in 3D: its maps stacked (2 or 4 layers, Gray order), a group on each layer it
 // covers and a box between neighbouring layers; turned by dragging and the arrow keys, Reset view; a cell clicked
 // cycles its value; no 3D box under 5 inputs; Portuguese
