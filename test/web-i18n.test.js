@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformSync } from 'esbuild';
+import { execSync } from 'node:child_process';
+import { literalsOf } from './js-literals.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'js');
 // the module picks the language from localStorage when it loads
@@ -305,4 +307,34 @@ test('#1024 Program FPGA with no programming file, or one older than the sources
   for (const st of ['none', 'stale', 'err']) for (const l of implementFirstText(st, 'top')) assert.notEqual(t(l), l, l);
   // the lines of the Tasks interface's Program that #1024 removed: no longer translated
   for (const s of ['Up to date with the sources', 'No programming file yet']) assert.equal(PT[s], undefined, s);
+});
+
+// #1405: every key of the Portuguese dictionary is a text of the sources (a string or template literal of web/, core/ or
+// server/, or a page's), or a text a template of theirs makes (each ${…} any text: `Simulate ${name} Model`); a key the
+// interface no longer has fails here (it is removed with its label)
+test('#1405 every Portuguese translation is of a text the sources still have', () => {
+  const ROOT = path.join(WEB, '..', '..');
+  const tracked = execSync('git ls-files web core server', { cwd: ROOT, encoding: 'utf8' }).split('\n');
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const texts = new Set(), made = [];
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const f of tracked.filter((x) => /\.m?js$/.test(x) && !/^web\/js\/i18n[^/]*\.js$/.test(x))) {
+    const { strings, templates } = literalsOf(read(f));
+    for (const s of strings) texts.add(s);
+    for (const parts of templates) {
+      if (parts.length === 1) texts.add(parts[0]);
+      else if (parts.join('').trim().length >= 4) made.push(new RegExp(`^${parts.map(esc).join('[\\s\\S]*?')}$`));
+    }
+  }
+  // (a text written in pieces: 'a ' + 'b')
+  const joined = tracked.filter((x) => /\.(m?js|html)$/.test(x) && !/^web\/js\/i18n[^/]*\.js$/.test(x)).map(read).join('\n').replace(/(['"`])\s*\+\s*(['"`])/g, '');
+  const unused = Object.keys(PT.strings).filter((k) => !texts.has(k) && !joined.includes(k) && !made.some((re) => re.test(k)));
+  assert.deepEqual(unused, [], 'translations of texts no source has: remove them from web/js/i18n*.js');
+});
+
+test('#1405 literalsOf: strings, a template\'s parts, comments and regular expressions skipped', () => {
+  const src = "const a = 'x\\'y'; // 'not this'\n/* 'nor this' */ const r = /'[^']*'/g; const t = `Open ${f(`in ${n}`)} now`; return /a`b/.test(\"z\");";
+  const { strings, templates } = literalsOf(src);
+  assert.deepEqual(strings, ["x'y", 'z']);
+  assert.deepEqual(templates, [['in ', ''], ['Open ', ' now']]);
 });
