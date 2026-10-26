@@ -9,7 +9,7 @@ import { ENGINE_KEY, defaultEngine } from '/core/emulate-engine.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
 import * as wiz from './wizards.js';
 import { countEvent } from './analytics.js';
-import { S, app, closeDoc, findDoc, moduleInfo, openDoc, openFile, projectBoard, status, withPrimitives } from './app.js';
+import { S, activateDoc, app, closeDoc, findDoc, moduleInfo, openDoc, openFile, projectBoard, status, withPrimitives } from './app.js';
 import { asSsim, benchItems, treeBar, treeItems } from './tasks-sim-tree.js';
 import { mountSimPages } from './tasks-sim-files.js';
 import { log, showConsolePage, setDiagnostics } from './console.js';
@@ -365,7 +365,10 @@ async function confirmElabErrors(title, lib, design) {
 // the engine the user chose last (#952: remembered, it wins over the default)
 const enginePref = () => { try { return localStorage.getItem(prefKey(ENGINE_KEY)); } catch { return null; } };
 const setEnginePref = (e) => { try { localStorage.setItem(prefKey(ENGINE_KEY), e); } catch { /* ignore */ } };
-export async function openEmulator(mod, { scale, model = null, engine = null } = {}) {
+// the design as the emulator runs it: its sources and its pins (#1401)
+const designNow = () => JSON.stringify([S.sources.filter(s => s.lang === 'vhdl' || s.lang === 'verilog').map(s => [s.path, s.text]), S.ucfText || '']);
+// `quiet`: run again on a change of the design (#1401), behind the document in front, no dialog
+export async function openEmulator(mod, { scale, model = null, engine = null, quiet = false } = {}) {
   if (!mod) { toast('Select the top module first'); return; }
   await saveAll();
   const board = projectBoard();
@@ -387,8 +390,8 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
     design = elaborate(lib, mod);
     if (!design.top) throw new Error(design.diags.map(d => d.message).join('; ') || `cannot elaborate '${mod}'`);
     gens = model ? [] : timingGenerics(design.top?.params);   // a netlist has its constants built in
-  } catch (e) { alertDlg('Board Emulator', `Cannot build the design: ${e.message}`, 'error'); return; }
-  if (!await confirmElabErrors('Board Emulator', lib, design)) return;
+  } catch (e) { if (quiet) log(`ERROR: Board Emulator: cannot build the design: ${e.message}`, 'err'); else alertDlg('Board Emulator', `Cannot build the design: ${e.message}`, 'error'); return; }
+  if (quiet ? diagsFor(lib, design).some(d => (d.severity || 'error') === 'error') : !await confirmElabErrors('Board Emulator', lib, design)) return;
   const { parseUcf } = await import('/core/ucf.js');
   const assignments = S.ucfText ? parseUcf(S.ucfText, { ports: design.top.ports.map(ucfPort) }).assignments : {};
   if (!S.ucfText) log('WARNING: the project has no UCF: the ports are not connected to the board (use I/O Pin Planning).', 'warn');
@@ -418,10 +421,11 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
     return { netlist, reason, design: d, scale: k };
   }
   const id = 'emulator';
-  const old = findDoc(id);
+  const old = findDoc(id), front = S.active;
   if (old) await closeDoc(old);
+  const ran = designNow();
   openDoc({
-    id, title: `Board Emulator (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'board', reopen: `emulator:${mod}${model ? `@${model}` : ''}`,
+    id, title: `Board Emulator (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'board', reopen: `emulator:${mod}${model ? `@${model}` : ''}`, background: quiet,
     create(el, doc) {
       let closed = false;
       const wait = document.createElement('div');
@@ -438,9 +442,26 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
             onChange: (m) => setTimeout(() => openEmulator(mod, { model: m || null, engine }), 0) },
           engine: { netlist: r.netlist, reason: r.reason, auto: chosen.auto, onChange: (e) => { setEnginePref(e); setTimeout(() => openEmulator(mod, { model, engine: e }), 0); } } });
         doc.view = view;
+        doc.scale = r.scale;   // (kept when run again, #1401)
         log(`Board Emulator: '${mod}' (${model ? `${SIM_MODEL_NAMES[model]} netlist` : 'RTL'}, ${view.engine === 'compiled' ? 'compiled' : 'event-driven'}) on ${board.name} — ${view.wiring.bits.length} port bit(s) on board resources${view.wiring.unmapped.length ? `, ${view.wiring.unmapped.length} not connected` : ''}.`, 'ok');
       }).catch((e) => { if (!closed) { wait.textContent = `Cannot build the design: ${e.message}`; log(`ERROR: Board Emulator: ${e.message}`, 'err'); } });
-      return { destroy: () => { closed = true; doc.view?.destroy(); } };
+      // the design or its pins changed (a source saved, a drawing, I/O Pin Planning, the UCF): its RTL emulation run again,
+      // its settings kept, quietly; a netlist's says so instead (emulated again, the netlist is generated anew) (#1401)
+      let soon = null, said = false;
+      const changed = () => {
+        clearTimeout(soon);
+        soon = setTimeout(async () => {
+          if (closed) return;
+          await loadUcfText();
+          if (closed || designNow() === ran) return;
+          if (!model) { openEmulator(mod, { scale: doc.scale, model, engine, quiet: true }); return; }
+          if (!said) { said = true; log(`Board Emulator: the design changed — the ${SIM_MODEL_NAMES[model]} netlist emulated is the one before; emulate it again to update it.`, 'warn'); }
+        }, 800);
+      };
+      addEventListener('silinx:design-changed', changed);
+      return { destroy: () => { closed = true; clearTimeout(soon); removeEventListener('silinx:design-changed', changed); doc.view?.destroy(); }, onProject: changed };
     },
   });
+  // (run again behind the document in front: that one stays in front, and its task)
+  if (quiet && front && front !== S.active && S.docs.includes(front)) activateDoc(front, { background: true });
 }
