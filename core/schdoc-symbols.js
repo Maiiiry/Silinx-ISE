@@ -112,9 +112,21 @@ SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D
     { name: 'bits', label: 'Pins per bit (A0.., B0.., D0..)', kind: 'bool', default: false }] };
 // an adder's / subtractor's names: its result, its carry or borrow in and out, and whether they are there
 export const arithIo = (t, p) => (t === 'sub' ? { o: 'D', ci: 'BI', co: 'BO', cin: !!p.bin, cout: !!p.bout, op: '-' } : { o: 'S', ci: 'CI', co: 'CO', cin: !!p.cin, cout: !!p.cout, op: '+' });
+// the comparisons a COMP makes (#1555): one, its output O ('eq'), or several, an output each, EQ NE LT LE GT GE in
+// that order ('eq,gt': op a list, ticked in its properties)
+export const COMPARE_OPS = ['eq', 'ne', 'lt', 'le', 'gt', 'ge'];
+export const COMPARE_SYM = { eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' };
+/** A COMP's comparisons, in pin order (['eq'] when it names none). */
+export function compareOps(p) {
+  const want = new Set(String(p?.op ?? '').toLowerCase().split(/[,\s]+/));
+  const ops = COMPARE_OPS.filter(o => want.has(o));
+  return ops.length ? ops : ['eq'];
+}
+/** The output pin of a COMP's comparison op: O when it makes that one only, else EQ, NE… (#1555). */
+export const comparePin = (p, op) => (compareOps(p).length > 1 ? op.toUpperCase() : 'O');
 SYMBOLS.compare = {
-  category: 'Arithmetic', title: 'COMP', description: 'Comparator O = A <op> B',
-  params: [{ ...P_WIDTH, default: 8 }, { name: 'op', label: 'Operation', kind: 'select', options: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'], default: 'eq' },
+  category: 'Arithmetic', title: 'COMP', description: 'Comparator O = A <op> B, or several comparisons at once (EQ, NE, LT, LE, GT, GE)',
+  params: [{ ...P_WIDTH, default: 8 }, { name: 'op', label: 'Comparisons', kind: 'multi', options: COMPARE_OPS, default: 'eq' },
     { name: 'signed', label: 'Signed', kind: 'bool', default: false },
     // (#319: A0.. and B0.., as ADD's)
     { name: 'bits', label: 'Pins per bit (A0.., B0..)', kind: 'bool', default: false }],
@@ -371,12 +383,16 @@ export function symbolDef(sym, modules = {}) {
     const title = `${t === 'sub' ? 'SUB' : 'ADD'}${W}`;
     return { ...boxDef(west, east, title, 80, 40), shape: 'lib', title };
   }
-  if (t === 'compare' && p.bits && W > 1) {
-    // (#319) a box: A0.. B0.. on the left, O on the right, its relation in its name
+  const cmp = t === 'compare' ? compareOps(p) : null;
+  if (cmp && ((p.bits && W > 1) || cmp.length > 1)) {
+    // (#319) a box: A0.. B0.. (or A, B) on the left, O on the right, its relation in its name; several comparisons
+    // (#1555): an output each, EQ … GE
     const west = [];
-    for (const g of ['A', 'B']) for (let i = 0; i < W; i++) west.push({ name: `${g}${i}`, dir: 'in', width: 1 });
-    const title = `COMP${W} ${({ eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' })[p.op] || '?'}`;
-    return { ...boxDef(west, [{ name: 'O', dir: 'out', width: 1 }], title, 80, 40), shape: 'lib', title };
+    if (p.bits && W > 1) for (const g of ['A', 'B']) for (let i = 0; i < W; i++) west.push({ name: `${g}${i}`, dir: 'in', width: 1 });
+    else for (const g of ['A', 'B']) west.push({ name: g, dir: 'in', width: W });
+    const east = cmp.length > 1 ? cmp.map(o => ({ name: o.toUpperCase(), dir: 'out', width: 1 })) : [{ name: 'O', dir: 'out', width: 1 }];
+    const title = `COMP${W}${cmp.length > 1 ? '' : ` ${COMPARE_SYM[cmp[0]]}`}`;
+    return { ...boxDef(west, east, title, 80, 40), shape: 'lib', title };
   }
   if (t === 'add' || t === 'sub' || t === 'compare') {
     const h = t === 'compare' ? 40 : 60;
@@ -386,7 +402,7 @@ export function symbolDef(sym, modules = {}) {
     if (t === 'compare') pins.push({ name: 'O', dir: 'out', x: 80, y: 20, side: 'E', width: 1 });
     else pins.push({ name: io.o, dir: 'out', x: 80, y: 30, side: 'E', width: W });
     if (io?.cout) pins.push({ name: io.co, dir: 'out', x: 80, y: 50, side: 'E', width: 1 });
-    const op = t === 'add' ? '+' : t === 'sub' ? '−' : ({ eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '?');
+    const op = t === 'add' ? '+' : t === 'sub' ? '−' : COMPARE_SYM[cmp[0]];
     return { w: 80, h, shape: 'arith', op, body: { x: 20, y: 0, w: 40, h }, pins };
   }
   if (S && (S.ff || t === 'register' || t === 'counter')) {

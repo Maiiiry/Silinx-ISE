@@ -12,7 +12,7 @@
 // Every SYMBOLS type and every preset has a description, a function per pin and a meaning per
 // parameter in both languages (test/symdocs.test.js). Flip-flop texts and mode tables are derived
 // from the ff flags of the symbol ({ k, ce, clr, pre, r, s, sp }), so FD*, FT* and FJK* agree.
-import { SYMBOLS, MUX_INPUTS, defaultParams, symbolParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
+import { SYMBOLS, MUX_INPUTS, COMPARE_SYM, compareOps, defaultParams, symbolParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
 import { DEVICE_PRIMITIVES, primitiveOf, primitiveResource } from './primitives.js';
 import { resourcesOf } from './resources.js';
 import { intOr as int } from './util.js';
@@ -77,7 +77,7 @@ const PARAM_PT = {
   'Width': 'Largura', 'INIT': 'INIT', 'Select bits': 'Bits de seleção', 'Address bits': 'Bits de endereço',
   'Enable input E': 'Entrada de habilitação E', 'Select as a bus (S)': 'Seleção em barramento (S)', 'Bus pins (A, D)': 'Pinos em barramento (A, D)', 'Output bits': 'Bits de saída',
   'Type': 'Tipo', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Carry in': 'Transporte de entrada (carry in)',
-  'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Pins per bit (A0.., B0.., D0..)': 'Um pino por bit (A0.., B0.., D0..)', 'Borrow in (BI)': 'Empréstimo de entrada (BI)', 'Borrow out (BO)': 'Empréstimo de saída (BO)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
+  'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Pins per bit (A0.., B0.., D0..)': 'Um pino por bit (A0.., B0.., D0..)', 'Borrow in (BI)': 'Empréstimo de entrada (BI)', 'Borrow out (BO)': 'Empréstimo de saída (BO)', 'Operation': 'Operação', 'Comparisons': 'Comparações', 'Signed': 'Com sinal', 'Value': 'Valor',
   'Clock enable': 'Habilitação do relógio', 'Reset': 'Reset', 'Reset/INIT value': 'Valor de reset/INIT', 'Direction': 'Sentido',
   'Enable input': 'Entrada de habilitação', 'Pins per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
   'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB', 'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
@@ -329,10 +329,18 @@ function describe(type, p, tx, preset) {
       return { text: t, formula: `${p.bout ? '{BO, D}' : 'D'} = A − B${p.bin ? ' − BI' : ''}${p.bout ? '' : ` mod 2^${W}`}` };
     }
     case 'compare': {
-      const sym = { eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '=';
-      return { text: [tx(`COMP compares two ${W}-bit numbers A and B and outputs O = 1 when the relation chosen in Operation holds (here A ${sym} B), else 0. With Signed the numbers are two's complement (e.g. 1111 = −1 < 0001); otherwise they are unsigned (1111 = 15 > 0001). Comparators decide in data paths: end of count, thresholds, sorting, the conditions of a state machine.`,
-        `COMP compara dois números A e B de ${W} bits e dá O = 1 quando a relação escolhida em Operação se verifica (aqui A ${sym} B), senão 0. Com Com sinal os números estão em complemento para dois (p. ex. 1111 = −1 < 0001); caso contrário são sem sinal (1111 = 15 > 0001). Os comparadores tomam decisões nos caminhos de dados: fim de contagem, limiares, ordenação, as condições de uma máquina de estados.`),
-      tx('Equality (=) is the AND of the XNOR of each bit pair; the order relations come from a subtraction (the borrow / sign of A − B).', 'A igualdade (=) é o AND dos XNOR de cada par de bits; as relações de ordem vêm de uma subtração (o empréstimo / sinal de A − B).')], formula: `O = (A ${sym} B)${p.signed ? tx(' (signed)', ' (com sinal)') : ''}` };
+      // (several comparisons at once, an output each, #1555)
+      const ops = compareOps(p), sym = COMPARE_SYM[ops[0]];
+      const tail = tx(` With Signed the numbers are two's complement (e.g. 1111 = −1 < 0001); otherwise they are unsigned (1111 = 15 > 0001). Comparators decide in data paths: end of count, thresholds, sorting, the conditions of a state machine.`,
+        ` Com Com sinal os números estão em complemento para dois (p. ex. 1111 = −1 < 0001); caso contrário são sem sinal (1111 = 15 > 0001). Os comparadores tomam decisões nos caminhos de dados: fim de contagem, limiares, ordenação, as condições de uma máquina de estados.`);
+      const head = ops.length > 1
+        ? tx(`COMP compares two ${W}-bit numbers A and B and outputs every comparison ticked in Comparisons on a pin of its own, 1 when its relation holds, else 0: ${ops.map(o => `${o.toUpperCase()} (A ${COMPARE_SYM[o]} B)`).join(', ')}.`,
+          `COMP compara dois números A e B de ${W} bits e dá cada comparação marcada em Comparações num pino próprio, 1 quando a sua relação se verifica, senão 0: ${ops.map(o => `${o.toUpperCase()} (A ${COMPARE_SYM[o]} B)`).join(', ')}.`)
+        : tx(`COMP compares two ${W}-bit numbers A and B and outputs O = 1 when the relation ticked in Comparisons holds (here A ${sym} B), else 0; ticking several gives an output each (EQ, NE, LT, LE, GT, GE).`,
+          `COMP compara dois números A e B de ${W} bits e dá O = 1 quando a relação marcada em Comparações se verifica (aqui A ${sym} B), senão 0; marcando várias dá uma saída para cada uma (EQ, NE, LT, LE, GT, GE).`);
+      const formula = ops.length > 1 ? ops.map(o => `${o.toUpperCase()} = (A ${COMPARE_SYM[o]} B)`).join(', ') : `O = (A ${sym} B)`;
+      return { text: [head + tail,
+      tx('Equality (=) is the AND of the XNOR of each bit pair; the order relations come from a subtraction (the borrow / sign of A − B).', 'A igualdade (=) é o AND dos XNOR de cada par de bits; as relações de ordem vêm de uma subtração (o empréstimo / sinal de A − B).')], formula: `${formula}${p.signed ? tx(' (signed)', ' (com sinal)') : ''}` };
     }
     case 'constant': return { text: [tx(`CONSTANT drives a fixed value on its output O (${W} bit${W > 1 ? 's' : ''}): the Value written in decimal, hexadecimal (0x…) or binary (0b…). It sets fixed operands (e.g. the end value of a counter for a comparator), ties unused inputs, and selects fixed modes.`,
       `CONSTANT impõe um valor fixo na saída O (${W} bit${W > 1 ? 's' : ''}): o Valor escrito em decimal, hexadecimal (0x…) ou binário (0b…). Define operandos fixos (p. ex. o valor final de um contador para um comparador), fixa entradas não usadas e seleciona modos fixos.`)], formula: `O = ${p.value ?? 0}` };
@@ -445,11 +453,13 @@ function pinFunc(type, p, pin, tx) {
     if (n === 'BO') return tx('Borrow out: 1 when the unsigned difference is negative (A < B + BI)', 'Empréstimo de saída: 1 quando a diferença sem sinal é negativa (A < B + BI)');
     return { A: tx('Minuend', 'Aditivo (minuendo)'), B: tx('Subtrahend', 'Subtrativo (subtraendo)'), D: tx('Difference A − B, modulo 2^Width (two\'s complement)', 'Diferença A − B, módulo 2^Largura (complemento para dois)') }[n];
     case 'compare': {
-      const sym = { eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '=';
+      // (several comparisons, an output each, #1555)
+      const sym = COMPARE_SYM[COMPARE_SYM[n.toLowerCase()] ? n.toLowerCase() : compareOps(p)[0]];
       // (a pin per bit, #319)
       if (/^[AB]\d+$/.test(n)) return n[0] === 'A' ? tx(`Bit ${n.slice(1)} of the first operand A (weight ${2 ** +n.slice(1)})`, `Bit ${n.slice(1)} do primeiro operando A (peso ${2 ** +n.slice(1)})`)
         : tx(`Bit ${n.slice(1)} of the second operand B (weight ${2 ** +n.slice(1)})`, `Bit ${n.slice(1)} do segundo operando B (peso ${2 ** +n.slice(1)})`);
-      return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando'), O: tx(`1 when A ${sym} B (${p.signed ? 'signed' : 'unsigned'}), else 0`, `1 quando A ${sym} B (${p.signed ? 'com sinal' : 'sem sinal'}), senão 0`) }[n];
+      if (n === 'O' || COMPARE_SYM[n.toLowerCase()]) return tx(`1 when A ${sym} B (${p.signed ? 'signed' : 'unsigned'}), else 0`, `1 quando A ${sym} B (${p.signed ? 'com sinal' : 'sem sinal'}), senão 0`);
+      return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando') }[n];
     }
     case 'constant': return tx('The constant value', 'O valor constante');
     case 'vcc': return tx('Logic 1 on every bit', '1 lógico em todos os bits');
@@ -518,7 +528,7 @@ function paramMeaning(type, d, p, tx) {
     case 'bout': return tx('Adds the borrow out output BO', 'Acrescenta a saída de empréstimo BO');
     case 'cin': return tx('Adds the carry in input CI', 'Acrescenta a entrada de transporte CI');
     case 'cout': return tx('Adds the carry out output CO', 'Acrescenta a saída de transporte CO');
-    case 'op': return tx('Relation tested: eq (=), ne (≠), lt (<), le (≤), gt (>), ge (≥)', 'Relação testada: eq (=), ne (≠), lt (<), le (≤), gt (>), ge (≥)');
+    case 'op': return tx('Relations tested, one or several ticked: EQ (=), NE (≠), LT (<), LE (≤), GT (>), GE (≥); one is output O, several an output each named after it', 'Relações testadas, uma ou várias marcadas: EQ (=), NE (≠), LT (<), LE (≤), GT (>), GE (≥); uma é a saída O, várias uma saída cada, com o seu nome');
     case 'signed': return tx("Compare as two's complement signed numbers (otherwise unsigned)", 'Comparar como números com sinal em complemento para dois (senão sem sinal)');
     case 'value': return tx('The constant: decimal, 0x… hexadecimal or 0b… binary', 'A constante: decimal, 0x… hexadecimal ou 0b… binário');
     case 'reset': return tx("none; async: CLR input, acts at once; sync: R input, acts at the rising edge", 'none: sem reset; async: entrada CLR, atua imediatamente; sync: entrada R, atua no flanco ascendente');
