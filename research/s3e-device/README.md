@@ -1019,3 +1019,11 @@ A dry run of the open flow's tests on the measured graph (`REPLACING.md`) found 
 
 The six test files that failed again on the rebuilt graph: `fpga-hard` and `iob-pair-clocks` now pass; the five failures
 left are the tests pinned to the shipped graph's routes or contents (`REPLACING.md`).
+
+### The measurements committed (2026-10-26)
+
+Step 1 of `REPLACING.md`: the measurements the description is built from, in the repository (`data/xc3s250e/`, 6.3 MB
+gzipped: the observation, the other packages' observations, the arc probes, the verdicts of the 57 rounds of tests, the
+switch tiles), and the description itself (`measured.json.gz`, 0.75 MB). `build-measured.mjs` rebuilds it from them
+alone in a few seconds; `test/s3e-device.test.js` checks the rebuild is byte for byte the committed file. The shipped
+graph is unchanged.

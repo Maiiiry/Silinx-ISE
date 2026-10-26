@@ -20,6 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
+import { buildMeasured, DATA_DIR } from '../research/s3e-device/build-measured.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
@@ -985,4 +986,14 @@ test('gen-obspins2 dcmpads: every DCM on the clock pad ISE gives it (DCM_PAD), r
   const srcs = [{ path: 'top.v', lang: 'verilog', text: d.v }];
   const lib = compile([...primitiveSources(srcs), ...srcs]);
   assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
+});
+
+test('build-measured: the measured XC3S250E description rebuilt from its measurements alone is the committed one (#3)', () => {
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  const packed = buildMeasured(g);
+  const committed = zlib.gunzipSync(fs.readFileSync(path.join(DATA_DIR, 'measured.json.gz'))).toString();
+  assert.equal(JSON.stringify(packed), committed);
+  // (loads, and on the device's grid)
+  const m = loadDevice(packed);
+  assert.deepEqual([m.rows, m.cols, m.tileCount], [g.rows, g.cols, 1057]);
 });
