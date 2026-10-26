@@ -94,7 +94,7 @@ jobs:
   # the memory test in WebKit (Safari's engine), and the single-file edition builds
   webkit-standalone:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -106,8 +106,12 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-webkit-${{ hashFiles('node_modules/playwright-core/package.json') }}
+      # (the system's packages: a slow mirror took 13 minutes, #1559; the tests' time apart)
+      - name: WebKit and its system packages
+        run: npx playwright install --with-deps webkit
+        timeout-minutes: 25
       - name: Memory in WebKit (Safari's engine)
-        run: npx playwright install --with-deps webkit && npm run test:webkit
+        run: npm run test:webkit
         timeout-minutes: 15
       - run: node scripts/build-standalone.mjs
 
