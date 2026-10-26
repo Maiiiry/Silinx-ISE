@@ -1,7 +1,8 @@
 // UI: the schematic editor's Properties panel (web/js/sch-props.js, #405: out of mountSchEditor), mounted alone in the
 // page with an editor of its own whose actions are recorded: the sheet's properties (its language), a gate's (its width,
 // inputs, its inverted inputs, a reserved name refused), an I/O marker's, several objects' commands, a module's
-// instance opened, the panel read-only and during a live simulation, the message of a net renamed with its names.
+// instance opened, the panel read-only and during a live simulation, the message of a net renamed with its names, the
+// properties several objects have in common set for all of them at once (#1471).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest } from './harness.js';
@@ -11,7 +12,7 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-// a sheet with an AND2 (U1), an I/O marker A, a module instance (M1 of 'sub'), a VCC (V1) and a GND saved before VCC / GND
+// a sheet with an AND2 (U1), I/O markers A (an input) and B (an output), a module instance (M1 of 'sub'), a VCC (V1) and a GND saved before VCC / GND
 // had a Width (G1, #953); the editor's edit() applies, normalizes
 // the document (a new object, as the editor's) and draws the panel again
 const MOUNT = async (readOnly = false) => {
@@ -23,7 +24,7 @@ const MOUNT = async (readOnly = false) => {
   let doc = normalizeDoc({ name: 'top', lang: 'vhdl', symbols: [{ id: 'S1', type: 'and2', name: 'U1', x: 100, y: 100 },
     { id: 'S2', type: 'module', name: 'M1', x: 300, y: 100, params: { module: 'sub' } },
     { id: 'S3', type: 'vcc', name: 'V1', x: 500, y: 100, params: { width: 1 } }, { id: 'S4', type: 'gnd', name: 'G1', x: 600, y: 100 }],
-  ports: [{ id: 'P1', name: 'A', dir: 'in', x: 20, y: 100 }] }, { modules });
+  ports: [{ id: 'P1', name: 'A', dir: 'in', x: 20, y: 100 }, { id: 'P2', name: 'B', dir: 'out', x: 20, y: 300 }] }, { modules });
   let sel = new Set(), genLang = 'vhdl', live = null;
   const calls = [];
   const rec = (name) => (...a) => { calls.push([name, ...a]); };
@@ -178,4 +179,48 @@ uiTest('#953 schematic Properties: the Width of a VCC and of a GND (one saved wi
   await setWidth('Width', '4');
   assert.deepEqual(await read(), [['Instance name', 'G1', ''], ['Width', '4', '']]);
   assert.equal(await page.eval(() => window.__props.doc().symbols.find((x) => x.id === 'S4').params.width), 4);
+});
+
+uiTest('#1471 schematic Properties: several I/O markers\' direction and width set at once (one edit), a mixed value; in Portuguese', E, async (page) => {
+  await page.eval(MOUNT);
+  const read = () => page.eval(() => {
+    const { propBody } = window.__props;
+    return [propBody.querySelector('.se-ptitle').textContent, ...[...propBody.querySelectorAll('.se-field')].map((f) => {
+      const el = f.querySelector('input, select');
+      return `${f.querySelector('label').textContent}=${el.value}${el.placeholder ? ` [${el.placeholder}]` : ''}${el.tagName === 'SELECT' ? ` {${[...el.options].map((o) => o.textContent).join('|')}}` : ''}`;
+    })];
+  });
+  const select = (ids) => page.eval((i) => { const { props, setSel, calls } = window.__props; setSel(i); props.renderProps(); calls.splice(0); }, ids);
+  const set = (label, v) => page.eval((l, x) => { const { field, set: s, calls } = window.__props; s(field(l), x); return calls.splice(0).filter((c) => c[0] === 'edit').length; }, label, v);
+  const ports = () => page.eval(() => window.__props.doc().ports.map((p) => `${p.name}:${p.dir}:${p.width}${p.type ? `:${p.type}` : ''}`));
+  // the two markers: their direction mixed, their width 1, no HDL type; no name
+  await select(['port:P1', 'port:P2']);
+  assert.deepEqual(await read(), ['2 objects selected', 'Direction= {(mixed)|Input|Output|Bidirectional}',
+    'Width=1', 'HDL type=']);
+  // a mixed field left empty: nothing changed
+  assert.equal(await set('Direction', ''), 0);
+  assert.deepEqual(await ports(), ['A:in:1', 'B:out:1']);
+  // Bidirectional for both, in one edit; no longer mixed
+  assert.equal(await set('Direction', 'inout'), 1);
+  assert.deepEqual(await ports(), ['A:inout:1', 'B:inout:1']);
+  assert.deepEqual(await read(), ['2 objects selected', 'Direction=inout {Input|Output|Bidirectional}', 'Width=1', 'HDL type=']);
+  // one marker's HDL type: the type mixed; a width of 4 for both, in one edit
+  await select(['port:P1']);
+  await set('HDL type', 'std_logic_vector(3 downto 0)');
+  await select(['port:P1', 'port:P2']);
+  assert.deepEqual((await read()).slice(2), ['Width=1', 'HDL type= [(mixed)]']);
+  assert.equal(await set('HDL type', ''), 0);
+  assert.equal(await set('Width', '4'), 1);
+  assert.deepEqual(await ports(), ['A:inout:4:std_logic_vector(3 downto 0)', 'B:inout:4']);
+  // the commands are still there
+  assert.deepEqual(await page.eval(() => [...window.__props.propBody.querySelectorAll('button')].map((b) => b.textContent)), ['Rotate', 'Mirror', 'Delete']);
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  try {
+    await select(['port:P1', 'port:P2']);
+    await page.waitFor(() => window.__props.propBody.querySelector('.se-ptitle')?.textContent === '2 objetos selecionados', [], { what: 'the PT title' });
+    assert.deepEqual(await read(), ['2 objetos selecionados', 'Direção=inout {Entrada|Saída|Bidirecional}', 'Largura=4', 'Tipo HDL= [(vários)]']);
+  } finally {
+    await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  }
 });
