@@ -4,7 +4,7 @@
 import { api } from './api.js';
 import { h, alertDlg, confirmDlg, popupMenu, toast, downloadText } from './ui.js';
 import { elaborate } from '/core/compile.js';
-import { viewHdl, drawnHdlPath, drawnHdlClash } from '/core/view-hdl.js';
+import { viewHdl, drawnHdlPath, drawnHdlClash, drawingInLanguage } from '/core/view-hdl.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
 import { S, activateDoc, closeDocByPath, compileProject, findDoc, flushDoc, hdlInProject, moduleInfo, openDoc,
   openFile, setDirty, status } from './app.js';
@@ -435,17 +435,16 @@ export async function drawnHdlLanguage(path, m) {
   const owned = m.generatedFile;
   const L = m.lang === 'verilog' ? 'Verilog' : 'VHDL';
   if (!owned || !S.fileTree.includes(owned) || /\.v$/i.test(owned) === (L === 'Verilog')) return false;
-  const r = viewHdl(path, JSON.stringify({ ...m, generatedFile: undefined }), { modules: viewKind(path) === 'sch' ? await schModules() : {} });
-  if (!r?.text || r.errors.length) { status(`${owned.split('/').pop()} not made in ${L} yet: ${path.split('/').pop()} has errors`); return true; }
-  const target = owned.replace(/\.[^./]+$/, L === 'Verilog' ? '.v' : '.vhd');
+  const r = drawingInLanguage(path, JSON.stringify(m), m.lang, { modules: viewKind(path) === 'sch' ? await schModules() : {} });
+  if (!r.hdl || r.errors.length) { status(`${owned.split('/').pop()} not made in ${L} yet: ${path.split('/').pop()} has errors`); return true; }
+  const { target } = r;
   if ((S.diskTree || S.fileTree).includes(target)) { log(`WARNING: the HDL of ${path} is not made in ${L}: ${target} exists already`, 'warn'); return true; }
   S.syncing = true;
   try {
     closeDocByPath(owned);
     await api.deleteFile(S.project.name, owned);
-    await api.writeFile(S.project.name, target, r.text);
-    const next = { ...m, generatedFile: target };
-    await api.writeFile(S.project.name, path, JSON.stringify(next, null, viewKind(path) === 'sch' ? 1 : 2));
+    await api.writeFile(S.project.name, target, r.hdl);
+    await api.writeFile(S.project.name, path, r.text);
     linkOpenEditor(path, target);
     log(`${path}: its HDL is now in ${L}, ${target} (${owned} removed)`, 'info');
   } finally { S.syncing = false; }

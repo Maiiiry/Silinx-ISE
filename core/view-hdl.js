@@ -134,3 +134,24 @@ export function drawnHdlClash({ path, module, lang, exists, read, definedIn = nu
   if (definesModule(read(target), module, target)) return { kind: 'same', path, module, target, file: target };
   return { kind: 'other', path, module, target, file: target, free: freeHdlPath(path, module, lang, exists) };
 }
+
+/**
+ * A drawing (`path`, its JSON `text`) in the language `lang` (#220: its editor's HDL language; #1477: the
+ * project's Preferred Language): { model, text: the drawing in that language, its link (generatedFile) renamed
+ * .vhd <-> .v when it makes its HDL with no errors; from: its HDL file until now (null when it has none); target:
+ * its HDL file in that language (null when it has none); hdl, module, errors: the HDL it makes in it }, or null
+ * when it is in that language already (the drawing and its HDL file). modules: the project's modules (the
+ * schematics' module symbols).
+ */
+export function drawingInLanguage(path, text, lang, { modules = {} } = {}) {
+  const m = JSON.parse(text);
+  const L = lang === 'verilog' ? 'verilog' : 'vhdl';
+  const from = m.generatedFile || null;
+  const was = m.lang ? (m.lang === 'verilog' ? 'verilog' : 'vhdl') : from && /\.s?v$/i.test(from) ? 'verilog' : 'vhdl';
+  if (was === L && (!from || /\.s?v$/i.test(from) === (L === 'verilog'))) return null;
+  const model = { ...m, lang: L };
+  const r = drawnHdl(path, { ...model, generatedFile: undefined }, modules);
+  const target = from && from.replace(/\.[^./]+$/, L === 'verilog' ? '.v' : '.vhd');
+  if (from && !r.errors.length) model.generatedFile = target;
+  return { model, text: JSON.stringify(model, null, /\.sch\.json$/i.test(path) ? 1 : 2), from, target, hdl: r.text, module: r.module, errors: r.errors };
+}
