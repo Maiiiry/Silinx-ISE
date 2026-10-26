@@ -544,3 +544,26 @@ uiTest('#1395 Tasks ▸ Simulate: the Files page beside Simulation, the test ben
   assert.deepEqual(await page.eval(() => [[...document.querySelectorAll('.task-sim-files, .task-sim-tabs')].some((e) => e.getClientRects().length), !!document.querySelector('.doc:not([hidden]) .isim-tree')?.getClientRects().length]), [false, true]);
   assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
 }, { build: DEV });
+
+// #1396: every simulation closed, a test bench's HDL still open in Simulate: the side panel shown, the HDL and its tab
+// beside it
+uiTest('#1396 Tasks ▸ Simulate: the simulations closed, a test bench\'s HDL still open: the side panel shown, the HDL beside it', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimHdlLeft', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimHdlLeft');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-sim-panel .task-sim-bench .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top' && !window.Silinx.active.view.state.running, [], { what: 'SSim', timeout: 60000 });
+  await page.showSide();
+  await page.click('.doc:not([hidden]) .isim-tree > li > .row .badge', { text: 'VHDL' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:sim/tb_top.vhd', [], { what: 'its HDL' });
+  await page.eval(() => window.SilinxApp.closeDoc(window.SilinxApp.S.docs.find((d) => d.id === 'isim:tb_top')));
+  await page.waitFor(() => !window.SilinxApp.S.docs.some((d) => /^isim:/.test(d.id)) && window.Silinx.active?.id === 'file:sim/tb_top.vhd', [], { what: 'the simulation closed' });
+  await page.waitFor(() => !!document.getElementById('task-sim-panel')?.getClientRects().length, [], { what: 'the side panel', timeout: 5000 });
+  assert.deepEqual(await page.eval(() => {
+    const p = document.getElementById('task-sim-panel').getBoundingClientRect(), d = window.Silinx.active.el.getBoundingClientRect(), t = document.getElementById('doc-tabs').getBoundingClientRect();
+    return { task: document.documentElement.dataset.task, beside: d.left >= p.right - 1, tabs: Math.abs(t.left - p.right) <= 1, under: d.top >= t.bottom - 1, bench: [...document.querySelectorAll('#task-sim-panel .task-sim-bench .lbl')].map((e) => e.textContent) };
+  }), { task: 'sim', beside: true, tabs: true, under: true, bench: ['tb_top'] });
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
