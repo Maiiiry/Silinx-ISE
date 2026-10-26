@@ -11,9 +11,9 @@ import { resourceCount } from '/core/resources.js';
 import { identError } from '/core/modgen.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere } from './wizards.js';
 import { S, app } from './app.js';
+import { cleanLoc } from './wizard-util.js';
 
 const LANGS = [['vhdl', 'VHDL'], ['verilog', 'Verilog']];
-const cleanLoc = loc => String(loc || 'src').trim().replace(/\/+$/, '') || 'src';
 const INIT_RE = /\.(mem|coe)$/i;
 
 // the block RAMs of the project's device, in the plan's unit: RAMB16s (Spartan-3E), 9 Kbit halves (Spartan-6)

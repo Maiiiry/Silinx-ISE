@@ -25,6 +25,7 @@ import { mountAsmPointer } from './asm-pointer.js';
 import { mountAsmLayout } from './asm-layout.js';
 import { mountAsmView } from './asm-view.js';
 import { mountAsmOps } from './asm-ops.js';
+import { clone } from '/core/util.js';
 
 export const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
@@ -33,7 +34,6 @@ let instanceCounter = 0;
 
 // ------------------------------------------------------------------------------- helpers
 
-const clone = (o) => JSON.parse(JSON.stringify(o));
 const ceilTo = (v, g) => Math.ceil(v / g) * g;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 

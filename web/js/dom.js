@@ -32,3 +32,11 @@ export function h(tag, attrs = {}, ...children) {
   }
   return el;
 }
+
+/** An SVG element: attributes (null / false left out) and children (nodes, or text) (#1406: the drawing editors'). */
+export const sv = (tag, attrs = {}, ...kids) => {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) el.setAttribute(k, v);
+  for (const c of kids) if (c != null) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return el;
+};

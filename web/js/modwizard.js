@@ -15,11 +15,10 @@ import { h, alertDlg, toast } from './ui.js';
 import { generateModule, schematicFromPorts, checkPorts, identError, guessClockReset, QUICK_PORTS, MAX_WIDTH } from '/core/modgen.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere, drawnHdlTaken } from './wizards.js';
 import { S, app } from './app.js';
+import { cleanLoc, portText } from './wizard-util.js';
 
 const LANGS = [['vhdl', 'VHDL'], ['verilog', 'Verilog']];
-const cleanLoc = loc => String(loc || 'src').trim().replace(/\/+$/, '') || 'src';
 const extOf = (lang, sch) => (sch ? '.sch.json' : lang === 'verilog' ? '.v' : '.vhd');
-const portText = p => `${p.name}${+p.width > 1 ? ` [${p.width - 1}:0]` : ''}`;
 
 // ---------------------------------------------------------------- page 1: name, language, description
 /** The first page: the name, the language, the location (the file), a description. Also the Petri Net Wizard's (web/js/petri-wizard.js: ext, hint, nameLabel). */

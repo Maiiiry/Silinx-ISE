@@ -11,11 +11,11 @@ import { renameDialog } from './rename.js';
 import {
   clashItem, drawnHdlLanguage, drawnTop, freshHdl, refreshOpenEditor, refreshSyncBanner, setViewAsTop, staleHdl
 } from './drawings.js';
+import { designSources as ttDesignSources } from './tbwizard.js';
 
 // ---- truth tables (.tt.json): table -> HDL module, synchronized like ASM charts
 // The generated HDL module is linked by generatedFile: every change of the table rewrites it (its HDL
 // file is read-only, #1176). Truth Table / Karnaugh Map editor: truthtable.js; logic: core/logic.js.
-const ttDesignSources = () => S.sources.filter(s => s.role === 'design' && (s.lang === 'vhdl' || s.lang === 'verilog'));
 
 export async function openTt(path) {
   const id = `tt:${path}`;

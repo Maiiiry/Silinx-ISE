@@ -14,6 +14,7 @@
 // the HDL generated from the net. Model, simulation, HDL and PNML: core/petri.js.
 
 import { h, downloadText, undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
+import { sv } from './dom.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import { normalizePetri, newPetri, fire, toPnml, fromPnml } from '/core/petri.js';
 import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
@@ -21,18 +22,13 @@ import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
 import { mountPetriSim } from './petri-sim.js';
 import { mountPetriSide } from './petri-side.js';
 import { mountPetriDraw } from './petri-draw.js';
+import { clone } from '/core/util.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
 let instances = 0;
-const clone = o => JSON.parse(JSON.stringify(o));
 const snap = v => Math.round(v / (GRID / 2)) * (GRID / 2);
-export const sv = (tag, attrs = {}, ...kids) => {
-  const el = document.createElementNS(SVGNS, tag);
-  for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) el.setAttribute(k, v);
-  for (const c of kids) if (c != null) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  return el;
-};
+export { sv };   // (web/js/dom.js's)
 
 export function mountPetriEditor(container, opts = {}) {
   const uid = `pn${++instances}`;

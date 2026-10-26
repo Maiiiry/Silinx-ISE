@@ -8,6 +8,7 @@
 // The Spartan-6 primitives (CARRY4, SRLC32E, DSP48A1, RAMB8BWER / RAMB16BWER…) are core/unisim-s6.js's.
 
 import { UNISIM_S6_VHDL } from './unisim-s6.js';
+import { hex2 } from './util.js';
 
 /** True if a VHDL source uses the UNISIM library (e.g. a netgen netlist). */
 export const usesUnisim = (text) => /\blibrary\s+unisim\b/i.test(String(text || ''));
@@ -369,7 +370,6 @@ end silinx;`,
 // bits shared by the ports whatever their widths, INIT_xx / INITP_xx contents, synchronous read
 // with WRITE_MODE (WRITE_FIRST / READ_FIRST / NO_CHANGE), SSR loads SRVAL, INIT = output at start.
 // Collisions between the ports are not checked.
-const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 // INIT_00 .. INIT_3F (data) and INITP_00 .. INITP_07 (parity) generics, and their loading into mem / par
 const bramInitGens = (parity) => [...Array.from({ length: 64 }, (_, k) => `INIT_${hex2(k)} : bit_vector(255 downto 0) := ${hexZeros(256)}`),
   ...(parity ? Array.from({ length: 8 }, (_, k) => `INITP_${hex2(k)} : bit_vector(255 downto 0) := ${hexZeros(256)}`) : [])];

@@ -9,13 +9,9 @@ import { lex } from './vhdl/lexer.js';
 import { tokenize } from './verilog/lexer.js';
 import { analyze } from './scopes.js';
 import { VHDL_WORDS, VERILOG_WORDS, SV_WORDS } from './reserved.js';
+import { lineStarts } from './util.js';
 
 /** Offsets of each line start, to turn token line/col (1-based) into string offsets. */
-function lineStarts(text) {
-  const out = [0];
-  for (let i = 0; i < text.length; i++) if (text[i] === '\n') out.push(i + 1);
-  return out;
-}
 
 /** Replace the tokens at `hits` ([{line, col, len}]) by `name`. */
 function splice(text, hits, name) {

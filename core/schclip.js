@@ -16,9 +16,9 @@
 // the copy's own nets stay joined). A net name of an I/O marker of the sheet that is not pasted is kept: the
 // copy connects to that port (the clk of the sheet, say), as a label of that name drawn by hand does.
 import { DOC_VERSION, GRID, normalizeDoc, symbolPins, parseNetName } from './schdoc.js';
+import { clone } from './util.js';
 
 const CLIP_VERSION = 1;
-const clone = o => JSON.parse(JSON.stringify(o));
 const key = (x, y) => `${x},${y}`;
 function onSeg(p, a, b) {
   if (a.x === b.x) return p.x === a.x && p.y >= Math.min(a.y, b.y) && p.y <= Math.max(a.y, b.y);

@@ -2,11 +2,12 @@
 // IR: locations, errors, statement lists and walks, conversions, literals and constants, case choices.
 // Isomorphic ES module: no DOM and no Node APIs.
 
+import { clone } from './util.js';
+export { clone };   // (core/util.js's)
 // ---------------------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------------------
 
-export const clone = (o) => JSON.parse(JSON.stringify(o));
 export const lineOf = (loc) => (loc && loc.line ? loc.line : null);
 export const atLine = (loc) => (lineOf(loc) ? ` at line ${loc.line}` : '');
 

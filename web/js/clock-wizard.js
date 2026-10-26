@@ -12,9 +12,9 @@ import { identError } from '/core/modgen.js';
 import { periodNs } from '/core/ucf.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere } from './wizards.js';
 import { S, app } from './app.js';
+import { cleanLoc } from './wizard-util.js';
 
 const LANGS = [['vhdl', 'VHDL'], ['verilog', 'Verilog']];
-const cleanLoc = loc => String(loc || 'src').trim().replace(/\/+$/, '') || 'src';
 const mhzText = x => `${(+x).toFixed(3).replace(/\.?0+$/, '')} MHz`;
 const FAMILY_PRIM = { spartan3e: 'DCM_SP', spartan6: 'PLL_BASE' };
 

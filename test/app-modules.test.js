@@ -31,7 +31,7 @@ const PARTS = {
     'checkConstraints', 'regenerateUcf', 'runImpl', 'runImplInner', 'SYNTH_OPEN', 'synthOpenRunning', 'synthOpen', 'FLOW_UP_TO',
     'generateSimModel', 'postParTiming', 'textPowerReport', 'backAnnotatePins', 'readBuildFile', 'showTextDoc', 'stopProcesses'],
   'drawings.js': ['openAsm', 'staleHdl', 'freshHdl', 'syncHdlFromAsm', 'asmFromHdlFile',
-    'convertToAsm', 'asmContextMenu', 'ttDesignSources', 'openTt', 'ttModel', 'refreshTtLink', 'syncHdlFromTt',
+    'convertToAsm', 'asmContextMenu', 'openTt', 'ttModel', 'refreshTtLink', 'syncHdlFromTt',
     'ttFromHdl', 'pickModule', 'moduleTable', 'loadTtFromModule', 'ttSchematicDoc', 'openTtSchematic', 'ttSchT', 'refreshTtSchematic', 'ttContextMenu',
     'openFsm', 'fsmModel', 'refreshFsmLink', 'fsmDir', 'freeName', 'syncHdlFromFsm',
     'fsmFromHdlFile', 'convertToFsm', 'fsmToAsmChart', 'asmToFsmDiagram', 'fsmTruthTables', 'openPetri',
