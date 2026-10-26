@@ -972,7 +972,10 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.project.simTop === 'tb_and2', [], { what: 'the new test bench chosen' });
-  await page.click('#task-switch .task-btn[data-task="sim"]');
+  // (still in Simulate, its file opened there, #1392)
+  await page.waitFor(() => window.Silinx.active?.id === 'file:sim/tb_and2.vhd', [], { what: 'its file open' });
+  assert.deepEqual(await page.eval(() => [document.documentElement.dataset.task, window.Silinx.active.task]), ['sim', 'sim']);
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
   await page.waitFor(() => document.querySelector('#task-sim-panel .task-sim-bench .row.sel')?.textContent === '▸tb_and2', [], { what: 'its row' });
   assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['▸tb_and2*'], beside: true, side: false });
   assert.notEqual(await page.eval(() => document.querySelector('#task-empty p').textContent), 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
