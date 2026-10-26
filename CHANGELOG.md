@@ -3,6 +3,22 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.16.0
+
+In short:
+
+- Find in Project: the toolbar's search (Ctrl+Shift+F) finds across every source of the project, the drawings too, and replaces (one result or all, with Undo).
+- Truth tables: the HDL logic in the form of the fewest gates or of the least delay; every form shows its gates and its delay as a circuit.
+- Simulate's side panel looks as the other tasks' (its width, as resized, its background and text); SSim's right-click menus look as the app's.
+- Truth tables: the Karnaugh map of 5 or 6 variables in 3D, its maps stacked in depth and the groups across maps drawn as boxes through them; turned by dragging.
+
+In detail:
+
+- Find in Project: the toolbar's Find (and Edit ▸ Find in Project…, Ctrl+Shift+F) opens a page that searches the project's HDL, constraints, test benches, data files and the drawings' texts (names, labels, expressions, notes), with match case, whole word and regular expressions; its results by file and line (a drawing's by where in it), a click opening the place; Replace one result or all of them in the text sources, Undo Replace putting them back; an HDL generated from a drawing is found and marked, replaced in its drawing. Matching: core/find.js. An editor's own Find stays in its bar (#1430).
+- Truth tables: HDL logic offers Least number of gates (each symbol one gate whatever its number of inputs, an inverted input one inverter shared by its uses) and Least delay (the fewest gates on the longest path, every gate the same delay), the cheapest of the minimal SOP and POS, the XOR form and the NAND and NOR forms, per output, the tie broken by the other measure; the results show every form's gates and delay, and the forms of the fewest gates and of the least delay with theirs; the HDL module's comment says each output's form, its gates and delay (#1427).
+- Tasks: a coherence pass over the four tasks' side panels (their tabs, labels, the bars above the trees and their buttons, the tree rows, the tasks' pages, measured alike); Simulate's panel with nothing simulated was the one apart, now as the others: the side panel's width (as the viewer resized it, not 300 px), the surface's background (not grey) and the same text size. In the modern interface SSim's menus (its tree's, its waves') have the app's menus' items (30 px, not 22 px) and separators (#1409).
+- Truth tables: for 5 or 6 inputs, the K-map's 3D box stacks its 4×4 maps in depth, one layer per value of the map variables in Gray order (labelled, neighbouring layers differing in one variable), each group drawn on every layer it covers and as a translucent box between neighbouring layers it covers; turned by dragging or the arrow keys, Reset view; a cell clicked cycles its value as in the flat map; the choice kept for every table (web/js/tt-kmap3d.js) (#1407).
+
 ## 15.15.0
 
 Each task gets its own side panel: Simulate's lists the test benches and their files, Emulate's has its processes as
