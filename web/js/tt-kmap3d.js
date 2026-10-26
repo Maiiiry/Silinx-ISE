@@ -1,12 +1,12 @@
 // The Karnaugh map of 5 or 6 variables in 3D (#1407): its 4×4 maps stacked in depth, one layer for each value of the
 // map variables in Gray order (neighbouring layers differ in one variable), each group drawn on every layer it covers
-// and, between neighbouring layers it covers, as a box through them: a group across maps seen as one solid. Turned
-// by dragging (or the arrow keys); Reset view; a cell clicked as in the flat map. The truth table editor
-// (web/js/truthtable.js) shows it for 5 or 6 inputs when its 3D box is ticked. Layout and groups: core/logic.js
-// kmapLayout, kmapRects. Styles: web/css/truthtable.css (.tt-k3d).
+// and, between neighbouring layers it covers, as the extrusion of its exact shape (#1491): a group across maps seen as
+// one solid. Turned by dragging (or the arrow keys); Reset view; a cell clicked as in the flat map. The truth table
+// editor (web/js/truthtable.js) shows it for 5 or 6 inputs when its 3D box is ticked. Layout: core/logic.js
+// kmapLayout; a group's solid: core/kmap3d.js kmapSolid. Styles: web/css/truthtable.css (.tt-k3d).
 
 import { h } from './ui.js';
-import { kmapRects } from '/core/logic.js';
+import { kmapSolid } from '/core/kmap3d.js';
 
 const C = 40;      // a cell's side (px)
 const GAP = 90;    // between layers (px)
@@ -44,25 +44,36 @@ export function mountKmap3d(host, { layout: L, col, terms, groups, colors, onCel
     }
     stack.append(layer);
   });
-  // the groups: a rectangle on each layer, a box between neighbouring layers of the same group (the first and last of
-  // four, neighbours too, are said by their rectangles alone)
+  // the groups: the solid of each (core/kmap3d.js): its pieces on every layer it covers, as in the flat map (a piece
+  // that wraps around an edge flush with it, open there), and the walls of their closed sides between neighbouring
+  // layers it covers (the first and last of four, neighbours too, are said by their pieces alone)
   terms.forEach((t, ti) => {
     const color = colors[ti % colors.length], ins = 3 + (ti % 4) * 3;
-    const rects = kmapRects(L, t);
-    for (const rc of rects) {
-      const x = rc.c0 * C + ins, y = rc.r0 * C + ins, w = (rc.c1 - rc.c0 + 1) * C - 2 * ins, hh = (rc.r1 - rc.r0 + 1) * C - 2 * ins;
-      const z = -rc.map * GAP;
-      stack.append(h('div', { class: 'tt-k3d-group', 'data-term': ti, 'data-map': rc.map,
-        style: { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${hh}px`, borderColor: color, background: `${color}26`, transform: `translateZ(${z + 1}px)` } }));
-      const next = rects.find(o => o.map === rc.map + 1 && o.r0 === rc.r0 && o.r1 === rc.r1 && o.c0 === rc.c0 && o.c1 === rc.c1);
-      if (!next) continue;
-      // the box's four sides from this layer to the next one
-      const side = (left, top, width, height, tf) => stack.append(h('div', { class: 'tt-k3d-side', 'data-term': ti,
-        style: { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, background: `${color}33`, borderColor: color, transform: tf } }));
-      side(x, y, w, GAP, `translateZ(${z}px) rotateX(-90deg)`);                   // top (towards the next layer, back)
-      side(x, y + hh, w, GAP, `translateZ(${z}px) rotateX(-90deg)`);              // bottom
-      side(x, y, GAP, hh, `translateZ(${z}px) rotateY(90deg)`);                   // left
-      side(x + w, y, GAP, hh, `translateZ(${z}px) rotateY(90deg)`);               // right
+    const solid = kmapSolid(L, t);
+    // a piece's rectangle on its layer: inset on its closed sides, to the map's edge on its open ones
+    const box = p => {
+      const x = p.c0 * C + (p.open.left ? 0 : ins), y = p.r0 * C + (p.open.top ? 0 : ins);
+      return { x, y, w: (p.c1 + 1) * C - (p.open.right ? 0 : ins) - x, hh: (p.r1 + 1) * C - (p.open.bottom ? 0 : ins) - y };
+    };
+    const key = p => `${p.r0}-${p.r1},${p.c0}-${p.c1}`;
+    for (const { map, pieces } of solid.layers) for (const p of pieces) {
+      // (a corner on an open side square: the piece goes on across the edge)
+      const { x, y, w, hh } = box(p), o = p.open;
+      const radius = [o.top || o.left, o.top || o.right, o.bottom || o.right, o.bottom || o.left].map(sq => (sq ? '0' : '10px')).join(' ');
+      stack.append(h('div', { class: 'tt-k3d-group', 'data-term': ti, 'data-map': map, 'data-piece': key(p), 'data-cells': p.cells.join(','),
+        style: { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${hh}px`, borderColor: color, background: `${color}26`, borderRadius: radius,
+          ...Object.fromEntries(Object.keys(p.open).filter(s => p.open[s]).map(s => [`border${s[0].toUpperCase()}${s.slice(1)}Style`, 'none'])),
+          transform: `translateZ(${-map * GAP + 1}px)` } }));
+    }
+    for (const { from, to, pieces } of solid.joins) for (const p of pieces) {
+      const { x, y, w, hh } = box(p), z = -from * GAP;
+      // the piece's closed sides from this layer to the next one
+      const tf = { top: [x, y, w, GAP, 'rotateX(-90deg)'], bottom: [x, y + hh, w, GAP, 'rotateX(-90deg)'], left: [x, y, GAP, hh, 'rotateY(90deg)'], right: [x + w, y, GAP, hh, 'rotateY(90deg)'] };
+      for (const s of p.walls) {
+        const [left, top, width, height, rot] = tf[s];
+        stack.append(h('div', { class: 'tt-k3d-side', 'data-term': ti, 'data-from': from, 'data-to': to, 'data-piece': key(p), 'data-side': s,
+          style: { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, background: `${color}33`, borderColor: color, transform: `translateZ(${z}px) ${rot}` } }));
+      }
     }
   });
   apply();

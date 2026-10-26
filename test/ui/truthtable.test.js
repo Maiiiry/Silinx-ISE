@@ -695,3 +695,50 @@ uiTest('#1407 Truth Table: the Karnaugh map of 5 or 6 inputs in 3D, its groups a
   await page.click(`${T} .tt-k3d-on`);
   await page.waitFor((t) => !document.querySelector(`${t} .tt-k3d`) && !!document.querySelector(`${t} svg.tt-kmap`), [T], { what: 'flat again' });
 });
+
+// #1491: in 3D, a group is the extrusion of its exact shape on the layers: the flat map's pieces on each layer it
+// covers (a group across the edges split as there, open on the edge), the walls of their closed sides between the
+// neighbouring layers it covers only (none through the layers between the first and last of four)
+uiTest('#1491 Truth Table: the 3D Karnaugh map draws each group as its exact shape through the layers it covers', E, async (page) => {
+  const table = (name, inputs, on) => ({ version: 1, name, inputs, outputs: ['f'], table: { f: Array.from({ length: 1 << inputs.length }, (_, m) => (on(m) ? '1' : '0')).join('') }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' });
+  const I5 = ['a', 'b', 'c', 'd', 'e'], I6 = ['a', 'b', 'c', 'd', 'e', 'g'];
+  const tables = {
+    corners: table('corners', I5, (m) => !(m & 0b00100) && !(m & 0b00001)),   // c'·e': the four corners of both layers
+    ends: table('ends', I6, (m) => !(m & 0b010000) && !!(m & 0b000100)),      // b'·d: the first and last of four layers
+    sides: table('sides', I6, (m) => !(m & 0b100000) && !(m & 0b000001)),     // a'·g': the left and right edges of layers 0 and 1
+  };
+  await makeProject(env, { name: 'Tt3dShape', files: Object.fromEntries(Object.entries(tables).map(([k, d]) => [`src/${k}.tt.json`, JSON.stringify(d)])) });
+  await page.openProject('Tt3dShape');
+  const T = '.doc:not([hidden]) .tt-editor';
+  const open = async (f) => {
+    await page.eval((p) => window.SilinxApp.openTt(p), f);
+    await page.waitFor((p) => window.Silinx.active?.id === `tt:${p}` && document.querySelector('.doc:not([hidden]) .tt-editor .tt-kmap-host'), [f], { what: f });
+    if (!(await page.eval((t) => !!document.querySelector(`${t} .tt-k3d`), T))) await page.click(`${T} .tt-k3d-on`);
+    await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: `${f} in 3D` });
+  };
+  // the drawn solid: each layer's pieces (their cells; their open sides, no border there), and each join's walls
+  const solid = () => page.eval((t) => ({
+    pieces: [...document.querySelectorAll(`${t} .tt-k3d-group`)].map((g) => `${g.dataset.term}@${g.dataset.map}:${g.dataset.cells}:${['Top', 'Bottom', 'Left', 'Right'].filter((s) => g.style[`border${s}Style`] === 'none').join('')}`).sort(),
+    walls: [...document.querySelectorAll(`${t} .tt-k3d-side`)].map((w) => `${w.dataset.term}@${w.dataset.from}-${w.dataset.to}:${w.dataset.piece}:${w.dataset.side}`).sort(),
+  }), T);
+  // the flat map's cells on a layer: the 1s whose map variables (the bits above the rows and columns') are the layer's
+  const cellsOf = (d, map) => [...d.table.f].flatMap((v, m) => (v === '1' && m >> 4 === [0, 1, 3, 2][map] ? [m] : []));
+  // 5 inputs, c'·e': on each layer the four corners apart (each open on its two edges), joined by their 8 walls
+  await open('src/corners.tt.json');
+  const c = await solid();
+  assert.deepEqual(c.pieces, ['0@0:0:TopLeft', '0@0:10:BottomRight', '0@0:2:TopRight', '0@0:8:BottomLeft', '0@1:16:TopLeft', '0@1:18:TopRight', '0@1:24:BottomLeft', '0@1:26:BottomRight']);
+  assert.deepEqual([0, 1].map((m) => c.pieces.filter((p) => p.startsWith(`0@${m}:`)).map((p) => +p.split(':')[1]).sort((a, b) => a - b)), [cellsOf(tables.corners, 0), cellsOf(tables.corners, 1)]);
+  assert.deepEqual(c.walls, ['0@0-1:0-0,0-0:bottom', '0@0-1:0-0,0-0:right', '0@0-1:0-0,3-3:bottom', '0@0-1:0-0,3-3:left', '0@0-1:3-3,0-0:right', '0@0-1:3-3,0-0:top', '0@0-1:3-3,3-3:left', '0@0-1:3-3,3-3:top']);
+  // 6 inputs, b'·d: on the first and last layers (neighbours in Gray order), no walls through the two between
+  await open('src/ends.tt.json');
+  const e = await solid();
+  assert.deepEqual(e.pieces.map((p) => p.split(':').slice(0, 1).concat(p.split(':')[2]).join(':')), ['0@0:', '0@3:']);
+  assert.deepEqual(e.pieces.map((p) => p.split(':')[1]), [0, 3].map((m) => cellsOf(tables.ends, m).join(',')));
+  assert.deepEqual(e.walls, []);
+  // 6 inputs, a'·g': on layers 0 and 1 the left and right columns apart, each open on its edge, joined by 3 walls each
+  await open('src/sides.tt.json');
+  const s = await solid();
+  assert.deepEqual(s.pieces.map((p) => p.replace(/:[\d,]+:/, ':')), ['0@0:Left', '0@0:Right', '0@1:Left', '0@1:Right']);
+  assert.deepEqual([0, 1].map((m) => s.pieces.filter((p) => p.startsWith(`0@${m}:`)).flatMap((p) => p.split(':')[1].split(',').map(Number)).sort((a, b) => a - b)), [cellsOf(tables.sides, 0), cellsOf(tables.sides, 1)]);
+  assert.deepEqual(s.walls, ['0@0-1:0-3,0-0:bottom', '0@0-1:0-3,0-0:right', '0@0-1:0-3,0-0:top', '0@0-1:0-3,3-3:bottom', '0@0-1:0-3,3-3:left', '0@0-1:0-3,3-3:top']);
+});
