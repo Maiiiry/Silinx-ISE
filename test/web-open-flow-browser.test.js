@@ -120,3 +120,26 @@ test('#967 prepareBrowserFlow: the device\'s assets asked of the flow\'s worker 
     assert.deepEqual(await q2, { fetched: 0, bytes: 0, pruned: 1 });
   } finally { delete globalThis.caches; delete globalThis.isSecureContext; }
 });
+
+test('#1450 prepareBrowserFlow: nothing in a page opened from a file, though it has Cache Storage (WebKit, Firefox); a site\'s page prepares', async () => {
+  const dev = { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' };
+  globalThis.caches = {};
+  globalThis.isSecureContext = true;   // (a file:// page is a secure context)
+  try {
+    const n = FakeWorker.all.length, sent = FakeWorker.all.reduce((k, w) => k + w.posted.length, 0);
+    for (const href of ['file:///Users/me/Silinx-ISE.html', 'file:///C:/Users/me/Downloads/Silinx-ISE.html']) {
+      globalThis.location = new URL(href);
+      const p = prepareBrowserFlow(dev);
+      assert.equal(FakeWorker.all.length, n, `${href}: no worker`);
+      assert.equal(FakeWorker.all.reduce((k, w) => k + w.posted.length, 0), sent, `${href}: nothing asked`);
+      assert.equal(await p, null);
+    }
+    // the same device from the site: asked
+    globalThis.location = new URL('https://example.test/');
+    const p = prepareBrowserFlow(dev);
+    const w = live(), m = w.posted.at(-1);
+    assert.deepEqual(m.prepare, { graph: 'xc3s100ecp132-4.json.gz', device: 'xc3s100e', pkg: 'cp132' });
+    w.send({ id: m.id, done: { fetched: 9, bytes: 17e6, pruned: 0 } });
+    assert.deepEqual(await p, { fetched: 9, bytes: 17e6, pruned: 0 });
+  } finally { delete globalThis.caches; delete globalThis.isSecureContext; delete globalThis.location; }
+});
