@@ -35,6 +35,7 @@ import { mountSchTry } from './sch-try.js';
 import { mountSchKeys } from './sch-keys.js';
 import { mountSchMouse } from './sch-mouse.js';
 import { mountSchRename } from './sch-rename.js';
+import { mountSchContext } from './sch-context.js';
 import { mountSchPalette } from './sch-palette.js';
 import { mountSchSelect } from './sch-select.js';
 import { mountSchView } from './sch-view.js';
@@ -247,7 +248,7 @@ export function mountSchEditor(container, opts = {}) {
   }
 
   // ---------------- selection operations (sch-select.js)
-  const { copySel, deleteSel, mirrorSel, paste, rotateSel, selectAll, selected } = mountSchSelect({
+  const { copySel, deleteSel, duplicateSel, mirrorSel, paste, rotateSel, selectAll, selected } = mountSchSelect({
     container, changed, destroyed: () => destroyed, doc: () => doc, edit, live: () => live, modules: () => modules,
     placing: () => placing, readOnly, refusedShort, render, renderOverlay, renderProps, sel: () => sel, setTool,
     snapshot, tool: () => tool, undoStack, setSel: (v) => { sel = v; }
@@ -272,9 +273,10 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- mouse
   const itemAt = target => { const g = target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
   let spaceDown = false;
-  // the right-click menu: Rename… (sch-rename.js, #1546)
-  const { contextMenu } = mountSchRename({ readOnly, doc: () => doc, live: () => live, nl: () => nl, tool: () => tool, edit, render, renderProps,
-    joinByName, renameLabel, setSel: (v) => { sel = v; } });
+  // the right-click menu (sch-context.js): Rename… (sch-rename.js, #1546), the selection's commands (#1556)
+  const { rename } = mountSchRename({ doc: () => doc, nl: () => nl, edit, joinByName, renameLabel });
+  const { contextMenu } = mountSchContext({ readOnly, doc: () => doc, live: () => live, sel: () => sel, tool: () => tool, render, renderProps,
+    rename, duplicateSel, rotateSel, mirrorSel, deleteSel, setSel: (v) => { sel = v; } });
   const { finishMove, onMove, onUp } = mountSchMouse({
     container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, contextMenu, curve,
     cursor: () => cursor, destroyed: () => destroyed, doc: () => doc, drag: () => drag, finishSegMove, finishWire,

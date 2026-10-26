@@ -1,13 +1,13 @@
 // The schematic editor's selection operations (#405: out of mountSchEditor in sch-editor.js): the items selected,
 // Delete, Select All, Rotate and Mirror, and Cut / Copy / Paste (#677, core/schclip.js: the selection with the wires
-// joining it, pasted offset and untangled).
+// joining it, pasted offset and untangled), Duplicate (#1556: its symbols and I/O markers only, beside it).
 import { clipEmpty, copySchematic, pasteSchematic } from '/core/schclip.js';
-import { oppositeSide, portSide, rotSize, symbolDef, turnSide } from '/core/schdoc.js';
+import { GRID, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef, turnSide } from '/core/schdoc.js';
 import { readClip, writeClip } from './clipboard.js';
 import { untangleNew } from '/core/schpath.js';
 import { KEYS, snap } from './sch-editor.js';
 
-/** { copySel, deleteSel, mirrorSel, paste, rotateSel, selectAll, selected } of mountSchEditor (destroyed(), doc(), live(), modules(), placing(), sel(), tool(): its current values). */
+/** { copySel, deleteSel, duplicateSel, mirrorSel, paste, rotateSel, selectAll, selected } of mountSchEditor (destroyed(), doc(), live(), modules(), placing(), sel(), tool(): its current values). */
 export function mountSchSelect(ctx) {
   const {
     container, changed, destroyed, doc, edit, live, modules, placing, readOnly, refusedShort, render, renderOverlay,
@@ -77,7 +77,22 @@ export function mountSchSelect(ctx) {
     if (refusedShort(before, 'Pasting')) { undoStack.pop(); changed(); }
     container.focus({ preventScroll: true });
   }
+  // Duplicate (#1556, the right-click menu): the symbols and I/O markers selected copied without their wires, placed
+  // right of them, with fresh names (as pasted); the copy selected
+  function duplicateSel() {
+    const ids = selected('sym'), pids = selected('port');
+    if (readOnly || live() || (!ids.length && !pids.length)) return;
+    const clip = { ...copySchematic(doc(), { symbols: ids, ports: pids }, modules()), wires: [], labels: [] };
+    const boxes = [...doc().symbols.filter(s => ids.includes(s.id)).map(s => symbolBox(s, modules())), ...doc().ports.filter(p => pids.includes(p.id)).map(portBox)];
+    const dx = snap(Math.max(...boxes.map(b => b.x + b.w)) - Math.min(...boxes.map(b => b.x))) + 2 * GRID;
+    const before = snapshot();
+    edit(() => {
+      const r = pasteSchematic(doc(), clip, { dx, dy: 0 });
+      setSel(new Set([...r.ids.symbols.map(id => `sym:${id}`), ...r.ids.ports.map(id => `port:${id}`)]));
+    });
+    if (refusedShort(before, 'Duplicating')) { undoStack.pop(); changed(); }
+  }
   function selectAll() { setSel(new Set([...doc().symbols.map(s => `sym:${s.id}`), ...doc().wires.map(w => `wire:${w.id}`), ...doc().ports.map(p => `port:${p.id}`), ...doc().labels.map(l => `label:${l.id}`)])); render(); renderProps(); }
 
-  return { copySel, deleteSel, mirrorSel, paste, rotateSel, selectAll, selected };
+  return { copySel, deleteSel, duplicateSel, mirrorSel, paste, rotateSel, selectAll, selected };
 }

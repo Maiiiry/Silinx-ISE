@@ -4,7 +4,7 @@
 export const SCH_PT = {
   // Rename… of the right-click menu (#1546)
   'Rename Instance': 'Mudar o Nome da Instância', 'Rename I/O Marker': 'Mudar o Nome do Marcador de E/S', 'Rename Net Name': 'Mudar o Nome da Rede',
-  'Type a name.': 'Escreva um nome.',
+  'Type a name.': 'Escreva um nome.', 'Duplicate': 'Duplicar',
   // a module's symbol out of date (#1183)
   'Update Symbol': 'Atualizar Símbolo',
   // palette
@@ -99,8 +99,8 @@ export const SCH_PT_PATTERNS = [
   [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
   [/^Beautify: (\d+) wires? drawn again$/, (m, n) => `Embelezar: ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
   // a wire, a move or a paste between two named nets refused, as in ISE (#754, #806)
-  [/^(The wire|The move|Pasting) would short net '(.+)' and net '(.+)': two named nets cannot be joined\. Rename one of them first \(the same name connects them\)\.$/,
-    (m, what, a, b) => `${{ 'The wire': 'O fio', 'The move': 'A deslocação', Pasting: 'Colar' }[what]} poria em curto a rede '${a}' e a rede '${b}': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).`],
+  [/^(The wire|The move|Pasting|Duplicating) would short net '(.+)' and net '(.+)': two named nets cannot be joined\. Rename one of them first \(the same name connects them\)\.$/,
+    (m, what, a, b) => `${{ 'The wire': 'O fio', 'The move': 'A deslocação', Pasting: 'Colar', Duplicating: 'Duplicar' }[what]} poria em curto a rede '${a}' e a rede '${b}': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).`],
   // the multiplexers and demultiplexers, with and without the enable E (#301)
   [/^(\d+):1 multiplexer \(select ([S\d ]+)\)$/, 'Multiplexador $1:1 (seleção $2)'],
   [/^(\d+):1 multiplexer with enable \(Xilinx (\w+)\): O = (.+) when E = 1, 0 when E = 0$/, 'Multiplexador $1:1 com habilitação (Xilinx $2): O = $3 quando E = 1, 0 quando E = 0'],

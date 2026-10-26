@@ -57,7 +57,7 @@ uiTest('#1546 schematic: Rename… in the right-click menu of a symbol, an I/O m
   const open = async (target, title, item = 'Rename…') => {
     await page.rightClick(target);
     await page.waitFor(() => document.querySelector('body > .menu-popup'), [], { what: 'the menu' });
-    assert.deepEqual(await menuItems(), [item]);
+    assert.equal((await menuItems())[0], item);
     await page.click('body > .menu-popup > .mi');
     await page.waitDialog(title);
   };
