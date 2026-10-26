@@ -66,7 +66,7 @@ const ICON = {
 // the side panel and the messages of a task the first time (the task in front gets the space)
 const DEFAULTS = {
   edit: { side: true, console: true },
-  sim: { side: false, console: false },
+  sim: { side: true, console: false },   // (its side panel shown, the Simulation tree with a simulation open too: #1408)
   emu: { side: true, console: false },   // (the emulator's Watch shown: #1020)
   impl: { side: true, console: true },
 };

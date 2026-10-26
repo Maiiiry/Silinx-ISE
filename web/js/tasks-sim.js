@@ -1,5 +1,5 @@
 // The Tasks interface's Simulate task (#800, #782): the waves get the screen.
-// - SSim's own Instances and Objects are the task's side panel, folded at first (the Design pane is not shown in
+// - SSim's own Instances and Objects are the task's side panel, shown at first (#1408; the Design pane is not shown in
 //   Simulate), from the top of the work area as Design's and Implement's, the simulations' tabs to its right (fitSimTabs,
 //   #1259); SSim's title bar is the task's bar's (the module and the model, #854); its run controls stay its
 //   toolbar, in the wave window's line (placeSimToolbar, #1026); no status line (#1017; web/css/tasks.css).

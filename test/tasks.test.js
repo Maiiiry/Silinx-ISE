@@ -57,7 +57,7 @@ test('readState: the kept state checked; anything else falls back to Edit and th
 
 test('arrangement: the task in front gets the space; what the viewer left wins; a narrow screen closes the drawer', () => {
   assert.deepEqual(T.arrangement('edit'), { side: true, console: true, max: false });
-  assert.deepEqual(T.arrangement('sim'), { side: false, console: false, max: false });
+  assert.deepEqual(T.arrangement('sim'), { side: true, console: false, max: false });   // (#1408)
   assert.deepEqual(T.arrangement('emu'), { side: true, console: false, max: false });   // (the Watch shown: #1020)
   assert.deepEqual(T.arrangement('impl'), { side: true, console: true, max: false });
   assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: false, max: true, doc: 'isim' });
