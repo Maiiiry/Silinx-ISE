@@ -223,6 +223,7 @@ html[data-layout="tasks"] #workspace > .doc > .page:has(> .summary-table) { disp
 html[data-layout="tasks"] #workspace > .doc > .page:has(> .summary-table) > :not(.summary-table) { flex: 1 0 100%; margin: 0; }
 html[data-layout="tasks"] .summary-table { flex: 1 1 400px; min-width: min(100%, 400px); width: auto; margin: 0; border: 1px solid var(--m-border); border-radius: 10px; border-collapse: separate;
   border-spacing: 0; overflow: hidden; background: var(--m-surface); }
+html[data-layout="tasks"] .summary-table caption.summary-status { display: table-caption; }   /* (the first card's, its top in line with the others', #1409) */
 html[data-layout="tasks"] .summary-table caption { padding: 10px 12px 6px; border: none; background: none; color: var(--m-muted); font-size: 11px; font-weight: 650;
   letter-spacing: .06em; text-transform: uppercase; }
 html[data-layout="tasks"] .summary-table :is(th, td) { border: none; border-top: 1px solid var(--m-border); }

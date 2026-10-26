@@ -25,7 +25,8 @@ export function mountSummary(el) {
     const board = S.devices?.boards.find(b => b.id === pj.board);
     // made by the Silinx toolchain (no ISE): its reports are in build/open/
     const open = rep?.source === 'open';
-    page.append(h('table', { class: 'summary-table' },
+    // (its caption the Tasks interface's only, where the tables are cards side by side: their tops in line, #1409)
+    page.append(h('table', { class: 'summary-table' }, h('caption', { class: 'summary-status' }, 'Project Status'),
       row('Project File:', `${pj.name}/silinx.json`, 'Parser Errors:', h('span', { class: errs ? 'status-bad' : 'status-good' }, errs ? `${errs} Errors` : 'No Errors')),
       row('Module Name:', pj.top || '(not set)', 'Implementation State:', implState),
       row('Target Device:', `${pj.device.part}${pj.device.speed}-${pj.device.package}`, 'Warnings:', warns ? `${warns} Warnings` : 'No Warnings'),
