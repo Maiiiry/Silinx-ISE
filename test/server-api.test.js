@@ -571,7 +571,9 @@ test('xise: import with provided / missing files (unsafe paths mapped into the p
   assert.equal(r.body.missing.length, 3);
   assert.equal(r.body.project.constraints, 'constraints/top.ucf');
 
-  // export.xise: written into the project and sent as an attachment
+  // export.xise: sent as an attachment, and nothing written into the project (#1432: a GET changes no
+  // file; sync-xise writes the .xise on request)
+  const treeBefore = (await call('GET', '/projects/X1')).body.fileTree;
   r = await call('GET', '/projects/X1/export.xise');
   assert.equal(r.status, 200);
   assert.match(r.headers.get('content-type'), /application\/xml/);
@@ -579,7 +581,12 @@ test('xise: import with provided / missing files (unsafe paths mapped into the p
   assert.equal(r.headers.get('content-disposition'), 'attachment; filename=X1.xise');
   assert.match(r.body, /xil_pn:name="Implementation Top" xil_pn:value="Architecture\|top\|rtl"/);
   assert.match(r.body, /xil_pn:name="FPGA Start-Up Clock" xil_pn:value="User Clock"/);
-  assert.equal(await fs.readFile(path.join(P.projectDir('X1'), 'X1.xise'), 'utf8'), r.body);
+  assert.equal(fss.existsSync(path.join(P.projectDir('X1'), 'X1.xise')), false, 'the GET wrote no .xise');
+  assert.deepEqual((await call('GET', '/projects/X1')).body.fileTree, treeBefore, 'the project\'s files unchanged');
+  // the same XML the sync writes on request
+  r = await call('POST', '/projects/X1/sync-xise', { direction: 'export' });
+  assert.equal(r.status, 200);
+  assert.equal(await fs.readFile(path.join(P.projectDir('X1'), 'X1.xise'), 'utf8'), (await call('GET', '/projects/X1/export.xise')).body);
   assert.equal((await call('GET', '/projects/Nope/export.xise')).status, 404);
 });
 
