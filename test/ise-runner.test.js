@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
+import { workflowFiles } from './workflows-lib.mjs';
 import { REPO, WORKFLOWS, OPEN, HARD_CLOSE, lastOpening, needs, decide, runs, run, serviceCommands } from '../scripts/ise-runner/window.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -211,7 +212,7 @@ test('window.sh: root\'s own Node.js copy first, then the runner\'s', { skip: !p
 test('workflows: only ise.yml and quality.yml reach the ISE runner, as the hook and the window say', () => {
   const hosted = /^(ubuntu|macos|windows)-[\w.]+$/;
   const reach = [];
-  for (const f of fs.readdirSync(WF).filter(f => f.endsWith('.yml')).sort()) {
+  for (const f of workflowFiles(WF)) {
     const yml = fs.readFileSync(path.join(WF, f), 'utf8');
     for (const [name, lines] of Object.entries(jobs(yml))) {
       const at = lines.findIndex(l => /^ {4}runs-on:/.test(l));

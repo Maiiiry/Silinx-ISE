@@ -5,11 +5,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isWorkflowFile, workflowFiles } from './workflows-lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, '.github/workflows');
-const FILES = fs.readdirSync(DIR).filter(f => f.endsWith('.yml')).sort();
+const FILES = workflowFiles(DIR);
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8');
+
+test('workflows: the files checked are the .yml and the .yaml ones, as GitHub runs both (#1438)', () => {
+  for (const f of ['ci.yml', 'ise.yaml', 'a.b.yml']) assert.ok(isWorkflowFile(f), f);
+  for (const f of ['README.md', 'ci.yml.bak', 'ci.json', 'yml', '.yml.txt']) assert.ok(!isWorkflowFile(f), f);
+  assert.ok(FILES.includes('ise.yml') && FILES.includes('quality.yml'));
+  assert.deepEqual(FILES, fs.readdirSync(DIR).filter(isWorkflowFile).sort());
+});
 
 /** The jobs of a workflow: { name: [its lines] } (two-space keys under jobs:). */
 export function jobs(yml) {
