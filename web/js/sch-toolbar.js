@@ -1,5 +1,5 @@
 // The schematic editor's toolbar (#405: out of mountSchEditor in sch-editor.js): its tools and buttons (Select, Wire,
-// Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Undo / Redo, the zooms, Symbol Info, Hop-overs,
+// Net Name, I/O Marker, Rotate, Mirror, Delete, Keep connections, Beautify (#1481), Undo / Redo, the zooms, Symbol Info, Hop-overs,
 // Names, Curved wires (#1144), Check, Try it, the panels on a narrow screen), the editing ones hidden when read-only, and their clicks.
 import { PROPS_KEY, SYMBOLS_KEY, panelToggle } from './narrow.js';
 import { h } from './dom.js';
@@ -9,7 +9,7 @@ import { ICON } from './sch-editor.js';
 /** { optBox } of mountSchEditor (live(): its current values). */
 export function mountSchToolbar(ctx) {
   const {
-    container, btn, canSim, curvedBox, deleteSel, enterSim, fit, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
+    beautify, container, btn, canSim, curvedBox, deleteSel, enterSim, fit, hopsBox, infoTarget, keepBox, leaveSim, live, mirrorSel, namesBox,
     openInfo, readOnly, redo, rotateSel, runCheck, sep, setTool, tb, undo, zoomAt
   } = ctx;
 
@@ -19,6 +19,7 @@ export function mountSchToolbar(ctx) {
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
+    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'beautify', title: 'Beautify: draw the wires again, easier to read (fewer bends and crossings, none through a symbol), the selected ones or the whole sheet; the symbols and the connections stay the same', html: `${ICON.beautify}<span>Beautify</span>` }),
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
@@ -41,7 +42,7 @@ export function mountSchToolbar(ctx) {
     let prevSep = true;                                   // a separator at the start is not needed
     let lastSep = null;
     for (const el of tb.children) {
-      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
+      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'beautify', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
       if (el.classList.contains('se-sep')) { if (prevSep) el.style.display = 'none'; else { prevSep = true; lastSep = el; } }
       else { prevSep = false; lastSep = null; }
     }
@@ -56,6 +57,7 @@ export function mountSchToolbar(ctx) {
     if (live() && !['zin', 'zout', 'fit', 'check'].includes(a)) return;
     if (a === 'select' || a === 'wire' || a === 'net' || a === 'io') setTool(a);
     else if (a === 'rotate') rotateSel(); else if (a === 'mirror') mirrorSel(); else if (a === 'delete') deleteSel();
+    else if (a === 'beautify') beautify();
     else if (a === 'undo') undo(); else if (a === 'redo') redo();
     else if (a === 'zin') zoomAt(1.25); else if (a === 'zout') zoomAt(0.8); else if (a === 'fit') fit();
     else if (a === 'check') runCheck(true);

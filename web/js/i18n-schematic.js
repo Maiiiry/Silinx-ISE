@@ -31,6 +31,12 @@ export const SCH_PT = {
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   // a net name another net has (#689)
   'Hop-overs': 'Saltos', 'Draw a small arc where two wires cross without connecting': 'Desenhar um pequeno arco onde dois fios se cruzam sem se ligarem',
+  // Beautify (#1481)
+  'Beautify': 'Embelezar',
+  'Beautify: draw the wires again, easier to read (fewer bends and crossings, none through a symbol), the selected ones or the whole sheet; the symbols and the connections stay the same':
+    'Embelezar: desenhar de novo os fios, mais fáceis de ler (menos dobras e cruzamentos, nenhum através de um símbolo), os selecionados ou a folha toda; os símbolos e as ligações ficam iguais',
+  'Beautify: no wire in the selection': 'Embelezar: nenhum fio na seleção',
+  'Beautify: the wires are already as clear as they can be': 'Embelezar: os fios já estão tão claros quanto possível',
   // curved wires (#1144)
   'Curved wires': 'Fios curvos',
   'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)': 'Desenhar os fios como curvas suaves de qualquer forma em vez dos cantos retos do desenho técnico (as ligações, as redes e o HDL iguais)',
@@ -82,6 +88,7 @@ export const SCH_PT_PATTERNS = [
     return p;
   }).join(' e ')}`],
   [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
+  [/^Beautify: (\d+) wires? drawn again$/, (m, n) => `Embelezar: ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
   // a wire, a move or a paste between two named nets refused, as in ISE (#754, #806)
   [/^(The wire|The move|Pasting) would short net '(.+)' and net '(.+)': two named nets cannot be joined\. Rename one of them first \(the same name connects them\)\.$/,
     (m, what, a, b) => `${{ 'The wire': 'O fio', 'The move': 'A deslocação', Pasting: 'Colar' }[what]} poria em curto a rede '${a}' e a rede '${b}': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).`],
