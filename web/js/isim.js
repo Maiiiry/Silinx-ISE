@@ -34,6 +34,7 @@ import { mountToolbar } from './isim-toolbar.js';
 import { mountView } from './isim-view.js';
 import { mountStatus } from './isim-status.js';
 import { mountColors } from './isim-colors.js';
+import { wavePrintView } from './isim-print.js';
 
 // ------------------------------------------------------------------------------- constants
 export const ROW_H = 20;
@@ -398,9 +399,9 @@ export function mountISim(container, opts = {}) {
     if (objDirty) { objDirty = false; updateObjectValues(); }
   }
 
-  const { drawNames, drawWaves, setFont } = mountDraw({ st, sim, cn, cw, sizes: () => ({ dpr, NW, NH, WW, WH }), colors: () => colors,
-    flat, dragRow: () => dragRow(), xOf, tOf, itemWave, valueOf, itemType, itemRadix, isForced: (...a) => isForced(...a),
-    drawStim: (...a) => drawStim(...a) });
+  const drawArgs = { st, sim, flat, dragRow: () => dragRow(), xOf, tOf, itemWave, valueOf, itemType, itemRadix, isForced: (...a) => isForced(...a),
+    drawStim: (...a) => drawStim(...a) };   // (also its print's, isim-print.js, #1511)
+  const { drawNames, drawWaves, setFont } = mountDraw({ ...drawArgs, cn, cw, sizes: () => ({ dpr, NW, NH, WW, WH }), colors: () => colors });
 
   // ---------------------------------------------------------------- status (isim-status.js)
   const { addMarker, jumpEdge, removeMarker, setCursor, setMsg, updateStatus } = mountStatus({
@@ -510,6 +511,7 @@ export function mountISim(container, opts = {}) {
     setNeedScroll: (v) => { needScroll = v; }
   });
   api.openBench = openBench;   // (Simulate's tree: the bench brought to the front shown expanded, #1267)
+  api.printView = () => wavePrintView({ draw: drawArgs, colors, NW, WW });   // (#1511)
 
   // ---------------------------------------------------------------- init
   readColors();
