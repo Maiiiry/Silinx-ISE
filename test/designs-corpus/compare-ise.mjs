@@ -33,6 +33,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './quality-page.mjs';
+import { DOCKER_ISOLATION } from '../../server/ise.js';
 import { lastError, newFailures, parseClocks, constrainedPeriod, criticalPath } from './compare-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -186,11 +187,11 @@ const trce = {}, paths = {};
 if (timedNames.length) {
   try {
     let out;
-    if (LOCAL) out = execFileSync('docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${tdir}:/w`, image, 'bash', '/w/ise-open-check.sh', '/w', ...timedNames], { encoding: 'utf8', maxBuffer: 64 << 20 });
+    if (LOCAL) out = execFileSync('docker', ['run', '--rm', ...DOCKER_ISOLATION, '--platform', 'linux/amd64', '-v', `${tdir}:/w`, image, 'bash', '/w/ise-open-check.sh', '/w', ...timedNames], { encoding: 'utf8', maxBuffer: 64 << 20 });
     else {
       ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
       execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
-      out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+      out = ssh(`docker run --rm ${DOCKER_ISOLATION.join(' ')} --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
       // (trce's reports back, for the critical paths' breakdown)
       execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, '--include=*/', '--include=routed.twr', '--exclude=*', `${host}:${remote}/`, `${tdir}/`]);
     }

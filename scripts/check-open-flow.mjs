@@ -21,6 +21,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { iseWorkBase } from '../server/toolchain.js';
+import { DOCKER_ISOLATION } from '../server/ise.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = process.env.SILINX_ISE_HOST;   // only from the environment, never written in a file
@@ -63,11 +64,11 @@ const remote = `${remoteBase}/${path.basename(work)}`;
 const mount = remote.startsWith('/') ? remote : `$HOME/${remote}`;
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(work, 'ise-open-check.sh'));
 let out;
-if (LOCAL) out = run('docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${work}:/w`, IMAGE, 'bash', '/w/ise-open-check.sh', '/w', ...names]);
+if (LOCAL) out = run('docker', ['run', '--rm', ...DOCKER_ISOLATION, '--platform', 'linux/amd64', '-v', `${work}:/w`, IMAGE, 'bash', '/w/ise-open-check.sh', '/w', ...names]);
 else {
   ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
   run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
-  out = ssh(`docker run --rm -v "${mount}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
+  out = ssh(`docker run --rm ${DOCKER_ISOLATION.join(' ')} -v "${mount}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
   run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=xdl2ncd.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
   ssh(`rm -rf ${remote}`);
 }

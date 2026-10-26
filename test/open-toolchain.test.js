@@ -368,7 +368,7 @@ test('Build Device Description: xdl -report through docker, gzipped there, packe
   assert.match(log, /Building the device description of xc3s50etq144-4 from Xilinx ISE \(docker mode\)/);
   assert.match(log, /=== SILINX STEP xdlreport ===[\s\S]*=== SILINX STEP gzip ===[\s\S]*=== SILINX STEP pack ===/);
   assert.equal((await fs.readFile(process.env.FAKE_XDL_LOG, 'utf8')).trim(), 'xdl -report -pips -all_conns xc3s50etq144-4 device.xdlrc');
-  assert.match(await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8'), /run --rm --pull=never --platform linux\/amd64 -v .*:\/work -w \/work .*silinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
+  assert.match(await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8'), /run --rm --pull=never --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --platform linux\/amd64 -v .*:\/work -w \/work .*silinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
   const out = path.join(devicesDir(), 'xc3s50etq144-4.json.gz');
   assert.equal(j.result.path, out);
   assert.equal(findDeviceGraph('xc3s50etq144-4'), out);
@@ -411,7 +411,7 @@ test('Build Device Description: over ssh (ISE on the host, then a docker image t
   await writeConfig({ mode: 'silinx', open: { iseMode: 'ssh' }, ssh: { host: 'mini', user: 'dev', image: 'xilinx/ise:14.7' } });
   const j2 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s50etq144-4' })).body.job, { timeoutMs: 50000 });
   assert.equal(j2.status, 'ok', j2.lines.join('\n'));
-  assert.match(await fs.readFile(process.env.FAKE_SSH_LOG, 'utf8'), /dev@mini .*docker run --rm --pull=never -v "\$PWD":\/work -w \/work .*xilinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
+  assert.match(await fs.readFile(process.env.FAKE_SSH_LOG, 'utf8'), /dev@mini .*docker run --rm --pull=never --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 -v "\$PWD":\/work -w \/work .*xilinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
   delete process.env.FAKE_SSH_LOG;
   // ISE not configured: the job says why
   await writeConfig({ mode: 'silinx', open: { iseMode: 'docker' }, docker: { image: '' } });

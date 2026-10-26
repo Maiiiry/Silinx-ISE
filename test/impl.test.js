@@ -223,13 +223,19 @@ test('ssh mode with a docker image on the remote host: command, validation, stat
   assert.equal(tc.DEFAULT_CONFIG.ssh.image, '');
   const ssh = { settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh', image: 'xilinx/ise:14.7' };
   assert.equal(ise.remoteFlowCommand({ ssh }, 'silinx-build/p', ['synth', 'map']),
-    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd silinx-build/p && docker run --rm --pull=never -v "$PWD":/work -w /work -e ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh xilinx/ise:14.7 bash run.sh synth map`);
+    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd silinx-build/p && docker run --rm --pull=never --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 -v "$PWD":/work -w /work -e ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh xilinx/ise:14.7 bash run.sh synth map`);
   assert.equal(ise.remoteFlowCommand({ ssh: { ...ssh, settings: '' } }, 'b/p', ['synth']),
-    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd b/p && docker run --rm --pull=never -v "$PWD":/work -w /work xilinx/ise:14.7 bash run.sh synth`);
+    `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd b/p && docker run --rm --pull=never --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 -v "$PWD":/work -w /work xilinx/ise:14.7 bash run.sh synth`);
   // no image: run.sh with the ISE installed on the host, as before
   assert.equal(ise.remoteFlowCommand({ ssh: { ...ssh, image: '' } }, 'b/p', ['synth']), 'cd b/p && ISE_SETTINGS=/opt/Xilinx/14.7/ISE_DS/settings64.sh bash run.sh synth');
   assert.equal(ise.remoteFlowCommand({ ssh: { settings: '', image: '' } }, 'b/p', ['synth']), 'cd b/p && bash run.sh synth');
   await assert.rejects(tc.saveConfig({ mode: 'ssh', ssh: { host: 'h', image: 'x y;rm' } }), /ssh.image contains invalid characters/);
+  // the container's isolation (#1435): the same arguments in the ssh host's command and in runDocker's
+  assert.deepEqual([...ise.DOCKER_ISOLATION], ['--network', 'none', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512']);
+  await assert.rejects(tc.saveConfig({ docker: { memory: '8 g' } }), /docker.memory must be a size/);
+  await assert.rejects(tc.saveConfig({ docker: { memory: '--privileged' } }), /docker.memory must be a size/);
+  assert.equal((await tc.saveConfig({ docker: { memory: '8g' } })).docker.memory, '8g');
+  await tc.saveConfig({ docker: { memory: '' } });
   const cfg = await tc.saveConfig({ mode: 'ssh', ssh: { host: 'mini', user: 'dev', image: 'xilinx/ise:14.7' } });
   assert.equal(tc.iseStatus(cfg, { ise: {}, helpers: { ssh: '/x', tar: '/x' } }).reason, 'remote host dev@mini (docker image xilinx/ise:14.7)');
   await tc.saveConfig({ mode: 'local', ssh: { host: '', user: '', image: '' } });
@@ -507,7 +513,7 @@ test('toolchain config through the API: the settings scripts the project files c
 
 test('docker run never pulls an image (here and on the ssh host)', async () => {
   const ssh = { settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh', image: 'xilinx/ise:14.7' };
-  assert.match(ise.remoteFlowCommand({ ssh }, 'b/p', ['synth']), / docker run --rm --pull=never -v /);
+  assert.match(ise.remoteFlowCommand({ ssh }, 'b/p', ['synth']), / docker run --rm --pull=never --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 -v /);
 });
 
 // ------------------------------------------------------------------------------------------
