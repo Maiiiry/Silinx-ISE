@@ -450,6 +450,31 @@ test('toolchain config save/validate', async () => {
   assert.equal(cfg.docker.settings, tc.DEFAULT_SETTINGS);
   await assert.rejects(tc.saveConfig({ mode: 'magic' }), /invalid mode/);
   await assert.rejects(tc.saveConfig({ ssh: { host: 'a;b' } }), /invalid characters/);
+  // docker.platform and the programmer's defaults end up in the tools' command lines (#1433): checked as the
+  // request's values are, through the API or not
+  for (const [partial, msg] of [
+    [{ docker: { platform: '--privileged' } }, 'docker.platform must be os/arch (linux/amd64) or empty'],
+    [{ docker: { platform: 'linux/amd64 --privileged' } }, 'docker.platform must be os/arch (linux/amd64) or empty'],
+    [{ docker: { platform: 'Linux/AMD64' } }, 'docker.platform must be os/arch (linux/amd64) or empty'],
+    [{ docker: { platform: 'linux' } }, 'docker.platform must be os/arch (linux/amd64) or empty'],
+    [{ programmer: { tool: 'rm' } }, 'programmer.tool must be one of openFPGALoader, xc3sprog, djtgcfg, impact, adepttool or empty'],
+    [{ programmer: { tool: 'IMPACT' } }, 'programmer.tool must be one of openFPGALoader, xc3sprog, djtgcfg, impact, adepttool or empty'],
+    [{ programmer: { cable: '--help' } }, 'programmer.cable contains invalid characters'],
+    [{ programmer: { cable: 'ftdi;id' } }, 'programmer.cable contains invalid characters'],
+    [{ programmer: { cable: ['ftdi'] } }, 'programmer.cable contains invalid characters'],
+    [{ programmer: { device: '-d' } }, 'programmer.device contains invalid characters'],
+    [{ programmer: { device: 'Nexys2 $(id)' } }, 'programmer.device contains invalid characters'],
+  ]) {
+    await assert.rejects(tc.saveConfig(partial), e => e.status === 400 && e.message === msg, JSON.stringify(partial));
+    await assert.rejects(tc.saveConfig(partial, { fromApi: true }), e => e.status === 400 && e.message === msg, JSON.stringify(partial));
+  }
+  assert.equal((await tc.loadConfig()).docker.platform, 'linux/amd64', 'nothing saved');
+  const ok = await tc.saveConfig({ docker: { platform: 'linux/arm64/v8' }, programmer: { tool: 'xc3sprog', cable: 'ftdi', device: 'Nexys2 rev.A:0' } }, { fromApi: true });
+  assert.deepEqual([ok.docker.platform, ok.programmer], ['linux/arm64/v8', { tool: 'xc3sprog', cable: 'ftdi', device: 'Nexys2 rev.A:0' }]);
+  assert.deepEqual((await tc.loadConfig()).programmer, { tool: 'xc3sprog', cable: 'ftdi', device: 'Nexys2 rev.A:0' }, 'saved');
+  const empty = await tc.saveConfig({ docker: { platform: '' }, programmer: { tool: '', cable: '', device: '' } });
+  assert.deepEqual([empty.docker.platform, empty.programmer], ['', { tool: '', cable: '', device: '' }]);
+  await tc.saveConfig({ docker: { platform: 'linux/amd64' } });
   const st = tc.iseStatus({ ...cfg, mode: 'docker' }, { ise: {}, helpers: { docker: null } });
   assert.equal(st.available, false);
   await tc.saveConfig({ mode: 'local' });

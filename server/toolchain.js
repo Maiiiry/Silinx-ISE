@@ -18,6 +18,7 @@ import fss from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { capture } from './jobs.js';
+import { TOOLS as PROGRAMMER_TOOLS, VALUE as PROGRAMMER_VALUE } from './programmer-values.js';
 
 export const ISE_TOOLS = ['xst', 'ngdbuild', 'map', 'par', 'trce', 'bitgen'];
 export const PROGRAMMERS = ['openFPGALoader', 'xc3sprog', 'djtgcfg', 'impact'];
@@ -80,6 +81,8 @@ const SETTINGS = /(^|[\\/])settings(32|64)\.sh$/;
 const IMAGE = /^[\w.\/:@][\w.\/:@-]*$/;
 // docker.memory: a size for `docker run --memory` (8g, 512m); '' for no limit (#1435)
 const DOCKER_MEMORY = /^\d+[kmg]?$/i;
+// docker.platform: `docker run --platform` os/arch[/variant] (linux/amd64, linux/arm64/v8); '' for docker's own (#1433)
+const DOCKER_PLATFORM = /^[a-z0-9]+\/[a-z0-9]+(\/[a-z0-9]+)?$/;
 
 const at = (o, key) => key.split('.').reduce((v, k) => (v && typeof v === 'object' ? v[k] : undefined), o);
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -145,6 +148,11 @@ export async function saveConfig(partial, { fromApi = false } = {}) {
   }
   if (cfg.docker.image && !IMAGE.test(cfg.docker.image)) throw Object.assign(new Error('docker.image contains invalid characters'), { status: 400 });
   if (cfg.docker.memory && !DOCKER_MEMORY.test(String(cfg.docker.memory))) throw Object.assign(new Error('docker.memory must be a size (8g, 512m) or empty'), { status: 400 });
+  if (cfg.docker.platform && !DOCKER_PLATFORM.test(String(cfg.docker.platform))) throw bad('docker.platform must be os/arch (linux/amd64) or empty');
+  // the programmer's defaults go into the tools' command lines, as a request's values do (#1433)
+  const pg = cfg.programmer || {};
+  if (pg.tool && !PROGRAMMER_TOOLS.includes(pg.tool)) throw bad(`programmer.tool must be one of ${PROGRAMMER_TOOLS.join(', ')} or empty`);
+  for (const k of ['cable', 'device']) if (pg[k] != null && pg[k] !== '' && (typeof pg[k] !== 'string' || !PROGRAMMER_VALUE.test(pg[k]))) throw bad(`programmer.${k} contains invalid characters`);
   if (!MODES.includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (${MODES.join('|')})`), { status: 400 });
   if (!ISE_MODES.includes(cfg.open.iseMode)) throw Object.assign(new Error(`invalid open.iseMode '${cfg.open.iseMode}' (${ISE_MODES.join('|')})`), { status: 400 });
   for (const k of ['extraArgs']) if (!Array.isArray(cfg.docker[k])) throw Object.assign(new Error(`docker.${k} must be an array of strings`), { status: 400 });
