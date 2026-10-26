@@ -482,7 +482,10 @@ export function mountISim(container, opts = {}) {
       track(el, e, (ev) => { set(v0 + ((dirV ? ev.clientX : ev.clientY) - p0)); }, () => root.classList.remove('isim-resizing-v', 'isim-resizing-h'));
     });
   }
-  let leftW = 290, consoleH = 170, instH = null;
+  // (its Instances and Objects: 290 px, as ISim's; in the Tasks interface the other tasks' side panel's width, as the viewer
+  // left it, at most 45 % of the work area, as Simulate's panel with nothing simulated, #1409)
+  const tasksSide = () => { const r = document.documentElement; return r.dataset.layout === 'tasks' ? Math.min(parseFloat(getComputedStyle(r).getPropertyValue('--left-w')) || 344, Math.round((document.getElementById('workspace')?.clientWidth || innerWidth) * 0.45)) : 0; };
+  let leftW = tasksSide() || 290, consoleH = 170, instH = null;
   const applySizes = () => {
     leftEl.style.width = leftW + 'px'; bottomEl.style.height = consoleH + 'px';
     if (instH != null) $('.isim-inst-panel').style.flex = `0 0 ${instH}px`;

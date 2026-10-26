@@ -195,7 +195,7 @@ export async function renderStartPage() {
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
       projects.length ? null : h('div', { class: 'entry', style: { color: 'var(--grey-6)' } }, 'No projects yet.'),
-      recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
+      recentHere.length ? h('div', { class: 'entry start-clear' }, icon('remove'), h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
     api.standalone ? await storageBox() : await workspaceBox(),
   );
   // the last render wins: an earlier one finishing later showed the list as it was (e.g. before a Clear)

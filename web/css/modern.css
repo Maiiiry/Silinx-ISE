@@ -49,6 +49,15 @@ html[data-ui="modern"] {
   --m-shadow-lg: 0 12px 32px rgba(16, 24, 40, .16), 0 2px 6px rgba(16, 24, 40, .08);
   --m-radius: 8px;
   --m-focus: 0 0 0 3px rgba(43, 99, 217, .35);
+  /* the sizes the same kind of thing shares everywhere (#1409): a row of tabs (the side panel's, the documents', the
+     messages'), a tree's row and its padding, a bar of buttons' padding, a button's height and its small text */
+  --m-tabs-h: 38px;
+  --m-row-h: 26px;
+  --m-tree-pad: 2px 6px 8px;
+  --m-bar-pad: 6px;
+  --m-ctl-h: 32px;
+  --m-fs-sm: 12px;
+  --m-radius-sm: 6px;
 
   /* the variables of theme.css, used by the editors and views */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -200,8 +209,8 @@ html[data-ui="modern"] .view-select label:has(input:focus-visible) { box-shadow:
 html[data-ui="modern"] .view-select input { position: absolute; opacity: 0; pointer-events: none; }
 
 /* trees */
-html[data-ui="modern"] .tree { padding: 2px 6px 8px; }
-html[data-ui="modern"] .tree .row { padding: 3px 8px 3px 2px; border-radius: 6px; gap: 6px; min-height: 26px; }
+html[data-ui="modern"] .tree { padding: var(--m-tree-pad); }
+html[data-ui="modern"] .tree .row { padding: 3px 8px 3px 2px; border-radius: var(--m-radius-sm); gap: 6px; min-height: var(--m-row-h); }
 html[data-ui="modern"] .tree .row:hover { background: var(--m-hover); }
 html[data-ui="modern"] .tree .row.sel { background: var(--m-accent-soft); color: var(--m-fg); }
 html[data-ui="modern"] .tree .row.sel .meta, html[data-ui="modern"] .tree .row .meta { color: var(--m-muted); }
@@ -215,7 +224,7 @@ html[data-ui="modern"] .splitter:hover, html[data-ui="modern"] body.resizing-h .
 
 /* editor area: document tabs on top */
 html[data-ui="modern"] #center { background: var(--m-surface); }
-html[data-ui="modern"] #doc-tabs { order: -1; height: 38px; align-items: stretch; padding: 0; gap: 0; background: var(--m-surface-2); border: none; border-bottom: 1px solid var(--m-border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+html[data-ui="modern"] #doc-tabs { order: -1; height: var(--m-tabs-h); align-items: stretch; padding: 0; gap: 0; background: var(--m-surface-2); border: none; border-bottom: 1px solid var(--m-border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 html[data-ui="modern"] #doc-tabs { --doc-tab-w: 190px; }
 html[data-ui="modern"] #doc-tabs .tab { height: auto; margin: 0; padding: 0 8px 0 12px; gap: 7px; border: none; border-right: 1px solid var(--m-border); border-radius: 0;
   background: transparent; color: var(--m-muted); font-weight: 450; cursor: pointer; }
@@ -236,12 +245,12 @@ html[data-ui="modern"] #workspace:not(:has(> .doc)) > #ws-empty { display: flex;
 
 /* bottom panel: Console / Errors / Warnings */
 html[data-ui="modern"] #console-wrap { margin: 0; border: none; background: var(--m-surface); display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto minmax(0, 1fr); }
-html[data-ui="modern"] #console-tabs { grid-row: 1; grid-column: 1; height: 38px; align-items: center; padding: 0 8px; gap: 2px; background: none; border: none; }
+html[data-ui="modern"] #console-tabs { grid-row: 1; grid-column: 1; height: var(--m-tabs-h); align-items: center; padding: 0 8px; gap: 2px; background: none; border: none; }
 html[data-ui="modern"] #console-tabs .tab { height: 28px; margin: 0; padding: 0 10px; gap: 6px; border: none; border-radius: 6px; background: none; color: var(--m-muted); font-weight: 500; cursor: pointer; }
 html[data-ui="modern"] #console-tabs .tab:hover:not(.active) { background: var(--m-hover); color: var(--m-fg); }
 html[data-ui="modern"] #console-tabs .tab.active { height: 28px; background: var(--m-hover); color: var(--m-fg); font-weight: 600; }
 html[data-ui="modern"] #console-tabs .count:not(:empty) { padding: 0 6px; border-radius: 999px; background: var(--m-surface-2); border: 1px solid var(--m-border); color: var(--m-muted); font-size: 11px; line-height: 16px; }
-html[data-ui="modern"] #console-wrap > .caption { grid-row: 1; grid-column: 2; height: 38px; padding: 0 10px; }
+html[data-ui="modern"] #console-wrap > .caption { grid-row: 1; grid-column: 2; height: var(--m-tabs-h); padding: 0 10px; }
 html[data-ui="modern"] #console-caption { display: none; }
 html[data-ui="modern"] #console-wrap > .body { grid-row: 2; grid-column: 1 / 3; border-top: 1px solid var(--m-border); }
 html[data-ui="modern"] #console-body { font: 12px/1.5 var(--mono); }
@@ -275,7 +284,7 @@ html[data-ui="modern"] .dlg-x:hover { background: var(--m-hover); color: var(--m
 html[data-ui="modern"] .dlg-body { padding: 16px 18px; }
 html[data-ui="modern"] .dlg-buttons { padding: 12px 16px; gap: 8px; background: var(--m-surface-2); border-top: 1px solid var(--m-border); }
 html[data-ui="modern"] .dlg label { margin: 8px 0 4px; }
-html[data-ui="modern"] .btn { height: 32px; min-width: 76px; padding: 0 14px; border: 1px solid var(--m-border-strong); border-radius: var(--m-radius); background: var(--m-surface); color: var(--m-fg); font-weight: 550; cursor: pointer; }
+html[data-ui="modern"] .btn { height: var(--m-ctl-h); min-width: 76px; padding: 0 14px; border: 1px solid var(--m-border-strong); border-radius: var(--m-radius); background: var(--m-surface); color: var(--m-fg); font-weight: 550; cursor: pointer; }
 html[data-ui="modern"] .btn:hover { background: var(--m-surface-2); border-color: var(--m-muted); }
 html[data-ui="modern"] .btn:active { background: var(--m-hover); }
 html[data-ui="modern"] .btn.primary { background: var(--m-accent); border-color: var(--m-accent); color: var(--m-accent-fg); }
@@ -300,6 +309,7 @@ html[data-ui="modern"] table.grid { background: var(--m-surface); }
 html[data-ui="modern"] table.grid th { background: var(--m-surface-2); border-color: var(--m-border); color: var(--m-muted); font-weight: 600; }
 html[data-ui="modern"] table.grid td { border-color: var(--m-border); }
 html[data-ui="modern"] table.grid tr.sel td { background: var(--m-accent-soft); }
+html[data-ui="modern"] #files-page table.grid td { height: var(--m-row-h); }   /* (the Files page's rows as the trees', #1409) */
 html[data-ui="modern"] table.grid td input[type=text], html[data-ui="modern"] table.grid td select { border-color: transparent; background: transparent; border-radius: 4px; }
 html[data-ui="modern"] table.grid td input[type=text]:focus, html[data-ui="modern"] table.grid td select:focus { border-color: var(--m-accent); background: var(--m-surface); }
 html[data-ui="modern"] .msg-text { color: var(--m-fg); }

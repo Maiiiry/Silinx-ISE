@@ -59,9 +59,9 @@ html[data-layout="tasks"] #toolbar .tb-btn[data-cmd="find"] ~ .tb-sep { display:
 .task-sim-src-bar { display: none; }
 #task-impl-bar, #task-emu-bar { display: none; }
 html[data-layout="tasks"][data-task="impl"] #task-impl-bar, html[data-layout="tasks"][data-task="emu"] #task-emu-bar,
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar) { display: flex; flex: none; gap: 6px; padding: 6px 6px 2px; }
-html[data-layout="tasks"] #task-close-bar { padding: 4px 6px 6px; border-top: 1px solid var(--m-border); }   /* (under the tree, #1309) */
-html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar, #task-impl-bar, #task-emu-bar) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar, #start-page .start-btns) { display: flex; flex: none; gap: var(--m-bar-pad); padding: var(--m-bar-pad) var(--m-bar-pad) 2px; margin: 0; }
+html[data-layout="tasks"] #task-close-bar { padding: 4px var(--m-bar-pad) var(--m-bar-pad); border-top: 1px solid var(--m-border); }   /* (under the tree, #1309) */
+html[data-layout="tasks"] :is(#task-src-bar, #task-files-bar, #task-close-bar, .task-sim-src-bar, #task-impl-bar, #task-emu-bar, #start-page .start-btns) .btn { flex: 1 1 0; min-width: 0; padding: 4px 6px; font-size: var(--m-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-layout="tasks"] #design-panel { flex: 1; }
 
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
@@ -173,7 +173,6 @@ html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="fold
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"], [data-side="folded"]) #workspace:has(> #task-sim-panel:not([hidden])) > .doc:not([hidden]) { left: var(--sim-side, 0px); }
 /* (folded by the side panel's button, as the other tasks' side panels: #1428) */
 #task-sim-panel > .task-sim-trees { flex: 1; min-height: 0; overflow: auto; }
-#task-sim-panel .tree { padding: 4px 0; }
 #task-sim-panel .task-sim-choice { padding: 3px 0; }
 #task-sim-panel .task-sim-choice select { flex: 1; min-width: 0; height: 28px; margin-right: 8px; border: 1px solid var(--m-border-strong); border-radius: 6px;
   background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
@@ -207,7 +206,6 @@ html[data-layout="tasks"] .emu-main { flex-wrap: wrap; align-items: flex-start; 
 html[data-layout="tasks"] .emu-board-wrap { flex: none; }
 html[data-layout="tasks"] .emu-side { flex: none; width: 240px; min-width: 0; order: 1; }   /* (beside the board, the side panel at the left: #1399) */
 html[data-layout="tasks"] .emu-vga { order: 2; }
-html[data-layout="tasks"] .task-emu-tree .tree { padding: 2px 0 4px; }
 /* the emulator's status right below the board (moved there by tasks-emu.js), in place of the board's line (#1022) */
 html[data-layout="tasks"] .emu-board-note { display: none; }
 html[data-layout="tasks"] .emu-board-wrap > .stat { align-self: flex-start; color: var(--grey-3); font: 11px var(--mono, monospace);
@@ -267,6 +265,10 @@ html[data-layout="tasks"]:is([data-task="impl"], [data-task="emu"]) .left-page:n
    tooltip); folded, neither; on a narrow screen, the drawer's top row. Implement's Processes under such a tab, named Implement (#1207), its only
    one (#1160); no panel's heading under the tabs (#1159, #1160) */
 html[data-layout="tasks"] #left-pages .ise-panel > .caption { display: none; }
+/* the Start page in the side panel: its buttons a bar as the other pages' (above), its sections inset as a tree's rows (#1409) */
+html[data-layout="tasks"] #start-page > .page { padding: 0 0 12px; }
+html[data-layout="tasks"] #start-page .start-box { margin: 0 12px; }
+html[data-layout="tasks"] #start-page .start-btns + .start-box { margin-top: 10px; }
 html[data-layout="tasks"]:not([data-task="impl"]) #task-procs-tab { display: none; }
 html[data-layout="tasks"][data-task="impl"] #left-tabs .tab:not(#task-procs-tab) { display: none; }
 html[data-layout="tasks"][data-task="impl"] #left-tabs #task-procs-tab { flex: 1 1 auto; justify-content: flex-start; background: var(--m-accent-soft); color: var(--m-accent); font-weight: 600; }
@@ -278,7 +280,7 @@ html[data-layout="tasks"][data-task="emu"] #left-tabs #task-emu-tab { flex: 1 1 
 html[data-layout="tasks"][data-task="emu"] :is(#design-panel, #proc-panel) { display: none; }
 html[data-layout="tasks"][data-task="emu"] #task-emu-panel { display: flex; flex: 1; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left { flex-direction: column; }
-html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: 36px;
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: var(--m-tabs-h);
   padding: 4px 6px; gap: 2px; border-right: none; border-bottom: 1px solid var(--m-border); }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab { flex: 0 0 auto; flex-direction: row; gap: 6px; padding: 0 9px; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab.active { flex: 1 1 auto; justify-content: flex-start; }
@@ -303,7 +305,8 @@ html[data-layout="tasks"] :is(#drawer-btn, #drawer-scrim) { display: none !impor
 .task-sim-tabs, .task-bench { display: none; }
 html[data-layout="tasks"] .isim-tree li.task-bench { display: list-item; }
 html[data-layout="tasks"] .isim-inst-panel > .caption { display: none; }
-html[data-layout="tasks"] .task-sim-tabs { display: flex; flex: none; align-items: stretch; height: 36px; padding: 4px 6px; border-bottom: 1px solid var(--m-border); }
+html[data-layout="tasks"] .isim-left { background: var(--m-surface); }   /* (as the other tasks' side panel, as with nothing simulated: #1409) */
+html[data-layout="tasks"] .task-sim-tabs { display: flex; flex: none; align-items: stretch; height: var(--m-tabs-h); padding: 4px 6px; border-bottom: 1px solid var(--m-border); }
 html[data-layout="tasks"] .task-sim-tabs .tab { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; padding: 0 9px; border-radius: 6px;
   background: var(--m-accent-soft); color: var(--m-accent); font-size: 12px; font-weight: 600; }
 /* its label whole (not the activity bar's short one), Simulate's and Emulate's (#1204) */

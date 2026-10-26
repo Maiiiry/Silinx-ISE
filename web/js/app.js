@@ -769,7 +769,7 @@ export function renderFilesPage() {
       if (shown.has(dir)) continue;
       shown.add(dir);
       tbl.append(h('tr', { class: 'folder-row', 'data-folder': dir, oncontextmenu: e => { e.preventDefault(); folderContextMenu(e, dir); } },
-        h('td', { style: { fontWeight: 'bold', paddingLeft: `${4 + (i - 1) * 14}px` } }, `📁 ${parts[i - 1]}/`), h('td', {}), h('td', {})));
+        h('td', { style: { fontWeight: 'bold', paddingLeft: `${4 + (i - 1) * 14}px` } }, icon('folder'), `${parts[i - 1]}/`), h('td', {}), h('td', {})));
     }
     const f = reg.get(path);
     const pad = { paddingLeft: `${4 + (parts.length - 1) * 14}px` };
