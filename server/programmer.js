@@ -24,7 +24,9 @@ import { loadConfig, detectIse, resolveTool, which, configDir } from './toolchai
 import { findBoard, resolveBoard } from './devices.js';
 import { splitBitPart, familyOfPart, familyName } from '../core/family.js';
 
-export const TOOLS = ['openFPGALoader', 'xc3sprog', 'djtgcfg', 'impact', 'adepttool'];
+import { TOOLS, VALUE } from './programmer-values.js';
+
+export { TOOLS };
 
 // ---------------------------------------------------------------------------------------------
 // Bitstream header
@@ -161,9 +163,6 @@ export function buildCommands(op, { tool, cable, device, position, bitfile }) {
 // ---------------------------------------------------------------------------------------------
 // Option resolution
 // ---------------------------------------------------------------------------------------------
-
-/** A cable or device name (openFPGALoader's digilent_hs2, xc3sprog's nexys2, iMPACT's usb21, djtgcfg's Nexys2, 0). */
-const VALUE = /^[\w.:@/][\w .:@/-]*$/;
 
 /**
  * Merge request options with board defaults and the global config.

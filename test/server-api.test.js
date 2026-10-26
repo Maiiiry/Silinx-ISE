@@ -303,6 +303,11 @@ test('devices DB and toolchain configuration', async () => {
     [{ ssh: { user: 'me;rm' } }, /ssh.user contains invalid characters/],
     [{ local: { settings: '/tmp/evil.sh' } }, /local.settings must be ISE's settings64.sh/],
     [{ docker: { settings: '/opt/x/run' } }, /docker.settings must be ISE's settings64.sh/],
+    // (#1433) the values that go into docker's and the programmers' command lines
+    [{ docker: { platform: '--privileged' } }, /^docker.platform must be os\/arch \(linux\/amd64\) or empty$/],
+    [{ programmer: { tool: 'sh' } }, /^programmer.tool must be one of openFPGALoader, xc3sprog, djtgcfg, impact, adepttool or empty$/],
+    [{ programmer: { cable: '-c evil' } }, /^programmer.cable contains invalid characters$/],
+    [{ programmer: { device: 'a;b' } }, /^programmer.device contains invalid characters$/],
   ]) {
     r = await call('PUT', '/toolchain', body);
     assert.equal(r.status, 400, JSON.stringify(body));
