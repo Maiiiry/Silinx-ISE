@@ -253,3 +253,27 @@ test('#1486 schematic drawing: a gate wider than a bit, its width at its input a
   const sym = { id: 'S1', type: 'and3b2', x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params: { width: 16 } };
   assert.deepEqual(widths(symbolSvg(sym, symbolDef(sym))).map((t) => t.x), [6, 6, 10, 70]);
 });
+
+// #1488: the bus join and the bus tap show their width on their pins, as every other symbol: the join's on each input
+// wider than a bit and on its output, the tap's on its output when wider than a bit (its input takes its bus's); in
+// every orientation clear of the tap's bus name, which is off the bus's leads
+test('#1488 schematic drawing: the bus join\'s width on its inputs and output, the bus tap\'s on its output', () => {
+  const widths = (svg) => [...svg.matchAll(/<text class="pwidth on" x="([\d.-]+)" y="([\d.-]+)" text-anchor="middle">([^<]*)</g)].map((m) => `${m[3]} at ${m[1]},${m[2]}`);
+  const draw = (type, params, rot = 0, mirror = false, ctx) => { const sym = { id: 'S1', type, x: 200, y: 100, rot, mirror, name: 'U1', params: { ...defaultParams(type), ...params } }; return symbolSvg(sym, symbolDef(sym), '', ctx); };
+  // (the join's inputs' leads 0..18, its output's 22..40; the tap's output's 25..40: each 10 px in from its pin's end)
+  assert.deepEqual(widths(draw('busjoin', { widths: '4,4' })), ['4 at 210,113', '4 at 210,133', '8 at 230,123']);
+  assert.deepEqual(widths(draw('busjoin', { widths: '1,7' })), ['7 at 210,133', '8 at 230,123'], 'a one-bit input: none');
+  assert.deepEqual(widths(draw('slice', { msb: 7, lsb: 4 })), ['4 at 230,113']);
+  assert.deepEqual(widths(draw('slice', { msb: 3, lsb: 3 })), [], 'one bit: none');
+  for (const { rot, mirror } of ORIENTS) {
+    const svg = draw('slice', { msb: 15, lsb: 8 }, rot, mirror, { busName: 'DATA' });
+    const [w] = [...svg.matchAll(/<text class="pwidth[^"]*"[^>]*>[^<]*<\/text>/g)].map((m) => textBox(m[0]));
+    const n = textBox(svg.match(/<text class="stext"[^>]*>[^<]*<\/text>/)[0]);
+    assert.ok(w.x1 <= n.x0 || n.x1 <= w.x0 || w.y1 <= n.y0 || n.y1 <= w.y0, `rot ${rot}${mirror ? ' mirrored' : ''}: the width clear of DATA(15:8)`);
+    // (and the name off the bus's leads, turned too)
+    const [a, b, c, d, e, f] = svg.match(/transform="matrix\(([^)]*)\)"/)[1].split(',').map(Number);
+    const at = (x, y) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+    const leads = [...svg.matchAll(/<line class="pin[^"]*"[^>]*>/g)].map((m) => { const l = attrs(m[0]); return [at(+l.x1, +l.y1), at(+l.x2, +l.y2)]; });
+    assert.ok(!leads.some((l) => crosses(n, l)), `rot ${rot}${mirror ? ' mirrored' : ''}: DATA(15:8) off the leads`);
+  }
+});

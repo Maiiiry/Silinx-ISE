@@ -210,8 +210,15 @@ function textsSvg(sym, def, ctx = {}) {
     s += typeUnder(sym, def, box, center, symbolTypeName(sym));
   } else if (def.shape === 'slice') {
     // the bit(s) it takes, with the bus's name: A(0) of A(5:0) (#174)
-    const t = cx(20, 0);
-    s += `<text class="stext" x="${t.x}" y="${t.y - 3}" text-anchor="middle">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
+    // above the bus by its ripper; turned 90° / 270°, beside it: off the bus's lead and its width (#1488)
+    const t = cx(20, 10), turned = sym.rot === 90 || sym.rot === 270;
+    s += `<text class="stext" x="${turned ? t.x + 6 : t.x}" y="${turned ? t.y + 3 : t.y - 13}" text-anchor="${turned ? 'start' : 'middle'}">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
+    // (its output's width when a bus, as every symbol's bus pins; its input takes its bus's, #1488)
+    const o = symbolPins(sym, null, def).find(p => p.dir === 'out');
+    if ((o.width || 1) > 1) s += pinWidth(o);
+  } else if (def.shape === 'join') {
+    // the width of each input and of the output, as every symbol's bus pins (#1488)
+    for (const p of symbolPins(sym, null, def)) if ((p.width || 1) > 1) s += pinWidth(p);
   } else if (def.shape === 'const') {
     const t = cx((def.w - 20) / 2, 10);
     s += `<text class="cval" x="${t.x}" y="${t.y + 4}" text-anchor="middle">${esc(def.text)}</text>`;
