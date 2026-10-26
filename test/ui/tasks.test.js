@@ -116,11 +116,11 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.deepEqual([s.task, s.side, s.console, s.empty], ['edit', 'open', 'open', false]);
   assert.ok(s.tabs.includes('top.vhd'), s.tabs.join());
   assert.ok(await shown(page, '#hier') && await shown(page, '#console-body'));
-  // Simulate, nothing simulated yet: its page and its action; the editor is not shown, the side panel and
-  // the messages folded (the activity bar and the messages' tabs stay)
+  // Simulate, nothing simulated yet: its page and its action; the editor is not shown, the messages folded (the
+  // messages' tabs stay), its side panel open (#1408)
   await page.click('#task-switch .task-btn[data-task="sim"]');
   s = await state(page);
-  assert.deepEqual(s, { task: 'sim', side: 'folded', console: 'folded', max: 'off', current: ['sim'], tabs: [], empty: true });
+  assert.deepEqual(s, { task: 'sim', side: 'open', console: 'folded', max: 'off', current: ['sim'], tabs: [], empty: true });
   assert.ok(!(await shown(page, '.doc .cm-editor')));
   assert.ok(!(await shown(page, '#hier')) && !(await shown(page, '#left-tabs')), 'no Design pane, no activity bar (Edit\'s, #876)');
   assert.ok(!(await shown(page, '#console-body')) && await shown(page, '#console-tabs'));
@@ -133,7 +133,10 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.equal(s.empty, false);
   assert.deepEqual(s.tabs, ['SSim (tb_top)'], 'its tab: several simulations may be open (#1161)');
   assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top)', 'the test bench (#800)');
-  // the side panel unfolds from the task's bar, kept for Simulate
+  // the side panel open (#1408), folded from the task's bar, kept for Simulate, open again
+  assert.equal((await state(page)).side, 'open');
+  await page.click('#task-view [data-act="side"]');
+  assert.equal((await state(page)).side, 'folded');
   await page.click('#task-view [data-act="side"]');
   assert.equal((await state(page)).side, 'open');
   // back to Edit: its editor in front again, its arrangement as left
@@ -481,9 +484,12 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   await page.click('#task-sim-panel .task-sim-bench .row.sel');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
   await page.waitFor(() => window.Silinx.active?.title === 'SSim (tb_top)', [], { what: 'the test bench simulated' });
-  // the waves get the screen: no ISim title bar, no Instances / Objects column, no Design pane, no console
-  assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-title')) && !(await shown(page, '.doc:not([hidden]) .isim-left')));
+  // no ISim title bar, no Design pane, no console; its Instances and Objects shown at first (#1408)
+  assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-title')) && await shown(page, '.doc:not([hidden]) .isim-left'));
   assert.ok(!(await shown(page, '#left-pages')) && !(await shown(page, '#left-tabs')));
+  // the side panel folded: the waves get the screen
+  await page.click('#task-view [data-act="side"]');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length, [], { what: 'folded' });
   const W = await page.eval(() => {
     const w = document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect(), ws = document.getElementById('workspace').getBoundingClientRect();
     return { width: Math.round(w.width), ws: Math.round(ws.width), height: Math.round(w.height) };
