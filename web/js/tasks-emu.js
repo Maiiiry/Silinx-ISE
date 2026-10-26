@@ -2,11 +2,11 @@
 // - The board keeps its proper size (#1021): its picture, drawn at a fixed size by web/js/emulator.js, is never made
 //   smaller; on a large window it is zoomed (CSS zoom, which keeps the pointer's aim) to the room beside the Watch, at
 //   most MAX_ZOOM, measured again when the window, the task's panels or the board change (fitBoard).
-// - The emulator's side column (Watch, the timing generics, the hints) is the task's side panel, shown at first (#1020):
-//   beside the board; when the width runs short, it and the VGA monitor wrap to the next row, below the board, and the
+// - The emulator's side column (Watch, the timing generics, the hints) is shown at first (#1020): beside the board; when the width runs short, it and the VGA monitor wrap to the next row, below the board, and the
 //   task's area scrolls (web/css/tasks.css); the Design pane is not shown in Emulate.
-// - At the top of that column, its Processes (#1204): the top module's User Constraints (I/O Pin Planning, Edit
-//   Constraints (Text), Check Constraints) and Emulate on Board with its models, as in Implement (placeProcesses).
+// - Its Processes (#1204): the top module's User Constraints (I/O Pin Planning, Edit Constraints (Text), Check
+//   Constraints) and Emulate on Board with its models, as in Implement: the task's side panel, as Implement's
+//   (web/js/tasks.js, #1399).
 // - The emulator's own bar stays its controls (Model, Engine, Run, Step, Power cycle, Clock), right under the task's
 //   bar; its status (the emulated time and rate) is right below the board, in place of the board's line (#1022); its
 //   Messages box is in the message centre (#798).
@@ -14,6 +14,7 @@
 
 export const MAX_ZOOM = 1.5, MIN_ZOOM = 1;   // (never smaller than its proper size: the panels wrap instead, #1021)
 const GAP = 12;   // (.emu-main's padding and gap, web/js/emulator.js)
+const BAR = 16;   // (a scrollbar's room: the area scrolling down once zoomed keeps the Watch beside the board, #1399)
 
 /** The zoom of a board of size `board` ({ w, h }) in the room `room` ({ w, h }): as large as fits, at most MAX_ZOOM,
  *  at least MIN_ZOOM (its proper size, the room too small: the task's area scrolls). */
@@ -32,34 +33,18 @@ function placeStat(emu, wrap) {
   if (document.documentElement.dataset.layout === 'tasks') { if (stat.parentNode !== wrap) wrap.append(stat); }
   else if (stat.parentNode !== bar) bar.append(stat);
 }
-/** The Processes of Emulate at the top of an emulator's side column, once, in the Tasks interface (#1204): a tab as
- *  the Design pane's and Simulate's, and the tree (web/js/processes.js emulateProcesses, redrawn with the Processes
- *  panel: the same states). Hidden in the other interfaces (web/css/tasks.css). */
-function placeProcesses(emu) {
-  const side = emu.querySelector('.emu-side');
-  if (!side || side.querySelector('.task-emu-procs') || document.documentElement.dataset.layout !== 'tasks') return;
-  const tree = document.createElement('div');
-  tree.className = 'task-emu-tree';
-  const box = document.createElement('div');
-  box.className = 'emu-box task-emu-procs';
-  box.innerHTML = '<div class="task-sim-tabs" role="tablist"><span class="tab active" role="tab"><span class="tab-lbl">Emulate</span></span></div>';   // (the task's name, as Implement's, #1212)
-  box.append(tree);
-  side.prepend(box);
-  import('./processes.js').then(m => m.renderProcessTree(tree, m.emulateProcesses()));
-}
 /** Zooms each open emulator's board to its room (`on`: the Tasks interface's Emulate; else its own size). */
 export function fitBoard(on) {
   for (const emu of document.querySelectorAll('#workspace .doc .emu')) {
     const wrap = emu.querySelector('.emu-board-wrap');
     if (!wrap) continue;
     placeStat(emu, wrap);
-    placeProcesses(emu);
     wrap.style.zoom = '';
     if (!on || !shown(emu)) continue;
     const main = emu.querySelector('.emu-main'), side = emu.querySelector('.emu-side'), bar = emu.querySelector('.emu-bar');
     // (the room beside the Watch: the VGA monitor wraps below the board; the Watch too when the board leaves it no room)
     const room = {
-      w: main.clientWidth - 2 * GAP - (shown(side) ? side.offsetWidth + GAP : 0),
+      w: main.clientWidth - 2 * GAP - BAR - (shown(side) ? side.offsetWidth + GAP : 0),
       h: emu.clientHeight - (bar?.offsetHeight || 0) - 2 * GAP,
     };
     wrap.style.zoom = String(boardZoom(room, { w: wrap.offsetWidth, h: wrap.offsetHeight }));
