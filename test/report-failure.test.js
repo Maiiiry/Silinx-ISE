@@ -42,6 +42,34 @@ test('report-failure: clean takes off home folders, logins, addresses and e-mail
   assert.equal(clean('module foo(input a); // v1.2'), 'module foo(input a); // v1.2');
 });
 
+// (the samples are built at run time, so that this file does not hold what the private-data scan looks for)
+const j = (sep, ...p) => p.join(sep);
+
+test('report-failure: clean takes off computer names, volumes, the runner\'s folders and name, IPv6, MAC, ids (#1437)', () => {
+  assert.equal(clean(`on ${j('.', 'lab-pc', 'local')} and ${j('.', 'router', 'home')}, ${j('.', 'nas', 'lan')}:8080 ${j('.', 'build', 'corp', 'internal')}`), 'on <host> and <host>, <host>:8080 <host>');
+  assert.equal(clean(`ENOENT ${j('/', '', 'Volumes', 'Build', 'runner', '_work', 'x.bit')}`), 'ENOENT /Volumes/<volume>/runner/_work/x.bit');
+  // the runner's own name and folders, from its environment (a short or numeric value is not replaced)
+  const env = { RUNNER_NAME: 'mini-runner', RUNNER_DIR: `${j('/', '', 'srv', 'runner')}/`, RUNNER_TEMP: `${j('/', '', 'srv', 'runner', '_work', '_temp')}`, HOSTNAME: 'ab', GITHUB_WORKSPACE: '12' };
+  assert.equal(clean(`Mini-Runner: ${j('/', '', 'srv', 'runner', '_work', '_temp', 'a')} in ${j('/', '', 'srv', 'runner', 'bin')} ab 12`, env), '<runner>: <runner dir>/_work/_temp/a in <runner dir>/bin ab 12');
+  assert.equal(clean('plain line', {}), 'plain line');
+  // IPv6 (but ::1), with its zone; a time or a C++ scope is not an address
+  assert.equal(clean(`${j(':', '2001', 'db8', '', '7')} ${j(':', 'fe80', '', '1')}%en0 [${j(':', '2001', '0db8', '0000', '0000', '0000', 'ff00', '0042', '8329')}]:80 ::1 at 08:13:55 std::string`), '<address> <address> [<address>]:80 ::1 at 08:13:55 std::string');
+  // MAC addresses, container ids (12 or 64 hex digits with a letter and a digit); a short hash and a number stay
+  assert.equal(clean(`${j(':', 'a4', '83', 'e7', '01', '23', '45')} ${j('-', '00', '1a', '2b', '3c', '4d', '5e')} 3f9c2a1b7d0e ${'a'.repeat(63)}1 359c48a 123456789012 deadbeefcafe deadbeefcaf3`), '<mac> <mac> <id> <id> 359c48a 123456789012 deadbeefcafe <id>');
+});
+
+test('report-failure: a line that still holds private data after cleaning is withheld, and said to be (#1437)', () => {
+  const log = `Error: ${j('/', '', 'Volumes', 'Build', 'runner')} ${j('.', 'lab-pc', 'local')} ${j(':', '2001', 'db8', '', '7')} ${j(':', 'a4', '83', 'e7', '01', '23', '45')}
+Error: pass${'word'} = "${'hunter'}2x"
+Error: a key AK${'IA'}ABCDEFGHIJKLMNOP
+not ok 1 - plain
+`;
+  const lines = failureLines(log, 40, {});
+  assert.deepEqual(lines, ['Error: /Volumes/<volume>/runner <host> <address> <mac>', 'not ok 1 - plain', '(2 lines withheld: private data; see the run)']);
+  for (const word of ['Build', 'lab-pc', '2001', 'a4', 'hunter', 'ABCDEFGHIJKLMNOP']) assert.ok(!lines.join('\n').includes(word), word);
+  assert.deepEqual(failureLines('Error: x\nnot ok 2 - y\n', 40, {}), ['Error: x', 'not ok 2 - y']);   // nothing withheld: no note
+});
+
 test('report-failure: the issue of a failed job, its title one per workflow and job', () => {
   const t = issueText({ workflow: 'Nightly', job: 'designs', runUrl: 'https://github.com/o/r/actions/runs/1', sha: '359c48a0123456', lines: ['flow: fail: x'] });
   assert.equal(t.title, 'Nightly failed: designs');
