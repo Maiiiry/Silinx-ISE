@@ -61,18 +61,18 @@ test('readState: the kept state checked; anything else falls back to Edit and th
 
 test('arrangement: the task in front gets the space; what the viewer left wins; a narrow screen closes the drawer', () => {
   assert.deepEqual(T.arrangement('edit'), { side: true, console: true, max: false });
-  assert.deepEqual(T.arrangement('sim'), { side: true, console: false, max: false });   // (#1408)
-  assert.deepEqual(T.arrangement('emu'), { side: true, console: false, max: false });   // (the Watch shown: #1020)
+  assert.deepEqual(T.arrangement('sim'), { side: true, console: true, max: false });   // (#1408, #1429)
+  assert.deepEqual(T.arrangement('emu'), { side: true, console: true, max: false });   // (#1399, #1429)
   assert.deepEqual(T.arrangement('impl'), { side: true, console: true, max: false });
-  assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: false, max: true, doc: 'isim' });
+  assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: true, max: true, doc: 'isim' });
   assert.deepEqual(T.arrangement('edit', {}, true), { side: false, console: true, max: false });
   assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
   // (Simulate's side panel is ISim's Instances and Objects, not the drawer: what the viewer left, on a narrow screen too: #800)
-  assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: false, max: false });
+  assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: true, max: false });
   // (Emulate's side panel its Processes, as Implement's: the drawer on a narrow screen, closed when it comes to the front, #1399)
-  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: false, console: false, max: false });
-  assert.deepEqual(T.arrangement('emu', {}, true), { side: false, console: false, max: false });
-  assert.deepEqual(T.arrangement('emu', { side: false }), { side: false, console: false, max: false });   // (folded by the viewer: kept)
+  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: false, console: true, max: false });
+  assert.deepEqual(T.arrangement('emu', {}, true), { side: false, console: true, max: false });
+  assert.deepEqual(T.arrangement('emu', { side: false }), { side: false, console: true, max: false });   // (folded by the viewer: kept)
   assert.deepEqual(T.OWN_SIDE, ['sim']);   // (Emulate's as Implement's: #1399)
 });
 
