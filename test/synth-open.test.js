@@ -1345,7 +1345,7 @@ test('#282 Optimization Effort: Normal synthesizes once (no depth-oriented mappi
 });
 
 // #468: at Normal, a design limited by its logic depth (DEEP_RULE: more than 16 levels, 1500 LUTs at most since #611)
-// gets High's mappings too, kept when a quarter faster than Normal's own netlist (#611); the others keep the one run
+// gets High's mappings too, kept when DEEP_RULE.gain faster than Normal's own netlist (#611, #652); the others keep the one run
 test('#611 Optimization Effort Normal: High\'s mappings not a given part faster than Normal\'s own netlist are dropped, that one kept', { timeout: 180000 }, async () => {
   const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
   const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
@@ -1433,7 +1433,8 @@ test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequenti
   assert.equal(logicLevels(json, 't'), 3);
   assert.equal(deepDesign(json, 't'), false);
   assert.equal(deepDesign(json, 't', { levels: 2 }), true);
-  assert.deepEqual(DEEP_RULE, { levels: 16, maxLuts: 1500, gain: 0.25 });
+  // (#652: kept at Normal when 10 % faster, ITC'99 b05 and b14 23 and 13 % faster by the estimate, 13 and 5 % by trce)
+  assert.deepEqual(DEEP_RULE, { levels: 16, maxLuts: 1500, gain: 0.1 });
   // a chain of 20 LUTs: deep; of 6000 LUTs in parallel besides: too large for the depth mappings
   const chain = (n, extra) => {
     const cs = {};
@@ -1462,7 +1463,7 @@ test('#468 Optimization Effort Normal: a comparator chain of 17 levels gets the 
   assert.equal(alone.n, 1);
   assert.ok(auto.n > 1, String(auto.n));
   assert.deepEqual([n.depth.levels, n.depth.auto, n.depth.tried, n.depth.kept], [17, true, true, true]);
-  // (#611: High's mappings a quarter faster than Normal's own netlist at least, kept)
+  // (#611: High's mappings DEEP_RULE.gain faster than Normal's own netlist at least, kept)
   assert.equal(n.depth.normal.kept, false);
   assert.equal(n.depth.normal.luts, one.util.luts);
   assert.ok(criticalDelay(n.files['chain.json'], 'chain') <= n.depth.normal.ns * 0.75, JSON.stringify(n.depth.normal));

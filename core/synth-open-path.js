@@ -139,7 +139,9 @@ export function logicLevels(json, top) {
 // to 3300 LUTs (EPFL sin and voter, ITC'99 b20 to b22) gained 0 to 9 % of the estimate for up to 12 % more slices and
 // 2 to 5 times the synthesis's time (voter 22 s -> 68), ITC'99 b14 and b05 (1005 and 293 LUTs) 15 and 9 % for 9 and 5 %
 // more slices: High's trade, not Normal's; the EPFL adder, max and priority (339, 1046 and 171 LUTs) and a priority
-// encoder of 128 bits (20 levels) gain 2.7 to 6 times
-export const DEEP_RULE = { levels: 16, maxLuts: 1500, gain: 0.25 };
+// encoder of 128 bits (20 levels) gain 2.7 to 6 times. Since #652 (2026-10-26) kept when `gain` (10 %) faster: ITC'99 b05 and b14
+// now gain 23 and 13 % by the estimate with fewer LUTs (282 against 295, 987 against 1059), and by ISE's trce at Normal 12.9
+// and 4.9 % (b05 1.21 -> 1.05 times ISE's critical path), for 255 against 246 and 657 against 663 slices
+export const DEEP_RULE = { levels: 16, maxLuts: 1500, gain: 0.1 };
 /** Is a netlist of the usual mapping limited by its depth (DEEP_RULE)? */
 export const deepDesign = (json, top, rule = DEEP_RULE) => logicLevels(json, top) > rule.levels && utilization(cellCounts(json, top)).luts <= Math.min(rule.maxLuts ?? Infinity, DEPTH_RULE.maxLuts);

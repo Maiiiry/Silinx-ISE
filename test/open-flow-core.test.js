@@ -332,7 +332,7 @@ endmodule` });
   assert.ok(d.runs > 1, String(d.runs));
   assert.deepEqual(d.lines, ['Optimization Effort Normal: one mapping, and the mappings for speed for a small design or one limited by its logic depth (High tries them for every design, a slower synthesis).',
     'Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too, the fastest kept.']);
-  // (#611: not a quarter faster than Normal's own netlist, that one kept and said; a rule asking for 99 % less)
+  // (#611: not DEEP_RULE.gain faster than Normal's own netlist, that one kept and said; a rule asking for 99 % less)
   const chainText = `module chain(input clk, input [47:0] a, input [47:0] b, output reg gt);
   reg [47:0] ra, rb; integer i; reg g;
   always @* begin g = 1'b0; for (i = 0; i < 48; i = i + 1) g = (ra[i] & ~rb[i]) | (~(ra[i] ^ rb[i]) & g); end
@@ -343,7 +343,7 @@ endmodule`;
   try {
     const f = await run('normal', { path: 'chain.v', lang: 'verilog', text: chainText });
     assert.equal(f.lines.length, 2);
-    assert.match(f.lines[1], /^Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too, not a quarter faster \(\d+\.\d ns estimated against \d+\.\d\): the one mapping kept\.$/);
+    assert.match(f.lines[1], /^Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too, not 99 % faster \(\d+\.\d ns estimated against \d+\.\d\): the one mapping kept\.$/);
     assert.equal(f.report.synthesis.warnings, 0);
   } finally { delete spec.deepRule; }
 });
