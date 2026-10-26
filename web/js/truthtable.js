@@ -21,7 +21,7 @@ import {
   kmapLayout, kmapRects, MAX_EDIT_INPUTS, circuitCost, outputForm,
 } from '/core/logic.js';
 import { reservedError } from '/core/reserved.js';
-import { placeKmap } from './tt-kmap3d.js';
+import { cellText, placeKmap } from './tt-kmap3d.js';
 
 const NEXT = { 0: '1', 1: 'X', X: '0' };
 const COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#e377c2', '#8c564b', '#bcbd22', '#7f7f7f'];
@@ -242,7 +242,7 @@ export function mountTtEditor(container, opts = {}) {
         const g = sv('g', { class: `tt-kcell v${v}`, 'data-row': mt });
         g.append(sv('rect', { x: ox + j * C, y: oy + i * C, width: C, height: C }));
         g.append(sv('text', { x: ox + j * C + 3, y: oy + i * C + 10, class: 'tt-k-m' }, mt));
-        g.append(sv('text', { x: ox + j * C + C / 2, y: oy + i * C + C / 2 + 6, class: 'tt-k-v', 'text-anchor': 'middle' }, v));
+        g.append(sv('text', { x: ox + j * C + C / 2, y: oy + i * C + C / 2 + 6, class: 'tt-k-v', 'text-anchor': 'middle' }, cellText(v, groups)));
         g.addEventListener('click', () => cycle(out, mt));
         svg.append(g);
       }
@@ -264,7 +264,7 @@ export function mountTtEditor(container, opts = {}) {
       svg.append(gl);
       svg.append(sv('rect', { x: ox, y: oy, width: gw, height: gh, class: 'tt-k-frame' }));
     });
-    placeKmap({ host: kmapHost, options: grpSel, svg, changed: () => renderKmap(), layout: L, col: M.table[out], terms: res.terms, colors: COLORS, onCell: mt => cycle(out, mt), title: c => `${vn(L.mapVars)} = ${bits(c, L.mapVars.length)}` });   // (3D: #1407)
+    placeKmap({ host: kmapHost, options: grpSel, svg, changed: () => renderKmap(), layout: L, col: M.table[out], terms: res.terms, groups, colors: COLORS, onCell: mt => cycle(out, mt), title: c => `${vn(L.mapVars)} = ${bits(c, L.mapVars.length)}` });   // (3D: #1407)
     // legend: one line per group
     const leg = h('div', { class: 'tt-legend' });
     res.terms.forEach((t, ti) => {

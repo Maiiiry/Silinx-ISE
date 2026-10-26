@@ -204,8 +204,12 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   // its K-map, canonical forms and minimal SOP
   await page.click(`${T} .tt-tab[data-out=y5]`);
   assert.ok(await page.eval((t) => document.querySelector(`${t} .tt-tab.active`).dataset.out === 'y5' && document.querySelector(`${t} .tt-table th.tt-out.sel`).textContent === 'y5', T));
-  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} svg.tt-kmap .tt-kcell`)].map((g) => `${g.dataset.row}:${g.querySelector('.tt-k-v').textContent}`), T),
-    ['0:1', '1:X', '3:0', '2:0', '4:0', '5:0', '7:0', '6:1']);
+  // (SOP groups: the 1s and the don't cares written, the 0s blank; POS groups: the 0s and X, the 1s blank, #1494)
+  const kcells = () => page.eval((t) => [...document.querySelectorAll(`${t} svg.tt-kmap .tt-kcell`)].map((g) => `${g.dataset.row}:${g.querySelector('.tt-k-v').textContent}`), T);
+  assert.deepEqual(await kcells(), ['0:1', '1:X', '3:', '2:', '4:', '5:', '7:', '6:1']);
+  await page.click(`${T} input[name^=tt-grp][value=pos]`);
+  assert.deepEqual(await kcells(), ['0:', '1:X', '3:0', '2:0', '4:0', '5:0', '7:0', '6:']);
+  await page.click(`${T} input[name^=tt-grp][value=sop]`);
   assert.match(await page.eval((t) => document.querySelector(`${t} .tt-canon`).textContent, T), /y5 = Σm\(0, 6\) \+ d\(1\)/);
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-sop .tt-expr`).textContent, T), "y5 = /a·/b + a·b·/c");
   assert.equal(await page.eval((t) => document.querySelectorAll(`${t} svg.tt-kmap .tt-group`).length, T), 2);
@@ -653,6 +657,14 @@ uiTest('#1407 Truth Table: the Karnaugh map of 5 or 6 inputs in 3D, its groups a
   }), T);
   const ones5 = [...col5].flatMap((v, m) => (v === '1' ? [m] : []));
   assert.deepEqual(await shape(), { layers: ['a = 0', 'a = 1'], groups: ['0', '1'], sides: 4, ones: ones5 });
+  // (SOP groups: the 1s written, the 0s blank; POS groups: the 0s, the 1s blank, #1494)
+  const texts = () => page.eval((t) => [...new Set([...document.querySelectorAll(`${t} .tt-k3d-cell`)].map((c) => `${c.classList.contains('v1') ? 1 : 0}:${c.querySelector('.tt-k3d-v').textContent}`))].sort(), T);
+  assert.deepEqual(await texts(), ['0:', '1:1']);
+  await page.click(`${T} input[name^=tt-grp][value=pos]`);
+  await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: '3D, POS' });
+  assert.deepEqual(await texts(), ['0:0', '1:']);
+  await page.click(`${T} input[name^=tt-grp][value=sop]`);
+  await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: '3D, SOP' });
   // turned by dragging and by the arrow keys; Reset view
   const tf = () => page.eval((t) => document.querySelector(`${t} .tt-k3d-stack`).style.transform, T);
   const t0 = await tf();
