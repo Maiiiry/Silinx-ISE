@@ -25,9 +25,38 @@ const SOURCE_TYPES = [
   { id: 'tb', label: 'Test Bench', ico: 'vhdl', ext: null, dir: 'sim', wiz: 'testbench' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
   { id: 'mem', label: 'Memory Initialization File (.mem)', ico: 'file', ext: '.mem', dir: 'src' },
+  { id: 'c', label: 'C Function (HLS)', ico: 'file', ext: '.c', dir: 'src' },   // (Silinx C, compatible with Vitis HLS: #1531)
   // not in the list any more; newSourceWizard({ type: 'vhdl-pkg' }) still creates one
   { id: 'vhdl-pkg', label: 'VHDL Package', ico: 'vhdl', ext: '.vhd', dir: 'src', hidden: true },
 ];
+
+/** A new C source (Silinx C, docs/c-to-hdl.md): its top function, its ports explained, a test bench (#1531). */
+export function cTemplate(name) {
+  return [
+    `// ${name}: a C function made into hardware by Silinx (Silinx C, compatible with AMD's Vitis HLS).`,
+    '// The top function becomes a module: an argument passed by value is an input port, a pointer argument',
+    '// written is an output port (with its _ap_vld), the returned value is ap_return; ap_start, ap_done,',
+    '// ap_idle and ap_ready start a call and say when it is done. See docs/c-to-hdl.md.',
+    '#include "ap_int.h"',
+    '#include <stdio.h>',
+    '',
+    `void ${name}(ap_uint<4> a, ap_uint<4> b, ap_uint<5> *sum, bool *carry) {`,
+    '  ap_uint<5> s = a + b;',
+    '  *sum = s;',
+    '  *carry = s[4];',
+    '}',
+    '',
+    '// the test bench: main() is never made into hardware',
+    'int main(void) {',
+    '  ap_uint<5> sum;',
+    '  bool carry;',
+    `  ${name}(9, 8, &sum, &carry);`,
+    '  printf("9 + 8 = %d (carry %d)\\n", (int)sum, (int)carry);',
+    '  return 0;',
+    '}',
+    '',
+  ].join('\n');
+}
 
 export async function newSourceWizard({ type } = {}) {
   if (!S.project) return;
@@ -223,6 +252,7 @@ export async function newSourceWizard({ type } = {}) {
     }
     case 'ucf': text = T.ucfTemplate(pj); break;
     case 'mem': text = '// memory initialization file ($readmemh format)\n00\n01\n02\n03\n'; break;
+    case 'c': text = cTemplate(n.replace(/[^A-Za-z0-9_]/g, '_')); break;
     case 'sch': {
       const { newDoc } = await import('/core/schdoc.js');
       text = JSON.stringify(newDoc(n.replace(/[^A-Za-z0-9_]/g, '_'), pj.preferredLanguage || 'vhdl'), null, 1);

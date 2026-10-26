@@ -17,7 +17,7 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const TYPES = ['Truth Table', 'Module (HDL)', 'Schematic', 'Finite State Machine (FSM)', 'Algorithmic State Machine (ASM)', 'Petri Net',
-  'Clock Manager (DCM / PLL)', 'Block Memory', 'Test Bench', 'Implementation Constraints File', 'Memory Initialization File (.mem)'];
+  'Clock Manager (DCM / PLL)', 'Block Memory', 'Test Bench', 'Implementation Constraints File', 'Memory Initialization File (.mem)', 'C Function (HLS)'];
 // each type: its wizard's dialog (null: none), only a wizard (Next > disabled)
 const WIZARD = {
   'Module (HDL)': 'Module Wizard', 'Schematic': 'Schematic Wizard', 'Petri Net': 'Petri Net Wizard',

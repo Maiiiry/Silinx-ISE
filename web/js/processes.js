@@ -346,10 +346,10 @@ export function hdlDiagnostics(path, text, info = []) {
 export async function checkFileSyntax(path) {
   await saveAll();
   log(`\nStarted : "Check Syntax" of ${path}.\n`, 'hdr');
-  const isC = /\.c$/i.test(path);
-  log(isC ? `Analyzing Silinx C file "${path}"` : `${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
+  const cFile = /\.c$/i.test(path);
+  log(cFile ? `Analyzing Silinx C file "${path}"` : `${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
   const info = [];
-  const diags = isC ? await cDiagnostics(path, info) : hdlDiagnostics(path, null, info);
+  const diags = cFile ? await cDiagnostics(path, info) : hdlDiagnostics(path, null, info);
   for (const l of info) log(l);
   setDiagnostics(diags);
   const ne = diags.filter(d => d.severity === 'error').length, nw = diags.length - ne;
