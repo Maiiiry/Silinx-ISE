@@ -598,12 +598,17 @@ export async function projectProperties() {
   // a new device: the design checked against it first, the user told (#796)
   const next = dp.value();
   if ((next.part !== pj.device.part || next.package !== pj.device.package) && !await confirmDeviceChange(pj, next, db)) return;
-  const oldBoard = pj.board, oldDev = `${pj.device.part}-${pj.device.package}`;
+  const oldBoard = pj.board, oldDev = `${pj.device.part}-${pj.device.package}`, oldLang = pj.preferredLanguage || 'vhdl';
   pj.board = boardSel.value || null;
   pj.device = dp.value();
   pj.preferredLanguage = lang.value;
   pj.synthTool = synth.value;
   await app.saveProjectJson();
+  // every drawing in the new language, its HDL file made again in it (#1477)
+  if (lang.value !== oldLang) {
+    const n = (await (await import('./drawings-lang.js')).drawingsInLanguage(lang.value)).length;
+    app.log(`Preferred Language: ${lang.value === 'verilog' ? 'Verilog' : 'VHDL'}${n ? ` (${n} drawing(s) now in it, their HDL made again in it)` : ''}.`, 'info');
+  }
   await app.reloadProject();
   app.log(`Device set to ${pj.device.part}${pj.device.speed}-${pj.device.package}${pj.board ? ` (board ${pj.board})` : ''}.`, 'info');
   const changed = pj.board !== oldBoard || `${pj.device.part}-${pj.device.package}` !== oldDev;
