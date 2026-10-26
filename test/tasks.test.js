@@ -46,11 +46,15 @@ test('readState: the kept state checked; anything else falls back to Edit and th
   assert.deepEqual(T.readState('not json'), { task: 'edit', tasks: empty });
   assert.deepEqual(T.readState('[1,2]'), { task: 'edit', tasks: empty });
   assert.deepEqual(T.readState(JSON.stringify({ task: 'run', tasks: { sim: { side: 'yes', max: 1 } } })), { task: 'edit', tasks: empty });
-  const kept = { task: 'sim', tasks: { sim: { side: true, console: false, max: true, doc: 'isim', extra: 3 }, emu: { doc: 7 }, bogus: { side: true } } };
+  const kept = { v: T.STATE_V, task: 'sim', tasks: { sim: { side: true, console: false, max: true, doc: 'isim', extra: 3 }, emu: { doc: 7 }, bogus: { side: true } } };
   assert.deepEqual(T.readState(JSON.stringify(kept)), {
     task: 'sim',
     tasks: { edit: {}, sim: { side: true, console: false, max: true, doc: 'isim' }, emu: {}, impl: {} },
   });
+  // kept before Simulate's and Emulate's side panels changed (no version): their side's state dropped, the panels open (#1415)
+  const old = { task: 'emu', tasks: { sim: { side: false, doc: 'isim' }, emu: { side: false, console: true }, impl: { side: false } } };
+  assert.deepEqual(T.readState(JSON.stringify(old)).tasks, { edit: {}, sim: { doc: 'isim' }, emu: { console: true }, impl: { side: false } });
+  assert.deepEqual(T.readState(JSON.stringify({ ...old, v: T.STATE_V })).tasks.emu, { side: false, console: true }, 'kept since: kept');
   // the Program task of before (#1172): Implement
   assert.equal(T.readState(JSON.stringify({ task: 'prog' })).task, 'impl');
 });

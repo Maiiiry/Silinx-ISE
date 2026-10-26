@@ -88,15 +88,19 @@ export function taskOfDoc(id) {
 }
 
 /** The kept state (TASKS_KEY's JSON) checked: { task, tasks: { <task>: { side?, console?, max?, doc? } } }. */
+export const STATE_V = 2;   // (the kept state's version, #1415)
 export function readState(raw) {
   let v = null;
   try { v = JSON.parse(raw); } catch { /* none kept, or not ours */ }
   // (the Program task of before, #1172: Implement)
   const task = v?.task === 'prog' ? 'impl' : v?.task;
   const out = { task: TASKS.includes(task) ? task : 'edit', tasks: {} };
+  // (kept before the side panels of Simulate and Emulate changed (#1376, #1399, #1408): their side's state dropped, once,
+  // the panels open, #1415; kept since, the version STATE_V)
+  const before = !(v?.v >= STATE_V);
   for (const t of TASKS) {
     const k = v?.tasks?.[t] || {}, a = {};
-    for (const f of ['side', 'console', 'max']) if (typeof k[f] === 'boolean') a[f] = k[f];
+    for (const f of ['side', 'console', 'max']) if (typeof k[f] === 'boolean' && !(before && f === 'side' && (t === 'sim' || t === 'emu'))) a[f] = k[f];
     if (typeof k.doc === 'string') a.doc = k.doc;
     out.tasks[t] = a;
   }
@@ -141,7 +145,7 @@ const root = () => document.documentElement;
 const on = () => root().dataset.layout === 'tasks';
 let app = null, state = readState(null), lastActive = null, shownTask = null, fitSoon = () => {}, simPanel = null;
 
-function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }
+function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify({ ...state, v: STATE_V })); } catch { /* storage unavailable */ } }
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
 const current = () => state.task;
 const arr = (t = current()) => arrangement(t, state.tasks[t], isNarrow());
