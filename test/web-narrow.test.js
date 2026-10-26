@@ -140,13 +140,15 @@ test('no matchMedia: a wide screen', () => {
   assert.equal(page.html.dataset.drawer, 'open');
 });
 
-test('the breakpoint (1024 px) is the same in the stylesheets and the first-paint script keeps the drawer under the same key', () => {
-  assert.equal(N.NARROW_QUERY, '(max-width: 1024px)');
-  for (const f of ['app.css', 'modern.css', 'asm-editor.css', 'sch-editor.css']) {
+test('the breakpoint (under 1024 px: 1024 px wide, an iPad in landscape, docked, #1418) is the same in the stylesheets and the scripts, and the first-paint script keeps the drawer under the same key', () => {
+  assert.equal(N.NARROW_QUERY, '(max-width: 1023px)');
+  for (const f of ['app.css', 'modern.css', 'asm-editor.css', 'sch-editor.css', 'tasks.css']) {
     const css = fs.readFileSync(path.join(ROOT, 'web/css', f), 'utf8');
-    assert.ok(css.includes('@media (max-width: 1024px)'), f);
+    assert.ok(css.includes('@media (max-width: 1023px)'), f);
+    assert.doesNotMatch(css, /max-width: 1024px|min-width: 1025px/, `${f}: no other breakpoint`);
   }
-  assert.ok(fs.readFileSync(path.join(ROOT, 'web/css/app.css'), 'utf8').includes('@media (min-width: 1025px) { .narrow-only { display: none !important; } }'));
+  assert.ok(fs.readFileSync(path.join(ROOT, 'web/js/tasks.js'), 'utf8').includes("matchMedia?.('(max-width: 1023px)')"));
+  assert.ok(fs.readFileSync(path.join(ROOT, 'web/css/app.css'), 'utf8').includes('@media (min-width: 1024px) { .narrow-only { display: none !important; } }'));
   const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
   // (k: 'silinx.', or the site's dev/ edition's 'silinx.dev.': web/js/prefs.js, #1243)
   assert.equal(N.DRAWER_KEY, 'silinx.drawer');

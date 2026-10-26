@@ -470,7 +470,7 @@ export function initTasks(a) {
   new MutationObserver(refreshDots).observe($('procs'), { childList: true, subtree: true });
   // the interface switched (View ▸ Interface), or a narrow screen turned wide
   new MutationObserver(apply).observe(root(), { attributes: true, attributeFilter: ['data-layout'] });
-  globalThis.matchMedia?.('(max-width: 1024px)').addEventListener?.('change', apply);
+  globalThis.matchMedia?.('(max-width: 1023px)').addEventListener?.('change', apply);
   // the header's room: its width, and what is in it (the menus' labels in another language, the Development
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));

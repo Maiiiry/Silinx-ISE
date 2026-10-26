@@ -612,9 +612,11 @@ uiTest('#1021 Tasks ▸ Emulate: the board keeps its size; the Watch and the VGA
   assert.deepEqual({ ...L, zoom: undefined }, { zoom: undefined, proper: true, watch: 'beside', vga: 'below', scrollsDown: true, scrollsAcross: false });
   L = await at(1280, 800);
   assert.deepEqual({ ...L, zoom: undefined }, { zoom: undefined, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: false });
-  // a tablet in landscape: the board at its proper size, the Watch and the VGA monitor below it
+  // a tablet in landscape: the side panel docked, not a drawer (#1418); the board at its proper size beside it, the area
+  // scrolling across, the Watch and the VGA monitor below it
   L = await at(1024, 768);
-  assert.deepEqual(L, { zoom: 1, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: false });
+  assert.deepEqual(L, { zoom: 1, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: true });
+  assert.deepEqual(await page.eval(() => [document.getElementById('task-emu-panel').getClientRects().length > 0, !!document.getElementById('drawer-btn').getClientRects().length]), [true, false], 'docked');
   // a tablet in portrait: narrower than the board, which keeps its size: the area scrolls across too, not the page
   L = await at(768, 1024);
   assert.deepEqual(L, { zoom: 1, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: true });
