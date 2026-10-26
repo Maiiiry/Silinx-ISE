@@ -143,6 +143,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .form-grid > * { min-width: 0; }
 /* a project's documents reopening (a reload, a project opened): out of sight until they are in place (#1339) */
 html[data-restoring] :is(#workspace, #doc-tabs, #task-empty) { visibility: hidden; }
+html[data-starting] #app { visibility: hidden; }   /* (at start-up, the last project reopening: #1403) */
 .form-grid input[type=file] { width: 100%; max-width: 100%; box-sizing: border-box; }
 .wiz { display: flex; gap: 14px; min-height: 320px; }
 .wiz-side { width: 150px; background: linear-gradient(#2c4f86, #5a86c5); color: #fff; padding: 12px 10px; border-radius: 3px; flex: none; }

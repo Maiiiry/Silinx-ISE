@@ -1446,6 +1446,32 @@ uiTest('#1339 Tasks: a reload reopens the documents out of sight, the work area 
   assert.equal(await page.eval(() => getComputedStyle(document.getElementById('workspace')).visibility), 'visible');
 }, { build: DEV, skip: chromeOnly });
 
+// #1403: a reload at start-up shows nothing of the project opening: the app hidden from the first paint until it is back
+// where the user was (its task, its document in front, its side panel), then shown once
+uiTest('#1403 Tasks: a reload shows the app only once back where the user was, nothing of the project opening', E, async (page) => {
+  await makeProject(env, { name: 'TasksReloadStill', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksReloadStill');
+  for (const f of ['src/top.vhd', 'src/knight.vhd']) await page.eval((p) => window.SilinxApp.openFile(p), f);
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-sim-panel .task-sim-bench .row.sel');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top' && !window.Silinx.active.view.state.running, [], { what: 'SSim', timeout: 60000 });
+  // (every change noted while the app is shown: the task, the document in front, the page of the side panel)
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__seen = []; new MutationObserver(() => {
+    const app = document.getElementById('app'); if (!app || getComputedStyle(app).visibility === 'hidden') return;
+    const d = document.documentElement.dataset, s = [d.task || '', document.querySelector('#doc-tabs > .tab.active')?.textContent || '', d.side || ''].join('|');
+    if (window.__seen.at(-1) !== s) window.__seen.push(s);
+  }).observe(document, { subtree: true, childList: true, attributes: true });` });
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.project?.name === 'TasksReloadStill' && window.Silinx.active?.id === 'isim:tb_top' && !document.documentElement.hasAttribute('data-starting'), [], { what: 'reopened', timeout: 60000 });
+  await page.eval(() => new Promise((r) => setTimeout(r, 500)));
+  const seen = await page.eval(() => window.__seen);
+  assert.ok(seen.length >= 1, JSON.stringify(seen));
+  assert.deepEqual([...new Set(seen.map((x) => x.split('|')[0]))], ['sim'], `only Simulate seen: ${JSON.stringify(seen)}`);
+  assert.equal(await page.eval(() => getComputedStyle(document.getElementById('app')).visibility), 'visible');
+}, { build: DEV, skip: chromeOnly });
+
 // #1289: a task with no document open has no tab bar (Simulate with no test bench yet: its page alone)
 uiTest('#1289 Tasks: no tab bar while the task has no document open (Simulate with no test bench); shown with one', E, async (page) => {
   await makeProject(env, { name: 'TasksNoTabs', template: 'gates', files: {}, roles: {} });

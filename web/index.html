@@ -29,7 +29,11 @@
   d.setAttribute('data-theme', ui !== 'classic' && dark ? 'dark' : 'light');
   /* narrow screens: the left side's drawer as the viewer left it (web/js/narrow.js, #266) */
   var dr = 'open'; try { dr = localStorage.getItem(k + 'drawer') === 'closed' ? 'closed' : 'open'; } catch (e) {}
-  d.setAttribute('data-drawer', dr); })();
+  d.setAttribute('data-drawer', dr);
+  /* a project to reopen: the app hidden until it is back where the user was, not seen opening (web/js/app.js, #1403;
+     shown anyway after 10 s) */
+  var last = null; try { last = localStorage.getItem(k + 'lastProject'); } catch (e) {}
+  if (last) { d.setAttribute('data-starting', ''); setTimeout(function () { d.removeAttribute('data-starting'); }, 10000); } })();
 </script>
 <!-- the editor (CodeMirror 6, web/js/editor.js): its ES modules, from node_modules (server/server.js
      serves these packages only; the standalone edition bundles them, scripts/build-standalone.mjs) -->
