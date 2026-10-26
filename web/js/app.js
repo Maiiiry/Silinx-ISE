@@ -501,7 +501,7 @@ export async function openFile(path, line, col, { task } = {}) {
     try { text = await api.readFile(pj, path); }
     catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
     if (S.project?.name !== pj) return;   // another project opened during the read: not its file (#1231)
-    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : 'text';
+    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : /\.c$/i.test(path) ? 'c' : 'text';   // (c: Silinx C, #1524)
     doc = openDoc({
       id, path, task, title: path.split('/').pop(), tooltip: path, icon: lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'file',
       create(el, d) {
@@ -516,7 +516,7 @@ export async function openFile(path, line, col, { task } = {}) {
           ...editing,
           h('button', { class: 'tb-btn', title: 'Find (Ctrl+F)', html: icons.find, onclick: () => d.editor.exec('findToggle') }),   // (again: closed, #1328)
           (lang === 'vhdl' || lang === 'verilog') ? tplBtn : null,
-          (lang === 'vhdl' || lang === 'verilog' || lang === 'ucf') ? h('button', { class: 'btn', style: { minWidth: '0' }, title: 'Check Syntax of this file', onclick: () => (lang === 'ucf' ? checkUcfFile(path) : checkFileSyntax(path)) }, h('span', { class: 'ico-inline', html: icons.ok }), ' Check Syntax') : null,
+          (lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' || lang === 'c') ? h('button', { class: 'btn', style: { minWidth: '0' }, title: 'Check Syntax of this file', onclick: () => (lang === 'ucf' ? checkUcfFile(path) : checkFileSyntax(path)) }, h('span', { class: 'ico-inline', html: icons.ok }), ' Check Syntax') : null,
           h('span', { class: 'path' }, path),
           syncBanner(path));
         if (lang === 'vhdl' || lang === 'verilog') editing.push(tplBtn);
@@ -591,6 +591,7 @@ export async function openFile(path, line, col, { task } = {}) {
             edit ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,
             hdl ? '-' : null,
             hdl ? { label: 'Check Syntax', action: () => checkFileSyntax(path) } : null,
+            lang === 'c' ? { label: 'Check Syntax', action: () => checkFileSyntax(path) } : null,   // (Silinx C, #1524)
             lang === 'ucf' ? '-' : null,
             lang === 'ucf' ? { label: 'Check Syntax', action: () => checkUcfFile(path) } : null,
             lang === 'ucf' ? { label: 'I/O Pin Planning', action: () => openPinPlanner() } : null,

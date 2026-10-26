@@ -1,0 +1,293 @@
+// Silinx C (docs/c-to-hdl.md, #1524): the preprocessor and the lexer of a C source.
+// Isomorphic ES module: no DOM and no Node APIs.
+//
+//   lex(source, file) -> { tokens, pragmas, includes, errors }
+//     tokens:   [{ t: 'id' | 'num' | 'chr' | 'str' | 'op' | 'pragma' | 'eof', v, line, col }]
+//               a number's v is its text (its value read by the parser); a char's v its code; a pragma's v
+//               { name, args: { key: value | true }, text } (`#pragma HLS PIPELINE II=1` -> name 'PIPELINE',
+//               args { II: '1' }); other pragmas (not HLS) are dropped with a warning
+//     includes: [{ name, system, line }]: the headers named
+//     errors:   [{ file, line, col, message, severity }]
+// The preprocessor knows #include (the headers of Silinx C), #define (constants and macros of one
+// expression), #undef, #if / #ifdef / #ifndef / #elif / #else / #endif (integer constant expressions with
+// defined()), #pragma; its macros are expanded in the tokens.
+
+// the headers Silinx C knows (docs/c-to-hdl.md); hls_stream.h and the others refused
+export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h']);
+
+const PUNCT = ['<<=', '>>=', '...', '->', '++', '--', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=',
+  '&=', '|=', '^=', '::', '##'];
+const SINGLE = '+-*/%<>=!~&|^?:;,.()[]{}#';
+const ESC = { n: 10, t: 9, r: 13, 0: 0, '\\': 92, "'": 39, '"': 34, a: 7, b: 8, f: 12, v: 11, '?': 63 };
+
+/** The tokens of one line of text (no preprocessing): [{ t, v, col }]; errors pushed to `bad`. */
+function scan(text, line, bad) {
+  const out = [];
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === ' ' || c === '\t' || c === '\r' || c === '\f' || c === '\v') { i++; continue; }
+    const col = i + 1;
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i + 1;
+      while (j < text.length && /[\w]/.test(text[j])) j++;
+      out.push({ t: 'id', v: text.slice(i, j), col }); i = j; continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(text[i + 1] || ''))) {
+      let j = i;
+      if (/^0[xX]/.test(text.slice(i))) { j += 2; while (j < text.length && /[0-9a-fA-F']/.test(text[j])) j++; }
+      else if (/^0[bB]/.test(text.slice(i))) { j += 2; while (j < text.length && /[01']/.test(text[j])) j++; }
+      else while (j < text.length && /[0-9.eE']/.test(text[j])) j++;
+      while (j < text.length && /[uUlLfF]/.test(text[j])) j++;
+      out.push({ t: 'num', v: text.slice(i, j), col }); i = j; continue;
+    }
+    if (c === "'" || c === '"') {
+      let j = i + 1, s = '';
+      while (j < text.length && text[j] !== c) {
+        if (text[j] === '\\' && j + 1 < text.length) {
+          const e = text[j + 1];
+          if (e in ESC) { s += String.fromCharCode(ESC[e]); j += 2; continue; }
+          if (e === 'x') { const m = /^[0-9a-fA-F]+/.exec(text.slice(j + 2)); s += String.fromCharCode(parseInt(m?.[0] || '0', 16)); j += 2 + (m?.[0].length || 0); continue; }
+          s += e; j += 2; continue;
+        }
+        s += text[j++];
+      }
+      if (j >= text.length) { bad.push({ line, col, message: `missing closing ${c}` }); i = text.length; continue; }
+      if (c === "'") {
+        if (s.length !== 1) bad.push({ line, col, message: 'a character constant has one character' });
+        out.push({ t: 'chr', v: s.charCodeAt(0) || 0, col });
+      } else out.push({ t: 'str', v: s, col });
+      i = j + 1; continue;
+    }
+    const p = PUNCT.find((q) => text.startsWith(q, i));
+    if (p) { out.push({ t: 'op', v: p, col }); i += p.length; continue; }
+    if (SINGLE.includes(c)) { out.push({ t: 'op', v: c, col }); i++; continue; }
+    bad.push({ line, col, message: `unexpected character '${c}'` });
+    i++;
+  }
+  return out;
+}
+
+/** The lines of the source with the comments removed and the continued lines joined: [{ text, line, pos }], pos[i]
+ *  the { line, col } in the source of text[i] (a comment is one space, at the comment's place; the tokens after a
+ *  comment of several lines keep their own lines). An unterminated block comment is reported. */
+function logicalLines(source, bad) {
+  const src = String(source).replace(/\r\n?/g, '\n');
+  let text = '', pos = [], i = 0, line = 1, col = 1, inStr = null;
+  const lines = [];
+  let start = 1;
+  const add = (c, l, k) => { text += c; pos.push({ line: l, col: k }); };
+  const push = () => { lines.push({ text, line: start, pos }); text = ''; pos = []; };
+  const step = (n = 1) => { for (let k = 0; k < n; k++) { if (src[i] === '\n') { line++; col = 1; } else col++; i++; } };
+  while (i < src.length) {
+    const c = src[i];
+    if (inStr) {
+      if (c === '\n') { inStr = null; step(); push(); start = line; continue; }
+      add(c, line, col);
+      if (c === '\\' && src[i + 1] !== '\n') { step(); add(src[i] ?? '', line, col); step(); continue; }
+      if (c === inStr) inStr = null;
+      step(); continue;
+    }
+    if (c === '"' || c === "'") { inStr = c; add(c, line, col); step(); continue; }
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') step(); continue; }
+    if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      if (end < 0) bad.push({ line, col, message: 'a comment /* is not closed' });
+      add(' ', line, col);
+      step((end < 0 ? src.length : end + 2) - i);
+      continue;
+    }
+    if (c === '\\' && src[i + 1] === '\n') { step(2); continue; }
+    if (c === '\n') { step(); push(); start = line; continue; }
+    add(c, line, col); step();
+  }
+  push();
+  return lines;
+}
+
+// ---------------------------------------------------------------- #if expressions
+/** The value of an #if expression (its tokens, the macros known), C's integer rules, defined() included. */
+function ifValue(toks, macros, err) {
+  const ts = [];
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    if (t.t === 'id' && t.v === 'defined') {
+      const par = toks[k + 1]?.v === '(';
+      const name = toks[k + (par ? 2 : 1)];
+      ts.push({ t: 'num', v: macros.has(name?.v) ? '1' : '0' });
+      k += par ? 3 : 1; continue;
+    }
+    ts.push(t);
+  }
+  const exp = expand(ts, macros, err).map((t) => (t.t === 'id' ? { t: 'num', v: '0' } : t));   // (unknown names: 0, as C)
+  let p = 0;
+  const peek = () => exp[p]?.v;
+  const prim = () => {
+    const t = exp[p++];
+    if (!t) { err('#if: an expression is missing'); return 0n; }
+    if (t.v === '(') { const v = tern(); if (peek() === ')') p++; return v; }
+    if (t.v === '!') return prim() ? 0n : 1n;
+    if (t.v === '-') return -prim();
+    if (t.v === '+') return prim();
+    if (t.v === '~') return ~prim();
+    if (t.t === 'num') return BigInt(numText(t.v));
+    if (t.t === 'chr') return BigInt(t.v);
+    err(`#if: unexpected '${t.v}'`); return 0n;
+  };
+  const LEVELS = [['||'], ['&&'], ['|'], ['^'], ['&'], ['==', '!='], ['<', '>', '<=', '>='], ['<<', '>>'], ['+', '-'], ['*', '/', '%']];
+  const bin = (lv) => {
+    if (lv === LEVELS.length) return prim();
+    let a = bin(lv + 1);
+    while (LEVELS[lv].includes(peek())) {
+      const op = exp[p++].v, b = bin(lv + 1);
+      a = binop(op, a, b, err);
+    }
+    return a;
+  };
+  const tern = () => {
+    const c = bin(0);
+    if (peek() !== '?') return c;
+    p++; const a = tern(); if (peek() === ':') p++; const b = tern();
+    return c ? a : b;
+  };
+  return tern();
+}
+function binop(op, a, b, err) {
+  switch (op) {
+    case '||': return a || b ? 1n : 0n; case '&&': return a && b ? 1n : 0n;
+    case '|': return a | b; case '^': return a ^ b; case '&': return a & b;
+    case '==': return a === b ? 1n : 0n; case '!=': return a !== b ? 1n : 0n;
+    case '<': return a < b ? 1n : 0n; case '>': return a > b ? 1n : 0n; case '<=': return a <= b ? 1n : 0n; case '>=': return a >= b ? 1n : 0n;
+    case '<<': return a << b; case '>>': return a >> b; case '+': return a + b; case '-': return a - b; case '*': return a * b;
+    case '/': if (!b) { err('#if: division by zero'); return 0n; } return a / b;
+    case '%': if (!b) { err('#if: division by zero'); return 0n; } return a % b;
+    default: return 0n;
+  }
+}
+/** A number's text without its suffixes and digit separators, as BigInt reads it (0x / 0b / octal / decimal). */
+export function numText(v) {
+  const s = String(v).replace(/'/g, '').replace(/[uUlL]+$/, '');
+  if (/^0[0-7]+$/.test(s)) return `0o${s.slice(1)}`;
+  return s;
+}
+
+// ---------------------------------------------------------------- macros
+/** The tokens with the macros expanded (object-like and function-like; no recursion into the same macro). */
+function expand(toks, macros, err, active = new Set()) {
+  const out = [];
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    const m = t.t === 'id' && !active.has(t.v) ? macros.get(t.v) : null;
+    if (!m) { out.push(t); continue; }
+    const at = (x) => ({ ...x, line: t.line, col: t.col });
+    if (!m.params) { out.push(...expand(m.body, macros, err, new Set([...active, t.v])).map(at)); continue; }
+    if (toks[k + 1]?.v !== '(') { out.push(t); continue; }
+    // the arguments: split at the commas outside parentheses
+    const args = [[]];
+    let depth = 0, j = k + 2;
+    for (; j < toks.length; j++) {
+      const v = toks[j].v;
+      if (toks[j].t === 'op' && v === '(') depth++;
+      if (toks[j].t === 'op' && v === ')') { if (!depth) break; depth--; }
+      if (toks[j].t === 'op' && v === ',' && !depth) { args.push([]); continue; }
+      args[args.length - 1].push(toks[j]);
+    }
+    if (j >= toks.length) { err(`the macro '${t.v}' is not closed`); out.push(t); continue; }
+    const given = args.length === 1 && !args[0].length ? [] : args;
+    if (given.length !== m.params.length) err(`the macro '${t.v}' takes ${m.params.length} argument(s), not ${given.length}`);
+    const body = [];
+    for (const b of m.body) {
+      const i = b.t === 'id' ? m.params.indexOf(b.v) : -1;
+      body.push(...(i >= 0 ? [{ t: 'op', v: '(' }, ...(given[i] || []), { t: 'op', v: ')' }] : [b]));
+    }
+    out.push(...expand(body, macros, err, new Set([...active, t.v])).map(at));
+    k = j;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- the pragmas
+/** `#pragma HLS NAME key=value key` -> { name, args, text }; null if not an HLS pragma. */
+function readPragma(rest) {
+  const m = /^\s*HLS\s+(\w+)\s*(.*)$/i.exec(rest);
+  if (!m) return null;
+  const args = {};
+  for (const a of m[2].matchAll(/(\w+)\s*(?:=\s*("[^"]*"|[^\s,]+))?/g)) args[a[1].toLowerCase()] = a[2] === undefined ? true : a[2].replace(/^"|"$/g, '');
+  return { name: m[1].toUpperCase(), args, text: rest.trim() };
+}
+
+// ---------------------------------------------------------------- the preprocessor
+export function lex(source, file = 'input.c') {
+  const errors = [];
+  const bad = [];
+  const lines = logicalLines(source, bad);
+  const tokens = [], pragmas = [], includes = [];
+  const macros = new Map();
+  const cond = [];   // [{ on, done, line }]: the #if stack (on: this branch taken; done: one branch taken)
+  const live = () => cond.every((c) => c.on);
+  const err = (line, col, message, severity = 'error') => errors.push({ file, line, col, message, severity });
+  for (const { text, line, pos } of lines) {
+    const scanned = [];
+    const place = (t) => ({ ...t, line: pos[t.col - 1]?.line ?? line, col: pos[t.col - 1]?.col ?? t.col });
+    const d = /^\s*#\s*(\w*)\s*(.*)$/.exec(text);
+    if (d) {
+      const [, dir, rest] = d;
+      const col = text.indexOf('#') + 1;
+      const e = (m, sev) => err(line, col, m, sev);
+      const toks = () => scan(rest, line, bad).map((t) => ({ ...t, line }));
+      if (dir === 'if' || dir === 'ifdef' || dir === 'ifndef') {
+        const on = !live() ? false : dir === 'if' ? !!ifValue(toks(), macros, e) : (dir === 'ifdef') === macros.has(rest.trim().split(/\s/)[0]);
+        cond.push({ on, done: on, line, outer: live() });
+        continue;
+      }
+      if (dir === 'elif' || dir === 'else') {
+        const c = cond.at(-1);
+        if (!c) { e(`#${dir} with no #if`); continue; }
+        const outer = cond.slice(0, -1).every((x) => x.on);
+        c.on = outer && !c.done && (dir === 'else' || !!ifValue(toks(), macros, e));
+        c.done = c.done || c.on;
+        continue;
+      }
+      if (dir === 'endif') { if (!cond.pop()) e('#endif with no #if'); continue; }
+      if (!live()) continue;
+      if (dir === 'include') {
+        const m = /^[<"]([^>"]+)[>"]/.exec(rest.trim());
+        if (!m) { e('#include names a header: #include "ap_int.h" or #include <stdint.h>'); continue; }
+        includes.push({ name: m[1], system: rest.trim()[0] === '<', line });
+        if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: streams are not supported yet'
+          : `the header '${m[1]}' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)`);
+        continue;
+      }
+      if (dir === 'define') {
+        const m = /^(\w+)(\(([^)]*)\))?\s*(.*)$/.exec(rest);
+        if (!m) { e('#define names a macro'); continue; }
+        const params = m[2] !== undefined ? m[3].split(',').map((s) => s.trim()).filter(Boolean) : null;
+        const bodyCol = text.length - m[4].length + 1;
+        macros.set(m[1], { params, body: scan(m[4], line, bad).map((t) => ({ ...t, line, col: t.col + bodyCol - 1 })) });
+        continue;
+      }
+      if (dir === 'undef') { macros.delete(rest.trim()); continue; }
+      if (dir === 'pragma') {
+        const p = readPragma(rest);
+        if (!p) { e(`#pragma ${rest.trim()} is ignored (only #pragma HLS)`, 'warning'); continue; }
+        pragmas.push({ ...p, line });
+        tokens.push({ t: 'pragma', v: p, line, col });
+        continue;
+      }
+      if (dir === 'error') { e(`#error ${rest.trim()}`); continue; }
+      if (dir === '') continue;
+      e(`#${dir} is not supported`);
+      continue;
+    }
+    if (!live()) continue;
+    const lineBad = [];
+    for (const t of scan(text, line, lineBad)) scanned.push(place(t));
+    for (const b of lineBad) bad.push({ ...b, ...place({ col: b.col }) });
+    tokens.push(...expand(scanned, macros, (m) => err(line, scanned[0]?.col || 1, m)));
+  }
+  for (const c of cond) err(c.line, 1, '#if with no #endif');
+  for (const b of bad) err(b.line, b.col, b.message);
+  const last = lines.at(-1);
+  tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
+  return { tokens, pragmas, includes, errors };
+}
