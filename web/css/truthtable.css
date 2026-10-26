@@ -79,7 +79,6 @@
 .tt-k3d-cell.v1 .tt-k3d-v { color: #0040c0; }
 .tt-k3d-group { position: absolute; box-sizing: border-box; border: 2.5px solid; border-radius: 10px; pointer-events: none; }
 .tt-k3d-side { position: absolute; box-sizing: border-box; border: 1px solid; transform-origin: 0 0; pointer-events: none; opacity: .9; }
-.tt-k3d-bar { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 html[data-theme="dark"] .tt-k3d-layer { background: rgba(30, 34, 40, .82); }
 html[data-theme="dark"] .tt-k3d-cell:hover { background: #26324a; }
 html[data-theme="dark"] .tt-k3d-cell.v1 { background: #1d2738; }

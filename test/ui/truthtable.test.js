@@ -666,6 +666,12 @@ uiTest('#1407 Truth Table: the Karnaugh map of 5 or 6 inputs in 3D, its groups a
   assert.deepEqual(await texts(), ['0:0', '1:']);
   await page.click(`${T} input[name^=tt-grp][value=sop]`);
   await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: '3D, SOP' });
+  // Reset view right after the 3D box, on the options' line; no hint about the layers (#1567)
+  assert.deepEqual(await page.eval((t) => {
+    const g = document.querySelector(`${t} .tt-groups`), box = g.querySelector('.tt-k3d-on').closest('label'), r = g.querySelector('.tt-k3d-reset');
+    const a = box?.getBoundingClientRect(), b = r?.getBoundingClientRect();
+    return { after: !!r && box.nextElementSibling === r, line: !!r && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 4, hint: document.querySelectorAll(`${t} .tt-kmap-host .hint`).length };
+  }, T), { after: true, line: true, hint: 0 });
   // turned by dragging and by the arrow keys; Reset view
   const tf = () => page.eval((t) => document.querySelector(`${t} .tt-k3d-stack`).style.transform, T);
   const t0 = await tf();
@@ -690,7 +696,6 @@ uiTest('#1407 Truth Table: the Karnaugh map of 5 or 6 inputs in 3D, its groups a
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor((t) => document.querySelector(`${t} .tt-k3d-reset`)?.textContent === 'Repor a vista', [T], { what: 'Portuguese' });
-  assert.match(await page.eval((t) => document.querySelector(`${t} .tt-k3d-bar .hint`).textContent, T), /^As camadas em ordem de Gray/);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // flat again
   await page.click(`${T} .tt-k3d-on`);

@@ -90,14 +90,16 @@ export function mountKmap3d(host, { layout: L, col, terms, groups, colors, onCel
     view = { rx: Math.max(-85, Math.min(85, view.rx + d[0])), ry: view.ry + d[1] };
     apply();
   });
+  // (Reset view: placed by its caller, beside the 3D box, #1567)
   const reset = h('button', { type: 'button', class: 'btn tt-k3d-reset', onclick: () => { view = { rx: -28, ry: 32 }; apply(); } }, 'Reset view');
-  host.append(scene, h('div', { class: 'tt-k3d-bar' }, reset, h('span', { class: 'hint' }, L.maps.length > 2 ? 'The layers in Gray order: neighbouring layers differ in one variable, and the last one is a neighbour of the first.' : 'Neighbouring layers differ in one variable.')));
-  return { view: () => ({ ...view }) };
+  host.append(scene);
+  return { view: () => ({ ...view }), reset };
 }
 
-/** The K-map in `host`: its flat `svg`, or its maps in 3D (5 or 6 inputs, the 3D box ticked: added to `options`). */
+/** The K-map in `host`: its flat `svg`, or its maps in 3D (5 or 6 inputs, the 3D box ticked: added to `options`, its
+ *  Reset view right after it, #1567). */
 export function placeKmap({ host, options, svg, changed, ...map }) {
   if (map.layout.n >= 5) options.append(k3dBox(changed));
-  if (map.layout.n >= 5 && on) mountKmap3d(host, map);
+  if (map.layout.n >= 5 && on) options.append(mountKmap3d(host, map).reset);
   else host.append(svg);
 }
