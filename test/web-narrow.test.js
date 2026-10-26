@@ -63,6 +63,25 @@ test('the drawer: open the first time, as the viewer left it after, the header b
   assert.equal(page.html.dataset.drawer, 'open');
 });
 
+test('a project opened shows the drawer on a narrow screen, not in the Tasks layout nor on a wide screen (#1557)', () => {
+  N.setDrawer(false);
+  narrow = false;
+  N.drawerProjectOpened();
+  assert.equal(page.html.dataset.drawer, 'closed');
+  narrow = true;
+  page.html.dataset.layout = 'tasks';   // (its side panel docked, opened by the task's arrangement: web/js/tasks.js)
+  N.drawerProjectOpened();
+  assert.equal(page.html.dataset.drawer, 'closed');
+  delete page.html.dataset.layout;
+  N.drawerProjectOpened();
+  assert.deepEqual([page.html.dataset.drawer, page.ids['drawer-btn'].attrs['aria-expanded'], store[N.DRAWER_KEY]], ['open', 'true', 'open']);
+  // (already open: nothing kept, the first time's default left as it is)
+  setup();
+  N.initDrawer();
+  N.drawerProjectOpened();
+  assert.deepEqual(store, {});
+});
+
 test('the drawer gives way to a document on a narrow screen only', () => {
   N.setDrawer(true);
   narrow = false;

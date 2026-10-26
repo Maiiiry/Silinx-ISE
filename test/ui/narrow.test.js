@@ -226,3 +226,65 @@ for (const [w, h] of [[1180, 820], [1400, 900]]) {
     await noWarnings(page);
   });
 }
+
+// a project opened (#1557): the side panel and the messages shown, whatever was left folded or maximized; on a narrow screen
+// in the classic interface the drawer open, in the modern one (the Tasks layout) every task's side panel and messages open,
+// no document maximized (Emulate's side panel there back to its default, folded: the board its room, #1463)
+for (const [w, h] of [[1400, 900], [820, 1180]]) {
+  uiTest(`${w}×${h}: a project opened shows the side panel and the messages, whatever was left folded (#1557)`, E, async (page) => {
+    const pj = `Opened_${w}`;
+    await makeProject(env, { name: pj, template: 'gates' });
+    await makeProject(env, { name: `${pj}_b`, template: 'blinky' });
+    await page.setViewport(w, h);
+    await page.openProject(pj);
+    const modern = await page.eval(() => document.documentElement.dataset.ui === 'modern');
+    const narrow = w < 1024;
+    const task = (t) => page.eval((t) => [...document.querySelectorAll(`.task-btn[data-task="${t}"]`)].find((b) => b.getClientRects().length).click(), t);
+    const arranged = () => page.eval(() => {
+      const d = document.documentElement.dataset;
+      return { task: d.task, side: d.side, console: d.console, max: d.max };
+    });
+    const TASKS = ['edit', 'sim', 'emu', 'impl'];
+    if (modern) {
+      // every task: its side panel and messages folded, Design's and Implement's document maximized
+      for (const t of TASKS) {
+        await task(t);
+        await page.waitFor((t) => document.documentElement.dataset.task === t, [t], { what: t });
+        if ((await arranged()).side === 'open') await page.click('#task-view [data-act="side"]');
+        if ((await arranged()).console === 'open') await page.click('#task-view [data-act="console"]');
+        if (t === 'edit' || t === 'impl') await page.click('#task-view [data-act="max"]');
+        assert.deepEqual(await arranged(), { task: t, side: 'folded', console: 'folded', max: t === 'edit' || t === 'impl' ? 'on' : 'off' }, t);
+      }
+      // (Emulate's on a narrow screen opened by the viewer: back to its default once a project opens)
+      if (narrow) { await task('emu'); await page.click('#task-view [data-act="side"]'); assert.equal((await arranged()).side, 'open'); }
+    } else if (narrow) {
+      // the drawer closed
+      await page.click('#drawer-btn');
+      assert.deepEqual(await drawer(page), ['closed', 'closed', 'false']);
+    }
+    await page.openProject(`${pj}_b`);
+    if (modern) {
+      await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design in front' });
+      for (const t of TASKS) {
+        await task(t);
+        await page.waitFor((t) => document.documentElement.dataset.task === t, [t], { what: t });
+        const folded = narrow && t === 'emu';
+        assert.deepEqual(await arranged(), { task: t, side: folded ? 'folded' : 'open', console: 'open', max: 'off' }, t);
+        if (t !== 'sim') assert.equal(await shown(page, '#left'), !folded, t);   // (Simulate's side panel its own, SSim's, #800)
+        assert.ok(await shown(page, '#console-body'), t);
+      }
+      // kept
+      const kept = await page.eval(() => JSON.parse(localStorage.getItem('silinx.tasks')).tasks);
+      assert.deepEqual(TASKS.map((t) => [kept[t].side, kept[t].console, kept[t].max, kept[t].narrowSide]), TASKS.map(() => [true, true, false, undefined]));
+      // still folded by the viewer afterwards
+      await task('edit');
+      await page.click('#task-view [data-act="side"]');
+      assert.equal((await arranged()).side, 'folded');
+    } else {
+      if (narrow) assert.deepEqual(await drawer(page), ['open', 'open', 'true']);
+      else assert.equal(await page.eval(() => document.documentElement.dataset.drawer), 'open');
+      assert.ok(await shown(page, '#hier') && await shown(page, '#console-wrap'));
+    }
+    await noWarnings(page);
+  });
+}

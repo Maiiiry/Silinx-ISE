@@ -120,6 +120,17 @@ export function arrangement(task, kept = {}, narrow = false) {
   if (narrow && FOLDED_NARROW.includes(task)) a.side = kept.narrowSide ?? false;
   return a;
 }
+/** The kept state once a project is opened (#1557): every task's side panel and messages open, no document maximized,
+ *  whatever the viewer left; Emulate's side panel on a narrow screen back to its default (folded, the board its room,
+ *  #1463); the task in front and each task's document kept. */
+export function openedState(st) {
+  const tasks = {};
+  for (const t of TASKS) {
+    const { narrowSide, ...k } = st.tasks[t] || {};
+    tasks[t] = { ...k, side: true, console: true, max: false };
+  }
+  return { ...st, tasks };
+}
 
 // the tasks whose document is single by nature: a new emulation replaces the old one
 export const SINGLE = [];   // (none: Simulate its tabs, several simulations open, #1161; Emulate its tab, its title not in the header, #1426)
@@ -473,9 +484,11 @@ export function initTasks(a) {
     keep();
     setTask(taskOf(doc), { fromDoc: true });
   });
-  // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171)
+  // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171); every task's side
+  // panel and messages shown, whatever was left folded or maximized (#1557)
   addEventListener('silinx:project-opened', () => {
     if (!on()) return;
+    state = openedState(state);
     setTask('edit');
     app.showLeftPage('design');
   });
