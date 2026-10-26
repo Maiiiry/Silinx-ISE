@@ -1,6 +1,6 @@
 -- lamps: combinational module generated from the truth table lamps.tt.json (Silinx Truth Table / Karnaugh Map).
--- It stays synchronized with the table: editing the table rewrites this file, and editing this file (and
--- saving it) updates the table. Inputs: phase2, phase1, phase0, blink (phase2 is the most significant bit of a row).
+-- Edit the table, not this file: the file is generated from it. Inputs: phase2, phase1, phase0, blink (phase2 is the
+-- most significant bit of a row).
 --
 -- car_r = Σm(4, 5, 6, 7, 8, 9, 10, 11) + d(14, 15)
 -- car_r = phase2'·phase1 + phase2·phase1'   (minimal SOP, 4 literal(s), 5 gate(s), delay 3)

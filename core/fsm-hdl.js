@@ -63,7 +63,7 @@ export function generateFsm(model, lang, { source } = {}) {
   L.push(`${c} ${V ? 'Entity' : 'Module'}      : ${m.name}`);
   L.push(`${c} Description : ${kindText} finite state machine generated from the state diagram ${source || `${m.name}.fsm.json`}`);
   if (m.description) for (const line of m.description.split(/\r?\n/)) L.push(`${c}               ${line}`.trimEnd());
-  L.push(`${c} Generator   : Silinx FSM editor, kept in sync with the diagram (edit either one).`);
+  L.push(`${c} Generator   : Silinx FSM editor (edit the diagram, not this file).`);
   L.push(`${c} Style       : ${two ? '2 processes: state register + next-state and output logic' : '3 processes: state register, next-state logic, output logic'}`);
   L.push(`${c} Clock       : ${m.clock} (rising edge)`);
   L.push(`${c} Reset       : ${m.reset.name}, active-${m.reset.active}, ${m.reset.sync ? 'synchronous' : 'asynchronous'} (goes to ${nameOf(m, m.initial)})`);
