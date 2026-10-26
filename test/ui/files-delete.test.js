@@ -2,7 +2,7 @@
 // #1215: Delete File… in a file's menu, in the project or not: asked first (Cancel keeps it), its editor closed, out
 // of the project (the UCF: no constraints file), deleted from the disk; in Portuguese; both interfaces.
 // #1214: Tasks ▸ Design ▸ Files has Add to Project… (the folder's files not in the project, chosen and added) and
-// Add Copy to Project… (Add Copy of Source) above the list; none in the classic interface. No warnings.
+// Add Copy to Project… (Import Source, #1501) above the list; none in the classic interface. No warnings.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -116,9 +116,9 @@ uiTest('#1214 Tasks ▸ Files: Add to Project… (the folder\'s files not in the
   await page.dialogButton('OK');
   await page.waitFor(() => window.Silinx.project.files.some((f) => f.path === 'src/b.v'), [], { what: 'added' });
   await page.waitConsole(/src\/b\.v added to the project\./);
-  // Add Copy to Project…: Add Copy of Source
+  // Add Copy to Project…: Import Source
   await page.click('#task-files-bar button:nth-child(2)');
-  assert.equal(await page.waitDialog('Add Copy of Source'), 'Add Copy of Source');
+  assert.equal(await page.waitDialog('Import Source'), 'Import Source');   // (the modern interface's name, #1501)
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
   // in Portuguese

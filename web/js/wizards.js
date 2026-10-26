@@ -511,13 +511,17 @@ export function drawnHdlTaken(path, name, lang) {
 // ------------------------------------------------------------------ New Source (web/js/new-source.js, #405)
 export { newSourceWizard } from './new-source.js';
 
-/** Add Copy of Source… (`role`: the association first chosen; `title`: Add Copy of Test Bench, Simulation only, #1385). */
-export async function addSourceDialog({ role: first = 'design', title = 'Add Copy of Source' } = {}) {
+/** Add Copy of Source's name: Import Source in the modern interface (the Tasks layout, #1501), ISE's in the classic one. */
+export const addSourceTitle = () => (document.documentElement.dataset.layout === 'tasks' ? 'Import Source' : 'Add Copy of Source');
+/** Add Copy of Source… (`role`: the association first chosen; `title`: Import Test Bench, Simulation only, #1385, #1501). */
+export async function addSourceDialog({ role: first = 'design', title = addSourceTitle() } = {}) {
   const inp = h('input', { type: 'file', multiple: true, accept: '.v,.vhd,.vhdl,.ucf,.mem,.hex,.asm.json,.json' });
   const role = select([['design', 'All (Implementation + Simulation)'], ['impl', 'Implementation only'], ['sim', 'Simulation only']], typeof first === 'string' ? first : 'design');
+  // (the modern interface asks no association: Import Source's All, Import Test Bench's Simulation only, #1501)
+  const ask = document.documentElement.dataset.layout !== 'tasks';
   const r = await dialog({
     title, width: 480,
-    body: h('div', { class: 'form-grid' }, ...field('Files:', inp), ...field('Association:', role)),
+    body: h('div', { class: 'form-grid' }, ...field('Files:', inp), ...(ask ? field('Association:', role) : [])),
     buttons: [{ label: 'OK', primary: true, value: true }, { label: 'Cancel', value: null }],
   });
   if (!r) return;
@@ -532,9 +536,9 @@ export async function addSourceDialog({ role: first = 'design', title = 'Add Cop
     if (/\.json$/i.test(f.name)) {
       let bad = null;
       try { bad = reservedError(JSON.parse(text)?.name); } catch { /* not a drawing */ }
-      if (bad) { await alertDlg('Add Copy of Source', `${f.name}: ${bad}: rename the module in the file first.`, 'error'); continue; }
+      if (bad) { await alertDlg(title, `${f.name}: ${bad}: rename the module in the file first.`, 'error'); continue; }
     }
-    if ((S.diskTree || S.fileTree).includes(path) && !await confirmDlg('Add Copy of Source', `${path} already exists in the project. Replace it with the copy of ${f.name}?`)) continue;
+    if ((S.diskTree || S.fileTree).includes(path) && !await confirmDlg(title, `${path} already exists in the project. Replace it with the copy of ${f.name}?`)) continue;
     await api.writeFile(S.project.name, path, text);
     written.push(path);
     if (ext === 'ucf' && !S.fileTree.includes(S.project.constraints)) { S.project.constraints = path; await app.saveProjectJson(); }

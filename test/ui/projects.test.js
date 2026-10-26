@@ -436,14 +436,21 @@ uiTest('Add Copy of Source: new files, association, overwrite confirmation (No k
   await fs.writeFile(path.join(dir, 'inv.vhd'), changed);
   await fs.writeFile(path.join(dir, 'buf2.v'), 'module buf2(input a, output y); assign y = a; endmodule\n');
   await fs.writeFile(path.join(dir, 'tb_buf2.v'), 'module tb_buf2; reg a = 0; wire y; buf2 u(.a(a), .y(y)); initial begin #10 a = 1; #10 $finish; end endmodule\n');
+  // (its name as the interface shown: Import Source in the Tasks layout, ISE's elsewhere, #1501)
+  const IMPORT = await page.eval(() => (document.documentElement.dataset.layout === 'tasks' ? 'Import Source' : 'Add Copy of Source'));
+  // (the modern interface asks no association, #1501: Import Source is All, Import Test Bench Simulation only; the
+  // association asked here is the one its command would give)
+  const modern = IMPORT === 'Import Source';
   const add = async (files, role, answer) => {
-    await page.menu('Project', 'Add Copy of Source…');
-    await page.waitDialog('Add Copy of Source');
+    if (modern && role !== 'design') await page.eval((r) => { import('/js/wizards.js').then((w) => w.addSourceDialog({ role: r })); }, role);
+    else await page.menu('Project', `${IMPORT}…`);
+    await page.waitDialog(IMPORT);
     await page.setFiles('.dlg-overlay input[type=file]', files.map((f) => path.join(dir, f)));
-    await page.fill('.dlg-overlay select', role);
+    if (modern) assert.equal(await page.eval(() => document.querySelectorAll('.dlg-overlay select').length), 0, 'no association asked');
+    else await page.fill('.dlg-overlay select', role);
     await page.dialogButton('OK');
     if (answer) {
-      await page.waitDialog('Add Copy of Source');
+      await page.waitDialog(IMPORT);
       assert.match(await page.eval(() => [...document.querySelectorAll('.dlg-overlay')].pop().innerText), /src\/inv\.vhd already exists in the project\. Replace it with the copy of inv\.vhd\?/);
       await page.dialogButton(answer);
     }

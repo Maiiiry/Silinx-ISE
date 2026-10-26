@@ -4,6 +4,7 @@ import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, chromeOnly, BROWSER, PageGoneError } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
+const IMPORT = process.env.SILINX_UI_INTERFACE === 'classic' ? 'Add Copy of Source' : 'Import Source';   // (#1501)
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -196,7 +197,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
-    'Project ▸ New Source…', 'Project ▸ Add Copy of Source…', 'Project ▸ Design Properties…',
+    'Project ▸ New Source…', `Project ▸ ${IMPORT}…`, 'Project ▸ Design Properties…',
     'Process ▸ Implement Top Module', 'Process ▸ Check Syntax', 'Process ▸ Simulate Behavioral Model',
     'Tools ▸ ASM State Machine Editor…', 'Tools ▸ I/O Pin Planning', 'Tools ▸ iMPACT (Configure Target Device)', 'Tools ▸ Board Emulator', 'Tools ▸ RTL Schematic',
     'Tools ▸ Toolchain Settings (ISE / Programmers)…', 'Help ▸ About Silinx ISE', 'Help ▸ Keyboard Shortcuts', 'Help ▸ Check for Updates…', 'Window ▸ Close All Documents'].filter((m) => !modern || !GONE.some((g) => m.startsWith(`${g} ▸`)))) {
@@ -471,7 +472,7 @@ uiTest('Portuguese: View ▸ Language switches the UI; menus, dialogs and the ma
     await page.closeMenus();
   }
   const dialogs = [['File', 'New Project…', 3, 'Zz9'], ['File', 'Open Project…'], ['File', 'Import Silinx ISE Project (.zip)…'], ['File', 'Import Xilinx ISE Project (.zip)…'],
-    ['Project', 'New Source…', 3, 'zz9'], ['Project', 'Add Copy of Source…'], ['Project', 'Design Properties…'], ['Tools', 'Toolchain Settings (ISE / Programmers)…'],
+    ['Project', 'New Source…', 3, 'zz9'], ['Project', `${IMPORT}…`], ['Project', 'Design Properties…'], ['Tools', 'Toolchain Settings (ISE / Programmers)…'],
     ['Help', 'About Silinx ISE'], ['Help', 'Keyboard Shortcuts']];
   for (const [m, it, pages = 1, name] of dialogs) {
     await setLang('en');

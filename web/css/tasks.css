@@ -53,7 +53,7 @@ html[data-layout="tasks"] #menubar { display: none; }
 html[data-layout="tasks"] #topbar > #toolbar { height: auto; padding: 0; margin-left: 6px; background: none; border: none; min-width: 0; }
 html[data-layout="tasks"] #toolbar .tb-btn:is([data-cmd="stop"], [data-cmd="gear"], [data-cmd="help"]),
 html[data-layout="tasks"] #toolbar .tb-btn[data-cmd="find"] ~ .tb-sep { display: none; }
-/* the Design page's New Source and Add Copy of Source, above the tree, half of the panel each (#1210); the Files
+/* the Design page's New Source and Import Source (#1501), above the tree, half of the panel each (#1210); the Files
    page's Add to Project and Add Copy to Project (#1214) */
 /* (the Simulation hierarchy's, as Design's: #1385, web/js/tasks-sim-tree.js) */
 .task-sim-src-bar { display: none; }

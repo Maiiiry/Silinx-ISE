@@ -114,7 +114,7 @@ export function setupMenus() {
     ].filter(Boolean) },
     { label: 'Project', items: () => [
       { label: 'New Source…', action: () => wiz.newSourceWizard(), disabled: hasPj },
-      { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog(), disabled: hasPj },
+      { label: `${wiz.addSourceTitle()}…`, action: () => wiz.addSourceDialog(), disabled: hasPj },   // (Import Source… in the modern interface, #1501)
       '-',
       // the implementation top (the Simulation view has none: Simulate runs the selected module)
       // (the selected module the top: Unset as Top Module, #1220)
