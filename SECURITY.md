@@ -42,8 +42,9 @@ whoever has the address with its token has the server, as the warning says at st
   container runs with no network, no capability, no way to gain privileges and a bound on its processes
   (`--network none --cap-drop ALL --security-opt no-new-privileges --pids-limit`), and a memory limit
   when the configuration sets one (`docker.memory`).
-- At every release, CI scans for private data (e-mail addresses, computer names and network addresses,
-  keys and tokens, Xilinx files) the tracked files and every line ever added to `main`; CodeQL analyses
+- At every release, CI scans for private data (e-mail addresses, computer names, network addresses and
+  paths, keys and tokens, Xilinx files, a bitstream under any name) the tracked files, text, compressed
+  and binary, and every line ever added to `main`; CodeQL analyses
   the JavaScript nightly and at every release; Dependabot's alerts report a dependency with a known
   vulnerability, and Dependabot updates the dependencies weekly and opens security updates at once.
   Before every push, `node scripts/check-private-data.mjs` checks the tracked files.
