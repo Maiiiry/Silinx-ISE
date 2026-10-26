@@ -45,8 +45,9 @@ import { mountSchCheck } from './sch-check.js';
 import { mountSchOptions } from './sch-options.js';
 import { mountSchCurve } from './sch-curve.js';
 import { onLayoutToggled } from './layout-fit.js';
+import { clone } from '/core/util.js';
+export { clone };   // (core/util.js's)
 
-export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
 export const KEYS = { sym: 'symbols', wire: 'wires', port: 'ports', label: 'labels' };
 

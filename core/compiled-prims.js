@@ -25,8 +25,8 @@
 // Isomorphic ES module (browser + Node), no DOM.
 
 import { PRIMITIVE_MODELS_S6, BWER_MEMORIES, PLL_OUTPUTS } from './compiled-prims-s6.js';
+import { hex2 } from './util.js';
 
-const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 const BRAM_W = { 1: [1, 0, 14], 2: [2, 0, 13], 4: [4, 0, 12], 9: [8, 1, 11], 18: [16, 2, 10], 36: [32, 4, 9] };   // data, parity, address bits (as unisim.js)
 const BW = [1, 2, 4, 9, 18, 36];
 

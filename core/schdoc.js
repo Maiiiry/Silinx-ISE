@@ -37,6 +37,8 @@ import {
   ffVariant, findMod, freePortName, gateVariant, int, normModules, oppositeSide, portBox, portSide, rotSize, symbolBox,
   symbolDef, symbolParams, symbolPins, symbolTypeName, turnSide, xform, xformSide
 } from './schdoc-symbols.js';
+import { clone, lineStarts } from './util.js';
+export { lineStarts };   // (core/util.js's)
 export {
   FF_INPUTS, MUX_INPUTS, PORT_SIDES, SIDE_V, SYMBOLS, SYMBOL_CATEGORIES, arithIo, attrParam, defaultParams, ffVariant,
   findMod, freePortName, gateVariant, int, normModules, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef,
@@ -64,7 +66,6 @@ export const DOC_VERSION = 4;
 
 export const snap = v => Math.round(v / GRID) * GRID;
 export const r10 = v => Math.ceil(v / GRID) * GRID;
-const clone = o => JSON.parse(JSON.stringify(o));
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 
 // ===================================================================== documents
@@ -625,7 +626,6 @@ export function tokenize(text, lang) {
   return toks;
 }
 
-export function lineStarts(text) { const a = [0]; for (let i = 0; i < text.length; i++) if (text[i] === '\n') a.push(i + 1); return a; }
 export function offsetOf(ls, loc) { if (!loc) return -1; return (ls[loc.line - 1] ?? 0) + (loc.col || 1) - 1; }
 export function tokAt(toks, off) { let lo = 0, hi = toks.length; while (lo < hi) { const m = (lo + hi) >> 1; if (toks[m].e <= off) lo = m + 1; else hi = m; } return lo; }
 export function skipParen(toks, i) {

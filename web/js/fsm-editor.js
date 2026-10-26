@@ -15,6 +15,7 @@
 // Model, validation, tables and HDL: core/fsm.js. Styles: asm-editor.css (shared look) + fsm-editor.css.
 
 import { h, undoButton, linkModel, linkSnapshot } from './ui.js';
+import { sv } from './dom.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
   normalizeFsm, newFsm, validateFsm, formatOutputs, FSM_ENCODINGS, STATE_R,
@@ -28,18 +29,14 @@ import { mountFsmPointer } from './fsm-pointer.js';
 import { mountFsmInline } from './fsm-inline.js';
 import { mountFsmView } from './fsm-view.js';
 import { mountFsmHistory } from './fsm-history.js';
+import { clone } from '/core/util.js';
+export { clone };   // (core/util.js's)
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
 let instances = 0;
-export const clone = (o) => JSON.parse(JSON.stringify(o));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-export const sv = (tag, attrs = {}, ...kids) => {
-  const el = document.createElementNS(SVGNS, tag);
-  for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) el.setAttribute(k, v);
-  for (const c of kids) if (c != null) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  return el;
-};
+export { sv };   // (web/js/dom.js's)
 const CHW = 7.3;                       // width of a 12px monospace character
 export const textW = (s) => String(s).length * CHW;
 

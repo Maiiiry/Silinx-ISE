@@ -17,6 +17,9 @@
 //
 // Pure ES module, no Node-specific APIs (runs in the browser too).
 
+import { tokenText } from '../util.js';
+export { tokenText };   // (core/util.js's: the source text of a token on one line, for a message, from its offset, #189)
+
 export const KEYWORDS = new Set([
   'abs', 'access', 'after', 'alias', 'all', 'and', 'architecture', 'array', 'assert',
   'attribute', 'begin', 'block', 'body', 'buffer', 'bus', 'case', 'component',
@@ -296,8 +299,3 @@ export function lex(src) {
   }
 }
 
-/** The source text of a token on one line (for a message), from its offset: the tokens keep only
- *  numbers, the source once on the token array (#189). */
-export function tokenText(toks, tok) {
-  return tok?.at === undefined || toks?.src === undefined ? undefined : toks.src.slice(tok.at, tok.at + tok.end - tok.col);
-}

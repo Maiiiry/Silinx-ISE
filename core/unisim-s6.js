@@ -30,8 +30,8 @@
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
+import { hex2 } from './util.js';
 const IEEE = 'library IEEE; use IEEE.STD_LOGIC_1164.ALL; use IEEE.NUMERIC_STD.ALL;';
-const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 const zeros = (bits) => `X"${'0'.repeat(Math.ceil(bits / 4))}"`;
 const Z = (n) => `(${n - 1} downto 0 => '0')`;
 // 2:1 multiplexer, an unknown select known only when both inputs agree (core/unisim.js mux2)

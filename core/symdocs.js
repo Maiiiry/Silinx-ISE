@@ -15,8 +15,8 @@
 import { SYMBOLS, MUX_INPUTS, defaultParams, symbolParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
 import { DEVICE_PRIMITIVES, primitiveOf, primitiveResource } from './primitives.js';
 import { resourcesOf } from './resources.js';
+import { intOr as int } from './util.js';
 
-const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const pick = lang => (en, pt) => (lang === 'pt' ? pt : en);
 
 // ------------------------------------------------------------------ datasheet UI texts

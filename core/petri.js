@@ -16,6 +16,7 @@
 
 import { portExprCoder, isIdentifier, reservedIn, reservedWarning } from './asm.js';
 import { parseCond, evalCond, parseOutputs, constValue } from './fsm.js';
+import { clone } from './util.js';
 
 export const PETRI_VERSION = 1;
 export const PLACE_R = 22;          // radius of a place (drawing units)
@@ -23,7 +24,6 @@ export const TRANS_W = 10, TRANS_H = 40;
 const MAX_CAP = 255;
 const arr = v => (Array.isArray(v) ? v : []);
 const int = (v, d = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : d);
-const clone = o => JSON.parse(JSON.stringify(o));
 const bitsFor = n => Math.max(1, Math.ceil(Math.log2(n + 1)));
 
 function normIo(list) {

@@ -15,8 +15,8 @@
 // Isomorphic ES module (browser + Node), no DOM.
 
 import { BWER } from './unisim-s6.js';
+import { hex2 } from './util.js';
 
-const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 
 const CARRY4 = `module CARRY4(output [3:0] CO, output [3:0] O, input CI, input CYINIT, input [3:0] DI, input [3:0] S);
   wire [4:0] c;

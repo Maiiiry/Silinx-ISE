@@ -27,12 +27,8 @@
 import { lex } from './vhdl/lexer.js';
 import { tokenize } from './verilog/lexer.js';
 import { mountVhdlScopes } from './scopes-vhdl.js';
+import { lineStarts, isKw, isOp } from './util.js';
 
-function lineStarts(text) {
-  const out = [0];
-  for (let i = 0; i < text.length; i++) if (text[i] === '\n') out.push(i + 1);
-  return out;
-}
 
 class Scope {
   constructor(kind, outer, parent, tok, closer = null) {
@@ -119,8 +115,6 @@ function makeCtx(text, tokens) {
   return ctx;
 }
 
-const isKw = (t, ...v) => !!t && t.k === 'kw' && v.includes(t.v);
-const isOp = (t, ...v) => !!t && t.k === 'op' && v.includes(t.v);
 
 // Index of the ')' / ']' / '}' that closes the bracket at i.
 function matching(tokens, i) {

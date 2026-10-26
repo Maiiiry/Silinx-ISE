@@ -36,6 +36,7 @@ import { parse as parseVhdl } from './vhdl/parser.js';
 import { parse as parseVerilog } from './verilog/parser.js';
 import { PURE_CHECK } from './vhdl/purity.js';
 import { LABEL_CHECK } from './vhdl/labels.js';
+import { isKw, isOp } from './util.js';
 
 const VHDL_TYPES = ['std_logic', 'std_logic_vector', 'std_ulogic', 'std_ulogic_vector', 'unsigned', 'signed', 'integer', 'natural', 'positive',
   'boolean', 'bit', 'bit_vector', 'time', 'string', 'real', 'character'];
@@ -118,8 +119,6 @@ function context(text, lang) {
   return C;
 }
 
-const isKw = (t, ...v) => !!t && t.k === 'kw' && v.includes(t.v);
-const isOp = (t, ...v) => !!t && t.k === 'op' && v.includes(t.v);
 const q = s => `'${s}'`;
 
 function matching(tokens, i) {

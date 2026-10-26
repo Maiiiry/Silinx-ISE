@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { esc } from '../web/js/dom.js';
+import { esc, sv } from '../web/js/dom.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -56,4 +56,22 @@ test('#489 no module or page of web/ defines an element builder h of its own (ui
   assert.equal(ownBuilder("const h = (tag, cls, html) => document.createElement(tag);"), true);
   // a local h inside a function (an SVG shape's height) is not one
   assert.equal(ownBuilder('function body(def) {\n  const h = def.h;\n}'), false);
+});
+
+test('#1406 sv: an SVG element, its attributes (null / false left out) and children (text as text nodes)', () => {
+  const made = [];
+  globalThis.Node ??= class {};
+  const doc = globalThis.document;
+  globalThis.document = {
+    createElementNS: (ns, tag) => { const el = Object.assign(new globalThis.Node(), { ns, tag, attrs: {}, kids: [], setAttribute(k, v) { this.attrs[k] = v; }, append(c) { this.kids.push(c); } }); made.push(el); return el; },
+    createTextNode: (text) => ({ text }),
+  };
+  try {
+    const inner = sv('tspan', {}, 'x');
+    const el = sv('text', { x: 3, y: 0, fill: null, hidden: false, class: 'a' }, 'hello', null, 7, inner);
+    assert.equal(el.ns, 'http://www.w3.org/2000/svg');
+    assert.equal(el.tag, 'text');
+    assert.deepEqual(el.attrs, { x: 3, y: 0, class: 'a' });
+    assert.deepEqual(el.kids, [{ text: 'hello' }, { text: '7' }, inner]);
+  } finally { globalThis.document = doc; }
 });

@@ -36,6 +36,8 @@ import { parseCondition, isIdentifier, reservedIn, reservedWarning, portExprCode
 import { asmFromHdl } from './asm-from-hdl.js';
 import { asmToFsm, fsmToAsm } from './fsm-asm.js';
 import { generateFsm } from './fsm-hdl.js';
+import { clone } from './util.js';
+export { clone };   // (core/util.js's)
 export { generateFsm } from './fsm-hdl.js';
 export { asmToFsm, fsmToAsm } from './fsm-asm.js';
 
@@ -47,7 +49,6 @@ export const STATE_R = 34;            // radius of a state circle (drawing units
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
-export const clone = (o) => JSON.parse(JSON.stringify(o));
 export const pad = (s, n) => s + ' '.repeat(Math.max(0, n - s.length));
 const bitsOf = (v, w) => (BigInt(v) & ((1n << BigInt(w)) - 1n)).toString(2).padStart(w, '0');
 export const mask = (v, w) => v & ((1n << BigInt(w)) - 1n);

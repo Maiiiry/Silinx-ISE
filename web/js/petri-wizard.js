@@ -9,8 +9,8 @@ import { reservedError } from '/core/reserved.js';
 import { wizard, field, replaceGuard, closeBeforeReplace } from './wizards.js';
 import { namePage, portEditor } from './modwizard.js';
 import { S, app } from './app.js';
+import { portText } from './wizard-util.js';
 
-const portText = p => `${p.name}${+p.width > 1 ? ` [${p.width - 1}:0]` : ''}`;
 
 /** The net the wizard makes: the ports, the clock and the reset, nothing drawn yet. */
 export function petriFromPorts({ name, lang, description = '', ports, clock = 'clk', reset = 'rst' }) {

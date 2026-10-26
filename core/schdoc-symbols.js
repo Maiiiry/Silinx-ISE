@@ -3,6 +3,8 @@
 // markers' geometry. Isomorphic (no DOM).
 import { DEVICE_PRIMITIVES, primitiveOf } from './primitives.js';
 import { parseNetName, r10 } from './schdoc.js';
+import { intOr as int } from './util.js';
+export { int };   // (core/util.js's intOr)
 
 // ===================================================================== symbol library
 const P_WIDTH = { name: 'width', label: 'Width', kind: 'int', default: 1, min: 1, max: 1024 };
@@ -233,7 +235,6 @@ export function defaultParams(type) {
   return p;
 }
 
-export const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const widthsOf = s => String(s ?? '').split(/[,\s]+/).map(x => int(x, 0)).filter(x => x > 0);
 const chW = 6.2;   // approx char width of 9-11px Arial used for sizing boxes
 

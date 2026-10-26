@@ -4,6 +4,9 @@
 // it) and `at` (its offset in the source: tokenText gives its text, for a message; only numbers are
 // kept in the tokens, #189).
 
+import { tokenText } from '../util.js';
+export { tokenText };   // (core/util.js's: the source text of a token on one line, for a message, from its offset, #189)
+
 export const KEYWORDS = new Set(`module endmodule macromodule input output inout wire reg logic integer genvar parameter localparam
 assign always always_ff always_comb always_latch initial begin end if else case casez casex endcase default for while repeat forever
 posedge negedge or and not generate endgenerate function endfunction task endtask signed unsigned
@@ -267,11 +270,6 @@ export function tokenize(src, file, errors, opts = {}) {
   return { tokens: toks, timescale, defines };
 }
 
-/** The source text of a token on one line (for a message), from its offset: the tokens keep only
- *  numbers, the source once on the token array (#189). */
-export function tokenText(toks, tok) {
-  return tok?.at === undefined || toks?.src === undefined ? undefined : toks.src.slice(tok.at, tok.at + tok.end - tok.col);
-}
 
 
 // Convert a based literal token into IR bits (MSB first).

@@ -10,6 +10,7 @@
 // FileSystemDirectoryHandle (test/fixtures/fs-access-fake.js).
 
 import { DEV_SITE } from './prefs.js';
+import { clone } from '../../core/util.js';   // (a relative path: Node imports this module too, as api-local.js)
 
 const PROJECT_FILE = 'silinx.json';
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -20,7 +21,6 @@ const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132'
 export { DEV_SITE };
 const BROWSER_KEY = DEV_SITE ? 'silinx.dev.standalone.fs' : 'silinx.standalone.fs';
 
-const clone = o => JSON.parse(JSON.stringify(o));
 const fail = msg => { throw new Error(msg); };
 const langOf = p => (/\.(v|vh|sv)$/i.test(p) ? 'verilog' : /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.ucf$/i.test(p) ? 'ucf' : 'text');
 /**
