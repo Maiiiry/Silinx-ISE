@@ -24,7 +24,12 @@ uiTest('#1512 the Board Emulator prints the board in its current state, the Watc
     sel.dispatchEvent(new Event('change'));
     window.Silinx.active.view.pause();
   });
-  await page.waitFor(() => /^t = .* cycles/.test(document.querySelector('.doc:not([hidden]) .stat').textContent), [], { what: 'the time' });
+  // (paused: the time without the rate, and still: a run the worker began before the pause ends after it, #1558)
+  await page.waitFor(() => {
+    const t = document.querySelector('.doc:not([hidden]) .stat').textContent, now = Date.now(), w = window.__emuTime;
+    if (!/^t = .* cycles$/.test(t) || w?.t !== t) { window.__emuTime = { t, at: now }; return false; }
+    return now - w.at >= 1000;
+  }, [], { what: 'the time, paused and still' });
   const live = await page.eval(() => ({
     time: document.querySelector('.doc:not([hidden]) .stat').textContent,
     sw: [...document.querySelectorAll('.doc:not([hidden]) .emu-sw')].map((e) => e.className),
