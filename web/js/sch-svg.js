@@ -10,6 +10,12 @@ export const r1 = v => Math.round(v * 10) / 10;
 // ------------------------------------------------------------------ symbol drawing (local coordinates)
 function lead(x1, y1, x2, y2, bus) { return `<line class="pin${bus ? ' bus' : ''}" x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}"/>`; }
 
+// a gate's input lead ends at its body: the AND's straight back (x 20), the OR's / XOR's curved one
+function gateInputEnd(def, y) {
+  const base = def.gate.replace(/^n(?=and|or)/, '').replace(/^xn/, 'x'), t = y / def.h;
+  return base === 'or' ? 20 + 24 * t * (1 - t) : base === 'xor' ? 14 + 24 * t * (1 - t) : 20;
+}
+
 export function bodySvg(sym, def) {
   const pins = def.pins;
   const bus = p => (p.width || 1) > 1;
@@ -30,8 +36,7 @@ export function bodySvg(sym, def) {
           const x0 = def.bubble ? 66 : 60;
           s += lead(x0, p.y, p.x, p.y, bus(p));
         } else {
-          const t = p.y / h;
-          const xe = isOr ? (base === 'xor' ? 14 : 20) + 24 * t * (1 - t) : 20;
+          const xe = gateInputEnd(def, p.y);
           if (p.inv) {
             // inverted input (ANDnBk...): bubble between the pin lead and the body, as ISE draws it
             s += lead(0, p.y, xe - 8, p.y, bus(p)) + `<circle class="gate bubble" cx="${r1(xe - 4)}" cy="${p.y}" r="4"/>`;
@@ -137,9 +142,10 @@ export function bodySvg(sym, def) {
 // readable texts, positioned in sheet coordinates
 // the width of a bus pin on its lead, 10 px in from its end, upright, the lead broken under it (its halo): inside the
 // symbol's box in every orientation (#1139, #1174)
-function pinWidth(p) {
+// (d px in: a gate's inverted input, the middle of its lead, clear of its bubble, #1486)
+function pinWidth(p, d = 10) {
   const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
-  return `<text class="pwidth on" x="${p.x + 10 * v[0]}" y="${p.y + 10 * v[1] + 3}" text-anchor="middle">${esc(p.width)}</text>`;
+  return `<text class="pwidth on" x="${r1(p.x + d * v[0])}" y="${r1(p.y + d * v[1] + 3)}" text-anchor="middle">${esc(p.width)}</text>`;
 }
 // the symbol's type under it (above it turned 180°, beside it turned 90° / 270°), as ISE draws it (#172)
 function typeUnder(sym, def, box, center, name) {
@@ -219,14 +225,15 @@ function textsSvg(sym, def, ctx = {}) {
     const o = symbolPins(sym, null, def)[0];
     if ((o.width || 1) > 1) s += pinWidth(o);
   } else if (def.shape === 'gate' || def.shape === 'inv' || def.shape === 'buf') {
-    const w = sym.params?.width > 1 ? `${sym.params.width}` : '';
-    if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${esc(w)}</text>`; }
     // the type under the symbol (AND2, OR3B1, INV…), as ISE draws it (#172)
     s += typeUnder(sym, def, box, center, symbolTypeName(sym));
-  } else if (def.shape === 'tbuf') {
-    // bus width inside the triangle (bus pins), as for the gates
-    const w = def.rows === 1 && sym.params?.width > 1 ? `${sym.params.width}` : '';
-    if (w) { const t = cx(def.body.x + 7, 30); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${esc(w)}</text>`; }
+  }
+  if (def.shape === 'gate' || def.shape === 'inv' || def.shape === 'buf' || def.shape === 'tbuf') {
+    // a gate wider than a bit: the width on each bus pin's lead, as the other symbols, nothing in its shape (#1486)
+    for (const [i, p] of symbolPins(sym, null, def).entries()) {
+      const lp = def.pins[i];
+      if ((p.width || 1) > 1) s += pinWidth(p, lp.inv ? Math.min(10, (gateInputEnd(def, lp.y) - 8) / 2) : 10);
+    }
   }
   if (def.shape === 'lib' || def.shape === 'demux' || def.shape === 'ff') {
     // pin names inside the body, clear of the 20 px leads; bus widths beside the pin end

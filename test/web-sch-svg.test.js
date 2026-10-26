@@ -138,7 +138,10 @@ const ALL = [...Object.keys(SYMBOLS).filter((t) => !['module', 'hdlblock'].inclu
   // (buses: their widths)
   ['mux4', { width: 8 }], ['mux2', { width: 16, en: true }], ['demux', { sel: 2, width: 8 }], ['compare', { width: 16 }],
   ['register', { width: 16 }], ['counter', { width: 8, bits: false }], ['constant', { value: '5', width: 8 }], ['vcc', { width: 8 }],
-  ['gnd', { width: 4 }], ['busjoin', { widths: '4,4' }], ['slice', { msb: 7, lsb: 4 }]];
+  ['gnd', { width: 4 }], ['busjoin', { widths: '4,4' }], ['slice', { msb: 7, lsb: 4 }],
+  // (the gates' widths on their pins, #1486)
+  ['and2', { width: 8 }], ['nor4', { width: 16 }], ['and3b2', { width: 16 }], ['xnor2b1', { width: 16 }], ['or4b4', { width: 16 }],
+  ['inv', { width: 8 }], ['buf', { width: 16 }], ['tbuf', { width: 8 }], ['tbuf', { width: 16, enable: 'T' }], ['tbuf', { width: 4, bits: true }]];
 function textBox(t) {
   const a = attrs(t), n = t.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, 'x').length, w = 5.5 * n, x = +a.x, y = +a.y;
   const at = a['text-anchor'] || 'start', off = at === 'end' ? -w : at === 'middle' ? -w / 2 : 0;
@@ -216,4 +219,37 @@ test('#1138 schematic drawing: ADD and SUB drawn as an adder (a notched trapezoi
     const sym = { id: 'S1', type, x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params: { ...defaultParams(type), ...params } };
     assert.match(bodySvg(sym, symbolDef(sym)), /<rect class="gate"/, type);
   }
+});
+
+// #1486: a gate wider than a bit (AND…XNOR, their inverted-input forms, INV, BUF, BUFE / BUFT) shows its width on each
+// bus pin's lead, as the other symbols (pinWidth: 10 px in, upright, the lead broken under it), and nothing inside its
+// shape; an inverted input's in the middle of its lead, clear of its bubble; a one-bit gate none
+test('#1486 schematic drawing: a gate wider than a bit, its width at its input and output pins, not inside its shape', () => {
+  const widths = (svg) => [...svg.matchAll(/<text class="pwidth on" x="([\d.-]+)" y="([\d.-]+)" text-anchor="middle">([^<]*)</g)]
+    .map((m) => ({ x: +m[1], y: +m[2], w: m[3] }));
+  for (const type of ['and2', 'or3', 'nand4', 'nor2', 'xor2', 'xnor3', 'and3b2', 'xor2b1', 'inv', 'buf', 'tbuf']) {
+    for (const { rot, mirror } of ORIENTS) {
+      const sym = { id: 'S1', type, x: 200, y: 100, rot, mirror, name: 'U1', params: { ...defaultParams(type), width: 8 } };
+      const def = symbolDef(sym), svg = symbolSvg(sym, def), what = `${type} rot ${rot}${mirror ? ' mirrored' : ''}`;
+      const pins = symbolPins(sym, null, def), bus = def.pins.map((p, i) => [p, pins[i]]).filter(([p]) => p.width > 1);
+      // (every pin but the tri-state buffer's enable)
+      assert.equal(bus.length, def.pins.length - (type === 'tbuf' ? 1 : 0), what);
+      const at = bus.map(([lp, p]) => {
+        const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
+        const xe = lp.inv ? +attrs(bodySvg(sym, def).match(new RegExp(`<circle class="gate bubble" cx="([\\d.]+)" cy="${lp.y}"`))[0]).cx - 4 : 0;
+        const d = lp.inv ? xe / 2 : 10;
+        return { x: r1(p.x + d * v[0]), y: r1(p.y + d * v[1] + 3), w: '8' };
+      });
+      assert.deepEqual(widths(svg), at, what);
+      // nothing in the shape: no pin name, no other text but the type under it
+      assert.doesNotMatch(svg, /class="pname"/, what);
+      assert.deepEqual([...svg.matchAll(/<text class="(\w+)/g)].map((m) => m[1]).filter((c) => c !== 'pwidth'), type === 'tbuf' ? [] : ['stype'], what);
+    }
+    const one = { id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, name: 'U1', params: { ...defaultParams(type), width: 1 } };
+    assert.deepEqual(widths(symbolSvg(one, symbolDef(one))), [], `${type} one bit`);
+    assert.doesNotMatch(symbolSvg(one, symbolDef(one)), /class="pname"/, `${type} one bit`);
+  }
+  // an inverted input's width clear of its bubble (AND3B2: the bubble 12..20, the width at 6)
+  const sym = { id: 'S1', type: 'and3b2', x: 0, y: 0, rot: 0, mirror: false, name: 'U1', params: { width: 16 } };
+  assert.deepEqual(widths(symbolSvg(sym, symbolDef(sym))).map((t) => t.x), [6, 6, 10, 70]);
 });
