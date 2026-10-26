@@ -134,7 +134,10 @@ async function openSilinxTechSchematic(mod) {
   return openSchematic(r.name, { netlist: [...primitiveSources([net]), net] });
 }
 
-export async function openSchematic(mod, { netlist = null } = {}) {
+// (task: the Tasks interface's task it opens in, the one it is asked from (Design's menus: Design; Implement's
+// Synthesize: Implement, #1063, #1483); null: its id's, Implement. The Technology Schematic's, Implement's always)
+const taskNow = () => { const d = document.documentElement.dataset; return d.layout === 'tasks' && d.task || undefined; };
+export async function openSchematic(mod, { netlist = null, task = netlist ? null : taskNow() } = {}) {
   await saveAll();
   const sim = S.view === 'sim';
   const srcs = netlist || S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, sim));
@@ -159,7 +162,7 @@ export async function openSchematic(mod, { netlist = null } = {}) {
   const existing = findDoc(id);
   if (existing) await closeDoc(existing);
   openDoc({
-    id, title: `${mod} (${kindName})`, icon: 'schematic',
+    id, title: `${mod} (${kindName})`, icon: 'schematic', task: task || undefined,
     create(el, docRef) {
       const bar = h('div', { class: 'doc-toolbar rtl-crumbs' });
       const host = h('div', { class: 'doc-body' });
