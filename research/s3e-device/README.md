@@ -1003,3 +1003,19 @@ WIRES=measured.json.gz SEG=pairs node prototype.mjs predict obs.json switch-tile
 WIRES=measured.json.gz node edgejoins.mjs obs.json edge.json t1 …
 node prototype.mjs compare measured.json.gz        (the split nodes: with two pieces a net can reach, with a route lost)
 ```
+
+## 15. The measurements the test dry run asked for (2026-10-26)
+
+A dry run of the open flow's tests on the measured graph (`REPLACING.md`) found two things it lacked:
+
+- **A clock pad's dedicated path to its DCM.** Pad A9 reached no DCM on switches of known bits, so the placer gave
+  DCM_X1Y1 pad B9 where ISE gives it A9 (`core/fpga/place.js` `DCM_PAD`): no design of ISE's had taken A9 as a clock
+  input (`TIOIS_X14Y35`'s `I1_PINWIRE -> IOIS_IBUF1`, `IOIS_IBUF1 ~ CLKT_CKI3`). A design of the four DCMs, each fed
+  from the pad ISE gives it (C8, A9, N5, M6) through an IBUFG, implemented by ISE: its routes give the four dedicated
+  paths (`gen-obspins2.mjs dcmpads`). A9, B9, C8, B8, N5 and M6 now reach their DCMs, as on the shipped graph.
+- **An input-only pad's OTCLK1 / OTCLK2**, which no design can drive (an input has no output register): a rule
+  (`PINRULES`), an I/O site's clock pins still not seen on `<pin><k>` of its I pin's `Ik_PINWIRE`, the rule every observed
+  one follows (26 pins; none wrong).
+
+The six test files that failed again on the rebuilt graph: `fpga-hard` and `iob-pair-clocks` now pass; the five failures
+left are the tests pinned to the shipped graph's routes or contents (`REPLACING.md`).

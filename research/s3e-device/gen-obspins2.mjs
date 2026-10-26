@@ -8,10 +8,13 @@
 //   ramclkb:  every block RAM (LOC'd) a RAMB16_S1_S1 with port B on a clock of its own (CLKB its net's one sink there)
 //   bufg-l0/l1/r0/…: the BUFGMUXes of one clock tile at even or odd places (LOC'd), I0, I1 and S on signals of their
 //             own, O a clock
-//   node gen-obspins2.mjs outdir      (folders srlcasc, f8-00 … f8-11, ramclkb, bufg-l0 … bufg-b1)
+//   dcmpads:  every DCM (LOC'd) fed from the clock pad ISE gives it (core/fpga/place.js DCM_PAD) through an IBUFG, its
+//             CLK0 on a global buffer clocking a counter: the pads' dedicated paths to the DCMs
+//   node gen-obspins2.mjs outdir      (folders srlcasc, f8-00 … f8-11, ramclkb, bufg-l0 … bufg-b1, dcmpads)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { wrap } from './gen-obspins.mjs';
+import { DCM_PAD } from '../../core/fpga/place.js';
 
 const PART = process.env.PART || 'xc3s250ecp132-4';
 const xy = s => s.match(/X(\d+)Y(\d+)$/).slice(1).map(Number);
@@ -96,11 +99,34 @@ export function bufgs(dev, prefix, odd, part = PART) {
   return { v, ucf: sites.map((s, i) => `INST "u${i}" LOC = "${s}" ;`).join('\n') + '\n', n: sites.length };
 }
 
+/** Every DCM of the part fed from the clock pad ISE gives it (DCM_PAD) through an IBUFG, its CLK0 on a BUFG clocking a
+ *  counter: { v, ucf, n }. */
+export function dcmPads(part = PART) {
+  const pads = Object.entries(DCM_PAD[part.replace(/(cp|fg|vq|tq|pq|ft)\d+-\d+$/, '')] || {});
+  const v = `// ${part}: every DCM fed from its clock pad through an IBUFG, its CLK0 on a global buffer clocking a counter (#3,
+// the pads' dedicated paths to the DCMs: research/s3e-device gen-obspins2.mjs)
+module top(input [${pads.length - 1}:0] c, output [${pads.length - 1}:0] q);
+  genvar k;
+  generate for (k = 0; k < ${pads.length}; k = k + 1) begin : g
+    wire i, d, fb;
+    reg [7:0] n = 0;
+    IBUFG ub (.I(c[k]), .O(i));
+    DCM_SP #(.CLKIN_PERIOD(20.0), .CLK_FEEDBACK("1X")) ud (.CLKIN(i), .CLKFB(fb), .RST(1'b0), .PSEN(1'b0), .PSINCDEC(1'b0), .PSCLK(1'b0), .DSSEN(1'b0), .CLK0(d));
+    BUFG ug (.I(d), .O(fb));
+    always @(posedge fb) n <= n + 1;
+    assign q[k] = n[7];
+  end endgenerate
+endmodule
+`;
+  const ucf = pads.map(([dcm, pad], k) => `NET "c<${k}>" LOC = "${pad}" ;\nINST "g[${k}].ud" LOC = "${dcm}" ;`).join('\n') + '\n';
+  return { v, ucf, n: pads.length };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [out] = process.argv.slice(2);
   const dev = loadDeviceCache(PART);
   const designs = [['srlcasc', () => srlCascade(dev)], ...[0, 1].flatMap(o => [0, 1].map(c => [`f8-${o}${c}`, () => f8Muxes(dev, o, c)])), ['ramclkb', () => ramClkB(dev)],
-    ...['CLKL', 'CLKR', 'CLKT', 'CLKB'].flatMap(p => [0, 1].map(o => [`bufg-${p.slice(3).toLowerCase()}${o}`, () => bufgs(dev, p, o)]))];
+    ...['CLKL', 'CLKR', 'CLKT', 'CLKB'].flatMap(p => [0, 1].map(o => [`bufg-${p.slice(3).toLowerCase()}${o}`, () => bufgs(dev, p, o)])), ['dcmpads', () => dcmPads()]];
   for (const [name, f] of designs) {
     const { v, ucf, n } = f();
     fs.mkdirSync(`${out}/${name}`, { recursive: true });

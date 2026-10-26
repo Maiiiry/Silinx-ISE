@@ -19,7 +19,7 @@ import { chipMeasurements } from '../research/s3e-device/chip.mjs';
 import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
-import { srlCascade, f8Muxes, ramClkB, bufgs } from '../research/s3e-device/gen-obspins2.mjs';
+import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
@@ -815,6 +815,11 @@ test('chipMeasurements, PINRULES: a pin joined to the next tile\'s wire in one t
   assert.ok(m.joinsByRule > 0);
   const pin = (n, site, p) => { const t = m.tiles.find(x => x.name === n); const i = t.sites.findIndex(([q]) => q === site); return m.types[t.type].sites[i].pins.find(x => x[0] === p); };
   assert.deepEqual(pin('BIOIS_X11Y0', 'M4', 'ICLK1'), ['ICLK1', 'i', 'ICLK10']);
+  // an input-only pad's OTCLK1 / OTCLK2 (no design drives them): on <pin><k> of its I pin's Ik_PINWIRE
+  const obs3 = { ...obs, pins: [...obs.pins, { site: 'C8', pin: 'I', dir: 'o', tile: 'TIBUFS_X13Y35', wire: 'I1_PINWIRE' }] };
+  const m3 = chipMeasurements({ dev, tilesDb, layout: { brkRows: [] }, obs: obs3, rules: true });
+  const pin3 = (n, site, p) => { const t = m3.tiles.find(x => x.name === n); const i = t.sites.findIndex(([q]) => q === site); return m3.types[t.type].sites[i].pins.find(x => x[0] === p); };
+  assert.deepEqual(['ICLK1', 'OTCLK1', 'OTCLK2'].map(p => pin3('TIBUFS_X13Y35', 'C8', p)), [['ICLK1', 'i', 'ICLK11'], ['OTCLK1', 'i', 'OTCLK11'], ['OTCLK2', 'i', 'OTCLK21']]);
   assert.deepEqual(pin('DCM_BL_CENTER_X13Y1', 'DCM_X0Y0', 'PSCLK'), ['PSCLK', 'i', 'DCM_PSCLK_PINWIRE']);
 });
 
@@ -968,4 +973,16 @@ test('prototype.mjs predict, WIRES: a rule applied where a measured graph has th
   assert.ok(!run({}).includes('TIOIS_X5Y35/OMUX14 TIOIS_X4Y35/OMUX_W14'));
   assert.ok(run({ WIRES: path.join(dir, 'g.json.gz') }).some(j => j.split(' ').sort().join(' ') === 'TIOIS_X4Y35/OMUX_W14 TIOIS_X5Y35/OMUX14'));
   fs.rmSync(dir, { recursive: true });
+});
+
+test('gen-obspins2 dcmpads: every DCM on the clock pad ISE gives it (DCM_PAD), read by Silinx\'s front end (#3)', () => {
+  const d = dcmPads('xc3s250ecp132-4');
+  assert.equal(d.n, 4);
+  for (const [dcm, pad] of [['DCM_X0Y1', 'C8'], ['DCM_X1Y1', 'A9'], ['DCM_X0Y0', 'N5'], ['DCM_X1Y0', 'M6']]) {
+    const k = [...d.ucf.matchAll(/INST "g\[(\d)\]\.ud" LOC = "(DCM_X\dY\d)"/g)].find(m => m[2] === dcm)[1];
+    assert.match(d.ucf, new RegExp(`NET "c<${k}>" LOC = "${pad}" ;`), dcm);
+  }
+  const srcs = [{ path: 'top.v', lang: 'verilog', text: d.v }];
+  const lib = compile([...primitiveSources(srcs), ...srcs]);
+  assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
 });

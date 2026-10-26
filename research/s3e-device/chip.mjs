@@ -129,7 +129,8 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
   // (PINRULES=1: a pin joined to another tile's wire in some tiles (a carry chain's lower CIN, an F8's FXINB, a
   // multiplier's BCIN) is joined the same way in every tile of its type, and of its CLB twin, where that tile is: the
   // chains ISE's designs placed do not cross every boundary; an I/O block's ICLK1 / OTCLK1 on the wire of its ICLK2 /
-  // OTCLK2 with the 2 for a 1 (and back); a DCM's pin seen in one of the four DCM tiles on the same wire in the others)
+  // OTCLK2 with the 2 for a 1 (and back), else on <pin><k> of its Ik_PINWIRE; a DCM's pin seen in one of the four DCM
+  // tiles on the same wire in the others)
   let joinsByRule = 0;
   if (rules) {
     const twin = { CENTER_SMALL: 'CENTER_SMALL_BRK', CENTER_SMALL_BRK: 'CENTER_SMALL' };
@@ -153,6 +154,13 @@ export function chipMeasurements({ dev, tilesDb, layout, obs, others = [], probe
       if (!m || !/IOIS|IBUFS/.test(tt)) continue;
       const to = `${m[1]}${m[2] === '1' ? 2 : 1}`;
       if (!pinAt.has(`${tt}|${i}|${to}`) && new RegExp(`^${pin}\\d$`).test(v[1])) { pinAt.set(`${tt}|${i}|${to}`, [v[0], `${to}${v[1].slice(-1)}`]); byRule++; }
+    }
+    // (and an I/O site's clock pins still not seen, on <pin><k> of its I pin's Ik_PINWIRE, the rule every observed one
+    // follows: an input-only pad's OTCLK1 / OTCLK2, which no design can drive)
+    for (const [k, v] of [...pinAt]) {
+      const [tt, i, pin] = k.split('|'), m = pin === 'I' && /^I(\d)_PINWIRE$/.exec(v[1]);
+      if (!m || !/IOIS|IBUFS/.test(tt)) continue;
+      for (const c of ['ICLK1', 'ICLK2', 'OTCLK1', 'OTCLK2']) if (!pinAt.has(`${tt}|${i}|${c}`)) { pinAt.set(`${tt}|${i}|${c}`, ['i', `${c}${m[1]}`]); byRule++; }
     }
     const dcm = [...new Set(dev.templates.map(t => t.type).filter(t => /^DCM_[TB][LR]_CENTER$/.test(t)))];
     for (const [k, v] of [...pinAt]) {
