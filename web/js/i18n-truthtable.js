@@ -16,6 +16,11 @@ export const TT_PT = {
   'Minimal SOP': 'SOP mínima', 'Minimal POS': 'POS mínima', 'XOR form (when simpler)': 'Forma XOR (quando mais simples)',
   'NAND gates only': 'Só portas NAND', 'NOR gates only': 'Só portas NOR',
   'Least number of gates': 'Menor número de portas', 'Least delay': 'Menor atraso',
+  // the maps in 3D (#1407)
+  'Reset view': 'Repor a vista', 'Drag (or the arrow keys) to turn the maps': 'Arraste (ou use as setas) para rodar os mapas',
+  'The maps stacked in depth: a group across maps seen as one box': 'Os mapas empilhados em profundidade: um grupo que atravessa mapas visto como uma só caixa',
+  'Neighbouring layers differ in one variable.': 'Camadas vizinhas diferem numa variável.',
+  'The layers in Gray order: neighbouring layers differ in one variable, and the last one is a neighbour of the first.': 'As camadas em ordem de Gray: camadas vizinhas diferem numa variável, e a última é vizinha da primeira.',
   'The form with the fewest gates, each symbol one gate whatever its number of inputs': 'A forma com menos portas, cada símbolo uma porta qualquer que seja o seu número de entradas',
   'The form with the fewest gates on its longest path, every gate the same delay': 'A forma com menos portas no caminho mais longo, todas as portas com o mesmo atraso',
   'Truth Table from Module…': 'Tabela de Verdade de um Módulo…',

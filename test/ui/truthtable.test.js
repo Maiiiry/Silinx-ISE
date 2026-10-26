@@ -597,3 +597,66 @@ uiTest('#1427 Truth Table: Least number of gates and Least delay, every form\'s 
     ['Menor atraso', 'Como circuito: 1 porta(s), atraso 1', ['Menor número de portas', 'Menor atraso']]);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
 });
+
+// #1407: the K-map of 5 or 6 inputs in 3D: its maps stacked (2 or 4 layers, Gray order), a group on each layer it
+// covers and a box between neighbouring layers; turned by dragging and the arrow keys, Reset view; a cell clicked
+// cycles its value; no 3D box under 5 inputs; Portuguese
+uiTest('#1407 Truth Table: the Karnaugh map of 5 or 6 inputs in 3D, its groups as boxes through the layers; turned; Portuguese', E, async (page) => {
+  // f = c·e over 5 inputs (a b c d e): one group across both maps (a = 0, 1)
+  const col5 = Array.from({ length: 32 }, (_, m) => ((m & 0b00101) === 0b00101 ? '1' : '0')).join('');
+  const k5 = { version: 1, name: 'k5', inputs: ['a', 'b', 'c', 'd', 'e'], outputs: ['f'], table: { f: col5 }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
+  const k3 = { version: 1, name: 'k3', inputs: ['a', 'b', 'c'], outputs: ['f'], table: { f: '00010111' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
+  const col6 = Array.from({ length: 64 }, (_, m) => ((m & 0b000101) === 0b000101 ? '1' : '0')).join('');
+  const k6 = { version: 1, name: 'k6', inputs: ['a', 'b', 'c', 'd', 'e', 'g'], outputs: ['f'], table: { f: col6 }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
+  await makeProject(env, { name: 'Tt3d', files: { 'src/k5.tt.json': JSON.stringify(k5), 'src/k3.tt.json': JSON.stringify(k3), 'src/k6.tt.json': JSON.stringify(k6) } });
+  await page.openProject('Tt3d');
+  const T = '.doc:not([hidden]) .tt-editor';
+  const open = async (f) => {
+    await page.eval((p) => window.SilinxApp.openTt(p), f);
+    await page.waitFor((p) => window.Silinx.active?.id === `tt:${p}` && document.querySelector('.doc:not([hidden]) .tt-editor .tt-kmap-host'), [f], { what: f });
+  };
+  // under 5 inputs: no 3D box
+  await open('src/k3.tt.json');
+  assert.equal(await page.eval((t) => document.querySelectorAll(`${t} .tt-k3d-on`).length, T), 0);
+  // 5 inputs: flat at first; ticked, 2 layers, the group on both and a box (its 4 sides) between them
+  await open('src/k5.tt.json');
+  assert.ok(await page.eval((t) => !!document.querySelector(`${t} svg.tt-kmap`) && !document.querySelector(`${t} .tt-k3d`), T), 'flat at first');
+  await page.click(`${T} .tt-k3d-on`);
+  await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: '3D' });
+  const shape = () => page.eval((t) => ({
+    layers: [...document.querySelectorAll(`${t} .tt-k3d-layer`)].map((l) => l.querySelector('.tt-k3d-title').textContent),
+    groups: [...document.querySelectorAll(`${t} .tt-k3d-group`)].map((g) => g.dataset.map), sides: document.querySelectorAll(`${t} .tt-k3d-side`).length,
+    ones: [...document.querySelectorAll(`${t} .tt-k3d-cell.v1`)].map((c) => +c.dataset.row).sort((a, b) => a - b),
+  }), T);
+  const ones5 = [...col5].flatMap((v, m) => (v === '1' ? [m] : []));
+  assert.deepEqual(await shape(), { layers: ['a = 0', 'a = 1'], groups: ['0', '1'], sides: 4, ones: ones5 });
+  // turned by dragging and by the arrow keys; Reset view
+  const tf = () => page.eval((t) => document.querySelector(`${t} .tt-k3d-stack`).style.transform, T);
+  const t0 = await tf();
+  const box = await page.eval((t) => { const r = document.querySelector(`${t} .tt-k3d`).getBoundingClientRect(); return { x: Math.round(r.left + 12), y: Math.round(r.top + 12) }; }, T);
+  await page.drag(box, { x: box.x + 60, y: box.y + 30 });
+  assert.notEqual(await tf(), t0, 'turned by dragging');
+  await page.click(`${T} .tt-k3d-reset`);
+  assert.equal(await tf(), t0, 'Reset view');
+  await page.eval((t) => { const s = document.querySelector(`${t} .tt-k3d`); s.focus(); s.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); }, T);
+  assert.notEqual(await tf(), t0, 'turned by the arrow keys');
+  // a cell clicked: its value cycles (0 -> 1), the map drawn again in 3D
+  await page.click(`${T} .tt-k3d-cell[data-row="0"]`);
+  await page.waitFor((t) => document.querySelector(`${t} .tt-k3d-cell[data-row="0"]`)?.classList.contains('v1'), [T], { what: 'cell 0 to 1' });
+  await page.click(`${T} .tt-k3d-cell[data-row="0"]`);
+  await page.click(`${T} .tt-k3d-cell[data-row="0"]`);
+  await page.waitFor((t) => document.querySelector(`${t} .tt-k3d-cell[data-row="0"]`)?.classList.contains('v0'), [T], { what: 'cell 0 back to 0' });
+  // 6 inputs: 4 layers in Gray order, the group on all four, a box between each neighbouring pair
+  await open('src/k6.tt.json');
+  await page.waitFor((t) => !!document.querySelector(`${t} .tt-k3d`), [T], { what: '3D kept' });
+  const s6 = await shape();
+  assert.deepEqual([s6.layers, s6.groups, s6.sides], [['ab = 00', 'ab = 01', 'ab = 11', 'ab = 10'], ['0', '1', '2', '3'], 12]);
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor((t) => document.querySelector(`${t} .tt-k3d-reset`)?.textContent === 'Repor a vista', [T], { what: 'Portuguese' });
+  assert.match(await page.eval((t) => document.querySelector(`${t} .tt-k3d-bar .hint`).textContent, T), /^As camadas em ordem de Gray/);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // flat again
+  await page.click(`${T} .tt-k3d-on`);
+  await page.waitFor((t) => !document.querySelector(`${t} .tt-k3d`) && !!document.querySelector(`${t} svg.tt-kmap`), [T], { what: 'flat again' });
+});
