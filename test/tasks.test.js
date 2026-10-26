@@ -65,10 +65,11 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
   assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
   // (Simulate's side panel is ISim's Instances and Objects, not the drawer: what the viewer left, on a narrow screen too: #800)
   assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: false, max: false });
-  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: true, console: false, max: false });   // (the emulator's Watch: #801)
-  assert.deepEqual(T.arrangement('emu', {}, true), { side: true, console: false, max: false });   // (shown at first, below the board: #1020)
+  // (Emulate's side panel its Processes, as Implement's: the drawer on a narrow screen, closed when it comes to the front, #1399)
+  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: false, console: false, max: false });
+  assert.deepEqual(T.arrangement('emu', {}, true), { side: false, console: false, max: false });
   assert.deepEqual(T.arrangement('emu', { side: false }), { side: false, console: false, max: false });   // (folded by the viewer: kept)
-  assert.deepEqual(T.OWN_SIDE, ['sim', 'emu']);
+  assert.deepEqual(T.OWN_SIDE, ['sim']);   // (Emulate's as Implement's: #1399)
 });
 
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {

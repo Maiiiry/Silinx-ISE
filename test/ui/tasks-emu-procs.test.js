@@ -21,15 +21,15 @@ async function noWarnings(page) {
   assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
   assert.deepEqual(await page.eval(() => [document.getElementById('warn-count').textContent, ...[...document.querySelectorAll('#console-warnings .diag')].map((d) => d.textContent)]), ['']);
 }
-const BOX = '.doc:not([hidden]) .emu-side > .task-emu-procs';
-// Emulate's Processes as shown: the tab, the rows (their depth), whether the box is shown and first in the column
+const BOX = '#task-emu-panel';   // (the task's side panel, as Implement's, #1399)
+// Emulate's Processes as shown: the tab, the rows (their depth), whether they are shown, in the side panel (#left)
 const procs = (page) => page.eval((b) => {
   const box = document.querySelector(b);
   if (!box) return null;
   const depth = (li) => { let d = 0; for (let p = li.parentElement.closest('li'); p; p = p.parentElement.closest('li')) d++; return d; };
   return {
-    shown: box.getClientRects().length > 0, first: box.parentElement.firstElementChild === box,
-    tab: box.querySelector('.task-sim-tabs .tab-lbl')?.textContent,
+    shown: box.getClientRects().length > 0, side: !!box.closest('#left'),
+    tab: [...document.querySelectorAll('#left-tabs .tab')].filter((t) => t.getClientRects().length).map((t) => t.querySelector('.tab-lbl').textContent).join(),
     rows: [...box.querySelectorAll('.task-emu-tree li')].map((li) => `${'  '.repeat(depth(li))}${li.querySelector(':scope > .row .lbl').textContent}`),
   };
 }, BOX);
@@ -43,16 +43,21 @@ const EN = ['User Constraints', '  I/O Pin Planning', '  Edit Constraints (Text)
 
 uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and Emulate on Board, run from there; in Portuguese; classic none', E, async (page) => {
   await makeProject(env, { name: 'EmuProcs', template: 'blinky' });
-  await page.setViewport(1366, 768);
+  await page.setViewport(1680, 1050);   // (the side panel, the board and the Watch side by side, #1399)
   await tasksInterface(page);
   await page.openProject('EmuProcs');
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.click('#task-empty button');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor((b) => document.querySelectorAll(`${b} .task-emu-tree li`).length > 0, [BOX], { what: 'Emulate\'s Processes' });
-  assert.deepEqual(await procs(page), { shown: true, first: true, tab: 'Emulate', rows: EN });
-  // the Watch below it, as before
+  assert.deepEqual(await procs(page), { shown: true, side: true, tab: 'Emulate', rows: EN });
+  // the side panel as Implement's (its width, its tab's icon, #1399); the Watch beside the board, as before
+  const emuSide = await page.eval(() => [Math.round(document.getElementById('left').getBoundingClientRect().width), !!document.querySelector('#task-emu-tab .tab-ico svg')]);
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-side .emu-box h4')?.textContent), 'Watch');
+  await page.waitFor(() => { const w = document.querySelector('.doc:not([hidden]) .emu-side').getBoundingClientRect(), b = document.querySelector('.doc:not([hidden]) .emu-board-wrap').getBoundingClientRect(); return w.left >= b.right - 1; }, [], { what: 'the Watch beside the board' });
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  assert.deepEqual(emuSide, [await page.eval(() => Math.round(document.getElementById('left').getBoundingClientRect().width)), true], 'Implement\'s width');
+  await page.click('#task-switch .task-btn[data-task="emu"]');
   // a state: the Processes panel's, drawn in Emulate too
   await page.eval(() => { window.SilinxApp.S.status['ucf-check'] = 'ok'; window.SilinxApp.renderProcesses(); });
   assert.ok(await page.eval((b) => !!document.querySelector(`${b} li[data-proc="ucf-check"] > .row .status svg`), BOX), 'Check Constraints\' state');
@@ -70,17 +75,18 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   // in Portuguese
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor((b) => document.querySelector(`${b} .task-sim-tabs .tab-lbl`)?.textContent === 'Emular', [BOX], { what: 'Portuguese' });
+  await page.waitFor(() => document.querySelector('#task-emu-tab .tab-lbl')?.textContent === 'Emular', [], { what: 'Portuguese' });
   assert.deepEqual((await procs(page)).rows.slice(0, 5), ['Restrições do Utilizador', '  Planeamento de Pinos de E/S', '  Editar Restrições (Texto)', '  Verificar Restrições', 'Emular na Placa']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-  // folded with the side panel
+  // folded with the side panel, the Watch kept (#1399)
   await page.click('#task-view [data-act="side"]');
   assert.equal((await procs(page)).shown, false, 'folded');
+  assert.ok(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-side')?.getClientRects().length > 0), 'the Watch kept');
   await page.click('#task-view [data-act="side"]');
   assert.equal((await procs(page)).shown, true);
   // the classic interface: none
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
-  assert.equal((await procs(page)).shown, false, 'classic: none');
+  assert.equal((await procs(page))?.shown ?? false, false, 'classic: none');
   await noWarnings(page);
 }, { build: DEV });

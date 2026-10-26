@@ -105,8 +105,9 @@ export function readState(raw) {
 
 /** A task's arrangement: what the viewer left, else its defaults; on a narrow screen the side panel
  *  is the drawer, closed when the task comes to the front (the document first). */
-// the tasks whose side panel is their document's own: SSim's Instances and Objects (#800), the emulator's Watch (#801)
-export const OWN_SIDE = ['sim', 'emu'];
+// the tasks whose side panel is their document's own: SSim's Instances and Objects (#800); Emulate's, its Processes, as
+// Implement's (#1399)
+export const OWN_SIDE = ['sim'];
 export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
   if (narrow && !OWN_SIDE.includes(task)) a.side = false;   // (the drawer: closed when the task comes to the front)
@@ -312,8 +313,8 @@ function taskButton(t) {
 
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
-const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-sim-panel', 'task-impl-bar', 'task-procs-tab', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
-const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implementation' };
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty', 'task-sim-panel', 'task-impl-bar', 'task-procs-tab', 'task-emu-tab', 'task-emu-panel', 'task-view', 'task-src-bar', 'task-files-bar', 'task-close-bar'];   // (their ids)
+const PAGE_NAME = { start: 'Start', design: 'Design', test: 'Test', files: 'Files', libraries: 'Libraries', procs: 'Implementation', emu: 'Emulate' };
 function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
@@ -350,6 +351,10 @@ function build() {
   // Implement's side panel, its Processes, under a tab as Edit's pages (#1160: shown in Implement only, web/css/tasks.css)
   $('left-tabs').append(h('div', { id: 'task-procs-tab', class: 'tab', 'data-page': 'procs', role: 'tab', 'aria-selected': 'true' },
     h('span', { class: 'ico-inline tab-ico', html: icons.mBolt }), h('span', { class: 'tab-lbl' }, 'Implementation')));   // (#1207, #1257)
+  // Emulate's: its Processes as Implement's, under its tab (#1399; web/js/processes.js draws every .task-emu-tree)
+  $('left-tabs').append(h('div', { id: 'task-emu-tab', class: 'tab', 'data-page': 'emu', role: 'tab', 'aria-selected': 'true' },
+    h('span', { class: 'ico-inline tab-ico', html: icons.mBoard }), h('span', { class: 'tab-lbl' }, 'Emulate')));
+  $('proc-panel').after(h('div', { class: 'ise-panel', id: 'task-emu-panel' }, h('div', { class: 'body task-emu-tree' })));
   for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
   // the Design page: New Source and Add Copy of Source above the tree (#1210; Design's only, web/css/tasks.css)
   const wizard = f => () => import('./wizards.js').then(w => w[f]());
@@ -374,6 +379,7 @@ function build() {
     h('button', { class: 'btn', type: 'button', onclick: () => import('./design.js').then(d => d.addFromFolderDialog()) }, 'Add to Project…'),
     h('button', { class: 'btn', type: 'button', onclick: wizard('addSourceDialog') }, 'Add Copy to Project…')));
   app.renderHierarchy();   // (one tree, no views: #799)
+  app.renderProcesses();   // (and Emulate's Processes, #1399)
   refreshDots();
 }
 // The header's room (#839): every label of the switcher if they fit, else the current task's only, else none,

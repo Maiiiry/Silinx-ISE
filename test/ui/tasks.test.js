@@ -536,32 +536,36 @@ const boardFit = (page) => page.eval(() => {
 });
 uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on screen; its Watch beside the board or below it', E, async (page) => {
   await makeProject(env, { name: 'TasksEmu', template: 'blinky' });
-  await page.setViewport(1366, 768);
+  await page.setViewport(1680, 1050);   // (a laptop: the side panel, the board and the Watch side by side, #1399)
   await tasksInterface(page);
   await page.openProject('TasksEmu');
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.click('#task-empty button');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap')?.style.zoom > 0, [], { what: 'the board zoomed' });
-  assert.ok(!(await shown(page, '#left-pages')), 'no Design pane in Emulate');
-  // the side panel: the emulator's Watch, shown at first (#1020), beside the board; the board still fits
+  assert.ok(!(await shown(page, '#design-panel')) && await shown(page, '#task-emu-panel'), 'no Design pane in Emulate: its Processes (#1399)');
+  // the emulator's Watch, shown at first (#1020), beside the board; the board still fits
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-side')?.getClientRects().length > 0, [], { what: 'Watch' });
   await page.waitFor(() => new Promise((r) => requestAnimationFrame(() => r(true))));
+  // (refitted once the side panel is in place: the Watch beside the board)
+  await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu'), w = e.querySelector('.emu-side').getBoundingClientRect(); return w.left >= e.querySelector('.emu-board-wrap').getBoundingClientRect().right - 1; }, [], { what: 'the Watch beside the board' });
   let f = await boardFit(page);
   // (the board at its proper size at least, #1021: on a screen 768 high its note may be scrolled to)
   assert.ok(f.controls >= 12 && f.inside && f.aim && f.side === 'beside', JSON.stringify(f));
   // a tablet in portrait: the board at its size (#1021), Watch below it
   await page.setViewport(820, 1180);
-  await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu'); const s = e.querySelector('.emu-side').getBoundingClientRect(); return s.top >= e.querySelector('.emu-board-wrap').getBoundingClientRect().bottom - 1; }, [], { what: 'Watch below the board' });
+  // (the side panel a drawer there, as Implement's, #1399: closed, the board in front)
+  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-view [data-act="side"]');
+  await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu'); const s = e.querySelector('.emu-side').getBoundingClientRect(); const b = e.querySelector('.emu-board-wrap').getBoundingClientRect(); return s.top >= b.bottom - 1 && b.right <= innerWidth; }, [], { what: 'Watch below the board, the board refitted' });
   f = await boardFit(page);
   assert.ok(f.inside && f.aim && f.side === 'below', JSON.stringify(f));
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
-  // a lab desktop, Watch folded: a larger board
+  // a lab desktop, the side panel folded (the Watch kept, beside the board, #1399): a larger board
   await page.setViewport(1920, 1080);
   await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap').style.zoom > 1, [], { what: 'a larger board' });
   f = await boardFit(page);
-  assert.ok(f.inside && f.aim && f.side === 'folded', JSON.stringify(f));
+  assert.ok(f.inside && f.aim && f.side === 'beside', JSON.stringify(f));
   // the modern interface: the board at its own size again
   await page.setViewport(1366, 768);
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
@@ -595,10 +599,13 @@ uiTest('#1021 Tasks ▸ Emulate: the board keeps its size; the Watch and the VGA
     await page.eval(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     return emuLayout(page);
   };
-  // a laptop: the board a little larger, the Watch beside it, the VGA monitor below (scrolled to)
-  let L = await at(1280, 800);
+  // a laptop: the board a little larger, the Watch beside it, the VGA monitor below (scrolled to); a smaller one, the
+  // Emulate side panel beside them (#1399): the Watch below too
+  let L = await at(1680, 1050);
   assert.ok(L.zoom >= 1, JSON.stringify(L));
   assert.deepEqual({ ...L, zoom: undefined }, { zoom: undefined, proper: true, watch: 'beside', vga: 'below', scrollsDown: true, scrollsAcross: false });
+  L = await at(1280, 800);
+  assert.deepEqual({ ...L, zoom: undefined }, { zoom: undefined, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: false });
   // a tablet in landscape: the board at its proper size, the Watch and the VGA monitor below it
   L = await at(1024, 768);
   assert.deepEqual(L, { zoom: 1, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: false });
@@ -606,12 +613,12 @@ uiTest('#1021 Tasks ▸ Emulate: the board keeps its size; the Watch and the VGA
   L = await at(768, 1024);
   assert.deepEqual(L, { zoom: 1, proper: true, watch: 'below', vga: 'below', scrollsDown: true, scrollsAcross: true });
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
-  // the Watch folded on the laptop: the VGA monitor still below the board
+  // the side panel folded on the smaller laptop: the Watch kept, beside the board again (#1399), the VGA monitor below it
   L = await at(1280, 800);
   await page.click('#task-view [data-act="side"]');
   await page.eval(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   L = await emuLayout(page);
-  assert.ok(L.zoom >= 1 && L.proper && L.watch === 'folded' && L.vga === 'below', JSON.stringify(L));
+  assert.ok(L.zoom >= 1 && L.proper && L.watch === 'beside' && L.vga === 'below', JSON.stringify(L));
   // the modern and classic interfaces: the board at its own size, the side column and the VGA monitor in their order
   for (const ui of ['classic']) {
     await page.eval(async (u) => (await import('/js/modern.js')).setInterface(u), ui);
@@ -672,7 +679,7 @@ uiTest('#1022 Tasks ▸ Emulate: the emulation\'s time and rate right below the 
 
 // #1020: Emulate opens with its Watch shown (the task's side panel open), the design's signals to add; folded by the
 // viewer, it stays folded; the classic interface shows it as before
-uiTest('#1020 Tasks ▸ Emulate: the Watch shown at first; folded, it stays folded; classic as before', E, async (page) => {
+uiTest('#1020 #1399 Tasks ▸ Emulate: the Watch shown at first; the side panel folded, it stays folded, the Watch kept; classic as before', E, async (page) => {
   await makeProject(env, { name: 'TasksWatch', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -683,19 +690,20 @@ uiTest('#1020 Tasks ▸ Emulate: the Watch shown at first; folded, it stays fold
   const watch = () => page.eval(() => {
     const side = document.querySelector('.doc:not([hidden]) .emu-side');
     return { side: document.documentElement.dataset.side ?? null, pressed: document.querySelector('#task-view [data-act="side"]')?.getAttribute('aria-pressed') ?? null,
-      shown: !!side && side.getClientRects().length > 0, title: side?.querySelector('.emu-box h4')?.textContent, add: side?.querySelector('select option')?.textContent };
+      panel: !!document.getElementById('task-emu-panel')?.getClientRects().length, shown: !!side && side.getClientRects().length > 0, title: side?.querySelector('.emu-box h4')?.textContent, add: side?.querySelector('select option')?.textContent };
   });
-  assert.deepEqual(await watch(), { side: 'open', pressed: 'true', shown: true, title: 'Watch', add: 'Add a signal to watch…' });
-  // folded by the viewer: folded again when Emulate comes back to the front
+  assert.deepEqual(await watch(), { side: 'open', pressed: 'true', panel: true, shown: true, title: 'Watch', add: 'Add a signal to watch…' });
+  // the side panel folded by the viewer (its Processes, the Watch kept, #1399): folded again when Emulate comes back to the
+  // front
   await page.click('#task-view [data-act="side"]');
   await page.click('#task-switch .task-btn[data-task="edit"]');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  assert.deepEqual(await watch(), { side: 'folded', pressed: 'false', shown: false, title: 'Watch', add: 'Add a signal to watch…' });
+  assert.deepEqual(await watch(), { side: 'folded', pressed: 'false', panel: false, shown: true, title: 'Watch', add: 'Add a signal to watch…' });
   // the modern and classic interfaces: the emulator's side column shown, as before
   for (const ui of ['classic']) {
     await page.eval(async (u) => (await import('/js/modern.js')).setInterface(u), ui);
     await page.waitFor(() => !document.documentElement.dataset.layout);
-    assert.deepEqual(await watch(), { side: null, pressed: null, shown: true, title: 'Watch', add: 'Add a signal to watch…' }, ui);
+    assert.deepEqual(await watch(), { side: null, pressed: null, panel: false, shown: true, title: 'Watch', add: 'Add a signal to watch…' }, ui);
   }
   await noWarnings(page);
 }, { build: DEV });
@@ -838,13 +846,14 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   // Edit's Files page in front: still Edit's only
   await page.click('#left-tabs .tab[data-page="files"]');
   assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: true });
-  for (const t of ['sim', 'emu']) {
-    await page.click(`#task-switch .task-btn[data-task="${t}"]`);
-    // (Simulate with nothing simulated: its own side panel always shown, no button to fold it, #1376)
-    assert.deepEqual(await L(), { bar: false, left: false, side: t !== 'sim', procs: false, files: false }, t);
-    // (the workspace from the window's left edge: no empty column)
-    assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4, `${t}: no empty column`);
-  }
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  // (Simulate with nothing simulated: its own side panel always shown, no button to fold it, #1376)
+  assert.deepEqual(await L(), { bar: false, left: false, side: false, procs: false, files: false }, 'sim');
+  // (the workspace from the window's left edge: no empty column)
+  assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4, 'sim: no empty column');
+  // Emulate: its Processes, as Implement's, under their tab (#1399)
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: false }, 'emu');
   await page.click('#task-switch .task-btn[data-task="impl"]');
   assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: true, files: false }, 'Implement: its Processes (under their tab, #1160), not the Files page');
   // back to Edit: its Files page as it was left
@@ -874,7 +883,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
       titles: [...document.querySelectorAll('#left-tabs .tab')].map((b) => b.title),
     };
   });
-  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Implementation'] });   // (no Test: Simulate's benches, #1161; Implement's tab, #1160, #1207)
+  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries', 'Implementation', 'Emulate'] });   // (no Test: Simulate's benches, #1161; Implement's tab, #1160, #1207; Emulate's, #1399)
   // (no column of its own: the hierarchy from the window's left edge)
   assert.ok(await page.eval(() => document.querySelector('#hier').getBoundingClientRect().left) < 12);
   await page.click('#left-tabs .tab[data-page="files"]');
@@ -906,7 +915,7 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Implementação']);
+  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas', 'Implementação', 'Emular']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the modern interface: the activity bar as before, a column with every name, no tooltips
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
@@ -1175,10 +1184,14 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.click('#task-empty button');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  // (Emulate: its Processes the side panel, as Implement's, #1399: the board from its edge, or the window's, folded)
   for (const open of [true, false]) {
     await sideOpen(open);
     await page.waitFor((o) => document.documentElement.dataset.side === (o ? 'open' : 'folded'), [open]);
-    assert.deepEqual({ open, ...await gap() }, { open, left: 0, doc: 0 }, 'Emulate');
+    assert.deepEqual({ open, ...await page.eval(() => {
+      const l = document.getElementById('left'), d = document.querySelector('#workspace > .doc:not([hidden])').getBoundingClientRect();
+      return { doc: Math.round(d.left - (l.getClientRects().length ? l.getBoundingClientRect().right : 0)) };
+    }) }, { open, doc: open ? 1 : 0 }, 'Emulate');   // (the panel's border)
   }
   // Edit: the Design pane, its width as left
   await page.click('#task-switch .task-btn[data-task="edit"]');
