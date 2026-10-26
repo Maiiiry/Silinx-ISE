@@ -5,7 +5,7 @@
 //   with a state dot from its processes' status; its labels give way when the header is short of room
 //   (fitHeader: the other tasks' first, then all; #839);
 // - each task with its own arrangement, kept per viewer (localStorage TASKS_KEY): the side panel open or
-//   folded into the activity bar (on a narrow screen: the drawer, closed), the messages open or folded to
+//   folded into the activity bar (on a narrow screen too: docked, not a drawer, #1463), the messages open or folded to
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
 //   the last one in front; a document brought to the front makes its task the current one;
 // - the messages: the bottom panel's message centre (web/js/messages.js, #798; every interface's: #925), its filter
@@ -27,7 +27,6 @@
 
 import { h } from './ui.js';
 import { icons } from './icons.js';
-import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { layoutToggled } from './layout-fit.js';
 import { messagesTask, initMessages } from './messages.js';
 import { mountSimPanel } from './tasks-sim-panel.js';
@@ -38,6 +37,7 @@ import { arrangeProgram, initProgram } from './tasks-prog.js';
 import { initCheckMessages } from './tasks-check.js';
 import { initTreeMenus } from './tasks-menus.js';
 import { prefKey } from './prefs.js';
+import { isNarrow } from './narrow.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl'];
 // (the first task is Design, its id 'edit' kept: the kept state, the documents; 'Design' in Portuguese too, #1046)
@@ -100,21 +100,24 @@ export function readState(raw) {
   const before = !(v?.v >= STATE_V);
   for (const t of TASKS) {
     const k = v?.tasks?.[t] || {}, a = {};
-    for (const f of ['side', 'console', 'max']) if (typeof k[f] === 'boolean' && !(before && f === 'side' && (t === 'sim' || t === 'emu'))) a[f] = k[f];
+    for (const f of ['side', 'narrowSide', 'console', 'max']) if (typeof k[f] === 'boolean' && !(before && f === 'side' && (t === 'sim' || t === 'emu'))) a[f] = k[f];
     if (typeof k.doc === 'string') a.doc = k.doc;
     out.tasks[t] = a;
   }
   return out;
 }
 
-/** A task's arrangement: what the viewer left, else its defaults; on a narrow screen the side panel
- *  is the drawer, closed when the task comes to the front (the document first). */
 // the tasks whose side panel is their document's own: SSim's Instances and Objects (#800); Emulate's, its Processes, as
 // Implement's (#1399)
 export const OWN_SIDE = ['sim'];
+// the tasks whose side panel is folded on a narrow screen at first, their document needing the room (Emulate's board), the
+// viewer's choice there kept apart (narrowSide)
+export const FOLDED_NARROW = ['emu'];
+/** A task's arrangement: what the viewer left, else its defaults; on a narrow screen too the side panel docked beside
+ *  the document, not a drawer (#1463), FOLDED_NARROW's folded at first. */
 export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
-  if (narrow && !OWN_SIDE.includes(task)) a.side = false;   // (the drawer: closed when the task comes to the front)
+  if (narrow && FOLDED_NARROW.includes(task)) a.side = kept.narrowSide ?? false;
   return a;
 }
 
@@ -149,6 +152,8 @@ function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify({ ...stat
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
 const current = () => state.task;
 const arr = (t = current()) => arrangement(t, state.tasks[t], isNarrow());
+// the field the side button sets: the narrow screen's own for a task folded there at first
+const sideKey = () => (isNarrow() && FOLDED_NARROW.includes(current()) ? 'narrowSide' : 'side');
 /** Changes the current task's arrangement (`patch`: side, console, max), kept. */
 function arrange(patch) { Object.assign(state.tasks[current()], patch); keep(); apply(); }
 // by the user: the side panel, the messages or the document maximized toggled (a drawing in front: Full View, #1203)
@@ -159,7 +164,6 @@ export function setTask(t, { fromDoc = false } = {}) {
   if (!TASKS.includes(t) || (t !== 'edit' && app && !app.S.project)) return;   // (no project: Design only, #1260)
   state.task = t;
   keep();
-  if (!fromDoc && isNarrow() && drawerOpen()) setDrawer(false, { remember: false });   // (a task chosen: its document first)
   if (!fromDoc && app) {
     const S = app.S, docs = S.docs.filter(d => taskOf(d) === t);
     const want = docs.find(d => d.id === state.tasks[t].doc) || docs.at(-1);
@@ -192,7 +196,7 @@ function apply() {
   fitHeader();
   const bar = document.getElementById('task-bar'), view = document.getElementById('task-view');
   if (bar) {
-    view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && !OWN_SIDE.includes(t) ? drawerOpen() : a.side));
+    view.querySelector('[data-act=side]').setAttribute('aria-pressed', String(a.side));
     view.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
     view.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
   }
@@ -342,7 +346,7 @@ function build() {
   // (no action button in it: each task's page has it, #1292)
   const onAct = e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else toggle({ side: !arr().side }); }
+    if (act === 'side') toggle({ [sideKey()]: !arr().side });
     else if (act === 'console') toggle({ console: !arr().console });
     else if (act === 'max') toggle({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
@@ -444,7 +448,7 @@ export function initTasks(a) {
   initTreeMenus(app, { on, task: () => current() });
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
-  $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) toggle({ side: true }); });
+  $('left-tabs').addEventListener('click', () => { if (on() && !arr().side) toggle({ [sideKey()]: true }); });
   $('console-tabs').addEventListener('click', () => { if (on() && !arr().console) toggle({ console: true }); });
   // new errors open the messages (Check Syntax shows the Errors tab)
   let errs = 0;
@@ -468,13 +472,10 @@ export function initTasks(a) {
     setTask(taskOf(doc), { fromDoc: true });
   });
   // a project opened: in Design, its Design page, whatever its documents brought to the front (#1171)
-  // (a narrow screen's drawer as it was: the Design pane in it, #266)
   addEventListener('silinx:project-opened', () => {
     if (!on()) return;
-    const open = isNarrow() && drawerOpen();
     setTask('edit');
     app.showLeftPage('design');
-    if (open && !drawerOpen()) { setDrawer(true, { remember: false }); apply(); }
   });
   // the documents: opened, closed, brought to the front
   new MutationObserver(followActive).observe($('doc-tabs'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });

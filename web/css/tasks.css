@@ -285,16 +285,15 @@ html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task=
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab-ico, html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab-ico svg { width: 17px; height: 17px; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab-lbl { max-width: none; font-size: 12px; }
 html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab:not(.active, #task-procs-tab, #task-emu-tab) .tab-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-@media (min-width: 1024px) {
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"])[data-side="folded"] #left { display: none; }
-}
+html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"])[data-side="folded"] #left { display: none; }
+/* a narrow screen (an iPad in portrait): the side panel docked beside the document as on a wide one, not a drawer (its width
+   as the viewer resized it, at most 45 % of the window, as Simulate's, #1463) */
+html[data-layout="tasks"] :is(#drawer-btn, #drawer-scrim) { display: none !important; }
 @media (max-width: 1023px) {
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left { width: 0 !important; min-width: 0; }
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs { position: absolute; top: 0; left: 0; z-index: 1; width: min(344px, calc(100vw - 56px));
-    background: var(--m-surface-2); }
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-pages { left: 0; top: 36px; width: min(344px, calc(100vw - 56px)); }
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]):not([data-drawer="open"]) #left-tabs { display: none; }
-  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #drawer-scrim { left: 0; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left { width: min(var(--left-w, 344px), 45%) !important; min-width: 0; z-index: auto; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-pages { display: flex; position: static; width: auto; border-right: none; box-shadow: none; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #left-tabs .tab.active { background: var(--m-accent-soft); color: var(--m-accent); font-weight: 600; }
+  html[data-layout="tasks"]:is([data-task="edit"], [data-task="impl"], [data-task="emu"]) #v-split { display: block; }
 }
 
 
