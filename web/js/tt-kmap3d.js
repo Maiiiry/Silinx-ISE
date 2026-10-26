@@ -13,6 +13,8 @@ const GAP = 90;    // between layers (px)
 let view = { rx: -28, ry: 32 };   // (kept between redraws, as the viewer left it)
 let on = false;                   // (the 3D box ticked: every table's map of 5 or 6 inputs in 3D)
 
+/** A cell's value as the map shows it: SOP groups the 1s, its 0s left blank; POS the 0s, its 1s blank (X always, #1494). */
+export const cellText = (v, groups) => (v === (groups === 'pos' ? '1' : '0') ? '' : v);
 /** Whether the maps are shown in 3D. */
 export const k3dOn = () => on;
 /** The 3D box of the K-map's options (`changed`: the map drawn again). */
@@ -22,10 +24,10 @@ export function k3dBox(changed) {
 }
 
 /**
- * The 3D map in `host`: { layout, col (the output's column), terms (the groups), colors, names (the inputs), onCell(mt),
- * title(code) (a layer's label) }.
+ * The 3D map in `host`: { layout, col (the output's column), terms (the groups), groups ('sop' | 'pos'), colors, names
+ * (the inputs), onCell(mt), title(code) (a layer's label) }.
  */
-export function mountKmap3d(host, { layout: L, col, terms, colors, onCell, title }) {
+export function mountKmap3d(host, { layout: L, col, terms, groups, colors, onCell, title }) {
   const rows = L.rowCodes.length, cols = L.colCodes.length, W = cols * C, H = rows * C, depth = (L.maps.length - 1) * GAP;
   const stack = h('div', { class: 'tt-k3d-stack', style: { width: `${W}px`, height: `${H}px` } });
   const apply = () => { stack.style.transform = `translateZ(${-depth / 2}px) rotateX(${view.rx}deg) rotateY(${view.ry}deg) translateZ(${depth / 2}px)`; };
@@ -36,7 +38,7 @@ export function mountKmap3d(host, { layout: L, col, terms, colors, onCell, title
     for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
       const mt = L.minterm(mi, i, j), v = col[mt];
       const cell = h('div', { class: `tt-k3d-cell v${v}`, 'data-row': mt, title: `m${mt}`, style: { left: `${j * C}px`, top: `${i * C}px`, width: `${C}px`, height: `${C}px` } },
-        h('span', { class: 'tt-k3d-m' }, String(mt)), h('span', { class: 'tt-k3d-v' }, v));
+        h('span', { class: 'tt-k3d-m' }, String(mt)), h('span', { class: 'tt-k3d-v' }, cellText(v, groups)));
       cell.addEventListener('click', () => onCell(mt));
       layer.append(cell);
     }
