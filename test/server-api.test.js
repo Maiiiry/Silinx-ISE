@@ -344,6 +344,51 @@ test('devices DB and toolchain configuration', async () => {
 // security guard
 // ------------------------------------------------------------------------------------------------
 
+test('security: a project\'s top (and simTop) is an identifier: refused where the project is written, and by the routes that name build/<top> (#1431)', async () => {
+  assert.equal((await call('POST', '/projects', { name: 'TopId' })).status, 200);
+  const dir = P.projectDir('TopId');
+  const base = JSON.parse(await fs.readFile(path.join(dir, 'silinx.json'), 'utf8'));
+  // written: PUT /projects/:p, the .xise sync and the zip import (updateProject) refuse a name that is not an identifier
+  for (const [key, v] of [['top', '../../x'], ['top', 'a/b'], ['top', 'a b'], ['top', '9top'], ['top', 'top.bit'], ['simTop', '../tb'], ['top', 42], ['top', ['x']]]) {
+    const r = await call('PUT', '/projects/TopId', { ...base, [key]: v });
+    assert.equal(r.status, 400, `${key}=${JSON.stringify(v)}`);
+    assert.match(r.body.error, key === 'top' ? /^invalid top module name '.*' \(a letter or _, then letters, digits and _\)$/ : /^invalid simulation top module name '\.\.\/tb'/);
+  }
+  assert.equal(JSON.parse(await fs.readFile(path.join(dir, 'silinx.json'), 'utf8')).top, base.top, 'nothing written');
+  await assert.rejects(P.updateProject('TopId', pj => { pj.top = '../../x'; }), { status: 400, message: /invalid top module name/ });
+  // identifiers, an empty name (no top yet) and a missing one are fine
+  for (const body of [{ ...base, top: 'Top_1', simTop: '_tb' }, { ...base, top: '', simTop: '' }, { ...base, top: null, simTop: undefined }]) {
+    const r = await call('PUT', '/projects/TopId', body);
+    assert.equal(r.status, 200, JSON.stringify(body));
+  }
+  // the check bypassed (silinx.json written by hand): the routes that build a path from the top answer 400,
+  // and tell nothing about a path outside the project
+  const outside = path.join(tmp, 'outside');
+  await fs.mkdir(outside, { recursive: true });
+  await fs.writeFile(path.join(outside, 'leak.bit'), 'not a bitstream');
+  const top = path.relative(path.join(dir, 'build'), path.join(outside, 'leak')).split(path.sep).join('/');
+  assert.ok(top.startsWith('../'), top);
+  await fs.writeFile(path.join(dir, 'silinx.json'), JSON.stringify({ ...base, top }));
+  await fs.mkdir(path.join(dir, 'build'), { recursive: true });
+  for (const [method, url, body] of [['GET', '/projects/TopId/bitinfo'], ['GET', '/projects/TopId/fpga-view'], ['GET', '/projects/TopId/reports'],
+    ['POST', '/program', { project: 'TopId' }], ['POST', '/prom', { project: 'TopId', op: 'program' }], ['POST', '/projects/TopId/implement', {}]]) {
+    const r = await call(method, url, body);
+    assert.equal(r.status, 400, `${method} ${url}`);
+    assert.deepEqual(r.body, { error: `invalid top module name '${top}'` }, `${method} ${url}`);
+  }
+  // the imports (a .xise, a zip's silinx.json) go through the same check
+  await fs.writeFile(path.join(dir, 'silinx.json'), JSON.stringify(base));
+  const evilXise = XISE.replace('xil_pn:value="Architecture|top|rtl"', 'xil_pn:value="Module|../../x"');
+  await fs.writeFile(path.join(dir, 'TopId.xise'), evilXise);
+  let r = await call('POST', '/projects/TopId/sync-xise', { direction: 'import' });
+  assert.deepEqual([r.status, r.body.error], [400, "invalid top module name '../../x' (a letter or _, then letters, digits and _)"]);
+  r = await call('POST', '/projects/import-xise', { name: 'TopId2', xise: evilXise, files: {} });
+  assert.deepEqual([r.status, r.body.error], [400, "invalid top module name '../../x' (a letter or _, then letters, digits and _)"]);
+  r = await call('POST', '/projects/import-zip?name=TopId3', new Uint8Array(await zip([{ path: 'silinx.json', data: JSON.stringify({ ...base, top: '../../x' }) }])));
+  assert.deepEqual([r.status, r.body.error], [400, "invalid top module name '../../x' (a letter or _, then letters, digits and _)"]);
+  assert.equal((await call('DELETE', '/projects/TopId')).status, 200);
+});
+
 test('security: the client sends the token in a header only, never in an address (#479)', async () => {
   // a token in a URL stays in the browser's history and in proxies' logs: the downloads fetch with the header too
   const js = await fs.readFile(path.join(HERE, '..', 'web', 'js', 'api.js'), 'utf8');
