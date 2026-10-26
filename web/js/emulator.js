@@ -16,6 +16,7 @@ import { mountBoardParts } from './emulator-board.js';
 import { mountEmuSide } from './emulator-side.js';
 import { mountEmuPaint } from './emulator-paint.js';
 import { mountEmuToolbar } from './emulator-toolbar.js';
+import { emuPrintView } from './emulator-print.js';
 import { prefKey } from './prefs.js';
 
 export const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
@@ -671,5 +672,6 @@ export function mountEmulator(container, { design, board, assignments, title = '
     get outputs() { return prev; },
     get paints() { return paints; },
     get held() { return held; },
+    printView: () => emuPrintView({ main, stat }),   // (#1512)
   };
 }
