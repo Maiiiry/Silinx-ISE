@@ -63,8 +63,9 @@ test('#487 the usage counter added to a page with a policy: its loader\'s hash, 
   const page = withMetaCsp('<!doctype html><html><head><meta charset="utf-8"></head><body><script>app()</script></body></html>', contentSecurityPolicy({ hashes: [scriptHash('app()')], meta: true }));
   const out = addAnalytics(page, 'silinx');
   const d = directives(metaCsp(out));
-  // every inline script of the page is allowed by its hash: the application's and the loader
-  assert.deepEqual(d['script-src'], ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", ...inlineScriptHashes(out), 'https://gc.zgo.at']);
+  // every inline script of the page is allowed by its hash: the application's and the loader; the counter's script by
+  // its one versioned URL (#1439), not its host
+  assert.deepEqual(d['script-src'], ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", ...inlineScriptHashes(out), 'https://gc.zgo.at/count.v5.js']);
   assert.deepEqual(d['connect-src'], ["'self'", 'https://api.github.com', 'https://raw.githubusercontent.com', 'https://silinx.goatcounter.com']);
   assert.deepEqual(d['img-src'], ["'self'", 'data:', 'blob:', 'https://silinx.goatcounter.com']);
   assert.equal(addAnalytics(out, 'silinx'), out, 'once');
