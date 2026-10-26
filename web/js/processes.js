@@ -163,7 +163,8 @@ export function renderProcesses() {
   renderProcessTree(host, noTop ? [] : processDefs(sel, view));
   if (noTop) host.append(noTopNote());
   // (Emulate's list in the Tasks interface: the states and the selection the same, #1204)
-  for (const el of document.querySelectorAll('.task-emu-tree')) renderProcessTree(el, emulateProcesses());
+  // (with no top module, why the list is empty and Set Top Module…, as Implement's, #1422)
+  for (const el of document.querySelectorAll('.task-emu-tree')) { renderProcessTree(el, emulateProcesses()); if (S.project && !S.project.top) el.append(noTopNote()); }
 }
 
 function noTopNote() {

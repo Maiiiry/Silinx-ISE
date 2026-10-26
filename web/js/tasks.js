@@ -245,7 +245,7 @@ function tagDocs() {
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
     go.disabled = !mainEnabled();
-    go.hidden = current() !== 'emu';   // (Design's, Simulate's and Implement's pages: no button, #1349, #1376, #1367)
+    go.hidden = true;   // (no task's page has a button: their side panels' processes, #1349, #1376, #1367, #1420)
   }
   fitSimTabs();   // (the tabs shown or not: #1259)
 }
@@ -375,6 +375,9 @@ function build() {
     h('button', { class: 'btn', type: 'button', 'data-act': 'pins', onclick: () => app.S.project?.top && app.openPinPlanner() }, 'I/O Pin Planning'),
     h('button', { class: 'btn', type: 'button', 'data-act': 'program', onclick: async () => {
       if (!app.S.project) return;
+      // (an iMPACT opened before, without its Program FPGA to run from here: opened again, #1421)
+      const old = app.findDoc('impact');
+      if (old && !old.program) await app.closeDoc(old);
       await app.openImpact();
       app.findDoc('impact')?.program?.();
     } }, 'Program FPGA')));

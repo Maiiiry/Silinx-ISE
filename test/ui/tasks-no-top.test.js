@@ -64,3 +64,24 @@ uiTest('#1224 Tasks ▸ Implement with no top module: said so, Set Top Module…
   assert.equal(await note(page), null, 'classic');
   assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
 }, { build: DEV });
+
+// #1422: Emulate with no top module: its side panel says so and offers Set Top Module…, as Implement's; the top set, its
+// processes
+uiTest('#1422 Tasks ▸ Emulate with no top module: said so in its side panel, Set Top Module… chooses one', E, async (page) => {
+  await makeProject(env, { name: 'NoTopEmu', top: '', files: { 'src/inv.vhd': INV, 'src/top.vhd': TOP } });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('NoTopEmu');
+  await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); window.SilinxApp.renderProcesses(); });
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  const emuNote = () => page.eval(() => { const n = document.querySelector('#task-emu-panel .task-no-top'); return n && n.getClientRects().length ? { text: n.querySelector('p').textContent, button: n.querySelector('button').textContent } : null; });
+  await page.waitFor(() => !!document.querySelector('#task-emu-panel .task-no-top')?.getClientRects().length, [], { what: 'the note' });
+  assert.deepEqual(await emuNote(), { text: 'No top module is set: the design is implemented from its top module, so set one to see its processes.', button: 'Set Top Module…' });
+  await page.click('#task-emu-panel .task-no-top button');
+  await page.waitDialog('Set Top Module');
+  await page.eval(() => { document.querySelector('.dlg-overlay select').value = 'top'; });
+  await page.dialogButton('OK');
+  await page.waitFor(() => window.Silinx.project.top === 'top' && [...document.querySelectorAll('#task-emu-panel .lbl')].some((e) => e.textContent === 'Emulate on Board'), [], { what: 'its processes' });
+  assert.equal(await emuNote(), null, 'no note with a top');
+  assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
+}, { build: DEV });

@@ -47,7 +47,9 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   await tasksInterface(page);
   await page.openProject('EmuProcs');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  // its page: its text, no button: the emulation from the side panel (#1420)
+  assert.equal(await page.eval(() => [...document.querySelectorAll('#task-empty button')].filter((b) => b.getClientRects().length).length), 0);
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor((b) => document.querySelectorAll(`${b} .task-emu-tree li`).length > 0, [BOX], { what: 'Emulate\'s Processes' });
   assert.deepEqual(await procs(page), { shown: true, side: true, tab: 'Emulate', rows: EN });
