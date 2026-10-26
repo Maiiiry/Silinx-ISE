@@ -234,7 +234,8 @@ test('ISim stimuli (#336): the bar, the dialogs, the status, the errors and Save
     ["'2q' is not a value (bits 0 1 Z X, h… hexadecimal or d… decimal)", "'2q' não é um valor (bits 0 1 Z X, h… hexadecimal ou d… decimal)"],
     ["'h1F' does not fit in 4 bit(s)", "'h1F' não cabe em 4 bit(s)"],
   ]) assert.equal(t(en), pt);
-  assert.match(t('The inputs of ctr as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.'), /^As entradas de ctr como uma grelha de ciclos/);
+  assert.equal(t('The inputs of ctr as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, they change at every cycle, one for each combination of the inputs.'),
+    'As entradas de ctr como uma grelha de ciclos: com relógio, as entradas mudam no seu flanco descendente e as saídas são verificadas antes do seguinte; sem relógio, mudam a cada ciclo, um por cada combinação das entradas.');
 });
 
 test('tri-state buffers: the palette category, parameter labels and the descriptions of TBUF and every preset are translated', async () => {

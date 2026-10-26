@@ -399,8 +399,8 @@ const PT_PATTERNS = [
   [/^Multiplexer of 2, 4, 8 or 16 data inputs, its select bits \(1 to 4\), select bus and enable in its properties \(bitwise when Width > 1\)$/,
     'Multiplexador de 2, 4, 8 ou 16 entradas de dados, os bits de seleção (1 a 4), o barramento de seleção e a habilitação nas suas propriedades (bit a bit quando Largura > 1)'],
   // the stimuli drawn on the waveforms (#336): the timing dialog's hint, the bar's status, the errors
-  [/^The inputs of (\S+) as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step\.$/,
-    'As entradas de $1 como uma grelha de ciclos: com relógio, as entradas mudam no seu flanco descendente e as saídas são verificadas antes do seguinte; sem relógio, a cada passo de tempo.'],
+  [/^The inputs of (\S+) as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, they change at every cycle, one for each combination of the inputs\.$/,
+    'As entradas de $1 como uma grelha de ciclos: com relógio, as entradas mudam no seu flanco descendente e as saídas são verificadas antes do seguinte; sem relógio, mudam a cada ciclo, um por cada combinação das entradas.'],
   [/^(\d+) cycles \((?:clock (\S+), period (\d+) ns|combinational, step (\d+) ns)\): (no expected outputs|expected outputs OK|(\d+) mismatch\(es\))$/,
     (m, n, clk, per, step, res, bad) => `${n} ciclos (${clk ? `relógio ${clk}, período ${per} ns` : `combinatório, passo ${step} ns`}): ${bad ? `${bad} diferença(s)` : res === 'expected outputs OK' ? 'saídas esperadas certas' : 'sem saídas esperadas'}`],
   [/^(Cycles|Clock Period|Time Step): a whole number of at least (\d+)$/, (m, f, n) => `${{ Cycles: 'Ciclos', 'Clock Period': 'Período do Relógio', 'Time Step': 'Passo de Tempo' }[f]}: um número inteiro de pelo menos ${n}`],
