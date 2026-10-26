@@ -934,7 +934,7 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   const panel = () => page.eval(() => {
     const p = document.getElementById('task-sim-panel'), e = document.getElementById('task-empty').getBoundingClientRect(), r = p.getBoundingClientRect();
     const rows = [...p.querySelectorAll('.tree > li > .row')].filter((x) => x.getClientRects().length);
-    return { tab: p.querySelector('.task-sim-tabs .tab').textContent, rows: rows.map((x) => (x.querySelector('select')?.id || x.textContent) + (x.classList.contains('sel') ? '*' : '')),
+    return { tab: p.querySelector('.task-sim-tabs .tab.active').textContent, rows: rows.map((x) => (x.querySelector('select')?.id || x.textContent) + (x.classList.contains('sel') ? '*' : '')),
       beside: Math.round(r.right) <= Math.round(e.left) + 1, side: !!document.querySelector('#task-view [data-act="side"]')?.getClientRects().length };
   });
   const PROMPTS = { bench: { value: '', options: [['', 'Select design module to simulate...', true], ['and2', 'and2', false]] },
@@ -963,7 +963,7 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.getElementById('task-bench').options[0].textContent === 'Selecione o módulo do projeto a simular...', [], { what: 'Portuguese' });
   assert.deepEqual(await page.eval(() => [document.getElementById('task-model').options[0].textContent, ...[...document.querySelectorAll('#task-sim-panel .tab, #task-sim-panel .lbl')].filter((e) => e.getClientRects().length).map((e) => e.textContent)]),
-    ['Selecione o modelo de simulação...', 'Simulação']);
+    ['Selecione o modelo de simulação...', 'Simulação', 'Ficheiros']);
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the wizard: its test bench becomes the one Simulate runs; the panel lists the test benches, the choices gone
   await page.click('#task-sim-panel [data-act=new-bench]');

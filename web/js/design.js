@@ -411,7 +411,7 @@ export function serialOp(fn) {
   return S.opChain;
 }
 
-async function removeFile(file) {
+export async function removeFile(file) {
   if (!await confirmDlg('Remove Source', `Remove '${file}' from the project?\n(The file stays in the project folder: Undo or Add to Project in the Files view brings it back.)`)) return;
   await saveAll();
   for (const d of [...S.docs]) if (d.path === file || String(d.id || '').endsWith(`:${file}`)) await closeDoc(d);

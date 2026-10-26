@@ -11,6 +11,7 @@ import * as wiz from './wizards.js';
 import { countEvent } from './analytics.js';
 import { S, app, closeDoc, findDoc, moduleInfo, openDoc, openFile, projectBoard, status, withPrimitives } from './app.js';
 import { asSsim, benchItems, treeBar, treeItems } from './tasks-sim-tree.js';
+import { mountSimPages } from './tasks-sim-files.js';
 import { log, showConsolePage, setDiagnostics } from './console.js';
 import { reloadProject } from './project.js';
 import { generateSimModel, readBuildFile, runImpl } from './implement.js';
@@ -298,10 +299,15 @@ async function runSimulationInner(mod, model, stale) {
         benchMenu: name => (tasksOn() && S.modules.some(m => m.name === name && m.role === 'sim') ? asSsim(benchItems(app, name)) : []),
         treeMenu: () => (tasksOn() ? asSsim(treeItems(app)) : null), goToSource: () => (tasksOn() ? openModuleSource : null) });
       const tree = el.querySelector('.isim-inst-panel');
-      tree?.querySelector(':scope > .body').before(treeBar(app));
+      let pages = null;
+      if (tree) {
+        const bar = treeBar(app), body = tree.querySelector(':scope > .body');
+        body.before(bar);
+        pages = mountSimPages(app, tree.querySelector('.task-sim-tabs'), [bar, body]);   // (and the Files page, #1395)
+      }
       // (brought to the front, e.g. its bench clicked in another simulation's tree: its bench shown expanded, #1267)
       // (the project read again, a test bench added, removed or renamed: its tree drawn again, #1364)
-      return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0), onProject: () => view.refresh?.() };
+      return { destroy: () => { pages?.destroy(); view.destroy?.(); }, view, onActivate: () => setTimeout(() => { view.openBench?.(); view.refresh?.(); }, 0), onProject: () => { view.refresh?.(); pages?.refresh(); } };
     },
   });
 }

@@ -182,7 +182,7 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the tes
   await page.showSide();
   const panel = () => page.eval(() => {
     const d = document.querySelector('.doc:not([hidden]) .isim'), vis = (e) => !!e && e.getClientRects().length > 0;
-    return { tab: vis(d.querySelector('.task-sim-tabs')) ? d.querySelector('.task-sim-tabs').textContent : null, caption: vis(d.querySelector('.isim-inst-panel > .caption')),
+    return { tab: vis(d.querySelector('.task-sim-tabs')) ? d.querySelector('.task-sim-tabs .tab').textContent : null, caption: vis(d.querySelector('.isim-inst-panel > .caption')),
       rows: [...d.querySelectorAll('.isim-tree > li > .row')].filter(vis).map((r) => r.querySelector('.lbl').textContent),
       open: [...d.querySelectorAll('.isim-tree > li')].filter((li) => li.querySelector(':scope > ul')).map((li) => li.querySelector('.lbl').textContent) };
   });
@@ -200,7 +200,7 @@ uiTest('#1161 Tasks ▸ Simulate: a tab per simulation; Simulation lists the tes
   assert.deepEqual(await started(page, from), []);
   // in Portuguese
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-tabs')?.textContent === 'Simulação', [], { what: 'Portuguese' });
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-sim-tabs .tab')?.textContent === 'Simulação', [], { what: 'Portuguese' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the classic interface: Instances and Processes as before, the simulated bench only
   await setInterface(page, 'classic');
@@ -493,5 +493,54 @@ uiTest('#1385 Tasks ▸ Simulate: the Simulation hierarchy\'s buttons and right-
   await setInterface(page, 'classic');
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.deepEqual(await bars('.doc:not([hidden]) .isim-inst-panel'), []);
+  assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
+}, { build: DEV });
+
+// #1395: Simulate's Files page, a tab beside Simulation (its side panel's and SSim's tree's, the same page in both): the
+// test benches' files; a double-click opens one in Simulate, a right-click its menu; Portuguese; classic none
+uiTest('#1395 Tasks ▸ Simulate: the Files page beside Simulation, the test benches\' files and their menu; Portuguese; classic none', E, async (page) => {
+  await makeProject(env, { name: 'TasksSimFiles', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSimFiles');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  const state = (root) => page.eval((r) => {
+    const vis = (e) => !!e && e.getClientRects().length > 0;
+    return { tabs: [...document.querySelectorAll(`${r} .task-sim-tabs .tab`)].map((t) => `${t.textContent}${t.classList.contains('active') ? '*' : ''}`),
+      files: [...document.querySelectorAll(`${r} .task-sim-files .row`)].filter(vis).map((x) => `${x.querySelector('.lbl').textContent} ${x.querySelector('.meta').textContent}`),
+      tree: vis(document.querySelector(`${r} .task-sim-src-bar`)) };
+  }, root);
+  await page.waitFor(() => document.querySelector('#task-sim-panel .task-sim-bench .row')?.getClientRects().length > 0, [], { what: 'the panel' });
+  assert.deepEqual(await state('#task-sim-panel'), { tabs: ['Simulation*', 'Files'], files: [], tree: true });
+  await page.click('#task-sim-panel .task-sim-tabs .tab[data-page=files]');
+  assert.deepEqual(await state('#task-sim-panel'), { tabs: ['Simulation', 'Files*'], files: ['tb_top.vhd (sim/tb_top.vhd)'], tree: false });
+  // its menu; a double-click opens it in Simulate
+  await page.rightClick('#task-sim-panel .task-sim-files .row');
+  assert.deepEqual(await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }, [], { what: 'the menu' }),
+    ['Open', 'Rename…', 'Check Syntax', 'Remove from Project', 'Source Properties…']);
+  await page.closeMenus();
+  await page.dblclick('#task-sim-panel .task-sim-files .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'file:sim/tb_top.vhd', [], { what: 'opened' });
+  assert.deepEqual(await page.eval(() => [document.documentElement.dataset.task, window.Silinx.active.task]), ['sim', 'sim']);
+  await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
+  // simulated: SSim's tree has the same page in front; Simulation brings its tree back
+  await page.click('#task-sim-panel .task-sim-tabs .tab[data-page=tree]');
+  await page.click('#task-sim-panel .task-sim-bench .row');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim:tb_top' && !window.Silinx.active.view.state.running, [], { what: 'SSim', timeout: 60000 });
+  await page.showSide();
+  const doc = '.doc:not([hidden]) .isim-inst-panel';
+  await page.click(`${doc} .task-sim-tabs .tab[data-page=files]`);
+  assert.deepEqual(await state(doc), { tabs: ['Simulation', 'Files*'], files: ['tb_top.vhd (sim/tb_top.vhd)'], tree: false });
+  // Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor((d) => document.querySelector(`${d} .task-sim-tabs .tab[data-page=files]`)?.textContent === 'Ficheiros', [doc], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await page.click(`${doc} .task-sim-tabs .tab[data-page=tree]`);
+  assert.deepEqual(await state(doc), { tabs: ['Simulation*', 'Files'], files: [], tree: true });
+  // the classic interface: none, its tree shown whatever page was in front
+  await page.click(`${doc} .task-sim-tabs .tab[data-page=files]`);
+  await setInterface(page, 'classic');
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.deepEqual(await page.eval(() => [[...document.querySelectorAll('.task-sim-files, .task-sim-tabs')].some((e) => e.getClientRects().length), !!document.querySelector('.doc:not([hidden]) .isim-tree')?.getClientRects().length]), [false, true]);
   assert.doesNotMatch(await logText(page), /WARNING|ERROR/);
 }, { build: DEV });

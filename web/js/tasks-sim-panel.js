@@ -9,6 +9,7 @@ import { h, popupMenu } from './ui.js';
 import { icon } from './icons.js';
 import { benchSelect, modelSelect, promptChoices, refreshBench, simChoices, simTarget } from './tasks-sim.js';
 import { benchItems, treeBar, treeItems } from './tasks-sim-tree.js';
+import { mountSimPages } from './tasks-sim-files.js';
 
 /** The panel, appended to the work area: `simulate` runs the test bench chosen. */
 export function mountSimPanel(app, { simulate }) {
@@ -23,9 +24,10 @@ export function mountSimPanel(app, { simulate }) {
     row('task-sim-choice', 'moduleTop', benchSelect(app)), row('task-sim-choice', 'wave', modelSelect(app)));
   const benches = h('ul', { class: 'tree task-sim-benches' });
   // (its commands above it, a test bench's menu and the empty space's, as Design's: #1385)
-  const panel = h('div', { id: 'task-sim-panel', hidden: true },
-    h('div', { class: 'task-sim-tabs', role: 'tablist' }, h('span', { class: 'tab active', role: 'tab' }, h('span', { class: 'tab-lbl' }, 'Simulation'))),
-    treeBar(app), h('div', { class: 'task-sim-trees' }, choices, benches));
+  const tabs = h('div', { class: 'task-sim-tabs', role: 'tablist' }, h('span', { class: 'tab active', role: 'tab' }, h('span', { class: 'tab-lbl' }, 'Simulation')));
+  const tree = [treeBar(app), h('div', { class: 'task-sim-trees' }, choices, benches)];
+  const panel = h('div', { id: 'task-sim-panel', hidden: true }, tabs, ...tree);
+  const pages = mountSimPages(app, tabs, tree);   // (and the Files page, #1395)
   panel.addEventListener('contextmenu', e => {
     if (e.defaultPrevented || !e.target.closest('.task-sim-trees') || e.target.closest('.row')) return;
     e.preventDefault();
@@ -44,6 +46,7 @@ export function mountSimPanel(app, { simulate }) {
   return {
     /** Its rows as the project is now (`shown`: the panel shown, else as it is). */
     refresh(shown = !panel.hidden) {
+      pages.refresh();
       const S = app.S, names = S.project ? simChoices(S.project, S.modules).benches : [];
       promptChoices(shown && !names.length);
       panel.hidden = !shown;

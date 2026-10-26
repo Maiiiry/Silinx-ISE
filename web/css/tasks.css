@@ -296,3 +296,10 @@ html[data-layout="tasks"] .task-sim-tabs .tab { display: flex; flex: 1 1 auto; a
   background: var(--m-accent-soft); color: var(--m-accent); font-size: 12px; font-weight: 600; }
 /* its label whole (not the activity bar's short one), Simulate's and Emulate's (#1204) */
 html[data-layout="tasks"] .task-sim-tabs .tab-lbl { max-width: none; }
+/* (Simulate's Files page under a tab of its own, beside Simulation: #1395, web/js/tasks-sim-files.js) */
+html[data-layout="tasks"] .task-sim-tabs { gap: 2px; }
+html[data-layout="tasks"] .task-sim-tabs .tab:not(.active) { flex: 0 0 auto; background: none; color: var(--m-muted); font-weight: 500; cursor: pointer; }
+html[data-layout="tasks"] .task-sim-tabs .tab[data-page] { cursor: pointer; }
+.task-sim-files { display: none; }
+html[data-layout="tasks"] [data-sim-page="files"] > .task-sim-files { display: block; flex: 1; min-height: 0; overflow: auto; padding: 4px 0; }
+html[data-layout="tasks"] [data-sim-page="files"] > :is(.task-sim-src-bar, .task-sim-trees, .body) { display: none !important; }
