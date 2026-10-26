@@ -96,6 +96,8 @@ export function normalizeDoc(d, { modules } = {}) {
     if (before301 && (o.type === 'mux4' || o.type === 'demux') && !('selBus' in (s.params || {}))) o.params.selBus = true;
     // a VCC / GND saved before it had a Width (#953): none, it keeps taking the width of its net
     if ((o.type === 'vcc' || o.type === 'gnd') && !('width' in (s.params || {}))) delete o.params.width;
+    // an ENCODER saved without its Type, from before priority was the default (#1553): one-hot, as it was
+    if (o.type === 'encoder' && !('mode' in (s.params || {}))) o.params.mode = 'one-hot';
     if (s.hdl != null) o.hdl = String(s.hdl);
     uid(o, 'S'); return o;
   });

@@ -85,8 +85,8 @@ SYMBOLS.demux = {
   category: 'Mux', title: 'DEMUX', description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
   params: [P_WIDTH, { name: 'sel', label: 'Select bits', kind: 'int', default: 1, min: 1, max: 4 }, P_EN, P_SELBUS],
 };
-// (one palette entry each, #324: DECODER as D2_4E, ENCODER as ENC4_2; their options make D3_8E, PENC8_3…,
-// the Xilinx-style name drawn)
+// (one palette entry each, #324: DECODER as D2_4E, ENCODER as PENC4_2 (a priority encoder by default, #1553); their
+// options make D3_8E, ENC8_3…, the Xilinx-style name drawn)
 SYMBOLS.decoder = {
   category: 'Decoders/Encoders', title: 'DECODER', description: 'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)',
   params: [{ name: 'n', label: 'Address bits', kind: 'int', default: 2, min: 1, max: 5 },
@@ -96,7 +96,7 @@ SYMBOLS.decoder = {
 SYMBOLS.encoder = {
   category: 'Decoders/Encoders', title: 'ENCODER', description: '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1',
   params: [{ name: 'n', label: 'Output bits', kind: 'int', default: 2, min: 2, max: 5 },
-    { name: 'mode', label: 'Type', kind: 'select', options: ['priority', 'one-hot'], default: 'one-hot' },
+    { name: 'mode', label: 'Type', kind: 'select', options: ['priority', 'one-hot'], default: 'priority' },
     { name: 'bus', label: 'Bus pins (I, A)', kind: 'bool', default: false }],
 };
 SYMBOLS.add = {

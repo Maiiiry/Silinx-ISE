@@ -359,6 +359,45 @@ uiTest('#301 #313 #334 schematic palette: one MUX and one DEMUX (no M4_1 … / D
   assert.deepEqual(page.dialogs, []);
 });
 
+// #1553: the palette's ENCODER placed is a priority encoder, PENC4_2 (Type: priority, one-hot the other choice); an
+// ENCODER saved before, one-hot, stays ENC4_2; the Type's label and choices in Portuguese
+uiTest('#1553 schematic: a new ENCODER is PENC4_2 (Type priority, one-hot selectable); a saved one-hot ENCODER stays ENC4_2', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  const doc = { ...newDoc('en', 'vhdl'), symbols: [{ id: 'S1', type: 'encoder', x: 200, y: 200, rot: 0, mirror: false, name: 'U1', params: { n: 2, mode: 'one-hot', bus: false } }] };
+  await makeProject(env, { name: 'SchEnc', files: { 'src/en.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('SchEnc');
+  await page.eval(() => window.SilinxApp.openSch('src/en.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/en.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  const types = () => page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stitle`)].map((t) => t.textContent), D);
+  assert.deepEqual(await types(), ['ENC4_2']);
+  await page.fill(`${D} .se-search`, 'ENCODER');
+  await page.click(`${D} .se-symrow`, { text: 'ENCODER' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width * 0.7, y: r.top + r.height * 0.4 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchEnc/file?path=src%2Fen.sch.json')).text()).symbols.length === 2, [], { what: 'ENCODER saved' });
+  const saved = JSON.parse(await readWs(env, 'SchEnc', 'src/en.sch.json')).symbols;
+  assert.deepEqual(saved.map((s) => [s.type, s.params.n, s.params.mode, s.params.bus]), [['encoder', 2, 'one-hot', false], ['encoder', 2, 'priority', false]]);
+  assert.deepEqual((await types()).sort(), ['ENC4_2', 'PENC4_2']);
+  // its Type: priority, one-hot the other choice; one-hot makes it ENC4_2
+  await page.click(`${D} g.sym[data-id="${saved[1].id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=mode]`), [D], { what: 'its Type' });
+  const typeField = () => page.eval((d) => { const e = document.querySelector(`${d} [data-param=mode]`); return [e.closest('.se-field').querySelector('label').textContent, e.value, [...e.options].map((o) => o.textContent)]; }, D);
+  assert.deepEqual(await typeField(), ['Type', 'priority', ['priority', 'one-hot']]);
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  try {
+    await page.waitFor((d) => document.querySelector(`${d} [data-param=mode]`)?.closest('.se-field').querySelector('label').textContent !== 'Type', [D], { what: 'Portuguese' });
+    assert.deepEqual(await typeField(), ['Tipo', 'priority', ['prioridade', 'one-hot']]);
+  } finally {
+    await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+  }
+  await page.fill(`${D} [data-param=mode]`, 'one-hot');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchEnc/file?path=src%2Fen.sch.json')).text()).symbols[1].params.mode === 'one-hot', [], { what: 'one-hot saved' });
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stitle`)].map((t) => t.textContent).join() === 'ENC4_2,ENC4_2', [D], { what: 'ENC4_2 drawn' });
+  assert.deepEqual(page.dialogs, []);
+});
+
 // #304 / #317: the adder of two 1-, 2-, 4-bit numbers with a pin per bit is the palette's ADD with its options
 // (no ADD1 / ADD2 / ADD4 entries): Width 4, the carries and Pins per bit make it ADD4, its pins drawn
 uiTest('#304 #317 schematic palette: ADD only; Width 4, carries and Pins per bit in its properties: ADD4 with A0..A3, B0..B3, CI, S0..S3, CO', E, async (page) => {
