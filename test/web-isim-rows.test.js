@@ -123,3 +123,27 @@ test('#405 ISim rows: groups and dividers, Delete, the radix and the rows\' menu
   assert.deepEqual(w.instSignals(w.design.top).map((o) => o.sig.name), ['c', 'd', 'e']);
   delete globalThis.prompt;
 });
+
+test('#1519 ISim rows: the wave window as a simulation opens: a module\'s ports in their order, a test bench\'s signals', () => {
+  // a module with ports (out first, then in) and internal signals: its ports only, in the port order
+  const MOD = `module m(output [3:0] q, input clk, input en, output tc);
+  reg [3:0] c = 0;
+  wire full = &c;
+  always @(posedge clk) if (en) c <= c + 1;
+  assign q = c;
+  assign tc = full;
+endmodule
+`;
+  const design = elaborate(compile([{ path: 'm.v', lang: 'verilog', text: MOD }]), 'm');
+  const sim = new Simulator(design);
+  const st = { rows: [], rowSeq: 1, sel: new Set() };
+  const w = mountRows({ st, sim, onOpenSource: () => {}, updateVScroll: () => {}, invalidate: () => {}, renderObjects: () => {},
+    forceDialog: () => {}, isForced: () => false, removeForces: () => {}, openSource: () => {} });
+  assert.deepEqual(w.waveSignals(design.top).map((s) => s.name), ['q', 'clk', 'en', 'tc']);
+  assert.deepEqual(w.instSignals(design.top).map((o) => o.sig.name), ['q', 'clk', 'en', 'tc', 'c', 'full']);
+  // no ports (a test bench): every signal of the top, as before
+  const tb = windowOf();
+  assert.deepEqual(tb.waveSignals(tb.design.top).map((s) => s.name), ['c', 'd', 'e']);
+  // no signals at all: none
+  assert.deepEqual(w.waveSignals({ ports: [], signals: [] }), []);
+});
