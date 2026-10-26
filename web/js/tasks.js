@@ -158,6 +158,7 @@ export const taskTitle = (t, dot) => dot ? `${TASK_LABEL[t]} — ${DOT_TEXT[dot]
 const root = () => document.documentElement;
 const on = () => root().dataset.layout === 'tasks';
 let app = null, state = readState(null), lastActive = null, shownTask = null, fitSoon = () => {}, simPanel = null;
+let docsShown = { t: null, n: 0 };   // (the current task's documents when tagDocs last ran)
 
 function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify({ ...state, v: STATE_V })); } catch { /* storage unavailable */ } }
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
@@ -232,6 +233,11 @@ function tagDocs() {
     if (d.tab.dataset.task !== t) d.tab.dataset.task = t;
     if (t === current()) { mine++; only = d; }
   }
+  // (the task's last document closed while maximized: maximize left, the side panel and the messages shown again, kept,
+  // #1564)
+  const was = docsShown;
+  docsShown = { t: current(), n: mine };
+  if (on() && !mine && was.t === current() && was.n > 0 && state.tasks[current()].max) { arrange({ max: false }); return; }
   placeSimSide(S, on() && current() === 'sim');   // (a source in front: the simulation's side panel beside it, #1343)
   // a task whose document is single by nature: no tab bar (none open: its page); the document's module and model,
   // and its close, in the task's bar (#854)
