@@ -5,7 +5,7 @@
 --               is its code (the truth table lamps.tt.json lights the lamps of each phase).
 --               req: a pedestrian is waiting (BTN0, remembered); done: the phase has lasted its time
 --               (timer.vhd); night: night mode (SW1).
--- Generator   : Silinx FSM editor, kept in sync with the diagram (edit either one).
+-- Generator   : Silinx FSM editor (edit the diagram, not this file).
 -- Style       : 3 processes: state register, next-state logic, output logic
 -- Clock       : clk (rising edge)
 -- Reset       : rst, active-high, synchronous (goes to CARS)

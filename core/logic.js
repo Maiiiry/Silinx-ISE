@@ -853,8 +853,8 @@ export function generateTableHdl(docIn, lang = docIn.lang || 'vhdl', { form = do
   const res = doc.outputs.map(o => ({ o, a: canonical(doc.table[o]), m: outputForm(doc, o, form) }));
   const head = [
     `${c} ${doc.name}: combinational module generated from the truth table ${source || `${doc.name}.tt.json`} (Silinx Truth Table / Karnaugh Map).`,
-    `${c} It stays synchronized with the table: editing the table rewrites this file, and editing this file (and`,
-    `${c} saving it) updates the table. Inputs: ${doc.inputs.join(', ')} (${doc.inputs[0]} is the most significant bit of a row).`,
+    `${c} Edit the table, not this file: the file is generated from it. Inputs: ${doc.inputs.join(', ')} (${doc.inputs[0]} is the`,
+    `${c} most significant bit of a row).`,
     `${c}`,
   ];
   for (const { o, a, m } of res) {
