@@ -17,7 +17,9 @@
 # x86-64 emulation (Rosetta or QEMU).
 # Base recipe: Ubuntu 14.04 + batchxsetup, as in gitlab.com/pmnmalo/xilinx-ise-in-docker-on-mac.
 
-FROM --platform=linux/amd64 ubuntu:14.04 AS base
+# (the base pinned by its digest, #1435: the tag of an end-of-life release could be repointed; the digest is
+# the manifest list's, which the platform above selects from)
+FROM --platform=linux/amd64 ubuntu:14.04@sha256:64483f3496c1373bfd55348e88694d1c4d0c9b660dee6bfef5e12f43b9933b30 AS base
 ENV DEBIAN_FRONTEND=noninteractive TERM=xterm-256color LANG=C.UTF-8
 # Ubuntu 14.04 is end-of-life: fall back to old-releases if the main archive no longer serves it.
 RUN apt-get update || { sed -i -E 's#http://(archive|security).ubuntu.com#http://old-releases.ubuntu.com#' /etc/apt/sources.list && apt-get update; }; \

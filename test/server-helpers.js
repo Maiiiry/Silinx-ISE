@@ -169,7 +169,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --rm|--pull=*) shift ;;
     -v) dir="\${2%:/work}"; shift 2 ;;
-    --platform|-w|-e|--user) shift 2 ;;
+    --platform|-w|-e|--user|--network|--cap-drop|--security-opt|--pids-limit|--memory) shift 2 ;;
     *) shift; break ;;
   esac
 done

@@ -48,7 +48,7 @@ export function iseWorkBase(fallback, env = process.env) {
 export const DEFAULT_CONFIG = Object.freeze({
   mode: 'silinx',                               // the Silinx toolchain: no ISE to install for the supported boards (#27)
   local: { settings: '' },                      // '' = auto-detect
-  docker: { command: 'docker', image: '', platform: 'linux/amd64', settings: DEFAULT_SETTINGS, extraArgs: [] },
+  docker: { command: 'docker', image: '', platform: 'linux/amd64', settings: DEFAULT_SETTINGS, extraArgs: [], memory: '' },   // memory: docker run --memory (8g; '' = no limit, #1435)
   ssh: { host: '', user: '', port: 22, identity: '', remoteDir: 'silinx-build', settings: DEFAULT_SETTINGS, image: '', sshArgs: [] },   // image: docker image on the host ('' = ISE installed there)
   open: { iseMode: 'docker' },                  // Silinx toolchain mode: the ISE that builds device descriptions (developers) (local|docker|ssh)
   programmer: { tool: '', cable: '' },          // global defaults (board defaults take precedence when empty)
@@ -78,6 +78,8 @@ const SETTINGS = /(^|[\\/])settings(32|64)\.sh$/;
 
 /** A docker image name: no option (a leading '-'), no space or shell character. */
 const IMAGE = /^[\w.\/:@][\w.\/:@-]*$/;
+// docker.memory: a size for `docker run --memory` (8g, 512m); '' for no limit (#1435)
+const DOCKER_MEMORY = /^\d+[kmg]?$/i;
 
 const at = (o, key) => key.split('.').reduce((v, k) => (v && typeof v === 'object' ? v[k] : undefined), o);
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -142,6 +144,7 @@ export async function saveConfig(partial, { fromApi = false } = {}) {
     if (['docker.settings', 'ssh.settings', 'ssh.remoteDir'].some(changed)) checkRemoteSettings(cfg);
   }
   if (cfg.docker.image && !IMAGE.test(cfg.docker.image)) throw Object.assign(new Error('docker.image contains invalid characters'), { status: 400 });
+  if (cfg.docker.memory && !DOCKER_MEMORY.test(String(cfg.docker.memory))) throw Object.assign(new Error('docker.memory must be a size (8g, 512m) or empty'), { status: 400 });
   if (!MODES.includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (${MODES.join('|')})`), { status: 400 });
   if (!ISE_MODES.includes(cfg.open.iseMode)) throw Object.assign(new Error(`invalid open.iseMode '${cfg.open.iseMode}' (${ISE_MODES.join('|')})`), { status: 400 });
   for (const k of ['extraArgs']) if (!Array.isArray(cfg.docker[k])) throw Object.assign(new Error(`docker.${k} must be an array of strings`), { status: 400 });

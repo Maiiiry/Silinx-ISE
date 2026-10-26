@@ -37,7 +37,7 @@ const work = await fs.mkdtemp(path.join(os.tmpdir(), 'silinx-netgen-'));
 process.env.SILINX_CONFIG_DIR = path.join(work, 'cfg');
 const { saveConfig } = await import('../server/toolchain.js');
 await saveConfig({ mode: 'docker', docker: { image, platform: 'linux/amd64', settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh' } });
-const { runImplementation, SIM_MODELS, unconstrainedPorts } = await import('../server/ise.js');
+const { runImplementation, SIM_MODELS, unconstrainedPorts, DOCKER_ISOLATION } = await import('../server/ise.js');
 const { runCommand } = await import('../server/jobs.js');
 
 const langOf = (f) => (/\.(vhd|vhdl)$/i.test(f) ? 'vhdl' : 'verilog');
@@ -63,7 +63,7 @@ function packagePins(device) {
     await fs.mkdir(dir, { recursive: true });
     const lines = [];
     const job = { log: (l) => lines.push(l), procs: new Set(), cancelled: false };
-    const code = await runCommand(job, 'docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${dir}:/work`, '-w', '/work', image,
+    const code = await runCommand(job, 'docker', ['run', '--rm', ...DOCKER_ISOLATION, '--platform', 'linux/amd64', '-v', `${dir}:/work`, '-w', '/work', image,
       'bash', '-c', `set --; . /opt/Xilinx/14.7/ISE_DS/settings64.sh >/dev/null 2>&1; partgen -v ${part} >/dev/null`]);
     if (code !== 0) throw new Error(`partgen ${part} failed:\n${lines.join('\n')}`);
     const pkg = await fs.readFile(path.join(dir, `${part}.pkg`), 'utf8');

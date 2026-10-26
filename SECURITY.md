@@ -38,7 +38,10 @@ whoever has the address with its token has the server, as the warning says at st
   settings that choose which program runs, and with what arguments, are read from the user's
   configuration file only, never from the page. The ISE settings script and the Docker image the
   page may choose are checked: the script is a file outside the projects and the build folders,
-  writable only by its owner (root or the user), and Docker never pulls an image Silinx runs.
+  writable only by its owner (root or the user), and Docker never pulls an image Silinx runs. The ISE
+  container runs with no network, no capability, no way to gain privileges and a bound on its processes
+  (`--network none --cap-drop ALL --security-opt no-new-privileges --pids-limit`), and a memory limit
+  when the configuration sets one (`docker.memory`).
 - At every release, CI scans for private data (e-mail addresses, computer names and network addresses,
   keys and tokens, Xilinx files) the tracked files and every line ever added to `main`; CodeQL analyses
   the JavaScript nightly and at every release; Dependabot's alerts report a dependency with a known

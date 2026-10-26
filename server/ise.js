@@ -42,6 +42,14 @@ export const SIM_MODELS = {
   postpar: (top) => `netgen/par/${top}_timesim.vhd`,
 };
 
+/**
+ * How the ISE container is isolated (#1435): it runs third-party designs through old binaries, so it gets no
+ * network (the flow needs none), no capability, no way to gain privileges, and a bound on its processes. The
+ * same arguments for every `docker run` of ISE: the local mode, the ssh host's (remoteFlowCommand) and the
+ * scripts' (scripts/check-open-flow.mjs, scripts/gen-netlist-fixtures.mjs, test/designs-corpus/compare-ise.mjs).
+ */
+export const DOCKER_ISOLATION = Object.freeze(['--network', 'none', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512']);
+
 /** POSIX single-quote a string for the shell. */
 export function shQuote(s) {
   s = String(s);
@@ -557,7 +565,8 @@ export function runLocal(job, cfg, det, gen, steps, onLine) {
 export function runDocker(job, cfg, gen, steps, onLine) {
   const d = cfg.docker;
   // never pull: the image must be one this computer already has (Silinx never pulls images)
-  const args = ['run', '--rm', '--pull=never'];
+  const args = ['run', '--rm', '--pull=never', ...DOCKER_ISOLATION];
+  if (d.memory) args.push('--memory', String(d.memory));
   if (d.platform) args.push('--platform', d.platform);
   args.push('-v', `${gen.buildDir}:/work`, '-w', '/work');
   // Linux: run as the calling user so build outputs are not owned by root (the Silinx ISE
@@ -621,7 +630,7 @@ export function remoteFlowCommand(cfg, rdir, steps) {
   if (s.image) {
     // a non-interactive ssh shell may lack Docker Desktop's /usr/local/bin (macOS) on PATH
     const env = s.settings ? `-e ISE_SETTINGS=${shQuote(s.settings)} ` : '';
-    return `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd ${rq} && docker run --rm --pull=never -v "$PWD":/work -w /work ${env}${shQuote(s.image)} bash run.sh ${args}`;
+    return `export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"; cd ${rq} && docker run --rm --pull=never ${DOCKER_ISOLATION.join(' ')} -v "$PWD":/work -w /work ${env}${shQuote(s.image)} bash run.sh ${args}`;
   }
   const settings = s.settings ? `ISE_SETTINGS=${shQuote(s.settings)} ` : '';
   return `cd ${rq} && ${settings}bash run.sh ${args}`;
