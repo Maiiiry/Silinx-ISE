@@ -22,6 +22,8 @@ import {
 } from '/core/logic.js';
 import { reservedError } from '/core/reserved.js';
 import { cellText, placeKmap } from './tt-kmap3d.js';
+import { domSnapshot } from './print-view.js';
+import { t as tr } from './i18n.js';
 
 const NEXT = { 0: '1', 1: 'X', X: '0' };
 const COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#e377c2', '#8c564b', '#bcbd22', '#7f7f7f'];
@@ -51,6 +53,15 @@ function bestForm(doc, out, goal, label, tip, notation) {
   return h('div', { class: `tt-res tt-${goal}`, title: tip },
     h('div', {}, h('b', {}, label), ': ', h('span', { class: 'tt-best-form' }, FORM_NAMES[r.form] || FORM_NAMES.sop)),
     h('div', {}, h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(r.ast, notation)}`)), circuit(r.ast));
+}
+
+// A truth table's print view (#1510): the table, the Karnaugh map of the output in front (flat or 3D, as shown, its
+// tab) and the results; the commands, the expression's field, the hints and the options left out (the notes when it
+// has some).
+function ttPrintView(root, notes, name) {
+  const drop = ['.tt-toolbar', '.tt-cap-expr', '.tt-row', '.hint', '.tt-expr-err', '.tt-groups', '.tt-tab:not(.active)', '.tt-k3d-reset', '.tt-notation'];
+  if (!notes.value.trim()) drop.push('.tt-cap-notes', '.tt-notes');
+  return { title: `${tr('Truth table')} ${name}`, app: true, body: domSnapshot(root, { drop }) };
 }
 
 export function mountTtEditor(container, opts = {}) {
@@ -130,7 +141,7 @@ export function mountTtEditor(container, opts = {}) {
   const notes = h('textarea', { class: 'tt-notes', placeholder: 'Notes (saved with the table)', rows: 3 });
   let notesT = null;
   notes.addEventListener('input', () => { M.notes = notes.value; opts.onChange?.(M); clearTimeout(notesT); notesT = setTimeout(snap, 600); });
-  const left = h('div', { class: 'tt-left' }, h('div', { class: 'tt-caption' }, 'Truth table'), h('div', { class: 'hint' }, 'Click an output cell to change it: 0 → 1 → X (don\'t care).'), tableHost, h('div', { class: 'tt-caption' }, 'Notes'), notes);
+  const left = h('div', { class: 'tt-left' }, h('div', { class: 'tt-caption' }, 'Truth table'), h('div', { class: 'hint' }, 'Click an output cell to change it: 0 → 1 → X (don\'t care).'), tableHost, h('div', { class: 'tt-caption tt-cap-notes' }, 'Notes'), notes);
   const tabs = h('div', { class: 'tt-tabs' });
   const exprIn = h('input', { type: 'text', class: 'tt-expr-in', spellcheck: 'false', placeholder: 'e.g. /a.b + c' });
   const exprErr = h('div', { class: 'tt-err tt-expr-err' });
@@ -163,7 +174,7 @@ export function mountTtEditor(container, opts = {}) {
   const results = h('div', { class: 'tt-results' });
   const right = h('div', { class: 'tt-right' },
     tabs,
-    h('div', { class: 'tt-caption' }, 'Expression'), exprRow, h('div', { class: 'hint tt-ops' }, OPS), exprErr,
+    h('div', { class: 'tt-caption tt-cap-expr' }, 'Expression'), exprRow, h('div', { class: 'hint tt-ops' }, OPS), exprErr,
     h('div', { class: 'tt-caption' }, 'Karnaugh map'), grpSel, kmapHost,
     h('div', { class: 'tt-caption' }, 'Results'), results);
   root.append(toolbar, h('div', { class: 'tt-body' }, left, right));
@@ -349,7 +360,7 @@ export function mountTtEditor(container, opts = {}) {
     setLink(file) { linkModel(M, file); hist.forEach((s, i) => { hist[i] = linkSnapshot(s, file); }); renderLink(); },
     refreshLink: () => renderLink(),
     select(o) { if (M.outputs.includes(o)) { out = o; render(); } },
-    handwritten, handwrittenTable,
+    handwritten, handwrittenTable, printView: () => ttPrintView(root, notes, M.name),   // (#1510)
     destroy() { destroyed = true; container.innerHTML = ''; },
   };
 }
