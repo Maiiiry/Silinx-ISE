@@ -214,7 +214,7 @@ export function exprColumn(ast, inputs) {
 
 /**
  * Text of an expression. notation:
- *   'slash'    /a·b + c (the editor's default: NOT is a prefix /, a negated group /(a + b))
+ *   'slash'    /a.b + c (the editor's default: NOT is a prefix /, a negated group /(a + b), AND the keyboard's . #1496)
  *   'slash-compact' /ab + c (juxtaposition when every name is one letter; /ab is /a·b, as typed)
  *   'textbook' a·b' + c   'compact' ab' + c (juxtaposition when every name is one letter)
  *   'ascii'    a*b' + c   'vhdl' (a and not b) or c   'verilog' (a & ~b) | c
@@ -229,8 +229,8 @@ export function formatExpr(e, notation = 'textbook') {
   const allSingle = exprVars(e).every(v => v.length === 1);
   const juxt = (N === 'compact' || N === 'slash-compact') && allSingle;
   const sym = {
-    slash: { and: '·', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
-    'slash-compact': { and: juxt ? '' : '·', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
+    slash: { and: '.', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
+    'slash-compact': { and: juxt ? '' : '.', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
     textbook: { and: '·', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
     compact: { and: juxt ? '' : '·', or: ' + ', xor: ' ⊕ ', c0: '0', c1: '1' },
     ascii: { and: '*', or: ' + ', xor: ' ^ ', c0: '0', c1: '1' },

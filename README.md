@@ -202,7 +202,7 @@ for Xilinx FPGAs supported by ISE 14.7.
   `/(a1 ⊕ b1)·/(a0 ⊕ b0)`, `a ⊕ b·c` (sums of products of literals and XOR / XNOR factors, or a
   variable XOR one; up to 6 inputs, don't cares used, checked on the whole table); and the *NAND
   form* and *NOR form*, the minimal SOP with NAND gates only and the minimal POS with NOR gates only
-  (double negation: `/(/(a·b)·/(c·d))`), with their gate counts. The expressions are written with `/` as NOT (`/a·b + c`, `/(a + b)`), or, chosen, as
+  (double negation: `/(/(a.b)./(c.d))`), with their gate counts. The expressions are written with `/` as NOT and `.` as AND (`/a.b + c`, `/(a + b)`), or, chosen, as
   `/ab + c`, `a·b' + c`, `ab' + c`, VHDL or Verilog; each reads back as typed. *HDL logic* picks the
   logic of its module and of its schematic: the minimal SOP, POS, the XOR form where it is simpler
   (`xor` / `xnor`, `^` / `~^`), NAND gates only (`a nand b`, `~(a & b)`) or NOR gates only. The table always has its HDL module, made with it in the project's
