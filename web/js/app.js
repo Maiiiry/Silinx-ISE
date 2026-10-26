@@ -26,7 +26,7 @@ import { adoptDrawnHdl, drawnHdlClashes, freshHdl, openAsm, openFsm, openPetri, 
   openTt, openTtSchematic, openView, projectPart, refreshSyncBanner, schModules, staleHdl, syncBanner, viewTitle } from './drawings.js';
 import { checkFileSyntax, hdlDiagnostics, markStale, openMode, renderProcesses, saveAll } from './processes.js';
 import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, serialOp, setTop, treeItem } from './design.js';
-import { printActive, refreshSteps, settingsItems, setupMenus, setupToolbar, showPalette } from './menus.js';
+import { printActive, printable, refreshSteps, settingsItems, setupMenus, setupToolbar, showPalette } from './menus.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
@@ -687,7 +687,7 @@ export async function openFpgaView(mod = S.project?.top) {
   const old = findDoc('fpgaview');
   if (old) await closeDoc(old);
   const top = S.project.top;
-  openDoc({ id: 'fpgaview', title: `FPGA (${top})`, icon: 'chip', tooltip: `${title}: ${m.device.part}`,
+  openDoc({ id: 'fpgaview', title: `FPGA (${top})`, icon: 'chip', printFit: 'page', tooltip: `${title}: ${m.device.part}`,
     create: el => {
       const view = mountFpgaView(el, { model: m, top, entities: hierarchyEntities(top), stale: S.status.par === 'stale',
         onSelectModule: path => selectHierarchyPath(path) });
@@ -912,7 +912,7 @@ async function boot() {
       && !document.querySelector('.dlg-overlay')) { e.preventDefault(); showPalette(); return; }
     // Ctrl/Cmd+Shift+F: Find in Project (#1430)
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F') && S.project && !document.querySelector('.dlg-overlay')) { e.preventDefault(); import('./find-project.js').then(f => f.openFindInProject()); return; }
-    if (!e.defaultPrevented && (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P') && (S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor)) { e.preventDefault(); printActive(); return; }
+    if (!e.defaultPrevented && (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P') && printable()) { e.preventDefault(); printActive(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (S.active) flushDoc(S.active); }  // nothing to do: edits are saved automatically
     // Ctrl/Cmd+Z outside an editor or text field (the diagram editors handle their own keys): undo the
     // project's last command when it is newer than the active document's last edit

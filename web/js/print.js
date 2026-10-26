@@ -15,7 +15,8 @@ const STYLE_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-d
  * @param {{l,t,r,b}} bounds       drawing bounds in world coordinates
  * @param {string[]} drop          selectors of elements to leave out (grid, handles, rubber band…)
  */
-export function svgSnapshot(svg, world, bounds, drop = []) {
+export function svgSnapshot(svg, world, bounds, drop = []) { return withLightTheme(() => snapshotNow(svg, world, bounds, drop)); }
+function snapshotNow(svg, world, bounds, drop) {
   const clone = svg.cloneNode(true);
   const src = [svg, ...svg.querySelectorAll('*')];
   const dst = [clone, ...clone.querySelectorAll('*')];
@@ -36,7 +37,7 @@ export function svgSnapshot(svg, world, bounds, drop = []) {
   for (const el of clone.querySelectorAll('[data-drop]')) el.remove();
   for (const el of clone.querySelectorAll('title')) el.remove();
   const w = clone.querySelector('[data-world]');
-  w.removeAttribute('transform'); w.removeAttribute('data-world');
+  w?.removeAttribute('transform'); w?.removeAttribute('data-world');
   const W = Math.ceil(bounds.r - bounds.l), H = Math.ceil(bounds.b - bounds.t);
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('viewBox', `${Math.floor(bounds.l)} ${Math.floor(bounds.t)} ${W} ${H}`);
@@ -44,6 +45,19 @@ export function svgSnapshot(svg, world, bounds, drop = []) {
   clone.setAttribute('style', 'background:#fff');
   return { svg: clone.outerHTML, bounds: { x: Math.floor(bounds.l), y: Math.floor(bounds.t), w: W, h: H } };
 }
+
+/** fn() run with the light theme's styles (a print is light, also in the dark theme, #1509): its computed styles
+ *  read there, the theme put back before anything is drawn again. */
+export function withLightTheme(fn) {
+  const root = document.documentElement, was = root.dataset.theme, scheme = root.style.colorScheme;
+  if (was !== 'dark') return fn();
+  root.dataset.theme = 'light'; root.style.colorScheme = 'light';
+  try { return fn(); } finally { root.dataset.theme = was; root.style.colorScheme = scheme; }
+}
+
+// the project and the file of the document printed, in every page's header (printActive sets it, #1509)
+let printMeta = '';
+export function setPrintMeta(meta = '') { printMeta = String(meta); }
 
 const PAPERS = { A4: [210, 297], A3: [297, 420], Letter: [216, 279] };
 // each paper's name in the page's @page rule (from this table, never from the dialog's text)
@@ -78,7 +92,7 @@ const mm = (v) => `${+v.toFixed(3)}mm`;
  * HTML document printing the drawing (an image at `imgUrl`, of size bounds.w x bounds.h) with
  * layout L: one page per tile, the image cropped by each page window (loaded only once).
  */
-export function printHtml(title, bounds, imgUrl, L) {
+export function printHtml(title, bounds, imgUrl, L, meta = '') {
   const W = bounds.w * L.scale, H = bounds.h * L.scale;
   const n = L.cols * L.rows;
   const pages = [];
@@ -87,7 +101,7 @@ export function printHtml(title, bounds, imgUrl, L) {
       // a single page centres the drawing; tiles start at the top-left corner of the window
       const x = n === 1 ? (L.aw - W) / 2 : -c * L.aw, y = n === 1 ? 0 : -r * L.ah;
       const cap = n === 1 ? '' : ` — page ${r * L.cols + c + 1} of ${n} (row ${r + 1}, column ${c + 1})`;
-      pages.push(`<section class="page"><header>${esc(title)}${esc(cap)}</header><div class="art">`
+      pages.push(`<section class="page"><header><b>${esc(title)}${esc(cap)}</b>${meta ? `<span>${esc(meta)}</span>` : ''}</header><div class="art">`
         + `<img src="${esc(imgUrl)}" alt="" style="left:${mm(x)};top:${mm(y)};width:${mm(W)};height:${mm(H)}"></div></section>`);
     }
   }
@@ -98,7 +112,8 @@ export function printHtml(title, bounds, imgUrl, L) {
 html, body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .page { position: relative; width: ${mm(L.aw)}; height: ${mm(L.ah + CAPTION)}; overflow: hidden; break-after: page; page-break-after: always; }
 .page:last-child { break-after: auto; page-break-after: auto; }
-header { height: ${CAPTION}mm; font: 9pt system-ui, -apple-system, "Segoe UI", sans-serif; color: #444; white-space: nowrap; overflow: hidden; }
+header { display: flex; justify-content: space-between; gap: 4mm; height: ${CAPTION}mm; font: 9pt system-ui, -apple-system, "Segoe UI", sans-serif; color: #444; white-space: nowrap; overflow: hidden; }
+header b { font-weight: 600; color: #000; overflow: hidden; text-overflow: ellipsis; }
 .art { position: absolute; left: 0; top: ${CAPTION}mm; width: ${mm(L.aw)}; height: ${mm(L.ah)}; overflow: hidden; }
 .art img { position: absolute; max-width: none; }
 @media screen {
@@ -109,10 +124,10 @@ header { height: ${CAPTION}mm; font: 9pt system-ui, -apple-system, "Segoe UI", s
 }
 // The print page has no script of its own: a page written into a new window or a frame keeps the
 // opener's Content-Security-Policy, which runs no inline script (#487). The opener prints it, once
-// its images are loaded.
-function printWhenLoaded(win) {
+// its images are loaded (and laid out by `ready`, given the window: the fit of a print view, #1509).
+function printWhenLoaded(win, ready) {
   Promise.all([...win.document.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))))
-    .then(() => setTimeout(() => win.print(), 250));
+    .then(() => { try { ready?.(win); } catch (e) { console.error(e); } setTimeout(() => win.print(), 250); });
 }
 
 /** Raster image (PNG blob) of a snapshot at `k` pixels per drawing unit, within browser canvas limits. */
@@ -182,12 +197,16 @@ export async function printDiagram({ title, snapshot, filename = 'diagram' }) {
 function openPrint(title, snapshot, L) {
   const url = URL.createObjectURL(new Blob([snapshot.svg], { type: 'image/svg+xml' }));
   setTimeout(() => URL.revokeObjectURL(url), 30 * 60 * 1000);
-  const html = printHtml(title, snapshot.bounds, url, L);
+  openPrintPage(printHtml(title, snapshot.bounds, url, L, printMeta));
+}
+
+/** The page `html` in a new window (a hidden frame when pop-ups are blocked), printed once loaded and `ready(win)` ran. */
+export function openPrintPage(html, ready) {
   const w = window.open('', '_blank');
-  if (w) { w.document.open(); w.document.write(html); w.document.close(); printWhenLoaded(w); return; }
+  if (w) { w.document.open(); w.document.write(html); w.document.close(); printWhenLoaded(w, ready); return; }
   // pop-ups blocked: print from a hidden frame
-  const f = h('iframe', { style: { position: 'fixed', right: 0, bottom: 0, width: 0, height: 0, border: 0 } });
+  const f = h('iframe', { class: 'print-frame', style: { position: 'fixed', right: 0, bottom: 0, width: 0, height: 0, border: 0 } });
   document.body.append(f);
-  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close(); printWhenLoaded(f.contentWindow);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close(); printWhenLoaded(f.contentWindow, ready);
   setTimeout(() => f.remove(), 10 * 60 * 1000);
 }

@@ -100,3 +100,13 @@ html[data-theme="dark"] .fv-stale { background: rgba(227, 179, 65, .14); color: 
 .fv-side.wide .fv-slice { max-width: 680px; }
 .fv-h-row { display: flex; align-items: center; justify-content: space-between; }
 .fv .fv-enlarge { min-width: 0; height: 22px; padding: 0 8px; font-size: 11px; }
+/* its print view (#1509: web/js/print-view.js, a copy of the view in .pv-copy): the die on paper, light */
+.pv-copy .fv-canvas { background: #fff; border: 1px solid #999; }
+.pv-copy .fv-die { fill: #f6f8fa; }
+.pv-copy .fv-tile { stroke: #c4ccd5; }
+.pv-copy .fv-tile-clb { fill: #eef1f4; } .pv-copy .fv-tile-io { fill: #eef4ec; } .pv-copy .fv-tile-mem { fill: #f1edf6; } .pv-copy .fv-tile-clk { fill: #f6f2e4; }
+.pv-copy .fv-site-free { fill: #d5dbe2; }
+.pv-copy .fv-site { stroke: rgba(0, 0, 0, .35); }
+.pv-copy .fv-site.sel { stroke: #000; }
+.pv-copy .fv-route { fill: rgba(176, 136, 0, .12); stroke: rgba(176, 136, 0, .5); } .pv-copy .fv-wire { stroke: #b08800; } .pv-copy .fv-load { fill: #b08800; } .pv-copy .fv-drv { fill: #fff; stroke: #b08800; }
+.pv-copy .fv-conn .fv-wire { stroke: #1f6feb; } .pv-copy .fv-conn .fv-load { fill: #1f6feb; } .pv-copy .fv-conn .fv-drv { stroke: #1f6feb; }

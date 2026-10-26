@@ -2,7 +2,7 @@
 //
 //   import { mountPetriEditor } from './petri-editor.js';
 //   const ed = mountPetriEditor(container, { model, onChange(model), linkInfo() -> { file } | null, onOpenFile(path) });
-//   ed.getModel(); ed.setModel(m); ed.setLink(file); ed.undo(); ed.redo(); ed.canUndo(); ed.canRedo(); ed.fit(); ed.refreshLink(); ed.destroy();
+//   ed.getModel(); ed.setModel(m); ed.setLink(file); ed.undo(); ed.redo(); ed.canUndo(); ed.canRedo(); ed.fit(); ed.refreshLink(); ed.print(); ed.destroy();
 //
 // Places are circles holding their tokens (dots, or a number), transitions bars; an arc goes from a
 // place to a transition (it takes tokens: its weight) or from a transition to a place (it puts them);
@@ -23,6 +23,7 @@ import { mountPetriSim } from './petri-sim.js';
 import { mountPetriSide } from './petri-side.js';
 import { mountPetriDraw } from './petri-draw.js';
 import { clone } from '/core/util.js';
+import { printDiagram, svgSnapshot } from './print.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -273,6 +274,17 @@ export function mountPetriEditor(container, opts = {}) {
     else if (e.key === 'Escape') { setTool('select'); }
   });
 
+  // the whole net, its selection left out (#1509)
+  function print() {
+    const saved = sel;
+    sel = null; render();
+    let snap;
+    try {
+      const b = world.getBBox();
+      snap = svgSnapshot(svg, world, { l: b.x - 20, t: b.y - 20, r: b.x + b.width + 20, b: b.y + b.height + 20 }, ['defs pattern', '.pn-arc-hit']);
+    } finally { sel = saved; render(); }
+    printDiagram({ title: `Petri net ${M.name}`, snapshot: snap, filename: `${M.name}_petri` });
+  }
   function fit() {
     const r = svg.getBoundingClientRect();
     const nodes = [...M.places, ...M.transitions];
@@ -304,7 +316,7 @@ export function mountPetriEditor(container, opts = {}) {
     canCopy: () => !!sel && sel.kind !== 'arc', canDelete: () => !!sel, canPaste: () => hasClip('petri'),
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) { linkModel(M, file); hist.forEach((s, i) => { hist[i] = linkSnapshot(s, file, normalizePetri); }); refreshLink(); },
-    fit, refreshLink,
+    fit, refreshLink, print,
     destroy() { destroyed = true; ro?.disconnect(); if (sim?.timer) clearInterval(sim.timer); container.innerHTML = ''; },
   };
 }

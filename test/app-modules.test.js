@@ -16,7 +16,7 @@ const importedFrom = (code, mod) => {
 const definedIn = (code, name) => new RegExp(`^(?:export )?(?:async )?function ${name}\\(|^(?:export )?(?:let|const) ${name}\\b`, 'm').test(code);
 
 // the modules split out of a part later (#405): a part's functions are defined in it or in them
-const SPLIT = { 'drawings.js': ['drawings-tt.js'] };
+const SPLIT = { 'drawings.js': ['drawings-tt.js'], 'menus.js': ['print-doc.js'] };   // (Print: print-doc.js, #1509)
 const readPart = mod => [mod, ...(SPLIT[mod] || [])].map(read).join('\n');
 
 // the modules taken out of app.js and the functions each one owns

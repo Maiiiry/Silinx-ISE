@@ -469,7 +469,7 @@ Object.assign(PT, {
   'Device Utilization Summary (not yet implemented)': 'Resumo da Utilização do Dispositivo (ainda não implementado)',
   'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Toolchain Settings (the gear in the toolbar)).':
     'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese/implementação requer o Xilinx ISE 14.7 (Definições da Toolchain (a roda dentada da barra de ferramentas)).',
-  'Print…': 'Imprimir…', 'Print': 'Imprimir', 'project name': 'nome do projeto', 'new project name': 'nome do novo projeto', 'file name': 'nome do ficheiro',
+  'Print…': 'Imprimir…', 'Print': 'Imprimir', 'Source': 'Fonte', 'Source (read-only)': 'Fonte (só de leitura)', 'project name': 'nome do projeto', 'new project name': 'nome do novo projeto', 'file name': 'nome do ficheiro',
   'Device': 'Dispositivo', 'Top': 'Topo', 'Board': 'Placa', 'Last Used': 'Último uso', '.zip file:': 'Ficheiro .zip:',
   'Import a whole Silinx project from a .zip made with File ▸ Export Silinx ISE Project (silinx.json and every project file: sources, ASM charts, schematics, constraints, simulation files).':
     'Importe um projeto Silinx completo a partir de um .zip feito com Ficheiro ▸ Exportar Projeto Silinx ISE (silinx.json e todos os ficheiros do projeto: fontes, diagramas ASM, esquemáticos, restrições, ficheiros de simulação).',
