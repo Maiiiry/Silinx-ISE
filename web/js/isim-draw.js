@@ -238,7 +238,7 @@ export function mountDraw(ctx) {
     const x1 = xOf(Math.min(ta, tb)), x2 = xOf(Math.max(ta, tb));
     const y = WH - 12;
     if (x2 < 0 || x1 > WW) return;
-    ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = colors.delta || '#ffffff'; ctx.fillStyle = colors.delta || '#ffffff';   // (on paper: dark, #1511)
     ctx.beginPath(); ctx.moveTo(x1, y + 0.5); ctx.lineTo(x2, y + 0.5); ctx.stroke();
     const arrow = (x, d) => { ctx.beginPath(); ctx.moveTo(x, y + 0.5); ctx.lineTo(x + 5 * d, y - 3); ctx.lineTo(x + 5 * d, y + 4); ctx.closePath(); ctx.fill(); };
     if (x2 - x1 > 12) { arrow(x1, 1); arrow(x2, -1); }
