@@ -1,27 +1,20 @@
-// The schematic editor's right-click menu on a symbol, an I/O marker or a net name (#1546): the object selected,
-// Rename… opens a small dialog with its name; a name core/schname.js refuses is said in the dialog, which stays open.
+// Rename… of the schematic editor's right-click menu (#1546, sch-context.js) on a symbol, an I/O marker or a net name:
+// a small dialog with its name; a name core/schname.js refuses is said in the dialog, which stays open.
 // The new name is given as the Properties panel gives it (a net name: with the whole net connected by name, #734,
 // asked first when another net has it, #689), in one edit: one undo step, the HDL generated again.
-import { popupMenu, dialog } from './ui.js';
+import { dialog } from './ui.js';
 import { h } from './dom.js';
 import { renameError } from '/core/schname.js';
 import { KEYS } from './sch-editor.js';
 
-const TITLES = { sym: 'Rename Instance', port: 'Rename I/O Marker', label: 'Rename Net Name' };
+export const TITLES = { sym: 'Rename Instance', port: 'Rename I/O Marker', label: 'Rename Net Name' };
 
-/** { contextMenu, rename } of mountSchEditor (doc(), live(), nl(), tool(): its current values). */
+/** { rename } of mountSchEditor (doc(), nl(): its current values). */
 export function mountSchRename(ctx) {
-  const { readOnly, doc, live, nl, tool, edit, setSel, render, renderProps, joinByName, renameLabel } = ctx;
+  const { doc, nl, edit, joinByName, renameLabel } = ctx;
 
   const nameOf = (kind, o) => (kind === 'label' ? o.net : o.name);
   const find = it => doc()[KEYS[it.kind]]?.find(o => o.id === it.id);
-  // a right-click (or a long press) on the sheet: the object under it selected, its menu shown
-  function contextMenu(e, it) {
-    if (readOnly || live() || tool() !== 'select' || !it || !TITLES[it.kind] || !find(it)) return;
-    setSel(new Set([`${it.kind}:${it.id}`]));
-    render(); renderProps();
-    popupMenu([{ label: 'Rename…', action: () => rename(it) }], e.clientX, e.clientY);
-  }
   async function rename(it) {
     const o = find(it);
     if (!o) return;
@@ -47,5 +40,5 @@ export function mountSchRename(ctx) {
     edit(() => { find(it).name = name; });
   }
 
-  return { contextMenu, rename };
+  return { rename };
 }
