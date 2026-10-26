@@ -3,10 +3,71 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.18.2
+
+15.18.0 and 15.18.1 were not published (their tests failed at the release): their changes, in the next sections,
+come with this release too.
+
+In short:
+
+- **Schematic Try it: wires keep their width:** a single-bit wire is no longer drawn thick while the schematic is
+  tried, so it is not confused with a bus; its colour still shows its value.
+- **Schematic: Rename… on a right-click:** a symbol, an I/O marker or a net name is renamed from its right-click
+  menu; a name that is not valid, a reserved word or already taken is refused with a message.
+- **C to HDL, combinational:** a C function with no state and loops of constant bounds becomes a VHDL or Verilog
+  module with Vitis HLS's ports (`ap_start`, `ap_done`, `ap_idle`, `ap_ready`, the arguments, `ap_return`).
+- **C files checked:** a `.c` file opens in the editor with C's highlighting; its checks (what Silinx C, compatible with
+  Vitis HLS, can make into hardware) are marked as you type, and Check Syntax lists them with their help.
+- **Faster deep designs at Optimization Effort Normal with the Silinx toolchain:** a design limited by its logic depth
+  keeps High's netlist when it is 10 % faster (was 25 %): ITC'99 b05 13 % faster, b14 5 %, by ISE's timing analyser.
+
+In detail:
+
+- **The emulator print test reads a still board (#1558):** test/ui/print-emulator.test.js waits for the paused emulator's
+  time to stop changing (a run begun before the pause ends after it) before comparing the printed page with it.
+- **Try it: a single-bit wire keeps its width (#1552):** the live simulation's wires were all drawn wider (2 instead
+  of 1.3), so a single-bit wire looked like a bus. Now only the colour follows the value (0, 1, X, Z) and only a bus
+  is thick, as outside Try it (`web/css/sch-editor.css`).
+- **The test timings refreshed (#1550):** test/timings.json measured again from a release's run, the new UI test files
+  with it.
+- **The print views' markup checked (#1549):** the #1443 check knows the print views' interpolations (markup made by
+  another template, a copy of the page's elements, a canvas's picture, numbers), all safe.
+- **The schematic editor's right-click menu: Rename… (#1546):** a right-click on a symbol, an I/O marker or a net name
+  selects it and offers Rename…, a small dialog with its name (`web/js/sch-rename.js`). The name must be an identifier
+  of VHDL and Verilog, not a reserved word of either, and not the name of another instance or I/O marker
+  (`core/schname.js`); a refused name is said in the dialog, which stays open. A net name is renamed with its whole
+  net, as in the Properties panel (#734). The rename is one undo step and the generated HDL follows it.
+- **The release zip's budget (#1538):** 50 MB rather than 40. The measured XC3S250E description in research/ (6.7 MB)
+  took the zip to 44.1 MB (test/release/release.test.js).
+- **Combinational C to HDL (#1525):** core/c-types.js (C's promotions and conversions, Vitis HLS's ap_int widths),
+  core/c-graph.js (the operations, folded and shared), core/c-dataflow.js and core/c-dataflow-expr.js (the function
+  run symbolically: loops unrolled, ifs and switches as multiplexers, return / break / continue as conditions, the
+  functions inlined, arrays, pointer outputs and their `_ap_vld`), core/c-hdl.js (the VHDL and the Verilog; a name
+  that is a reserved word of an HDL named `<name>_r`); what is not combinational yet said (#1526, #1527). Tests:
+  test/c-hdl.test.js (the generated HDL simulated in both languages against the C compiled with the host's cc, 40
+  random expressions included).
+- **Silinx C, the parser and its checks (#1524):** core/c-lex.js (the preprocessor: #include of the known headers,
+  #define and macros, #if; the HLS pragmas), core/c-parse.js (the syntax tree), core/c-check.js (names, calls, types,
+  `ap_int<W>` widths, the top function, the loops' trip counts, and UG1399's rules: no recursion, dynamic memory,
+  system calls, pointer variables or arithmetic, floating point, structures, goto, unbounded loops, visible undefined
+  behaviour), core/hints-c.js (their help in English and Portuguese); web/js/editor.js (C highlighting, the lint),
+  web/js/processes.js (Check Syntax of a `.c` file). Tests: test/c-check.test.js, test/ui/c-check.test.js.
+- **C to HDL, the specification (#1523):** docs/c-to-hdl.md: Silinx C, the subset of C (with Vitis HLS's `ap_int<W>` /
+  `ap_uint<W>`) that Silinx will turn into VHDL and Verilog, compatible with AMD's Vitis HLS: the source, the types and
+  their arithmetic, what can be synthesized, the module made (Vitis HLS's ports and block protocol), the pragmas, how
+  it is checked, the phases (#1532).
+- **Normal keeps High's mappings of a deep design when 10 % faster (#652):** a design of more than 16 levels of logic
+  (`DEEP_RULE`) gets High's mappings at Normal too, kept since #611 only when 25 % faster by the estimate than Normal's
+  own netlist (then ITC'99 b05 and b14 gained 9 and 15 % for 5 and 9 % more slices). They now gain 23 and 13 % with
+  fewer LUTs (282 against 295, 987 against 1059), and `DEEP_RULE.gain` is 10 %: by ISE's trce at Normal itc99-b05
+  11.875 → 10.343 ns (−12.9 %, 1.21 → 1.05 times ISE's critical path) and itc99-b14 33.903 → 32.257 ns (−4.9 %),
+  slices 246 → 255 and 663 → 657, both bitstreams byte-identical to ISE's bitgen with a clean DRC; no other design of
+  the corpus or the examples is deep at Normal, nothing else changes, and no synthesis takes longer (both netlists were
+  made before). The console's note, when High's netlist is not kept, names the rule's gain ("not 10 % faster").
+
 ## 15.18.1
 
-15.18.0 was not published (its tests failed at the release): its changes, in the next section, come with this
-release too.
+Not published (its tests failed at the release): its changes come with 15.18.2.
 
 In short:
 
