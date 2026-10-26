@@ -7,7 +7,7 @@
 //   import { openSymbolInfo } from './symbol-info.js';
 //   openSymbolInfo({ container, type, params, preset, hdl, modules, lang: 'vhdl', draw(sym, def) -> svg, highlight(code, lang) -> html, onClose });
 //   -> { close(), setParams(p), get params(), el }
-import { SYMBOLS, defaultParams } from '/core/schdoc.js';
+import { SYMBOLS, compareOps, defaultParams } from '/core/schdoc.js';
 import { symbolDoc, presetOf, modeQText, T } from '/core/symdocs.js';
 import { truthTable } from '/core/symtables.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
@@ -51,6 +51,16 @@ export function openSymbolInfo(opts) {
       const el = h('input', { type: 'checkbox', checked: !!v, 'data-param': p.name });
       el.addEventListener('change', () => set(el.checked));
       return el;
+    }
+    if (p.kind === 'multi') {
+      // (a COMP's comparisons, a tick box each, one at least, #1555)
+      const on = compareOps(params), box = h('span', { class: 'sd-ticks', 'data-param': p.name });
+      for (const o of p.options) {
+        const el = h('input', { type: 'checkbox', checked: on.includes(o), 'data-op': o });
+        el.addEventListener('change', () => { const ops = p.options.filter(x => (x === o ? el.checked : on.includes(x))); if (ops.length) set(ops.join(',')); else el.checked = true; });
+        box.append(h('span', { 'data-no-i18n': '' }, el, ` ${o.toUpperCase()} `));
+      }
+      return box;
     }
     if (p.kind === 'select') {
       const el = h('select', { 'data-param': p.name }, ...p.options.map(o => h('option', { value: o, text: o })));

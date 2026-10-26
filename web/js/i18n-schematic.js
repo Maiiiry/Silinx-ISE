@@ -15,6 +15,10 @@ export const SCH_PT = {
   '2:1 multiplexer (O = S0 ? D1 : D0)': 'Multiplexador 2:1 (O = S0 ? D1 : D0)',
   'Adder S = A + B (+ CI), optional carry out': 'Somador S = A + B (+ CI), transporte de saída opcional',
   'Comparator O = A <op> B': 'Comparador O = A <op> B',
+  'Comparator O = A <op> B, or several comparisons at once (EQ, NE, LT, LE, GT, GE)': 'Comparador O = A <op> B, ou várias comparações ao mesmo tempo (EQ, NE, LT, LE, GT, GE)',
+  // a COMP's comparisons, a tick box each (#1555)
+  'Comparisons': 'Comparações', 'At least one comparison stays ticked': 'Pelo menos uma comparação fica marcada',
+  'Remove connected outputs': 'Remover saídas ligadas', 'Remove the outputs and their wires': 'Remover as saídas e os seus fios',
   'Constant value (decimal, 0x.. hex or 0b.. binary)': 'Valor constante (decimal, 0x.. hexadecimal ou 0b.. binário)',
   'Logic 1 (all bits)': '1 lógico (todos os bits)', 'Logic 0 (all bits)': '0 lógico (todos os bits)',
   'N-bit register': 'Registo de N bits', 'N-bit binary counter': 'Contador binário de N bits',
@@ -85,6 +89,8 @@ export const SCH_PT = {
 };
 
 export const SCH_PT_PATTERNS = [
+  // a COMP's connected output unticked (#1555)
+  [/^Unticking (\w+) removes the output \1 of (.+) and the wires connected to it\.$/, 'Desmarcar $1 remove a saída $1 de $2 e os fios ligados a ela.'],
   // a name refused by Rename… (core/schname.js, #1546)
   [/^'(.*)' is not a valid name: use a letter, then letters, digits and single _ \(not at the end\)\.$/, "'$1' não é um nome válido: use uma letra, seguida de letras, dígitos e _ simples (não no fim)."],
   [/^'(.*)' is already the name of (another instance|an instance|another I\/O marker|an I\/O marker): choose another name\.$/, (m, n, w) =>

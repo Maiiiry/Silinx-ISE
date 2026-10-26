@@ -44,7 +44,8 @@ export {
   findMod, freePortName, gateVariant, int, normModules, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef,
   symbolParams, symbolPins, symbolTypeName, turnSide, xform, xformSide
 };
-export { constWidth, MUX_BODY_W, MUX_OLD_BODY_W, MUX_SEL_X } from './schdoc-symbols.js';
+export { COMPARE_OPS, COMPARE_SYM, compareOps, comparePin, constWidth, MUX_BODY_W, MUX_OLD_BODY_W, MUX_SEL_X } from './schdoc-symbols.js';
+export { followPins, otherPins, repinSymbol } from './schdoc-repin.js';
 export { symbolDiff, updateModuleSymbols, updatedPorts } from './schdoc-modsym.js';
 export {
   modulesFromLibrary, schematicFromHdl

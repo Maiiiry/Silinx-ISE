@@ -101,6 +101,10 @@
   border: 1px solid var(--field-border); background: var(--field-bg); padding: 1px 4px; min-height: 21px; width: 100%;
 }
 .sch-editor .se-field input[type=checkbox] { align-self: flex-start; margin: 2px 0; }
+/* a COMP's comparisons, a tick box each (#1555) */
+.sch-editor .se-ticks { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.sch-editor .se-tick { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+.sch-editor .se-field .se-tick input[type=checkbox] { align-self: center; }
 .sch-editor .se-field textarea { font-family: var(--se-mono); font-size: 11px; line-height: 1.35; resize: vertical; white-space: pre; tab-size: 2; }
 .sch-editor .se-field textarea.code { min-height: 180px; }
 .sch-editor .se-field input:focus, .sch-editor .se-field textarea:focus, .sch-editor .se-field select:focus { outline: 1px solid var(--se-accent); outline-offset: -1px; }

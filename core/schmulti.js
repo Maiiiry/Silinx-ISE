@@ -23,7 +23,8 @@ function fieldsOf(kind, o) {
     { key: 'type', label: 'HDL type', kind: 'text', get: p => p.type || '', set: (p, v) => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; } },
   ];
   if (kind === 'wire') return [{ key: 'bus', label: 'Draw as bus', kind: 'bool', get: w => !!w.bus, set: (w, v) => { if (v) w.bus = true; else delete w.bus; } }];
-  if (kind === 'sym') return symbolParams(o).map(p => ({
+  // (a COMP's comparisons, kind multi: its own tick boxes only, as they re-pin it, #1555)
+  if (kind === 'sym') return symbolParams(o).filter(p => p.kind !== 'multi').map(p => ({
     key: `param:${p.name}`, label: p.label, kind: p.kind, options: p.options, min: p.min, max: p.max,
     get: s => (p.kind === 'select' && s.params[p.name] != null ? String(s.params[p.name]) : s.params[p.name]),
     set: (s, v) => {

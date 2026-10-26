@@ -14,6 +14,7 @@ import { h } from './dom.js';
 import { reservedError } from '/core/reserved.js';
 import { clone, snap, KEYS } from './sch-editor.js';
 import { mountMultiProps } from './sch-multi.js';
+import { mountCompareTicks } from './sch-compare.js';
 
 /** { renderProps, openSelected, renamed, joinByName, renameLabel } of a schematic editor (doc(), sel(), nl(), live(), modules(): its current ones). */
 export function mountProps(ctx) {
@@ -21,6 +22,7 @@ export function mountProps(ctx) {
     openInfo, infoTarget } = ctx;
 
   const multiProps = mountMultiProps({ propBody, doc, edit, field: (...a) => field(...a), keepFocus: (...a) => keepFocus(...a) });   // (#1471)
+  const compareTicks = mountCompareTicks({ container, doc, nl, modules, edit, flash });   // (#1555)
   function field(label, input, note) { return h('div', { class: 'se-field' }, h('label', { text: label }), input, note ? h('div', { class: 'se-note', text: note }) : null); }
   // the single selected module instance (RTL view: "push into"), or null
   function selectedModuleSym() {
@@ -153,7 +155,8 @@ export function mountProps(ctx) {
     for (const p of symbolParams(s)) {
       const v = s.params[p.name];
       let el;
-      if (p.kind === 'bool') el = chk(v, x => { s.params[p.name] = x; });
+      if (p.kind === 'multi') el = compareTicks(s);   // (a COMP's comparisons, #1555)
+      else if (p.kind === 'bool') el = chk(v, x => { s.params[p.name] = x; });
       else if (p.kind === 'select') el = selBox(String(v), p.options, x => { s.params[p.name] = x; });
       else if (p.kind === 'int') el = inp(v, x => { s.params[p.name] = Math.max(p.min ?? 0, Math.min(p.max ?? 1e6, Math.round(+x || p.default))); }, { type: 'number', min: p.min, max: p.max });
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });

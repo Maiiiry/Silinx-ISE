@@ -2,7 +2,7 @@
 // adders and subtractors, comparators, constants, slices and bus joins, registers and counters, module instances and
 // HDL blocks; an unknown kind skipped with a warning. Isomorphic ES module: no DOM and no Node APIs.
 import { arithIo, constBits, findMod, int, vhdlBits, vlogBits } from './schdoc.js';
-import { constWidth } from './schdoc-symbols.js';
+import { compareOps, comparePin, constWidth } from './schdoc-symbols.js';
 import { vhdlClass } from './schdoc-hdl.js';
 
 /** { symbolCasesMore } of generateHdl. */
@@ -66,21 +66,24 @@ export function mountSymbolCasesMore(ctx) {
         break;
       }
       case 'compare': {
-        const o = OUTN(s, 'O'); if (!o) return;
+        // (several comparisons, #1555: an output each, EQ … GE; one, its output O)
+        const outs = compareOps(p).map(op => [op, OUTN(s, comparePin(p, op))]).filter(([, o]) => o);
+        if (!outs.length) return;
         // (a pin per bit, #319: the operands made of their bits, the most significant first)
         const per = p.bits && Math.max(1, int(p.width, 1)) > 1, bw = Math.max(1, int(p.width, 1));
         const opnd = g => [...Array(bw).keys()].reverse().map(i => INN(s, `${g}${i}`, true));
         const a = per ? (ci ? `std_logic_vector'(${opnd('A').join(' & ')})` : `{${opnd('A').join(', ')}}`) : INN(s, 'A');
         const b = per ? (ci ? `std_logic_vector'(${opnd('B').join(' & ')})` : `{${opnd('B').join(', ')}}`) : INN(s, 'B');
-        const op = p.op || 'eq';
-        if (ci) {
-          const vo = { eq: '=', ne: '/=', lt: '<', le: '<=', gt: '>', ge: '>=' }[op];
-          const cw = Math.max(1, int(p.width, 1));
-          const cast = x => (cw === 1 ? `${p.signed ? 'signed' : 'unsigned'}'(0 => ${x})` : p.signed ? `signed(${x})` : `unsigned(${x})`);
-          body.push(`${o} <= '1' when ${cast(a)} ${vo} ${cast(b)} else '0';`);
-        } else {
-          const vo = { eq: '==', ne: '!=', lt: '<', le: '<=', gt: '>', ge: '>=' }[op];
-          assign(o, p.signed ? `($signed(${a}) ${vo} $signed(${b}))` : `(${a} ${vo} ${b})`);
+        for (const [op, o] of outs) {
+          if (ci) {
+            const vo = { eq: '=', ne: '/=', lt: '<', le: '<=', gt: '>', ge: '>=' }[op];
+            const cw = Math.max(1, int(p.width, 1));
+            const cast = x => (cw === 1 ? `${p.signed ? 'signed' : 'unsigned'}'(0 => ${x})` : p.signed ? `signed(${x})` : `unsigned(${x})`);
+            body.push(`${o} <= '1' when ${cast(a)} ${vo} ${cast(b)} else '0';`);
+          } else {
+            const vo = { eq: '==', ne: '!=', lt: '<', le: '<=', gt: '>', ge: '>=' }[op];
+            assign(o, p.signed ? `($signed(${a}) ${vo} $signed(${b}))` : `(${a} ${vo} ${b})`);
+          }
         }
         break;
       }
