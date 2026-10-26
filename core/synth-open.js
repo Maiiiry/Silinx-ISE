@@ -318,7 +318,35 @@ const memoryOpts = (fam, { premap = null, lutram = false } = {}) => ({ lutram: l
  * write the design to just before the LUT mapping (RTLIL), for remapCommands (and the memories left to logic
  * counted, MEMORIES_FILE); lutram: the memories priced at LUTRAM_COST (#54).
  */
-export function synthCommands(top, family, { srl = true, premap = null, lutram = false } = {}) {
+// Carry-select adders (#1361): a carry chain of CSEL_RULE.chain stages or more (an adder or comparator that wide: the EPFL
+// adder's 128 bits, 12.7 ns on one chain) as segments of CSEL_RULE.segment bits, each but the first computed for a carry in
+// of 0 and of 1 (two $alu cells, each on a chain of its own) and chosen by the carry out of the segment below (the EPFL
+// adder 9.6 ns, 270 LUTs against 171; segments of 16 bits slower once routed: 10.6 ns). CSEL_MAP (the file CSEL_FILE
+// given to Yosys) maps the $alu cells that wide just before synth_xilinx's fine step maps them onto carry chains.
+export const CSEL_RULE = { chain: 64, segment: 32 };
+export const CSEL_FILE = 'silinx_csel_map.v';
+export const CSEL_MAP = '// carry-select $alu (#1361): an $alu of MINW bits or more as segments of SEG bits, each but the first computed with a\n// carry in of 0 and of 1 (two $alu cells, mapped on carry chains), the segment\'s sum and carries chosen by the carry\n// out of the segment below\n(* techmap_celltype = "$alu" *)\nmodule _silinx_csel_alu (A, B, CI, BI, X, Y, CO);\n  parameter A_SIGNED = 0;\n  parameter B_SIGNED = 0;\n  parameter A_WIDTH = 1;\n  parameter B_WIDTH = 1;\n  parameter Y_WIDTH = 1;\n  parameter _TECHMAP_CELLNAME_ = "";\n  input [A_WIDTH-1:0] A;\n  input [B_WIDTH-1:0] B;\n  input CI, BI;\n  output [Y_WIDTH-1:0] X, Y, CO;\n  localparam MINW = `CSEL_MINW;\n  localparam SEG = `CSEL_SEG;\n  wire _TECHMAP_FAIL_ = Y_WIDTH < MINW;\n  wire [Y_WIDTH-1:0] AA, BB;\n  \\$pos #(.A_SIGNED(A_SIGNED), .A_WIDTH(A_WIDTH), .Y_WIDTH(Y_WIDTH)) apos (.A(A), .Y(AA));\n  \\$pos #(.A_SIGNED(B_SIGNED), .A_WIDTH(B_WIDTH), .Y_WIDTH(Y_WIDTH)) bpos (.A(B), .Y(BB));\n  wire [Y_WIDTH-1:0] BX = BI ? ~BB : BB;\n  assign X = AA ^ BX;\n  localparam NSEG = (Y_WIDTH + SEG - 1) / SEG;\n  wire [NSEG:0] c;\n  assign c[0] = CI;\n  genvar i;\n  generate for (i = 0; i < NSEG; i = i + 1) begin : seg\n    localparam LO = i * SEG;\n    localparam W = (LO + SEG > Y_WIDTH) ? Y_WIDTH - LO : SEG;\n    if (i == 0) begin : first\n      wire [W-1:0] y, co, x;\n      \\$alu #(.A_SIGNED(0), .B_SIGNED(0), .A_WIDTH(W), .B_WIDTH(W), .Y_WIDTH(W)) a (.A(AA[LO +: W]), .B(BX[LO +: W]), .CI(c[0]), .BI(1\'b0), .X(x), .Y(y), .CO(co));\n      assign Y[LO +: W] = y;\n      assign CO[LO +: W] = co;\n      assign c[1] = co[W-1];\n    end else begin : sel\n      wire [W-1:0] y0, co0, y1, co1, x0, x1;\n      \\$alu #(.A_SIGNED(0), .B_SIGNED(0), .A_WIDTH(W), .B_WIDTH(W), .Y_WIDTH(W)) a0 (.A(AA[LO +: W]), .B(BX[LO +: W]), .CI(1\'b0), .BI(1\'b0), .X(x0), .Y(y0), .CO(co0));\n      \\$alu #(.A_SIGNED(0), .B_SIGNED(0), .A_WIDTH(W), .B_WIDTH(W), .Y_WIDTH(W)) a1 (.A(AA[LO +: W]), .B(BX[LO +: W]), .CI(1\'b1), .BI(1\'b0), .X(x1), .Y(y1), .CO(co1));\n      assign Y[LO +: W] = c[i] ? y1 : y0;\n      assign CO[LO +: W] = c[i] ? co1 : co0;\n      assign c[i+1] = c[i] ? co1[W-1] : co0[W-1];\n    end\n  end endgenerate\nendmodule\n';
+const cselStep = csel => (csel ? `techmap -D CSEL_MINW=${csel.chain} -D CSEL_SEG=${csel.segment} -map ${CSEL_FILE}; ` : '');
+/** The longest carry chain of a Yosys JSON netlist (its top module): the MUXCY cells one after the other. */
+export function longestCarryChain(json, top) {
+  const nl = typeof json === 'string' ? JSON.parse(json) : json;
+  const mod = nl.modules[top] || Object.values(nl.modules).find(m => m.attributes?.top) || Object.values(nl.modules)[0];
+  const byOut = new Map();
+  for (const c of Object.values(mod?.cells || {})) if (c.type === 'MUXCY') byOut.set(c.connections.O[0], c);
+  const memo = new Map();
+  const len = c => {
+    if (memo.has(c)) return memo.get(c);
+    memo.set(c, 1);
+    const below = byOut.get(c.connections.CI[0]);
+    const n = below ? len(below) + 1 : 1;
+    memo.set(c, n);
+    return n;
+  };
+  let m = 0;
+  for (const c of byOut.values()) m = Math.max(m, len(c));
+  return m;
+}
+export function synthCommands(top, family, { srl = true, premap = null, lutram = false, csel = null } = {}) {
   const fam = YOSYS_FAMILY[family];
   if (!fam) throw new Error(`open synthesis: no Yosys mapping for the device family '${family}'`);
   const synth = `synth_xilinx -family ${fam} -ise -flatten -top ${top}`;
@@ -327,7 +355,7 @@ export function synthCommands(top, family, { srl = true, premap = null, lutram =
   // fine step maps it to multiplexers: memory_map (a shift-chain array's words as flip-flops), then
   // xilinx_srl and the map to SRL16E (before map_cells, whose own map writes SRLC32E), then the step;
   // fine's own opt -full run first made t80 7 % larger)
-  const shreg = srl ? `${memorySteps(synth, memoryOpts(fam, { premap, lutram }))}; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
+  const shreg = srl ? `${memorySteps(synth, memoryOpts(fam, { premap, lutram }))}; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${cselStep(csel)}${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
   return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ${MUX_COUNT}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
 }
 // The clock enables on the critical path (#653): Yosys gives a flip-flop whose next state is held under a
@@ -558,7 +586,9 @@ export const resynthCommands = top => `read_verilog -lib +/xilinx/cells_sim.v; r
 /** synthCommands in two: up to synth_xilinx's fine step (the coarse netlist), and from it on. */
 export function splitCommands(top, family, opts = {}) {
   const cmds = synthCommands(top, family, opts);
-  const at = cmds.indexOf(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -run fine:`);
+  // (the carry-select map, #1361, in the second part: after the carry chains of a design written as gates are found)
+  const c = cselStep(opts.csel);
+  const at = c && cmds.includes(c) ? cmds.indexOf(c) : cmds.indexOf(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -run fine:`);
   return [cmds.slice(0, at).replace(/;\s*$/, ''), cmds.slice(at)];
 }
 
@@ -568,8 +598,8 @@ export function yosysScript(top, family, opts = {}) {
   return `${cells}read_verilog -sv ${top}_syn.v; ${synthCommands(top, family, opts)}; ${outputs(top)}`;
 }
 
-/** The files yosysScript reads: the flat module and Silinx's shift-register map and cells. */
-export const yosysFiles = (top, text) => ({ [`${top}_syn.v`]: text, [SRL_MAP_FILE]: SRL_MAP, [SRL_CELLS_FILE]: SRL_CELLS });
+/** The files yosysScript reads: the flat module and Silinx's shift-register map and cells (and its carry-select map, opts.csel). */
+export const yosysFiles = (top, text, opts = {}) => ({ [`${top}_syn.v`]: text, [SRL_MAP_FILE]: SRL_MAP, [SRL_CELLS_FILE]: SRL_CELLS, ...(opts.csel && { [CSEL_FILE]: CSEL_MAP }) });
 
 /** Cells of a Yosys JSON netlist by type: { LUT4: 286, FDRE: 48, … } (the top module's). */
 export function cellCounts(json, top) {
@@ -654,16 +684,40 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * High's mappings made from it (at Normal without them: its usual mapping and the one balanced onto LUT4s alone), its netlist
  * of fewest slices no slower than the one chosen kept: r.depth.lutram { memories, left (those still in logic), netlist (the
  * name of the candidate shown: usual, wide, depth, second, delays, third, lut4, abc9; null, the variant's own choice), ns,
- * luts, slices, kept } (lutram: false leaves it out).
+ * luts, slices, kept } (lutram: false leaves it out). A design of DEPTH_RULE.maxLuts LUTs at most whose netlist has a carry chain of
+ * CSEL_RULE.chain stages or more (longestCarryChain) is synthesized once more with its $alu cells that wide as carry-select
+ * segments (#1361), kept when DEPTH_RULE.gain faster by the estimate with no more slices in proportion: r.depth.csel { chain, ns,
+ * luts, slices, kept } (csel: false leaves it out).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true } = {}) {
+export async function synthesizeOpen(design, options = {}) {
+  const r = await synthesizeOnce(design, options);
+  // a carry chain of CSEL_RULE.chain stages or more: synthesized again with carry-select segments (#1361), kept by DEPTH_RULE
+  const { family = 'spartan3e', depth = true, csel = true } = options;
+  const top = r.top, json = r.files[`${top}.json`];
+  // (a design of DEPTH_RULE.maxLuts LUTs at most, as the depth-oriented mappings: a second synthesis of the largest takes minutes)
+  const chain = csel && depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && json && r.util.luts <= DEPTH_RULE.maxLuts ? longestCarryChain(json, top) : 0;
+  if (chain < CSEL_RULE.chain) return r;
+  let c = null, failed = null;
+  try { c = await synthesizeOnce(design, { ...options, onLine: () => {}, carrySelect: CSEL_RULE }); } catch (e) { failed = e.message; }
+  const jc = c?.files[`${top}.json`];
+  if (!jc) return { ...r, depth: { ...r.depth, csel: { chain, kept: false, ...(failed && { failed }) } } };
+  const ns = [criticalDelay(json, top), criticalDelay(jc, top)], luts = [r.util.luts, c.util.luts], sl = [sliceCount(json, top), sliceCount(jc, top)];
+  // (kept by its slices, the device's measure: DEPTH_RULE.gain faster, no more slices in proportion than it is faster; its
+  // LUTs grow with the segments' second chains and multiplexers, more than keepDepth's LUT bound allows: the EPFL adder's
+  // 171 -> 270 for 48 % faster by the estimate, 194 -> 231 slices)
+  const info = { chain, ns: ns[1], luts: luts[1], slices: sl[1], kept: ns[1] <= ns[0] * (1 - DEPTH_RULE.gain) && sl.every(Number.isFinite) && sl[1] <= sl[0] * (2 - ns[1] / ns[0]) };
+  return info.kept ? { ...c, depth: { ...c.depth, csel: info } } : { ...r, depth: { ...r.depth, csel: info } };
+}
+
+// synthesizeOpen's synthesis but the carry-select candidate (carrySelect: CSEL_RULE when making it)
+async function synthesizeOnce(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true, carrySelect = null } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
   const speed = withSpeed && depth && lut4;
   let tryDepth = !normal && depth && lut4;
   // (Normal: the design as it is before the LUT mapping written too, for High's mappings if it is deep)
-  const opts = (tryDepth || (normal && depth && lut4)) ? { premap: PREMAP_FILE } : {};
+  const opts = { ...((tryDepth || (normal && depth && lut4)) && { premap: PREMAP_FILE }), ...(carrySelect && { csel: carrySelect }) };
   const log = [];
   const quiet = l => QUIET.some(re => re.test(l));
   const line = l => { if (!quiet(l)) { log.push(l); onLine(l); } };
@@ -676,14 +730,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       usual = null;
       return Promise.resolve(u.done).then(out => { for (const l of u.lines) say(l); return out; }, e => { for (const l of u.lines) say(l); throw e; });
     }
-    return run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), say);
+    return run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text, opts), say);
   };
   // a design written as gates (#77): the first of its two runs, up to synth_xilinx's fine step (the coarse
   // netlist, its carry chains found there); at Normal started at once beside the usual run (#377)
   const gates = lut4 && gateAssignments(design) >= GATE_MIN;
   const lines1 = [];
   const coarse = () => run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${splitCommands(top, family, opts)[0]}; ${TOP_ONLY}; write_json -selected ${CHAIN_FILE}`],
-    yosysFiles(top, text), l => { if (!quiet(l)) lines1.push(l); });
+    yosysFiles(top, text, opts), l => { if (!quiet(l)) lines1.push(l); });
   const preRun = normal && gates ? coarse() : null;
   preRun?.catch(() => {});
   // High (#539): the state machines the init values keep out, found by a quiet run up to fsm (core/synth-fsm.js),
@@ -692,7 +746,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
   const linesP = [];
   const probe = depth && lut4 && withFsm
-    ? run(['-q', '-p', fsmProbeCommands(`read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; `, synth)], yosysFiles(top, text), l => { if (!quiet(l)) linesP.push(l); })
+    ? run(['-q', '-p', fsmProbeCommands(`read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; `, synth)], yosysFiles(top, text, opts), l => { if (!quiet(l)) linesP.push(l); })
       .then(async out => {
         const pre = asText(out[FSM_PRE_FILE]);
         const forced = refusedForUsers(asText(out[FSM_DETECT_FILE]), top);
@@ -708,13 +762,13 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     : null;
   if (probe && !normal) {
     const lines = [];
-    usual = { lines, done: run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l)) };
+    usual = { lines, done: run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text, opts), l => lines.push(l)) };
     usual.done.catch(() => {});
   }
   let deep = null;   // Normal: the usual mapping's levels of logic, and whether that is deep (#468)
   if (normal && depth && lut4) {
     const lines = [];
-    const out = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l));
+    const out = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text, opts), l => lines.push(l));
     usual = { done: out, lines };
     const json = out[`${top}.json`];
     if (json) deep = { levels: logicLevels(json, top), deep: deepDesign(json, top, deepRule) };
@@ -723,12 +777,12 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     // its messages said, #652)
     const luts = json ? utilization(cellCounts(json, top)).luts : Infinity;
     if (!deep?.deep && luts <= smallRule.maxLuts) {
-      const both = { family, run, depth, abc9: withAbc9, deepRule, fsm: withFsm, speed: withSpeed, wide, resynth: withResynth, lutram: withLutram };
+      const both = { family, run, depth, abc9: withAbc9, deepRule, fsm: withFsm, speed: withSpeed, wide, resynth: withResynth, lutram: withLutram, carrySelect };
       const linesN = [], linesH = [];
       // (side by side: Yosys runs in workers of their own)
       const [own, high] = await Promise.all([
-        synthesizeOpen(design, { ...both, onLine: l => linesN.push(l), effort: 'normal', smallRule: { ...smallRule, maxLuts: -1 } }),
-        synthesizeOpen(design, { ...both, onLine: l => linesH.push(l), effort: 'high' })]);
+        synthesizeOnce(design, { ...both, onLine: l => linesN.push(l), effort: 'normal', smallRule: { ...smallRule, maxLuts: -1 } }),
+        synthesizeOnce(design, { ...both, onLine: l => linesH.push(l), effort: 'high' })]);
       const ns = [criticalDelay(own.files[`${top}.json`], top), criticalDelay(high.files[`${top}.json`], top)];
       const small = { luts, ns, kept: ns[1] <= ns[0] * (1 - (smallRule.gain ?? 0)) + 1e-9 };
       const pick = small.kept ? high : own;
@@ -768,7 +822,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       // (both at once, #86)
       const [resC, resN] = await Promise.all([
         run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
-          { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
+          { ...yosysFiles(top, text, opts), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
         usualRun(l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
       ]);
       const measure = r => ({ ns: r.ns, luts: utilization(r.cells).luts, slices: r.slices() });
@@ -793,7 +847,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       const cmds = synthCommands(top, family, opts), first = `${memorySteps(synth, memoryOpts(YOSYS_FAMILY[family], opts))}; `;
       if (inits && cmds.startsWith(first)) {
         const out3 = await run(['-q', '-p', `${fsmRestCommands(synth, cmds.slice(first.length))}; ${outputs(top)}`],
-          { ...yosysFiles(top, text), [FSM_POST_FILE]: setInits(asText(out2[FSM_POST_FILE]), { ...inits, ...oldStateInits(machines, asText(out2[FSM_POST_FILE])) }) }, say);
+          { ...yosysFiles(top, text, opts), [FSM_POST_FILE]: setInits(asText(out2[FSM_POST_FILE]), { ...inits, ...oldStateInits(machines, asText(out2[FSM_POST_FILE])) }) }, say);
         resF = await withDepth(out3, () => {}, linesF);
       }
     } catch (e) { failed = e.message; }
@@ -819,7 +873,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const linesR = [];
     let resR = null, left = null, failed = null;
     try {
-      const outR = await run(['-q', '-p', yosysScript(top, family, { ...opts, lutram: true })], yosysFiles(top, text), l => { if (!quiet(l)) linesR.push(l); });
+      const outR = await run(['-q', '-p', yosysScript(top, family, { ...opts, lutram: true })], yosysFiles(top, text, opts), l => { if (!quiet(l)) linesR.push(l); });
       left = logicMemories(outR);
       if (left !== null && left < memories && highMappings) resR = await withDepth(outR, () => {}, linesR, { measured: true });
       else if (left !== null && left < memories) {
@@ -863,7 +917,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // (Normal, a deep design: High's mappings kept only when DEEP_RULE.gain faster than Normal's own netlist, #611;
   // else that one, its levels and the time High's took said)
   if (deep?.deep) {
-    const plain = await synthesizeOpen(design, { family, run, depth: false, effort, abc9: withAbc9 });
+    const plain = await synthesizeOnce(design, { family, run, depth: false, effort, abc9: withAbc9, carrySelect });
     const ns = [criticalDelay(plain.files[`${top}.json`], top), criticalDelay(files[`${top}.json`], top)];
     info.normal = { ns: ns[0], luts: plain.util.luts, kept: !(ns[1] <= ns[0] * (1 - deepRule.gain)) };
     if (info.normal.kept) return { ...plain, depth: { ...plain.depth, levels: deep.levels, auto: true, high: { ns: ns[1], luts: result.util.luts }, normal: info.normal } };
