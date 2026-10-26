@@ -16,6 +16,8 @@ export const DRAWER_KEY = prefKey('silinx.drawer');
 export const PROPS_KEY = prefKey('silinx.narrow.props');       // the diagram editors' properties panel
 export const SYMBOLS_KEY = prefKey('silinx.narrow.symbols');   // the schematic editor's symbols
 export const isNarrow = () => !!globalThis.matchMedia?.(NARROW_QUERY).matches;
+// the left side a drawer: a narrow screen, not the Tasks interface (its side panel docked beside the document, #1463)
+const asDrawer = () => isNarrow() && document.documentElement.dataset.layout !== 'tasks';
 
 // 'open' | 'closed' kept per viewer; `def` when nothing is kept (or no storage)
 function readOpen(key, def) {
@@ -38,11 +40,11 @@ export function initDrawer() {
   document.getElementById('drawer-scrim')?.addEventListener('click', () => setDrawer(false));
 }
 /** A document opened or brought to the front: on a narrow screen the open drawer gives way to it. */
-export function drawerGiveWay() { if (isNarrow() && drawerOpen()) setDrawer(false); }
+export function drawerGiveWay() { if (asDrawer() && drawerOpen()) setDrawer(false); }
 /** A button of the left side's tabs clicked (`page`; `shown`: the page shown before): on a narrow
  *  screen it opens the drawer; in the modern interface the shown page's button closes it again. */
 export function leftTabClicked(page, shown) {
-  if (!isNarrow()) return;
+  if (!asDrawer()) return;
   if (!drawerOpen()) setDrawer(true);
   else if (page === shown && document.documentElement.dataset.ui === 'modern') setDrawer(false);
 }

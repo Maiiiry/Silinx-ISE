@@ -189,7 +189,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   await noWarnings(page);
 }, { build: DEV });
 
-uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s switcher in landscape; a task closes the drawer', E, async (page) => {
+uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s switcher in landscape; the side panel docked (#1463)', E, async (page) => {
   await makeProject(env, { name: 'TasksTablet', template: 'gates' });
   await page.setViewport(820, 1180);
   await tasksInterface(page);
@@ -201,15 +201,31 @@ uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s 
   });
   assert.ok(bar.bottom <= 30, `at the bottom (above the status bar): ${bar.bottom}`);
   assert.ok(bar.buttons.every((hgt) => hgt >= 44), `touch targets: ${bar.buttons}`);
-  // the drawer open (the Design pane): a task brought to the front closes it, the document first
-  await page.eval(async () => (await import('/js/narrow.js')).setDrawer(true));
+  // the side panel docked beside the document, not a drawer (#1463): Design's hierarchy shown, a document opened beside it,
+  // at most 45 % of the window, no drawer button nor scrim
+  const docked = () => page.eval(() => {
+    const l = document.getElementById('left').getBoundingClientRect(), w = document.getElementById('workspace').getBoundingClientRect();
+    return { side: document.documentElement.dataset.side, hier: document.getElementById('hier').getClientRects().length > 0, beside: w.left >= l.right - 1,
+      share: l.width > 200 && l.width <= innerWidth * 0.45 + 1, drawer: ['drawer-btn', 'drawer-scrim'].filter((id) => document.getElementById(id).getClientRects().length),
+      pressed: document.querySelector('#task-view [data-act="side"]').getAttribute('aria-pressed') };
+  });
+  await page.waitFor(() => document.getElementById('hier').getClientRects().length > 0, [], { what: 'the Design hierarchy' });
+  assert.deepEqual(await docked(), { side: 'open', hier: true, beside: true, share: true, drawer: [], pressed: 'true' });
+  await page.dblclick('#hier .row .lbl', { text: 'gates' });
+  await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('gates.sch'), [], { what: 'the schematic opened' });
+  assert.deepEqual(await docked(), { side: 'open', hier: true, beside: true, share: true, drawer: [], pressed: 'true' });
+  // Implement brought to the front: its Processes docked as well
   await page.click('#task-tabs .task-btn[data-task="impl"]');
-  await page.waitFor(() => document.documentElement.dataset.drawer === 'closed', [], { what: 'the drawer closed' });
   await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary'), [], { what: 'the Design Summary' });
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-tabs .task-btn[aria-current="true"]')].map((b) => b.dataset.task)), ['impl']);
-  // the bar's side button opens the drawer
+  assert.ok(await shown(page, '#procs'));
+  // the bar's side button folds it (the document from the window's left edge) and opens it again
   await page.click('#task-view [data-act="side"]');
-  await page.waitFor(() => document.documentElement.dataset.drawer === 'open', [], { what: 'the drawer open' });
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded', [], { what: 'folded' });
+  assert.ok(!(await shown(page, '#left')) && await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
+  await page.click('#task-view [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'open', [], { what: 'open again' });
+  assert.ok(await shown(page, '#procs'));
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   // landscape: the header's switcher, no tab bar
   await page.setViewport(1180, 820);
@@ -556,8 +572,7 @@ uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on scre
   assert.ok(f.controls >= 12 && f.inside && f.aim && f.side === 'beside', JSON.stringify(f));
   // a tablet in portrait: the board at its size (#1021), Watch below it
   await page.setViewport(820, 1180);
-  // (the side panel a drawer there, as Implement's, #1399: closed, the board in front)
-  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-view [data-act="side"]');
+  // (the side panel docked there, as Implement's, #1463)
   await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu'); const s = e.querySelector('.emu-side').getBoundingClientRect(); const b = e.querySelector('.emu-board-wrap').getBoundingClientRect(); return s.top >= b.bottom - 1 && b.right <= innerWidth; }, [], { what: 'Watch below the board, the board refitted' });
   f = await boardFit(page);
   assert.ok(f.inside && f.aim && f.side === 'below', JSON.stringify(f));
@@ -873,8 +888,8 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
 }, { build: DEV });
 
 // #984: Edit's pages (Start, Design, Files, Libraries) are tabs at the top of its side panel, not a column of their own:
-// the open page's name shown, the others' their tooltip; folded, neither; on a narrow screen, the drawer's top row
-uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; folded, none; the drawer\'s top row; Portuguese', E, async (page) => {
+// the open page's name shown, the others' their tooltip; folded, neither; on a narrow screen the same (docked, #1463)
+uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; folded, none; a narrow screen\'s the same; Portuguese', E, async (page) => {
   await makeProject(env, { name: 'TasksTabs', template: 'gates' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -903,21 +918,17 @@ uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; fo
   await page.click('#task-view [data-act="side"]');
   await page.waitFor(() => document.documentElement.dataset.side === 'open');
   assert.deepEqual((await T()).row, true);
-  // a narrow screen: the drawer, its tabs its top row; closed, nothing at the left
+  // a narrow screen: the same, docked (#1463): its tabs its top row, the document beside it; folded, nothing at the left
   await page.setViewport(900, 700);
-  await page.waitFor(() => !document.documentElement.dataset.drawer || document.documentElement.dataset.drawer !== 'open'
-    || document.querySelector('#left-pages').getClientRects().length);
-  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-view [data-act="side"]');
-  await page.waitFor(() => document.documentElement.dataset.drawer !== 'open');
+  await page.waitFor(() => document.getElementById('left-tabs').getClientRects().length > 0, [], { what: 'the tabs' });
+  assert.deepEqual((await T()).row, true);
+  assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left >= document.getElementById('left').getBoundingClientRect().right - 1));
+  await page.click('#task-view [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded');
   assert.ok(!(await shown(page, '#left-tabs')));
   assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
   await page.click('#task-view [data-act="side"]');
-  await page.waitFor(() => document.documentElement.dataset.drawer === 'open');
-  assert.deepEqual(await page.eval(() => {
-    const t = document.getElementById('left-tabs').getBoundingClientRect(), p = document.getElementById('left-pages').getBoundingClientRect();
-    return { left: Math.round(t.left), width: Math.round(t.width - p.width), below: Math.abs(p.top - t.bottom) < 1, pageLeft: Math.round(p.left) };
-  }), { left: 0, width: 0, below: true, pageLeft: 0 });
-  await page.click('#task-view [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'open');
   await page.setViewport(1366, 768);
   // Portuguese: the tooltips
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));

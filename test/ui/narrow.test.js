@@ -4,7 +4,8 @@
 // diagram editors' side panels go over the canvas (their toolbar's Symbols / Properties buttons), the
 // canvas keeps most of the width, the link banner is one line with its whole text in its tip, the
 // page never scrolls sideways; at 1180 × 820 (an iPad in landscape) and 1400 × 900 the layout is the
-// desktop's, whatever was left open or closed on a narrow screen. In both interfaces (SILINX_UI_INTERFACE).
+// desktop's, whatever was left open or closed on a narrow screen. In both interfaces (SILINX_UI_INTERFACE); the modern
+// one (the Tasks layout) has no drawer: its side panel docked beside the document, folded by the task's side button (#1463).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject } from './harness.js';
@@ -19,6 +20,8 @@ const DOC = '.doc:not([hidden])';
 const shown = (page, sel) => page.eval((s) => { const e = document.querySelector(s); return !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0; }, sel);
 const width = (page, sel) => page.eval((s) => Math.round(document.querySelector(s).getBoundingClientRect().width), sel);
 const rect = (page, sel) => page.eval((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), height: Math.round(r.height) }; }, sel);
+// (the modern interface, the Tasks layout: its side panel folded or opened by the task's side button, #1463)
+const sideButton = (page) => page.click('#task-view [data-act="side"]');
 const drawer = (page) => page.eval(() => [document.documentElement.dataset.drawer, localStorage.getItem('silinx.drawer'), document.getElementById('drawer-btn').getAttribute('aria-expanded')]);
 // the page does not scroll sideways, nor does any toolbar overflow
 const noSideScroll = (page) => page.eval(() => {
@@ -38,16 +41,29 @@ for (const [w, h] of [[820, 1180], [768, 1024]]) {
     await page.setViewport(w, h);
     await page.openProject(pj);
     const modern = await page.eval(() => document.documentElement.dataset.ui === 'modern');
-    // the first time the drawer is open (nothing kept yet), over the workspace: the Design pane
-    assert.deepEqual(await drawer(page), ['open', null, 'true']);
-    assert.ok(await shown(page, '#drawer-btn'));
-    assert.ok(await shown(page, '#hier'));
-    assert.ok(!(await shown(page, '#v-split')));
-    // the gates schematic opened from it (double-click): the drawer gives way, remembered
-    await page.treeRow('#hier', 'gates', { dbl: true, exact: true });
-    await page.waitFor((d) => document.querySelector(`${d} .sch-editor .se-canvas`), [DOC], { what: 'the schematic editor' });
-    await page.waitFor(() => document.documentElement.dataset.drawer === 'closed', [], { what: 'the drawer closed' });
-    assert.deepEqual(await drawer(page), ['closed', 'closed', 'false']);
+    if (modern) {
+      // the Tasks layout: the side panel docked beside the document (at most 45 % of the width), no drawer (#1463)
+      assert.ok(await shown(page, '#hier') && !(await shown(page, '#drawer-btn')));
+      assert.ok(await width(page, '#left') <= 0.45 * w + 1);
+      await page.treeRow('#hier', 'gates', { dbl: true, exact: true });
+      await page.waitFor((d) => document.querySelector(`${d} .sch-editor .se-canvas`), [DOC], { what: 'the schematic editor' });
+      // the hierarchy stays, the schematic beside it; folded, the schematic gets the width
+      assert.ok(await shown(page, '#hier'));
+      assert.ok(await page.eval((d) => document.querySelector(`${d} .se-canvas`).getBoundingClientRect().left >= document.getElementById('left').getBoundingClientRect().right - 1, DOC));
+      await sideButton(page);
+      await page.waitFor(() => document.documentElement.dataset.side === 'folded', [], { what: 'the side panel folded' });
+    } else {
+      // the first time the drawer is open (nothing kept yet), over the workspace: the Design pane
+      assert.deepEqual(await drawer(page), ['open', null, 'true']);
+      assert.ok(await shown(page, '#drawer-btn'));
+      assert.ok(await shown(page, '#hier'));
+      assert.ok(!(await shown(page, '#v-split')));
+      // the gates schematic opened from it (double-click): the drawer gives way, remembered
+      await page.treeRow('#hier', 'gates', { dbl: true, exact: true });
+      await page.waitFor((d) => document.querySelector(`${d} .sch-editor .se-canvas`), [DOC], { what: 'the schematic editor' });
+      await page.waitFor(() => document.documentElement.dataset.drawer === 'closed', [], { what: 'the drawer closed' });
+      assert.deepEqual(await drawer(page), ['closed', 'closed', 'false']);
+    }
     assert.ok(!(await shown(page, '#hier')));
     // the canvas has most of the width; the symbols and the properties are not beside it
     const canvas = await width(page, `${DOC} .se-canvas`);
@@ -74,13 +90,30 @@ for (const [w, h] of [[820, 1180], [768, 1024]]) {
     await page.click(`${DOC} [data-panel=props]`);
     assert.ok(!(await shown(page, `${DOC} .se-left`)) && !(await shown(page, `${DOC} .se-right`)));
     assert.deepEqual(await page.eval(() => [localStorage.getItem('silinx.narrow.symbols'), localStorage.getItem('silinx.narrow.props')]), ['closed', 'closed']);
+    if (modern) {
+      // the side panel opened again: the hierarchy beside the schematic; kept over a reload
+      await sideButton(page);
+      await page.waitFor(() => document.documentElement.dataset.side === 'open', [], { what: 'the side panel open' });
+      assert.ok(await shown(page, '#hier'));
+      await page.reload();
+      await page.waitFor(() => document.querySelector('#hier .row'), [], { what: 'the project reopened' });
+      await page.waitFor((d) => document.querySelector(`${d} .sch-editor [data-panel=props]`), [DOC], { what: 'the schematic reopened' });
+      assert.ok(await shown(page, '#hier') && !(await shown(page, '#drawer-btn')) && !(await shown(page, '#drawer-scrim')));
+      assert.deepEqual(await noSideScroll(page), { page: true, over: [] });
+      await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+      assert.deepEqual(await page.eval((d) => [...document.querySelectorAll(`${d} [data-panel]`)].map((b) => `${b.textContent} | ${b.title}`), DOC), [
+        '☰ Símbolos | Mostrar / esconder o painel dos símbolos', '☰ Propriedades | Mostrar / esconder o painel das propriedades']);
+      await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+      await noWarnings(page);
+      return;
+    }
     // the header's button opens the drawer (over the canvas: its width is kept), a tap beside it closes it
     await page.click('#drawer-btn');
     assert.deepEqual(await drawer(page), ['open', 'open', 'true']);
     assert.ok(await shown(page, '#hier') && await shown(page, '#drawer-scrim'));
     assert.equal(await width(page, `${DOC} .se-canvas`), canvas);
     const scrim = await rect(page, '#drawer-scrim');
-    const pane = await rect(page, modern ? '#left-pages' : '#left');
+    const pane = await rect(page, '#left');
     await page.click({ x: Math.round((pane.right + w) / 2), y: scrim.top + 200 });
     assert.deepEqual(await drawer(page), ['closed', 'closed', 'false']);
     assert.ok(!(await shown(page, '#hier')) && !(await shown(page, '#drawer-scrim')));
@@ -91,17 +124,6 @@ for (const [w, h] of [[820, 1180], [768, 1024]]) {
     await page.waitFor((d) => document.querySelector(`${d} .sch-editor [data-panel=props]`), [DOC], { what: 'the schematic reopened' });
     assert.equal(await page.eval(() => document.documentElement.dataset.drawer), 'open');
     assert.ok(await shown(page, '#hier'));
-    if (modern) {
-      // the activity bar: the shown page's button closes the drawer, a page's button opens it
-      await page.leftTab('design');
-      assert.equal((await drawer(page))[0], 'closed');
-      await page.leftTab('files');
-      assert.equal((await drawer(page))[0], 'open');
-      assert.ok(await shown(page, '#files-page'));
-      await page.leftTab('design');
-      assert.equal((await drawer(page))[0], 'open');
-      assert.ok(await shown(page, '#hier'));
-    }
     await page.click('#drawer-btn');
     assert.equal((await drawer(page))[0], 'closed');
     assert.deepEqual(await noSideScroll(page), { page: true, over: [] });
@@ -121,7 +143,11 @@ uiTest('narrow screen 820×1180: the FSM and Petri net editors, their properties
   await page.openProject('Narrow_fsm');
   await page.eval(() => window.SilinxApp.openFsm('src/traffic.fsm.json'));
   await page.waitFor((d) => document.querySelector(`${d} .fsm-editor .fsm-link .gen-banner`), [DOC], { what: 'the FSM editor' });
-  assert.equal((await drawer(page))[0], 'closed');
+  // (the modern interface: its side panel docked, #1463, folded for the canvas's width; the classic one: the drawer closed)
+  if (await page.eval(() => document.documentElement.dataset.ui === 'modern')) {
+    await sideButton(page);
+    await page.waitFor(() => document.documentElement.dataset.side === 'folded', [], { what: 'the side panel folded' });
+  } else assert.equal((await drawer(page))[0], 'closed');
   const check = async (ed, tip) => {
     const canvas = await width(page, `${DOC} ${ed} .asm-canvas-wrap`);
     assert.ok(canvas >= 0.6 * 820, `${ed}: canvas ${canvas} px`);

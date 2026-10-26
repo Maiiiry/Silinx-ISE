@@ -59,20 +59,22 @@ test('readState: the kept state checked; anything else falls back to Edit and th
   assert.equal(T.readState(JSON.stringify({ task: 'prog' })).task, 'impl');
 });
 
-test('arrangement: the task in front gets the space; what the viewer left wins; a narrow screen closes the drawer', () => {
+test('arrangement: the task in front gets the space; what the viewer left wins', () => {
   assert.deepEqual(T.arrangement('edit'), { side: true, console: true, max: false });
   assert.deepEqual(T.arrangement('sim'), { side: true, console: true, max: false });   // (#1408, #1429)
   assert.deepEqual(T.arrangement('emu'), { side: true, console: true, max: false });   // (#1399, #1429)
   assert.deepEqual(T.arrangement('impl'), { side: true, console: true, max: false });
   assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: true, max: true, doc: 'isim' });
-  assert.deepEqual(T.arrangement('edit', {}, true), { side: false, console: true, max: false });
-  assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
-  // (Simulate's side panel is ISim's Instances and Objects, not the drawer: what the viewer left, on a narrow screen too: #800)
-  assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: true, max: false });
-  // (Emulate's side panel its Processes, as Implement's: the drawer on a narrow screen, closed when it comes to the front, #1399)
-  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: false, console: true, max: false });
-  assert.deepEqual(T.arrangement('emu', {}, true), { side: false, console: true, max: false });
   assert.deepEqual(T.arrangement('emu', { side: false }), { side: false, console: true, max: false });   // (folded by the viewer: kept)
+  // (on a narrow screen too: the side panel docked, not a drawer closed when the task comes to the front, #1463)
+  assert.deepEqual(T.arrangement('edit', {}, true), { side: true, console: true, max: false });
+  assert.deepEqual(T.arrangement('impl', { side: true }, true), { side: true, console: true, max: false });
+  // (but Emulate's folded there at first, the board its room, its own choice there kept apart: narrowSide)
+  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: false, console: true, max: false });
+  assert.deepEqual(T.arrangement('emu', { side: false, narrowSide: true }, true), { side: true, narrowSide: true, console: true, max: false });
+  assert.deepEqual(T.arrangement('emu', { side: true, narrowSide: true }), { side: true, narrowSide: true, console: true, max: false });
+  assert.deepEqual(T.readState(JSON.stringify({ v: T.STATE_V, tasks: { emu: { narrowSide: true, side: false } } })).tasks.emu, { side: false, narrowSide: true });
+  assert.deepEqual(T.FOLDED_NARROW, ['emu']);
   assert.deepEqual(T.OWN_SIDE, ['sim']);   // (Emulate's as Implement's: #1399)
 });
 
