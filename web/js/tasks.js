@@ -478,7 +478,12 @@ export function initTasks(a) {
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
+  // the bars' buttons as the project is: at once when it opens, is drawn again or its design changes (its top set or
+  // unset), and once a second (#1423)
+  const barsNow = () => { for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button, #task-impl-bar button')) b.disabled = !app.S.project || (['check-design', 'pins'].includes(b.dataset.act) && !app.S.project.top); };
+  for (const ev of ['silinx:project-opened', 'silinx:design-changed']) addEventListener(ev, () => { if (on()) barsNow(); });
+  new MutationObserver(() => { if (on()) barsNow(); }).observe($('procs'), { childList: true });
   setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { if (simPanel) simPanel.refresh(); else refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled();
-    for (const b of document.querySelectorAll('#task-src-bar button, #task-files-bar button, #task-close-bar button, #task-impl-bar button')) b.disabled = !app.S.project || (['check-design', 'pins'].includes(b.dataset.act) && !app.S.project.top); } }, 1000);
+    barsNow(); } }, 1000);
   apply();
 }
