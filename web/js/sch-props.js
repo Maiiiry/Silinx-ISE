@@ -15,7 +15,7 @@ import { reservedError } from '/core/reserved.js';
 import { clone, snap, KEYS } from './sch-editor.js';
 import { mountMultiProps } from './sch-multi.js';
 
-/** { renderProps, openSelected, renamed, joinByName } of a schematic editor (doc(), sel(), nl(), live(), modules(): its current ones). */
+/** { renderProps, openSelected, renamed, joinByName, renameLabel } of a schematic editor (doc(), sel(), nl(), live(), modules(): its current ones). */
 export function mountProps(ctx) {
   const { opts, container, propBody, readOnly, doc, sel, nl, live, modules, setGenLang, edit, flash, rotateSel, mirrorSel, deleteSel, nextId,
     openInfo, infoTarget } = ctx;
@@ -263,14 +263,16 @@ export function mountProps(ctx) {
     propBody.append(field('Name', inp(l.net, async v => {
       if (refused(v)) return false;
       if (!await joinByName(String(v).trim(), nl()?.labelNet.get(l.id))) return false;
-      return () => {
-        const name = String(v).trim(); if (!name) return;
-        // the whole net connected by name (#734): its other net names and I/O marker of the old name too
-        const n = nl()?.labelNet.get(l.id);
-        if (n) renamed(renameNet(doc(), nl(), n, name, l.id), name); else l.net = name;
-      };
+      return () => renameLabel(l, v);
     }), 'ISE style bus names are accepted: data(7:0)'));
     netInfo(nl()?.labelNet.get(l.id));
+  }
+  // (in an edit; Rename…, #1546, too) the whole net connected by name (#734): its other net names and I/O marker of
+  // the old name too
+  function renameLabel(l, v) {
+    const name = String(v).trim(); if (!name) return;
+    const n = nl()?.labelNet.get(l.id);
+    if (n) renamed(renameNet(doc(), nl(), n, name, l.id), name); else l.net = name;
   }
   function wireProps(w) {
     const n = nl()?.wireNet.get(w.id);
@@ -303,5 +305,5 @@ export function mountProps(ctx) {
     propBody.append(h('div', { class: 'se-note', text: `Net '${n.name}', ${n.width} bit${n.width > 1 ? 's' : ''}` }), h('pre', { class: 'se-pins', text: eps.join('\n') || '(no connections)' }));
   }
 
-  return { renderProps, openSelected, renamed, joinByName };
+  return { renderProps, openSelected, renamed, joinByName, renameLabel };
 }

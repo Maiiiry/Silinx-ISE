@@ -34,6 +34,7 @@ import { mountSchInfo } from './sch-info.js';
 import { mountSchTry } from './sch-try.js';
 import { mountSchKeys } from './sch-keys.js';
 import { mountSchMouse } from './sch-mouse.js';
+import { mountSchRename } from './sch-rename.js';
 import { mountSchPalette } from './sch-palette.js';
 import { mountSchSelect } from './sch-select.js';
 import { mountSchView } from './sch-view.js';
@@ -210,7 +211,7 @@ export function mountSchEditor(container, opts = {}) {
     infoTarget: (...a) => infoTarget(...a) });
 
   // ---------------- properties panel (sch-props.js)
-  const { renderProps, openSelected, renamed, joinByName } = mountProps({ opts, container, propBody, readOnly, doc: () => doc, sel: () => sel, nl: () => nl,
+  const { renderProps, openSelected, renamed, joinByName, renameLabel } = mountProps({ opts, container, propBody, readOnly, doc: () => doc, sel: () => sel, nl: () => nl,
     live: () => live, modules: () => modules, setGenLang: (v) => { genLang = v; }, edit: (...a) => edit(...a),
     flash: (...a) => flash(...a), rotateSel: (...a) => rotateSel(...a), mirrorSel: (...a) => mirrorSel(...a),
     deleteSel: (...a) => deleteSel(...a), nextId: (...a) => nextId(...a), openInfo: (...a) => openInfo(...a),
@@ -271,8 +272,11 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- mouse
   const itemAt = target => { const g = target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
   let spaceDown = false;
+  // the right-click menu: Rename… (sch-rename.js, #1546)
+  const { contextMenu } = mountSchRename({ readOnly, doc: () => doc, live: () => live, nl: () => nl, tool: () => tool, edit, render, renderProps,
+    joinByName, renameLabel, setSel: (v) => { sel = v; } });
   const { finishMove, onMove, onUp } = mountSchMouse({
-    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, curve,
+    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, contextMenu, curve,
     cursor: () => cursor, destroyed: () => destroyed, doc: () => doc, drag: () => drag, finishSegMove, finishWire,
     flash: (...a) => flash(...a), hoverPin: () => hoverPin, ioClick, itemAt, keepConn, live: () => live,
     modules: () => modules, netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render,
