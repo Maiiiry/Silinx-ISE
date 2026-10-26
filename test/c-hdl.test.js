@@ -1,0 +1,289 @@
+// Silinx C, combinational C to HDL (#1525): core/c-types.js, core/c-graph.js, core/c-dataflow.js and core/c-hdl.js.
+// The reference is the C itself: each program is compiled with the host's C compiler (cc: gcc or clang,
+// -fsigned-char -fwrapv) and called on edge and random inputs; its generated VHDL and Verilog are simulated by
+// Silinx's simulator on the same inputs (no warning in their compilation and elaboration): the same outputs, call
+// by call. With no C compiler (Windows) those comparisons are skipped. ap_int / ap_uint: values worked out by hand
+// from Vitis HLS's rules (no C compiler knows them).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { cToHdl } from '../core/c-hdl.js';
+import { simulate } from '../core/compile.js';
+import { binaryType, compareType, literalType, wrap } from '../core/c-types.js';
+
+const CC = (() => { for (const c of ['cc', 'gcc', 'clang']) { try { execFileSync(c, ['--version'], { stdio: 'ignore' }); return c; } catch { /* next */ } } return null; })();
+const noCC = CC ? false : 'no C compiler on this machine';
+
+function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s; }; }
+const mask = (w) => (1n << BigInt(w)) - 1n;
+
+/** Edge and random values of an input of w bits, signed or not, as BigInt. */
+function values(w, s, n, r) {
+  const lo = s ? -(1n << BigInt(w - 1)) : 0n, hi = s ? (1n << BigInt(w - 1)) - 1n : mask(w);
+  const out = [0n, 1n, hi, lo, s ? -1n : hi - 1n, 2n, 100n, -100n].map((v) => wrap(v, { w, s }));
+  while (out.length < n) {
+    let v = 0n;
+    for (let k = 0; k < w; k += 32) v = (v << 32n) | BigInt(r());
+    const small = r() % 3 === 0;
+    out.push(wrap(small ? BigInt(r() % 512) - 256n : v, { w, s }));
+  }
+  return out;
+}
+
+/** The C program's outputs on the vectors: lines "ap_return p p_written …" in hex of their widths. */
+function runC(src, top, ins, outs, ret, vectors) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-c-'));
+  const ctype = (w, s) => `${s ? '' : 'unsigned '}${w <= 8 ? 'char' : w <= 16 ? 'short' : w <= 32 ? 'int' : 'long long'}`;
+  const lit = (v, w, s) => (w > 32 ? `${v}LL` : `${v}`).replace(/^(-?)(\d+)LL$/, (m, sg, d) => (BigInt(`${sg}${d}`) === -(1n << 63n) ? '(-9223372036854775807LL - 1)' : m)) + (s || w <= 31 ? '' : 'u');
+  const calls = vectors.map((v) => {
+    const decl = outs.map((o) => `${ctype(o.w, o.s)} ${o.name} = (${ctype(o.w, o.s)})0x5A5A5A5A5A5A5A5ALL; ${ctype(o.w, o.s)} ${o.name}_0 = ${o.name};`).join(' ');
+    const args = [...ins.map((i) => (i.ptrIn ? `&${i.name}` : `(${ctype(i.w, i.s)})${lit(v[i.name], i.w, i.s)}`))];
+    const pre = ins.filter((i) => i.ptrIn).map((i) => `${ctype(i.w, i.s)} ${i.name} = (${ctype(i.w, i.s)})${lit(v[i.name], i.w, i.s)};`).join(' ');
+    const call = `${top}(${[...args, ...outs.map((o) => `&${o.name}`)].join(', ')})`;
+    const prints = [ret ? `(unsigned long long)(r & 0x${mask(ret.w).toString(16)}ULL)` : null,
+      ...outs.flatMap((o) => [`(unsigned long long)(${o.name} & 0x${mask(o.w).toString(16)}ULL)`, `(unsigned long long)(${o.name} != ${o.name}_0)`]),
+      ...ins.filter((i) => i.ptrIn).map((i) => `(unsigned long long)(${i.name} & 0x${mask(i.w).toString(16)}ULL)`)].filter(Boolean);
+    return `  { ${pre} ${decl} ${ret ? `${ctype(ret.w, ret.s)} r = ` : ''}${call}; printf("${prints.map(() => '%llx').join(' ')}\\n", ${prints.join(', ')}); }`;
+  });
+  const prog = `#include <stdio.h>\n${src}\nint main(void) {\n${calls.join('\n')}\n  return 0;\n}\n`;
+  fs.writeFileSync(path.join(dir, 't.c'), prog);
+  execFileSync(CC, ['-std=c99', '-w', '-fsigned-char', '-fwrapv', '-O0', '-o', path.join(dir, 't'), path.join(dir, 't.c')]);
+  const out = execFileSync(path.join(dir, 't'), { encoding: 'utf8' }).trim().split('\n');
+  fs.rmSync(dir, { recursive: true, force: true });
+  return out;
+}
+
+/** The generated HDL's outputs on the vectors (Silinx's simulator), in the same form; vld outputs checked against
+ *  the C's "changed" (a write of the same value is a write the C cannot see). */
+function runHdl(gen, lang, ins, outs, ret, vectors) {
+  const port = (n) => gen.ports.find((p) => p.name === n);
+  const L = ['module tb;'];
+  for (const p of gen.ports) L.push(`  ${p.dir === 'in' ? 'reg' : 'wire'} ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name};`);
+  L.push(`  ${gen.top} dut(${gen.ports.map((p) => `.${p.name}(${p.name})`).join(', ')});`, '  initial begin');
+  if (port('ap_start')) L.push('    ap_start = 1;');
+  const hex = (v, w) => `${w}'h${(BigInt(v) & mask(w)).toString(16)}`;
+  for (const v of vectors) {
+    const asg = ins.map((i) => `${port(i.ptrIn ? `${i.name}_i` : i.name) ? (i.ptrIn ? `${i.name}_i` : i.name) : i.name} = ${hex(v[i.name], i.w)};`).join(' ');
+    const shown = [ret ? 'ap_return' : null, ...outs.flatMap((o) => [o.name, `${o.name}_ap_vld`]), ...ins.filter((i) => i.ptrIn).map((i) => `${i.name}_o`)].filter(Boolean);
+    L.push(`    ${asg} #1 $display("${shown.map(() => '%h').join(' ')}", ${shown.join(', ')});`);
+  }
+  L.push('    $finish;', '  end', 'endmodule');
+  const r = simulate([{ path: lang === 'vhdl' ? 'dut.vhd' : 'dut.v', text: gen.hdl }, { path: 'tb.v', text: L.join('\n') }], 'tb', { until: 1e9 });
+  const diags = [...r.lib.errors, ...r.design.diags].filter((d) => !/tb\.v/.test(d.file || ''));
+  assert.deepEqual(diags.map((d) => `${d.severity}: ${d.message}`), [], `${lang}: the generated HDL compiles and elaborates with no message`);
+  return r.sim.log.map((e) => String(e.text).trim()).filter((s) => !/finished/.test(s)).map((s) => s.split(/\s+/).map((x) => BigInt(`0x${x}`)));
+}
+
+/** Checks a C program's generated HDL against the C on random and edge inputs (both languages). */
+function against(src, top, { ins, outs = [], ret = null, n = 40, seed = 1 }) {
+  const r = rng(seed);
+  const cols = ins.map((i) => values(i.w, i.s, n, r));
+  const vectors = Array.from({ length: n }, (_, k) => Object.fromEntries(ins.map((i, j) => [i.name, cols[j][k]])));
+  const c = runC(src, top, ins, outs, ret, vectors).map((l) => l.split(' ').map((x) => BigInt(`0x${x}`)));
+  for (const lang of ['vhdl', 'verilog']) {
+    const gen = cToHdl(src, { file: `${top}.c`, lang });
+    assert.deepEqual(gen.diagnostics.filter((d) => d.severity === 'error'), [], `${lang}: generated`);
+    const h = runHdl(gen, lang, ins, outs, ret, vectors);
+    assert.equal(h.length, n, `${lang}: ${n} calls simulated`);
+    for (let k = 0; k < n; k++) {
+      const exp = c[k], got = h[k];
+      const at = `${lang}, call ${k} (${JSON.stringify(vectors[k], (_, x) => (typeof x === 'bigint' ? String(x) : x))})`;
+      let p = 0, q = 0;
+      if (ret) assert.equal(got[q++], exp[p++], `${at}: ap_return`);
+      for (const o of outs) {
+        const val = exp[p++], changed = exp[p++], gv = got[q++], vld = got[q++];
+        if (changed) assert.equal(vld, 1n, `${at}: ${o.name} written, ${o.name}_ap_vld`);
+        if (vld) assert.equal(gv, val, `${at}: ${o.name}`);
+      }
+      for (const i of ins.filter((x) => x.ptrIn)) assert.equal(got[q++], exp[p++], `${at}: ${i.name}_o`);
+    }
+  }
+}
+
+test('c-types: C\'s integer constants, promotions and conversions; ap_int results wide enough (Vitis HLS)', () => {
+  assert.deepEqual(literalType(5n), { w: 32, s: true, ap: false });
+  assert.deepEqual(literalType(0x80000000n, { decimal: false }), { w: 32, s: false, ap: false });
+  assert.deepEqual(literalType(0x80000000n), { w: 64, s: true, ap: false });
+  assert.deepEqual(literalType(5n, { unsigned: true }), { w: 32, s: false, ap: false });
+  const C = (w, s) => ({ w, s, ap: false }), A = (w, s) => ({ w, s, ap: true });
+  assert.deepEqual(binaryType('+', C(8, true), C(16, false)).res, C(32, true));      // (promoted to int)
+  assert.deepEqual(binaryType('+', C(32, true), C(32, false)).res, C(32, false));    // (int + unsigned: unsigned)
+  assert.deepEqual(binaryType('+', C(64, true), C(32, false)).res, C(64, true));
+  assert.deepEqual(binaryType('+', A(8, false), A(8, false)).res, A(9, false));
+  assert.deepEqual(binaryType('+', A(8, true), A(8, false)).res, A(10, true));   // (Vitis HLS: max(8 + 0, 8 + 1) + 1)
+  assert.deepEqual(binaryType('-', A(8, false), A(8, false)).res, A(9, true));
+  assert.deepEqual(binaryType('*', A(8, false), A(4, true)).res, A(12, true));
+  assert.deepEqual(binaryType('&', A(8, false), A(12, false)).res, A(12, false));
+  assert.deepEqual(binaryType('+', A(8, false), C(8, true)).res, A(33, true));       // (a C char: an int)
+  assert.deepEqual(compareType(A(8, false), A(8, true)), A(9, true));
+  assert.deepEqual(compareType(C(32, true), C(32, false)), C(32, false));            // (C: -1 < 1u is false)
+  assert.equal(wrap(-1n, C(8, false)), 255n);
+  assert.equal(wrap(200n, C(8, true)), -56n);
+});
+
+test('C to HDL: the module made, as Vitis HLS makes it: ap_ctrl_hs ports, the arguments, the pointer outputs and their _ap_vld, ap_return; ap_ctrl_none; the header', () => {
+  const src = `void f(int a, unsigned char b, short *y, int *io, bool *z) {
+  *y = a + b;
+  *io = *io + 1;
+  if (a > 0) *z = 1;
+}`;
+  const v = cToHdl(src, { file: 'src/f.c', lang: 'vhdl' });
+  assert.deepEqual(v.diagnostics, []);
+  assert.deepEqual(v.ports.map((p) => `${p.dir} ${p.name}:${p.w}`), ['in ap_start:1', 'out ap_done:1', 'out ap_idle:1', 'out ap_ready:1', 'in a:32', 'in b:8',
+    'out y:16', 'out y_ap_vld:1', 'in io_i:32', 'out io_o:32', 'out io_o_ap_vld:1', 'out z:1', 'out z_ap_vld:1']);
+  assert.match(v.hdl, /^-- Generated by Silinx from f\.c \(Silinx C, compatible with Vitis HLS\): edit the C source\n/);
+  assert.match(v.hdl, /entity f is\n  port \(\n    ap_start : in std_logic;\n/);
+  assert.match(v.hdl, /    b : in std_logic_vector\(7 downto 0\);\n/);
+  assert.match(v.hdl, /  ap_done <= ap_start;\n  ap_ready <= ap_start;\n  ap_idle <= '1';\n/);
+  const none = cToHdl(`int g(int a) {\n#pragma HLS INTERFACE ap_ctrl_none port=return\n  return a + 1;\n}`, { lang: 'verilog' });
+  assert.deepEqual(none.ports.map((p) => p.name), ['a', 'ap_return']);
+  assert.match(none.hdl, /^\/\/ Generated by Silinx from input\.c \(Silinx C, compatible with Vitis HLS\): edit the C source\nmodule g \(\n  input  wire \[31:0\] a,\n  output wire \[31:0\] ap_return\n\);/);
+  // INTERFACE ap_none on an output: no _ap_vld
+  assert.deepEqual(cToHdl(`void h(int a, int *y) {\n#pragma HLS INTERFACE ap_none port=y\n  *y = a;\n}`).ports.map((p) => p.name), ['ap_start', 'ap_done', 'ap_idle', 'ap_ready', 'a', 'y']);
+});
+
+test('C to HDL against the C: every arithmetic, bitwise, shift and comparison operator on the C types (promotions, unsigned wrap-around, signed comparisons, division by powers of 2)', { skip: noCC }, () => {
+  against(`int ops(int a, int b, unsigned u, unsigned char c, short s, int *o1, unsigned *o2, int *o3, int *o4) {
+  *o1 = (a + b) ^ (a - b) ^ (a * b) ^ (a & b) ^ (a | b) ^ ~a ^ -b;
+  *o2 = (u + a) * 3u + (u >> 3) + (u << 5) + (u / 8u) + (u % 16u) + (unsigned)(c * c);
+  *o3 = (a < b) + (a <= b) * 2 + (a > b) * 4 + (a >= b) * 8 + (a == b) * 16 + (a != b) * 32 + (a < u) * 64 + (c > s) * 128;
+  *o4 = a / 4 + b % 8 + s / 2 + (a >> 5) + (s << 2) + (char)(a + c) + (unsigned char)(b - c) + !a + (a && b) + (a || c);
+  return (a - 7) / 16 + (-a) % 32;
+}`, 'ops', { ins: [{ name: 'a', w: 32, s: true }, { name: 'b', w: 32, s: true }, { name: 'u', w: 32, s: false }, { name: 'c', w: 8, s: false }, { name: 's', w: 16, s: true }],
+    outs: [{ name: 'o1', w: 32, s: true }, { name: 'o2', w: 32, s: false }, { name: 'o3', w: 32, s: true }, { name: 'o4', w: 32, s: true }], ret: { w: 32, s: true }, n: 60 });
+});
+
+test('C to HDL against the C: control flow: if / else if, switch with fall-through and default, loops unrolled with break and continue, early returns, ?:, && and || that skip their right side', { skip: noCC }, () => {
+  against(`int flow(int x, int y, unsigned char k, int *count, int *side) {
+  int r = 0;
+  *side = 0;
+  switch (k & 7) {
+    case 0: r = x; break;
+    case 1: r = y;
+    case 2: r += 10; break;
+    case 5: case 6: r = x - y; break;
+    default: r = -1;
+  }
+  int n = 0;
+  for (int i = 0; i < 16; i++) {
+    if (i == (k & 15)) break;
+    if ((x >> i) & 1) continue;
+    n += i;
+  }
+  for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) { if (j > i) break; n += i * j; }
+  *count = n;
+  if (x > 1000 && (*side = 1)) return r + 1;
+  if (y < -1000 || (*side = 2) > 5) return r - 1;
+  if (k > 200) return x > y ? x : y;
+  else if (k > 100) return k;
+  return r * 2;
+}`, 'flow', { ins: [{ name: 'x', w: 32, s: true }, { name: 'y', w: 32, s: true }, { name: 'k', w: 8, s: false }], outs: [{ name: 'count', w: 32, s: true }, { name: 'side', w: 32, s: true }], ret: { w: 32, s: true }, n: 60, seed: 3 });
+});
+
+test('C to HDL against the C: arrays (initialized, a constant table, read and written at a variable index), functions inlined (their pointer parameters, ++ / --, compound assignments), a read-write pointer, bool, 64-bit and stdint types', { skip: noCC }, () => {
+  against(`#include <stdint.h>
+#include <stdbool.h>
+static const uint8_t SQ[8] = {0, 1, 4, 9, 16, 25, 36, 49};
+static int clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+static void swap(int *a, int *b) { int t = *a; *a = *b; *b = t; }
+int64_t mix(uint8_t i, int8_t d, int64_t big, int *acc, bool *odd) {
+  int t[4] = {3, -1, 4, 1};
+  t[i & 3] += d;
+  t[(i >> 2) & 3] -= SQ[i & 7];
+  int p = t[0], q = t[3];
+  if (p > q) swap(&p, &q);
+  int sum = 0;
+  for (int k = 0; k < 4; k++) sum += t[k];
+  *acc += clamp(sum, -50, 50) + p - q;
+  (*acc)++;
+  int z = i;
+  z <<= 2; z -= 3; z |= 1; z %= 64;
+  *odd = (sum & 1) != 0;
+  return big * 3 - z + (int64_t)d * 1000000007LL;
+}`, 'mix', { ins: [{ name: 'i', w: 8, s: false }, { name: 'd', w: 8, s: true }, { name: 'big', w: 64, s: true }, { name: 'acc', w: 32, s: true, ptrIn: true }],
+    outs: [{ name: 'odd', w: 1, s: false }], ret: { w: 64, s: true }, n: 50, seed: 5 });
+});
+
+test('C to HDL: ap_int / ap_uint as Vitis HLS computes them (widths of + - * and bitwise, range, bits, reductions, to_int), in VHDL and Verilog', () => {
+  const src = `#include "ap_int.h"
+void apx(ap_uint<8> a, ap_uint<8> b, ap_int<4> c, ap_uint<9> *sum, ap_int<9> *diff, ap_int<12> *prod, ap_uint<4> *hi, bool *b7, bool *any, bool *all, bool *par, int *as_int) {
+  *sum = a + b;
+  *diff = a - b;
+  *prod = a * c;
+  *hi = a.range(7, 4);
+  *b7 = a[7];
+  *any = b.or_reduce();
+  *all = b.and_reduce();
+  *par = a.xor_reduce();
+  *as_int = c.to_int() + (a - b).to_int();
+}`;
+  const cases = [[200, 100, -3], [5, 9, 7], [255, 255, -8], [0, 0, 0], [128, 1, -1]];
+  const expect = ([a, b, c]) => {
+    const pc = (x) => [...x.toString(2)].filter((d) => d === '1').length % 2;
+    return [a + b, wrap(BigInt(a - b), { w: 9, s: true }), wrap(BigInt(a * c), { w: 12, s: true }), a >> 4, (a >> 7) & 1, b ? 1 : 0, b === 255 ? 1 : 0, pc(a), c + (a - b)].map(BigInt);
+  };
+  for (const lang of ['vhdl', 'verilog']) {
+    const gen = cToHdl(src, { file: 'apx.c', lang });
+    // (all: a reserved word of VHDL, its port all_r)
+    assert.deepEqual(gen.diagnostics.map((d) => `${d.line}:${d.col} ${d.severity}: ${d.message}`), ["2:6 warning: 'all' is a reserved word of VHDL or Verilog: it is named all_r in the module"]);
+    const outs = ['sum', 'diff', 'prod', 'hi', 'b7', 'any', 'all_r', 'par', 'as_int'];
+    const ins = [{ name: 'a', w: 8, s: false }, { name: 'b', w: 8, s: false }, { name: 'c', w: 4, s: true }];
+    const vecs = cases.map(([a, b, c]) => ({ a: BigInt(a), b: BigInt(b), c: BigInt(c) }));
+    const h = runHdl(gen, lang, ins, outs.map((o) => ({ name: o, w: gen.ports.find((p) => p.name === o).w })), null, vecs);
+    cases.forEach((cs, k) => {
+      const exp = expect(cs);
+      outs.forEach((o, j) => {
+        const w = gen.ports.find((p) => p.name === o).w;
+        assert.equal(h[k][2 * j], exp[j] & mask(w), `${lang} ${JSON.stringify(cs)} ${o}`);
+        assert.equal(h[k][2 * j + 1], 1n, `${lang} ${o}_ap_vld`);
+      });
+    });
+  }
+});
+
+test('C to HDL: what is not combinational (yet) is said: a loop whose count depends on the inputs, static and global variables, division by a non-constant or a non-power of 2, array arguments', () => {
+  const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line}:${d.col} ${d.message}`);
+  assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < n; i++) s += i;\n  return s;\n}'),
+    ['3:3 the number of iterations of this loop is not known: give its bound (a \'for\' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it']);
+  assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < 8; i++) {\n#pragma HLS LOOP_TRIPCOUNT max=8\n    if (s > n) break;\n    s += i;\n  }\n  while (s < n) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    s++;\n  }\n  return s;\n}'),
+    ['8:3 this loop runs a number of times that depends on the inputs (a sequential module: not supported yet, #1526)']);
+  assert.deepEqual(msgs('int f(int a) {\n  static int acc = 0;\n  acc += a;\n  return acc;\n}'), ["2:14 the static variable 'acc' keeps a value between calls (a sequential module: not supported yet, #1526)"]);
+  assert.deepEqual(msgs('int total;\nint f(int a) { total += a; return total; }'), ["1:5 the global variable 'total' keeps a value between calls (a sequential module: not supported yet, #1526)"]);
+  assert.deepEqual(msgs('int f(int a, int b) { return a / b; }'), ['1:32 a division by a value that is not a constant (a sequential module: not supported yet, #1526)']);
+  assert.deepEqual(msgs('int f(int a) { return a / 3; }'), ['1:25 a division by 3, not a power of 2 (a sequential module: not supported yet, #1526)']);
+  assert.deepEqual(msgs('int f(int a[4]) { return a[0]; }'), ["1:7 the array argument 'a': array arguments (ap_memory) are not supported yet (#1527)"]);
+  // constants divide at any value (folded)
+  assert.deepEqual(msgs('int f(int a) { return a + 100 / 3 + 7 % 3; }'), []);
+});
+
+// random expressions over the C types (a seed each), compiled and generated: the same values (C's promotions and
+// conversions mixed at random: the cases nobody writes by hand)
+test('C to HDL against the C: 40 random expressions mixing int, unsigned, signed char, unsigned short and long long, casts, ?: and the operators', { skip: noCC }, () => {
+  const r = rng(11);
+  const VARS = ['a', 'b', 'c', 'd', 'e'];
+  const pick = (xs) => xs[r() % xs.length];
+  const gen = (depth) => {
+    if (depth <= 0 || r() % 4 === 0) return r() % 3 ? pick(VARS) : String(r() % 300 - 100);
+    const x = () => gen(depth - 1);
+    switch (r() % 9) {
+      case 0: return `(${x()} ${pick(['+', '-', '*', '&', '|', '^'])} ${x()})`;
+      case 1: return `((unsigned)(${x()}) << ${r() % 8})`;
+      case 2: return `(${x()} >> ${r() % 8})`;
+      case 3: return `(${x()} ${pick(['==', '!=', '<', '<=', '>', '>='])} ${x()})`;
+      case 4: return `(${x()} ? ${x()} : ${x()})`;
+      case 5: return `(${pick(['char', 'unsigned char', 'short', 'unsigned short', 'unsigned', 'int', 'long long'])})(${x()})`;
+      case 6: return `${pick(['-', '~', '!'])}(${x()})`;
+      case 7: return `(${x()} ${pick(['/ 4', '% 8', '/ 2', '% 16'])})`;
+      default: return `(${x()} ${pick(['&&', '||'])} ${x()})`;
+    }
+  };
+  const ins = [{ name: 'a', w: 32, s: true }, { name: 'b', w: 32, s: false }, { name: 'c', w: 8, s: true }, { name: 'd', w: 16, s: false }, { name: 'e', w: 64, s: true }];
+  for (let k = 0; k < 40; k++) {
+    const e = gen(4);
+    const src = `long long rx(int a, unsigned b, signed char c, unsigned short d, long long e) {\n  return ${e};\n}`;
+    against(src, 'rx', { ins, ret: { w: 64, s: true }, n: 12, seed: 100 + k });
+  }
+});
