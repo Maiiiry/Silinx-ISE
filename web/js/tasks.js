@@ -119,7 +119,7 @@ export function arrangement(task, kept = {}, narrow = false) {
 }
 
 // the tasks whose document is single by nature: a new emulation replaces the old one
-export const SINGLE = ['emu'];   // (Simulate: its tabs, several simulations open, #1161)
+export const SINGLE = [];   // (none: Simulate its tabs, several simulations open, #1161; Emulate its tab, its title not in the header, #1426)
 /** What a document's title says of it: "SSim (top, Post-Synthesis)" → { module: 'top', model: 'Post-Synthesis' }
  *  (a behavioural model: null); a title with no module (iMPACT): { module: null, model: null }. */
 export function docDetail(title) {

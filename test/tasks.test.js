@@ -77,7 +77,7 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
 });
 
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
-  assert.deepEqual(T.SINGLE, ['emu']);   // (Simulate: its tabs, several simulations, #1161)
+  assert.deepEqual(T.SINGLE, []);   // (Simulate: its tabs, several simulations, #1161; Emulate its tab, #1426)
   assert.deepEqual(T.docDetail('SSim (top)'), { module: 'top', model: null });
   assert.deepEqual(T.docDetail('SSim (tb_pong, Post-Synthesis)'), { module: 'tb_pong', model: 'Post-Synthesis' });
   assert.deepEqual(T.docDetail('Board Emulator (pong, Post-Place & Route)'), { module: 'pong', model: 'Post-Place & Route' });
