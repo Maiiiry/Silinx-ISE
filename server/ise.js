@@ -353,7 +353,7 @@ const DEFAULT_SETTINGS_SH = '/opt/Xilinx/14.7/ISE_DS/settings64.sh';
 // (the ports without a pin location: core/auto-pins.js, shared with the browser edition)
 export { unconstrainedPorts } from '../core/auto-pins.js';
 import { unconstrainedPorts } from '../core/auto-pins.js';
-import { isView, viewHdl } from '../core/view-hdl.js';
+import { isGeneratedSource, viewHdl } from '../core/view-hdl.js';
 import { modulesFromLibrary } from '../core/schdoc.js';
 
 /**
@@ -364,7 +364,7 @@ import { modulesFromLibrary } from '../core/schdoc.js';
 export async function viewSources(project, projectDir, hdl = []) {
   const out = (project.excluded || []);
   const disk = await walkFiles(projectDir);
-  const views = disk.filter(f => isView(f) && !out.includes(f) && !/^build\//.test(f));
+  const views = disk.filter(f => isGeneratedSource(f) && !out.includes(f) && !/^build\//.test(f));   // (.c too: #1531)
   if (!views.length) return [];
   // (a drawing whose HDL file is gone, deleted or removed from the project, is one without it: #231)
   const inProject = new Set((project.files || []).map(f => f.path).filter(f => disk.includes(f)));
@@ -373,7 +373,7 @@ export async function viewSources(project, projectDir, hdl = []) {
   const res = [];
   const hdlMods = new Set(Object.keys(modules).map(n => n.toLowerCase()));   // (a module an HDL file defines: that file)
   for (const f of views) {
-    const r = viewHdl(f, await fs.readFile(path.join(projectDir, f), 'utf8'), { modules, linked: p => inProject.has(p) });
+    const r = viewHdl(f, await fs.readFile(path.join(projectDir, f), 'utf8'), { modules, linked: p => inProject.has(p), lang: project.preferredLanguage });
     if (r && r.text && !hdlMods.has(String(r.module).toLowerCase())) res.push(r);
     else if (r && !r.text && r.errors.length) res.push(r);
   }

@@ -25,6 +25,7 @@ const TYPES = {
   'Test Bench': { pages: ['File Name and Location', 'Associate Source', 'Summary'], wiz: true, file: 'sim/NAME.vhd' },
   'Implementation Constraints File': { pages: ['File Name and Location', 'Summary'], file: 'constraints/NAME.ucf' },
   'Memory Initialization File (.mem)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.mem' },
+  'C Function (HLS)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.c' },   // (#1531)
 };
 const NAMES = Object.keys(TYPES);
 

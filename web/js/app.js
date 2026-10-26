@@ -85,7 +85,7 @@ export function compileProject() {
     const hdlMods = new Set(Object.keys(mods).map(n => n.toLowerCase()));
     // (a drawing whose HDL file is gone, deleted or removed from the project, is one without it: #231)
     for (const [f, t] of views) {
-      const r = viewHdl(f, t, { modules: mods, linked: hdlInProject });
+      const r = viewHdl(f, t, { modules: mods, linked: hdlInProject, lang: S.project.preferredLanguage });
       if (!r?.text) continue;
       if (!hdlMods.has(String(r.module).toLowerCase())) { S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true, module: r.module, errors: r.errors.length, lost: r.lost || null }); continue; }
       const m = !r.errors.length && [...(lib0?.modules.values() || [])].find(x => x.name.toLowerCase() === String(r.module).toLowerCase());
@@ -610,8 +610,8 @@ export async function openFile(path, line, col, { task } = {}) {
             // (only the text written is clean: an edit made meanwhile is saved next, see flushDoc)
             if (d.editor.getValue() === text) d.editor.markClean();
             setDirty(d, false);
-            const src = S.sources.find(s => s.path === path);
-            if (src) src.text = text;
+            const src = S.sources.find(s => s.path === path && !s.view);
+            if (/\.c$/i.test(path)) S.viewTexts[path] = text; else if (src) src.text = text;   // (a C source: its HDL made again, #1531)
             else await reloadProject(false);
             compileProject(); renderHierarchy(); markStale();
             status(`Saved ${path}`);

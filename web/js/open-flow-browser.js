@@ -4,7 +4,7 @@
 // the bit database and Yosys (WebAssembly) are fetched from the site's assets/ folder (published
 // with the page: .github/workflows/pages.yml).
 import { unconstrainedPorts } from '/core/auto-pins.js';
-import { isView, viewHdl } from '/core/view-hdl.js';
+import { isGeneratedSource, viewHdl } from '/core/view-hdl.js';
 import { compile } from '/core/compile.js';
 import { synthEffort } from '/core/synth-open.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
@@ -107,14 +107,14 @@ export async function runBrowserFlow({ project, files, steps, resources = null, 
     .map(f => ({ path: f.path, lang: f.lang, text: files[f.path] }));
   // the drawn sources without an HDL file (schematics, ASM charts, state diagrams, truth tables): their HDL made here (#177)
   const excluded = new Set(project.excluded || []);
-  const viewPaths = Object.keys(files).filter(p => isView(p) && !excluded.has(p) && !p.startsWith('build/') && typeof files[p] === 'string');
+  const viewPaths = Object.keys(files).filter(p => isGeneratedSource(p) && !excluded.has(p) && !p.startsWith('build/') && typeof files[p] === 'string');
   if (viewPaths.length) {
     let modules = {};
     try { modules = modulesFromLibrary(compile(sources), { sources: Object.fromEntries(sources.map(s => [s.path, s.text])) }); } catch { /* none */ }
     const hdlMods = new Set(Object.keys(modules).map(n => n.toLowerCase()));   // (a module an HDL file defines: that file)
     for (const p of viewPaths) {
       // (a drawing whose HDL file is gone, deleted or removed from the project, is one without it: #231)
-      const r = viewHdl(p, files[p], { modules, linked: f => typeof files[f] === 'string' && (project.files || []).some(x => x.path === f) });
+      const r = viewHdl(p, files[p], { lang: project.preferredLanguage, modules, linked: f => typeof files[f] === 'string' && (project.files || []).some(x => x.path === f) });
       if (!r || (r.text && hdlMods.has(String(r.module).toLowerCase()))) continue;
       for (const e of r.errors) onLine(`WARNING:Silinx - ${e}`);
       if (r.text) sources.push({ path: `${p}.${r.lang === 'vhdl' ? 'vhd' : 'v'}`, lang: r.lang, text: r.text });

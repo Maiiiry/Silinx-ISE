@@ -11,9 +11,14 @@ import { generate as generateAsm, validate as validateAsm } from './asm.js';
 import { generateFsm, fsmErrors, normalizeFsm } from './fsm.js';
 import { generateTableHdl, validateTable, normalizeTable } from './logic.js';
 import { generatePetri, petriErrors, normalizePetri } from './petri.js';
+import { cToHdl } from './c-hdl.js';
 
 export const VIEW_RE = /\.(sch|asm|fsm|tt|pn)\.json$/i;
 export const isView = path => VIEW_RE.test(String(path || ''));
+// a C source (Silinx C, #1531): its HDL made here from its top function (core/c-hdl.js), as a drawn source's
+export const isCSource = path => /\.c$/i.test(String(path || ''));
+/** A source whose HDL is made here: a drawing or a C source. */
+export const isGeneratedSource = path => isView(path) || isCSource(path);
 
 /**
  * One source's HDL: { path, lang, text, module, errors: [message] } (path: the source's own, so that the
@@ -22,7 +27,8 @@ export const isView = path => VIEW_RE.test(String(path || ''));
  * (generatedFile) is there, in the project (default: always); when it is not (#231), the HDL is made
  * here as for a source without one, and `lost` names that file.
  */
-export function viewHdl(path, text, { modules = {}, linked = null } = {}) {
+export function viewHdl(path, text, { modules = {}, linked = null, lang = 'vhdl' } = {}) {
+  if (isCSource(path)) return cHdl(path, text, lang);
   if (!isView(path)) return null;
   let m;
   try { m = JSON.parse(text); } catch (e) { return { path, lang: 'vhdl', text: '', module: null, errors: [`${path}: ${e.message}`] }; }
@@ -31,6 +37,13 @@ export function viewHdl(path, text, { modules = {}, linked = null } = {}) {
   const r = drawnHdl(path, m.generatedFile && !m.lang ? { ...m, lang: /\.s?v$/i.test(m.generatedFile) ? 'verilog' : 'vhdl' } : m, modules);
   if (m.generatedFile) r.lost = m.generatedFile;
   return r;
+}
+
+// a C source's HDL: its top function's module, in the project's language; its errors as a drawing's
+function cHdl(path, text, lang) {
+  const r = cToHdl(String(text ?? ''), { file: path, lang: lang === 'verilog' ? 'verilog' : 'vhdl' });
+  const errors = r.diagnostics.filter((d) => d.severity === 'error').map((d) => `${path}: line ${d.line}: ${d.message}`);
+  return { path, lang: lang === 'verilog' ? 'verilog' : 'vhdl', text: r.ok ? r.hdl : '', module: r.top, errors };
 }
 
 function drawnHdl(path, m, modules) {
