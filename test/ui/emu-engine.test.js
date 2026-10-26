@@ -108,7 +108,7 @@ uiTest('Tasks ▸ Emulate on a tablet: the event-driven engine, switched to comp
   await slowDevice(page);
   await page.openProject('EmuEngineTasks');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await running(page, 'event');
   await page.waitConsole(/Board Emulator: 'top' \(RTL, event-driven\)/);
   const ui = await engineUi(page);

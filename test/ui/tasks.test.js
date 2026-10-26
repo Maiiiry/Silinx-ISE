@@ -322,7 +322,7 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
   assert.deepEqual(await docInfo(page), { tabs: true, info: null });
   // Emulate: the board, RTL
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   assert.deepEqual(await docInfo(page), { tabs: false, info: ['top', 'Behavioral (RTL)'] });
   // its close: the emulator closes, the task's page again
@@ -332,7 +332,7 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
   assert.ok(await shown(page, '#task-empty'));
   // in Portuguese: the bar's close (Emulate's board again)
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitFor(() => !!window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator', timeout: 30000 });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('#task-doc [data-act="close"]')?.title === 'Fechar', [], { what: 'Portuguese' });
@@ -546,7 +546,7 @@ uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on scre
   await tasksInterface(page);
   await page.openProject('TasksEmu');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap')?.style.zoom > 0, [], { what: 'the board zoomed' });
   assert.ok(!(await shown(page, '#design-panel')) && await shown(page, '#task-emu-panel'), 'no Design pane in Emulate: its Processes (#1399)');
@@ -597,7 +597,7 @@ uiTest('#1021 Tasks ▸ Emulate: the board keeps its size; the Watch and the VGA
   await tasksInterface(page);
   await page.openProject('TasksWrap');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'vga'/, { timeout: 60000 });
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga'), [], { what: 'the VGA monitor' });
   const at = async (w, hgt) => {
@@ -656,7 +656,7 @@ uiTest('#1022 Tasks ▸ Emulate: the emulation\'s time and rate right below the 
   await tasksInterface(page);
   await page.openProject('TasksStat');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor(() => /^t = .* cycles .* kHz \(.*% of real time\)$/.test(document.querySelector('.doc:not([hidden]) .emu-board-wrap > .stat')?.textContent || ''), [], { what: 'the status below the board' });
   let s = await emuStatus(page);
@@ -693,7 +693,7 @@ uiTest('#1020 #1399 Tasks ▸ Emulate: the Watch shown at first; the side panel 
   await tasksInterface(page);
   await page.openProject('TasksWatch');
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   const watch = () => page.eval(() => {
     const side = document.querySelector('.doc:not([hidden]) .emu-side');
@@ -1116,7 +1116,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   assert.ok(!(await shown(page, '#mc-cmd')) && !(await shown(page, '#mc-filters')));
   // Emulate: the emulator's line under Emulator; its Messages box is not in its window
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.click('#task-view [data-act="console"]');
   assert.deepEqual(await pressed(page), ['emu']);
@@ -1190,7 +1190,7 @@ uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have 
     assert.equal(await shown(page, '.isim .isim-left'), open, 'ISim\'s Instances and Objects: the side panel');
   }
   await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.click('#task-empty button');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   // (Emulate: its Processes the side panel, as Implement's, #1399: the board from its edge, or the window's, folded)
   for (const open of [true, false]) {
@@ -1642,6 +1642,12 @@ uiTest('#1398 Tasks ▸ Implement: I/O Pin Planning and Program FPGA above the P
   await page.dialogButton('No');
   await page.waitNoDialog();
   assert.deepEqual(await page.eval(() => [window.Silinx.active?.id, document.documentElement.dataset.task]), ['impact', 'impl']);
+  // an iMPACT open from before, without its Program FPGA to run from here: opened again, and run (#1421)
+  await page.eval(() => { delete window.SilinxApp.findDoc('impact').program; });
+  await page.click('#task-impl-bar [data-act=program]');
+  await page.waitDialog('Program FPGA');
+  await page.dialogButton('No');
+  await page.waitNoDialog();
   // no top: I/O Pin Planning off
   await page.eval(async () => { window.SilinxApp.S.project.top = ''; await window.SilinxApp.saveProjectJson(); });
   await page.waitFor(() => document.querySelector('#task-impl-bar [data-act=pins]').disabled, [], { what: 'off with no top' });

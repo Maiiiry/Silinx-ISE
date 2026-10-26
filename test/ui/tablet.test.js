@@ -35,7 +35,6 @@ async function tapAction(page) {
   // (the task's page; its document open (Implement's Design Summary): its design-flow button, no action button in the
   // task's bar since #1292)
   if (await page.eval(() => !!document.getElementById('task-sim-panel')?.getClientRects().length)) await page.tap('#task-sim-panel .task-sim-bench .row.sel');   // (Simulate's side panel, #1376)
-  else if (await page.eval(() => !!document.getElementById('task-empty')?.getClientRects().length)) await page.tap('#task-empty .m-step');
   else await page.eval(() => document.querySelector(`#toolbar .m-step[data-step="${{ sim: 'simulate', emu: 'emulate', impl: 'implement' }[document.documentElement.dataset.task]}"]`).click());
 }
 // a box on the screen, wholly (a button a finger reaches)
