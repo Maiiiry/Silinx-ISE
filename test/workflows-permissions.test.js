@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { workflowFiles } from './workflows-lib.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows');
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8');
@@ -17,7 +18,7 @@ const read = f => fs.readFileSync(path.join(DIR, f), 'utf8');
 const READ_ONLY = ['ci.yml', 'nightly.yml', 'ise.yml', 'pins.yml', 'yosys-update.yml', 'quality.yml'];
 
 test('every workflow states its permissions at the top; the testing ones read the repository only', () => {
-  const files = fs.readdirSync(DIR).filter(f => f.endsWith('.yml'));
+  const files = workflowFiles(DIR);
   for (const f of READ_ONLY) assert.ok(files.includes(f), f);
   for (const f of files) {
     const yml = read(f);
@@ -67,7 +68,7 @@ test('quality.yml: one job writes, contents only, on GitHub\'s runner; the self-
 });
 
 const ACTION = path.join(DIR, '..', 'actions', 'setup', 'action.yml');
-const FILES = fs.readdirSync(DIR).filter(f => f.endsWith('.yml'));
+const FILES = workflowFiles(DIR);
 
 test('the dependencies\' install scripts never run (#1436): the setup action says so, and every other npm ci is in a job that does', () => {
   const action = fs.readFileSync(ACTION, 'utf8');
