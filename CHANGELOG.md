@@ -3,10 +3,87 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.18.3
+
+15.18.0, 15.18.1 and 15.18.2 were not published (their tests failed at the release): their changes, in the
+next sections, come with this release too.
+
+In short:
+
+- 3D Karnaugh map: Reset view right after the 3D box; the note about the layers removed.
+- **A maximized document closed shows the side panel again:** the last one of its task, in the modern interface.
+- **A project opened shows the side panel and the messages:** whatever was left folded or maximized before.
+- **Schematic: Duplicate, Rotate, Mirror and Delete on a right-click:** a symbol's (an I/O marker's) right-click
+  menu has them next to Rename…, for the symbol or the whole selection.
+- **Schematic: a comparator with several outputs:** COMP's comparisons are tick boxes, EQ NE LT LE GT GE; each one
+  ticked is an output of its own, so one comparator gives A = B, A < B and A > B at once.
+- **Schematic ENCODER:** a new ENCODER is a priority encoder (PENC4_2): with several inputs at 1, A is the index of
+  the highest one. One-hot stays a choice of its Type; encoders already in a schematic keep theirs.
+- **C sources in a project:** a `.c` file is a module of the project, its HDL generated from its top function (Silinx C,
+  compatible with Vitis HLS): its Design row shows the C as the base and its VHDL / Verilog, read-only; it can be the
+  top, simulated, seen as an RTL schematic and implemented. New Source ▸ C Function (HLS) makes one.
+- **C to HDL, sequential:** a C function with loops whose count depends on its inputs, or with static or global
+  variables, becomes a state machine with Vitis HLS's block protocol (`ap_clk`, `ap_rst`, `ap_start`, `ap_done`,
+  `ap_idle`, `ap_ready`).
+
+In detail:
+
+- **The C tests on Windows (#1577):** test/c-helpers.js declares each output of the C driver with its argument's own
+  type (`bool`, `signed char`…): a pointer to another type is an error for GCC on Windows; the mismatch is now an
+  error everywhere (`-Werror=incompatible-pointer-types`).
+- **The release zip's budget back to 40 MB (#1573):** the device measurements are no longer packaged (#1541), so the 10 MB
+  #1538 added would only hide a real growth.
+- Truth tables: the 3D Karnaugh map's Reset view is in the K-map's options line, right after its 3D box, while 3D is ticked;
+  the hint under the map ("Neighbouring layers differ in one variable", the Gray order's) removed (#1567).
+- **A maximized task's last document closed leaves maximize (#1564):** in the modern interface a task whose document was
+  maximized (#1484) stayed so once its last document was closed, its page with no side panel nor messages; maximize is
+  now left and kept, the side panel and the messages shown again, in every task. A document closed with others left
+  keeps the task maximized.
+- **A project opened shows the side panel and the messages (#1557):** opening a project (the New Project wizard or an
+  existing one) gives every task of the modern interface its side panel and messages open and no document maximized,
+  kept (`openedState`); they can be folded again as before. Emulate's side panel on a narrow screen goes back to its
+  default, folded so the board has its room (#1463). In the classic interface, on a narrow screen, the drawer opens with
+  the project (on a wide screen the left pane and the console cannot be hidden).
+- **The schematic editor's right-click menu: Duplicate, Rotate, Mirror, Delete (#1556):** next to Rename… (#1546), with
+  their shortcuts (Ctrl+R, Ctrl+M, Del), in `web/js/sch-context.js`. They act on the selection when the object clicked
+  is part of it, else on that object alone. Duplicate (`duplicateSel`, `web/js/sch-select.js`) copies the selected
+  symbols and I/O markers without their wires, right of them, with fresh names, the copy selected. Each is one undo
+  step. A net name's menu has Rename… and Delete.
+- **COMP: several comparisons at once (#1555):** the Operation selection box of the schematic comparator is now
+  Comparisons, six tick boxes (`web/js/sch-compare.js`). One ticked: the symbol as before, its output O (a comparator
+  saved before opens with that box ticked, its pin and wiring unchanged); several: a box with an output each, named EQ,
+  NE, LT, LE, GT, GE in that order (`compareOps`, `comparePin` in `core/schdoc-symbols.js`). At least one stays
+  ticked: unticking the last one is refused. A tick re-pins the symbol (`repinSymbol`, `core/schdoc-repin.js`, with
+  Update Symbol's pin-following moved there): the wires, I/O markers and net names of the pins that stay follow them;
+  unticking a connected output asks first, then drops its wires; one undo step a tick. Signed, Width and Pins per bit
+  apply to every output; the generated VHDL and Verilog, the simulation, Try it and Symbol Info (its own tick boxes,
+  its texts and pin table) follow, and the ISE export names the symbol after its comparisons (`xl_cmp4_lt_gt`), read
+  back on import. Several COMPs selected together do not list Comparisons among their common properties.
+- **ENCODER placed as a priority encoder (#1553):** the symbol's Type defaults to priority (the highest index wins, V
+  = some input is 1) instead of one-hot; an ENCODER saved without a Type (from before) stays one-hot. Tested on every
+  input pattern of the 4- and 8-input encoders, VHDL and Verilog, against an independent reference.
+- **C sources in the app, a first part of #1531:** core/view-hdl.js (a C source's HDL made in memory, as a drawing's
+  without an HDL file, #177; in the project's language), web/js/project.js and app.js (the `.c` files read and compiled
+  with the project, made again on a save), web/js/c-source.js and design.js (the `[C]` and `[VHDL]` / `[Verilog]`
+  badges, the generated HDL read-only), web/js/new-source.js (C Function (HLS), its template), web/js/open-flow-browser.js
+  and server/ise.js (built in the browser and on the server). Tests: test/ui/c-source.test.js, test/c-hdl.test.js,
+  test/view-hdl.test.js, the New Source tests.
+- **Sequential C to HDL (#1526):** core/c-fsmd.js (the function cut into basic blocks, one state each; its variables
+  registers, statics and globals kept between calls; loops, ifs with loops, break, continue and return choosing the next
+  state; the arguments read at `ap_start`; `ap_done` / `ap_ready` one cycle; `_ap_vld` pulses), core/c-hdl-seq.js (its
+  VHDL and Verilog: the state `ap_CS_fsm` and the registers in one clocked process, each state commented with its
+  line), core/c-hdl.js (a function that is not combinational made sequential); docs/c-to-hdl.md. Tests:
+  test/c-seq.test.js (the protocol driven in both languages against the C compiled with cc: gcd, an integer square
+  root, statics and globals, nested loops with break / continue / return, do-while, an if with a loop, arrays, a
+  read-write pointer), test/c-helpers.js.
+- **The plan for replacing the shipped XC3S250E description with the measured one (#3):** what it would change in the
+  repository, its tests and its documentation, in what order, and what is still the maintainer's call
+  (research/s3e-device/REPLACING.md), with a dry run of 28 test files on the measured graph: 457 pass, 8 fail (two
+  measurements still missing, five tests pinned to the shipped graph's routes or contents).
+
 ## 15.18.2
 
-15.18.0 and 15.18.1 were not published (their tests failed at the release): their changes, in the next sections,
-come with this release too.
+Not published (its tests failed at the release): its changes come with 15.18.3.
 
 In short:
 
@@ -67,7 +144,7 @@ In detail:
 
 ## 15.18.1
 
-Not published (its tests failed at the release): its changes come with 15.18.2.
+Not published (its tests failed at the release): its changes come with 15.18.3.
 
 In short:
 
@@ -111,6 +188,8 @@ In detail:
   view's die drawn light and fitted to one page (`web/js/print-doc.js`, `web/js/print-view.js`).
 
 ## 15.18.0
+
+Not published (its tests failed at the release): its changes come with 15.18.3.
 
 In short:
 
