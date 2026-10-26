@@ -121,7 +121,7 @@ export function mountRender(ctx) {
           (n.id === M.initial ? `<path class="asm-init-mark" d="M7,5 L13,10 L7,15 z"/>` : '') +
           `<text x="${n.id === M.initial ? 17 : 8}" y="10.5" dominant-baseline="central">${esc(name)}</text></g>`;
         const code = enc.get(n.id);
-        if (code && M.encoding !== 'enum') inner += `<text class="asm-statecode" x="${w / 2}" y="${-hh / 2 - 7}" text-anchor="end">${code.bits}</text>`;
+        if (code && M.encoding !== 'enum') inner += `<text class="asm-statecode" x="${w / 2}" y="${-hh / 2 - 7}" text-anchor="end">${esc(code.bits)}</text>`;
       } else if (n.type === 'always') {
         inner += `<rect class="asm-shape" x="${-w / 2}" y="${-hh / 2}" width="${w}" height="${hh}" rx="3"/>`;
         inner += `<rect class="asm-always-band" x="${-w / 2}" y="${-hh / 2}" width="${w}" height="6" rx="2"/>`;
@@ -162,7 +162,7 @@ export function mountRender(ctx) {
         }
         const free = ex[p] ? '' : end ? ' end' : ' free';
         const what = n.type === 'decision' ? (p === 'true' ? 'true (1) exit' : 'false (0) exit') : 'exit';
-        inner += `<circle class="asm-port${free}" data-port="${p}" cx="${lx}" cy="${ly}" r="5.5"><title>${what}${end ? ' (unconnected: end of the every-cycle block)' : ''} - drag to a box to connect</title></circle>`;
+        inner += `<circle class="asm-port${free}" data-port="${esc(p)}" cx="${lx}" cy="${ly}" r="5.5"><title>${esc(what)}${end ? ' (unconnected: end of the every-cycle block)' : ''} - drag to a box to connect</title></circle>`;
       }
       nh += `<g class="${cls.join(' ')}" data-node="${esc(n.id)}" transform="translate(${n.x},${n.y})">${inner}</g>`;
     }
@@ -173,8 +173,8 @@ export function mountRender(ctx) {
     const ne = diags.filter((d) => d.severity === 'error').length, nw = diags.filter((d) => d.severity === 'warning').length;
     statusInfo.innerHTML = `${esc(M.name)} · ${ns} state${ns === 1 ? '' : 's'} · ` +
       (na ? `${na} every-cycle block${na === 1 ? '' : 's'} · ` : '') +
-      `<span class="${ne ? 'c-err' : 'c-ok'}">${ne} error${ne === 1 ? '' : 's'}</span> · ` +
-      `<span class="${nw ? 'c-warn' : ''}">${nw} warning${nw === 1 ? '' : 's'}</span>`;
+      `<span class="${ne ? 'c-err' : 'c-ok'}">${esc(ne)} error${ne === 1 ? '' : 's'}</span> · ` +
+      `<span class="${nw ? 'c-warn' : ''}">${esc(nw)} warning${nw === 1 ? '' : 's'}</span>`;
   }
 
   function updateToolbar() {

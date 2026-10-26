@@ -23,7 +23,7 @@ export function mountLiveInstance(ctx) {
       : (() => {
         let ps = [];
         try { ps = symbolPins(selSym(), modules); } catch { /* none */ }
-        return ps.map(p => { const v = live.pinValue(selSym().id, p.name); return `<tr class="${lvClass(v)}"><td>${esc(p.name)}</td><td>${p.dir}</td><td class="v">${esc(fmtValue(v, radix()))}</td></tr>`; }).join('');
+        return ps.map(p => { const v = live.pinValue(selSym().id, p.name); return `<tr class="${lvClass(v)}"><td>${esc(p.name)}</td><td>${esc(p.dir)}</td><td class="v">${esc(fmtValue(v, radix()))}</td></tr>`; }).join('');
       })();
     box.innerHTML = `<div class="se-ptitle" data-no-i18n>${esc(selSym().name)} : ${esc(selSym().type === 'module' ? selSym().params.module : (SYMBOLS[selSym().type]?.title || selSym().type))}</div>`
       + `<table class="lv-ports" data-no-i18n><tbody>${rows}</tbody></table>`;

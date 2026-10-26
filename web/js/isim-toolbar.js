@@ -1,7 +1,7 @@
 // SSim's toolbar (#405: out of mountISim in isim.js): restart, run all, run for a time (its value and unit), step,
 // break, the zooms, the cursor's moves, a marker, the radix, Save and Load Wave Configuration (#1019: with
 // opts.wcfg; no VCD export), and Edit Stimuli with its bar of commands (#336, #853) when the window can draw stimuli.
-import { h } from './dom.js';
+import { esc, h } from './dom.js';
 import { ICON, UNITS, parseTime } from './isim.js';
 
 /** { btns, rfUnit, rfVal, stimBar } of mountISim (api(): its current values). */
@@ -24,7 +24,7 @@ export function mountToolbar(ctx) {
   addBtn('runAll', 'Run All', () => { echo('run all'); enqueue('run all', () => api().runAll()); });
   addBtn('runFor', 'Run for the specified time', () => runForUi());
   const rfVal = h('input', { class: 'isim-rf-val' }); rfVal.value = String(opts.defaultRunTime?.value ?? 1); rfVal.title = 'Simulation run time';
-  const rfUnit = h('select', { class: 'isim-rf-unit', html: Object.keys(UNITS).map(u => `<option>${u}</option>`).join('') });
+  const rfUnit = h('select', { class: 'isim-rf-unit', html: Object.keys(UNITS).map(u => `<option>${esc(u)}</option>`).join('') });
   rfUnit.value = opts.defaultRunTime?.unit ?? 'us'; rfUnit.title = 'Time unit';
   tb.appendChild(rfVal); tb.appendChild(rfUnit);
   rfVal.addEventListener('keydown', e => { if (e.key === 'Enter') runForUi(); });

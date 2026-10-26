@@ -69,7 +69,7 @@ export function mountSchRender(ctx) {
         if (Math.abs(p0.y - p1.y) < 0.5 && Math.abs(p1.x - p0.x) >= 14) {
           const dir = p1.x > p0.x ? 1 : -1, x = p0.x + dir * 7;
           labels += `<g class="wann" data-net="${esc(key)}"><line class="slash" x1="${r1(x - 3)}" y1="${r1(p0.y + 4)}" x2="${r1(x + 3)}" y2="${r1(p0.y - 4)}"/>`
-            + `<text class="wtext" x="${r1(x)}" y="${r1(p0.y + 12)}" text-anchor="middle">${e.w}</text></g>`;
+            + `<text class="wtext" x="${r1(x)}" y="${r1(p0.y + 12)}" text-anchor="middle">${esc(e.w)}</text></g>`;
         }
       }
       // net name, once per net, on the first long-enough horizontal run near the source

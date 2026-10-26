@@ -85,7 +85,7 @@ export function mountSchCurve(ctx) {
   }
   function handleSvg(w, i, p) {
     const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    return `<g class="chandle" data-wire="${esc(w.id)}" data-knot="${i}">`
+    return `<g class="chandle" data-wire="${esc(w.id)}" data-knot="${esc(i)}">`
       + `<circle class="chit" cx="${p.x}" cy="${p.y}" r="${touch ? 14 : 7}"/><circle class="cdot" cx="${p.x}" cy="${p.y}" r="3.5"/></g>`;
   }
   // a wire reshaped while dragged: its curve and its handles moved in place (the one under the finger not replaced:

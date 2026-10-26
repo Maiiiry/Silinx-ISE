@@ -14,7 +14,7 @@ export function mountTree(ctx) {
   // a module's types after its name, as Design's badges (#1316); a badge's click its `open` (the instance), not the row's
   const badgesHtml = mod => {
     const b = badges?.(mod) || [];
-    return b.length ? `<span class="badges">${b.map((x, i) => `<span class="badge${x.base ? ' base' : ''}" data-badge="${i}">${esc(x.text)}</span>`).join('')}</span>` : '';
+    return b.length ? `<span class="badges">${b.map((x, i) => `<span class="badge${x.base ? ' base' : ''}" data-badge="${esc(i)}">${esc(x.text)}</span>`).join('')}</span>` : '';
   };
   const badgeClicks = (row, mod, inst) => {
     const b = badges?.(mod) || [];

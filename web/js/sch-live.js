@@ -144,7 +144,7 @@ function liveController(ctx, live) {
         if (bd.width === 1) {
           s += `<g class="lv-ctl lv-out lv-bidir ${lv}" data-lv="bidir" data-port="${esc(p.id)}"><title>${esc(tip)}</title>`
             + `<circle class="lv-led" cx="${led.x}" cy="${led.y}" r="5"/>`
-            + `<text class="lv-val" x="${led.x}" y="${led.y - 9}" text-anchor="middle">${bd.value == null ? 'Z' : String(bd.value)}</text></g>`;
+            + `<text class="lv-val" x="${led.x}" y="${led.y - 9}" text-anchor="middle">${esc(bd.value ?? 'Z')}</text></g>`;
         } else {
           const txt = `${bd.value == null ? '' : '▸'}${fmtValue(v, radix)}`, b = box(txt);
           s += `<g class="lv-ctl lv-out lv-bidir lv-bus ${lv}" data-lv="bidir" data-port="${esc(p.id)}"><title>${esc(tip)}</title>`
