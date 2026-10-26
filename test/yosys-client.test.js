@@ -174,7 +174,10 @@ test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its
   // (a dynamic import: the code of a classic worker, which a file:// page can start from a Blob, #512)
   // (its Blobs readable first: WebKit, a file:// page's worker, #556)
   assert.ok(src.startsWith(`(${readableBlobs})(self);\n`), 'readableBlobs first');
-  assert.match(src, new RegExp(`^const yosys = import\\(${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\);`, 'm'));
+  // (#1445: the bundle's SHA-256 checked first, when the build wrote it; the import from the URL given)
+  const url = JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  assert.match(src, new RegExp(`^const yosys = \\(async function verifiedYosysUrl\\(url, scope = globalThis\\) \\{[\\s\\S]*?\\n\\}\\)\\(${url}, self\\)\\.then\\(u => import\\(u\\)\\);`, 'm'));
+  assert.doesNotMatch(src, /^const yosys = import\(/m, 'never imported unchecked');
   assert.doesNotMatch(src, /^import /m, 'no static import');
   await checkWorkerCode(src, dir);
 });

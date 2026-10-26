@@ -89,15 +89,38 @@ export function readableBlobs(scope = globalThis) {
 }
 
 /**
+ * Yosys's bundle checked before it is imported (#1445): when the build wrote its SHA-256 (scope.SILINX_ASSET_INTEGRITY,
+ * by its path under assets/: the single-file edition and the site, web/js/asset-cache.js), the bundle is fetched
+ * (through the scope's fetch: the asset cache's, which keeps a copy only when it is the asset) and its digest compared;
+ * it differs: an error, and Yosys is not imported. Nothing written for it (unbuilt: the local server, the tests), or no
+ * SubtleCrypto (an http page that is not localhost): the URL as it is. Resolves to the URL to import. The import then
+ * reads the same URL again (the browser's HTTP cache, normally): a module cannot be imported from the bytes checked,
+ * since a worker of a file:// page cannot import a blob: URL in WebKit, and script-src would need blob: elsewhere.
+ * Self-contained: yosysWorkerSource writes its text into the Yosys workers.
+ */
+export async function verifiedYosysUrl(url, scope = globalThis) {
+  const i = url.lastIndexOf('/assets/');
+  const want = i >= 0 ? scope.SILINX_ASSET_INTEGRITY?.[url.slice(i + 8)] : undefined;
+  if (!want || !scope.crypto?.subtle) return url;
+  const res = await scope.fetch(url);
+  if (!res.ok) throw new Error(`Yosys could not be fetched (${res.status}): ${url}`);
+  let bin = '';
+  for (const b of new Uint8Array(await scope.crypto.subtle.digest('SHA-256', await res.arrayBuffer()))) bin += String.fromCharCode(b);
+  if (`sha256-${scope.btoa(bin)}` !== want) throw new Error(`Yosys's bundle on the site is not the one this page was built with (its SHA-256 differs): not run (${url})`);
+  return url;
+}
+
+/**
  * The code of a Yosys worker (as web/js/yosys-worker.js) that loads Yosys from bundleUrl (YoWASP's
  * gen/bundle.js): for a worker started from a Blob, with no file of its own. A classic worker's code
  * (Yosys by a dynamic import, which a classic worker may do, a static one not): a page opened from
  * file:// (the single-file edition, an opaque origin) cannot start a module worker from a Blob (#512);
- * its Blobs made readable first (readableBlobs: WebKit, #556).
+ * its Blobs made readable first (readableBlobs: WebKit, #556); the bundle's SHA-256 checked first when the
+ * build wrote it (verifiedYosysUrl, #1445).
  */
 export function yosysWorkerSource(bundleUrl) {
   return `(${readableBlobs})(self);
-const yosys = import(${JSON.stringify(String(bundleUrl))});
+const yosys = (${verifiedYosysUrl})(${JSON.stringify(String(bundleUrl))}, self).then(u => import(u));
 const lineStream = ${lineStream};
 const asText = ${asText};
 const yosysError = ${yosysError};
