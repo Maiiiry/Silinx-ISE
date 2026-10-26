@@ -4,7 +4,7 @@
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
 // gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694), each one's gates and delay
 // as a circuit, and the forms of the fewest gates and of the least delay (#1427).
-// The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434); one may be written
+// The expressions are written in the notation chosen, by default with / as NOT and . as AND (/a.b + c, #434, #1496); one may be written
 // by hand (#1056), and the whole table drawn by hand (#1066), both from the Development menu (#1098). Tables read from a
 // module may have up to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module,
 // in its language (the project's preferred one), generated from it by the host (app.js), which keeps both in sync,
@@ -25,7 +25,7 @@ import { cellText, placeKmap } from './tt-kmap3d.js';
 
 const NEXT = { 0: '1', 1: 'X', X: '0' };
 const COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#e377c2', '#8c564b', '#bcbd22', '#7f7f7f'];
-const NOTATIONS = [['slash', '/a·b + c'], ['slash-compact', '/ab + c'], ['textbook', 'a·b\' + c'], ['compact', 'ab\' + c'], ['vhdl', 'VHDL'], ['verilog', 'Verilog']];
+const NOTATIONS = [['slash', '/a.b + c'], ['slash-compact', '/ab + c'], ['textbook', 'a·b\' + c'], ['compact', 'ab\' + c'], ['vhdl', 'VHDL'], ['verilog', 'Verilog']];
 const SVGNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs = {}, ...kids) => {
   const el = document.createElementNS(SVGNS, tag);
@@ -132,7 +132,7 @@ export function mountTtEditor(container, opts = {}) {
   notes.addEventListener('input', () => { M.notes = notes.value; opts.onChange?.(M); clearTimeout(notesT); notesT = setTimeout(snap, 600); });
   const left = h('div', { class: 'tt-left' }, h('div', { class: 'tt-caption' }, 'Truth table'), h('div', { class: 'hint' }, 'Click an output cell to change it: 0 → 1 → X (don\'t care).'), tableHost, h('div', { class: 'tt-caption' }, 'Notes'), notes);
   const tabs = h('div', { class: 'tt-tabs' });
-  const exprIn = h('input', { type: 'text', class: 'tt-expr-in', spellcheck: 'false', placeholder: 'e.g. /a·b + c' });
+  const exprIn = h('input', { type: 'text', class: 'tt-expr-in', spellcheck: 'false', placeholder: 'e.g. /a.b + c' });
   const exprErr = h('div', { class: 'tt-err tt-expr-err' });
   const applyExpr = () => {
     const text = exprIn.value.trim();
@@ -156,7 +156,7 @@ export function mountTtEditor(container, opts = {}) {
   const handwritten = () => import('./tt-ink.js').then(m => m.handwrittenColumn(ink));
   const handwrittenTable = () => import('./tt-ink.js').then(m => m.handwrittenWholeTable(ink));
   const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr));
-  const OPS = "Operators: / ' ~ (NOT), · . * (AND), ⊕ ^ or xor (XOR), xnor, + (OR)";
+  const OPS = "Operators: / ' ~ (NOT), . · * (AND), ⊕ ^ or xor (XOR), xnor, + (OR)";
   exprIn.title = OPS;
   const kmapHost = h('div', { class: 'tt-kmap-host' });
   const grpSel = h('div', { class: 'tt-groups' });

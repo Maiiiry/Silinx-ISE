@@ -516,27 +516,27 @@ test('gate schematic of a 6- and a 9-output table: netlist() without errors, sim
 // ------------------------------------------------------------------ the / notation (#434)
 const strip = e => JSON.parse(JSON.stringify(e, (k, v) => (k === 'pos' ? undefined : v)));
 
-test('formats: the / notation (/a·b + c, /(a + b)) and its compact form (/ab + c); XNOR in VHDL / Verilog (#434)', () => {
+test('formats: the / notation (/a.b + c, /(a + b)) and its compact form (/ab + c); XNOR in VHDL / Verilog (#434)', () => {
   const vars = ['a', 'b', 'c'];
   const e = parseExpr("ab' + c(a+b)' + a^c", { vars });
-  assert.equal(formatExpr(e, 'slash'), 'a·/b + c·/(a + b) + a ⊕ c');
+  assert.equal(formatExpr(e, 'slash'), 'a./b + c./(a + b) + a ⊕ c');
   assert.equal(formatExpr(e, 'slash-compact'), 'a/b + c/(a + b) + a ⊕ c');
   const f = parseExpr("a'b + c'", { vars });
-  assert.equal(formatExpr(f, 'slash'), '/a·b + /c');
+  assert.equal(formatExpr(f, 'slash'), '/a.b + /c');
   assert.equal(formatExpr(f, 'slash-compact'), '/ab + /c');      // /ab is /a·b, as the input reads it
-  assert.equal(formatExpr(parseExpr("(ab)'·c", { vars }), 'slash'), '/(a·b)·c');
+  assert.equal(formatExpr(parseExpr("(ab)'·c", { vars }), 'slash'), '/(a.b).c');
   assert.equal(formatExpr(parseExpr("(ab)'·c", { vars }), 'slash-compact'), '/(ab)c');
   assert.equal(formatExpr(parseExpr("a''", { vars }), 'slash'), '//a');
   assert.equal(formatExpr(parseExpr('0'), 'slash'), '0');
   assert.equal(formatExpr(parseExpr("a'·b'·c'", { vars }), 'slash-compact'), '/a/b/c');
   // names of more than one letter: no juxtaposition
   const v2 = ['x1', 'x2', 'en'];
-  assert.equal(formatExpr(parseExpr("x1' x2 + en'", { vars: v2 }), 'slash-compact'), '/x1·x2 + /en');
-  assert.equal(formatExpr(parseExpr("x1' x2 + en'", { vars: v2 }), 'slash'), '/x1·x2 + /en');
+  assert.equal(formatExpr(parseExpr("x1' x2 + en'", { vars: v2 }), 'slash-compact'), '/x1.x2 + /en');
+  assert.equal(formatExpr(parseExpr("x1' x2 + en'", { vars: v2 }), 'slash'), '/x1.x2 + /en');
   // XNOR: /(a ⊕ b); xnor / ~^ in HDL (two operands), not (…) for more
   const xn = parseExpr('(a xnor b)(c ^~ a)', { vars });
   assert.deepEqual(strip(xn), strip(parseExpr("(a ^ b)'·(c ⊕ a)'", { vars })));
-  assert.equal(formatExpr(xn, 'slash'), '/(a ⊕ b)·/(c ⊕ a)');
+  assert.equal(formatExpr(xn, 'slash'), '/(a ⊕ b)./(c ⊕ a)');
   assert.equal(formatExpr(xn, 'slash-compact'), '/(a ⊕ b)/(c ⊕ a)');
   assert.equal(formatExpr(xn, 'textbook'), "(a ⊕ b)'·(c ⊕ a)'");
   assert.equal(formatExpr(xn, 'vhdl'), '(a xnor b) and (c xnor a)');
@@ -594,13 +594,13 @@ test('XOR forms (#435): parity of 2–6 inputs, full adder, 2-bit comparator, Gr
   assert.equal(xorOf(colOf(3, parity), fa), 'a ⊕ b ⊕ cin');
   const carry = minimizeXor('00010111', fa);
   assert.deepEqual([formatExpr(carry.ast, 'slash'), formatExpr(carry.ast, 'textbook'), formatExpr(carry.ast, 'vhdl'), formatExpr(carry.ast, 'verilog')],
-    ['a·b + cin·(a ⊕ b)', 'a·b + cin·(a ⊕ b)', '(a and b) or (cin and (a xor b))', '(a & b) | (cin & (a ^ b))']);
+    ['a.b + cin.(a ⊕ b)', 'a·b + cin·(a ⊕ b)', '(a and b) or (cin and (a xor b))', '(a & b) | (cin & (a ^ b))']);
   assert.deepEqual([carry.literals, carry.ops, carry.xor, carry.and, carry.or], [5, 4, 1, 2, 1]);   // the SOP: 6 literals, 5 operators
   // 2-bit equality comparator a1a0 = b1b0: two XNORs
   const eq = ['a1', 'a0', 'b1', 'b0'];
   const e = minimizeXor(colOf(4, r => r >> 2 === (r & 3)), eq);
   assert.deepEqual([formatExpr(e.ast, 'slash'), formatExpr(e.ast, 'slash-compact'), formatExpr(e.ast, 'textbook'), formatExpr(e.ast, 'vhdl'), formatExpr(e.ast, 'verilog')],
-    ['/(a1 ⊕ b1)·/(a0 ⊕ b0)', '/(a1 ⊕ b1)·/(a0 ⊕ b0)', "(a1 ⊕ b1)'·(a0 ⊕ b0)'", '(a1 xnor b1) and (a0 xnor b0)', '(a1 ~^ b1) & (a0 ~^ b0)']);
+    ['/(a1 ⊕ b1)./(a0 ⊕ b0)', '/(a1 ⊕ b1)./(a0 ⊕ b0)', "(a1 ⊕ b1)'·(a0 ⊕ b0)'", '(a1 xnor b1) and (a0 xnor b0)', '(a1 ~^ b1) & (a0 ~^ b0)']);
   assert.deepEqual([e.literals, e.ops], [4, 3]);
   // Gray -> binary (4 bits): b_k = g3 ⊕ … ⊕ g_k; the MSB is a plain wire: no XOR form
   const g2b = r => { let b = r; for (let s = r >> 1; s; s >>= 1) b ^= s; return b; };
@@ -610,8 +610,8 @@ test('XOR forms (#435): parity of 2–6 inputs, full adder, 2-bit comparator, Gr
   const B = ['b3', 'b2', 'b1', 'b0'];
   assert.deepEqual([3, 2, 1, 0].map(k => xorOf(colOf(4, r => ((r ^ (r >> 1)) >> k) & 1), B)), [null, 'b3 ⊕ b2', 'b2 ⊕ b1', 'b1 ⊕ b0']);
   // a variable XOR a product: a ⊕ b·c (SOP a·/b + a·/c + /a·b·c, 7 literals)
-  assert.equal(xorOf('00011110', V(3)), 'a ⊕ b·c');
-  assert.equal(xorOf('01100000', V(3)), '/a·(b ⊕ c)');
+  assert.equal(xorOf('00011110', V(3)), 'a ⊕ b.c');
+  assert.equal(xorOf('01100000', V(3)), '/a.(b ⊕ c)');
 });
 
 test("XOR forms (#435): don't cares used; none when it is not simpler than the SOP and POS; none above 6 inputs", () => {
@@ -631,7 +631,7 @@ test("XOR forms (#435): don't cares used; none when it is not simpler than the S
   // analyzeOutput: the XOR form only when it is cheaper
   const fa = { ...newTable('fa', ['a', 'b', 'cin'], ['s', 'cout', 'x']), table: { s: colOf(3, parity), cout: '00010111', x: '01010111' } };
   assert.equal(formatExpr(analyzeOutput(fa, 's').xor.ast, 'slash'), 'a ⊕ b ⊕ cin');
-  assert.equal(formatExpr(analyzeOutput(fa, 'cout').xor.ast, 'slash'), 'a·b + cin·(a ⊕ b)');
+  assert.equal(formatExpr(analyzeOutput(fa, 'cout').xor.ast, 'slash'), 'a.b + cin.(a ⊕ b)');
   assert.equal(analyzeOutput(fa, 'x').xor, null);
   assert.equal(analyzeOutput({ ...newTable('p7', seven, ['p']), table: { p: colOf(7, parity) } }, 'p', { maxNodes: 50000 }).xor, null);
   // the cost: literals, then two-input operators (NOT free)
@@ -773,7 +773,7 @@ test('NAND and NOR forms (#694): only NAND / NOR gates of at most 4 inputs, equa
   }
   // the textbook transformations, exactly: f = a·b + /c = /(c·/(a·b)), f = (a + b)·/c = /(/(a + b) + c)
   const f1 = gateForm(minimize('10101011', 3, { form: 'sop' }), ['a', 'b', 'c'], 'nand');
-  assert.deepEqual([formatExpr(f1.ast, 'slash'), f1.gates, f1.inverters], ['/(c·/(a·b))', 2, 0]);
+  assert.deepEqual([formatExpr(f1.ast, 'slash'), f1.gates, f1.inverters], ['/(c./(a.b))', 2, 0]);
   assert.equal(formatExpr(f1.ast, 'vhdl'), 'c nand (a nand b)');
   assert.equal(formatExpr(f1.ast, 'verilog'), '~(c & ~(a & b))');
   const f2 = gateForm(minimize('00101010', 3, { form: 'pos' }), ['a', 'b', 'c'], 'nor');
@@ -782,13 +782,13 @@ test('NAND and NOR forms (#694): only NAND / NOR gates of at most 4 inputs, equa
   assert.equal(formatExpr(f2.ast, 'verilog'), '~(c | ~(a | b))');
   // more than 4 inputs a gate: groups of ANDs (ORs) made of NANDs (NORs): a·b·c·d·e = /(/(/(/(a·b·c·d))·e))
   const f5 = gateForm(minimize('0'.repeat(31) + '1', 5, { form: 'sop' }), V(5), 'nand');
-  assert.equal(formatExpr(f5.ast, 'slash'), '/(/(/(/(a·b·c·d))·e))');
+  assert.equal(formatExpr(f5.ast, 'slash'), '/(/(/(/(a.b.c.d)).e))');
   // f = a and f = /a: two NANDs (an inverted rail and an inverter), one NAND
   assert.equal(formatExpr(gateForm(minimize('0011', 2, { form: 'sop' }), ['a', 'b'], 'nand').ast, 'vhdl'), '(a nand a) nand (a nand a)');
   assert.equal(formatExpr(gateForm(minimize('1100', 2, { form: 'pos' }), ['a', 'b'], 'nor').ast, 'vhdl'), 'a nor a');
   // analyzeOutput shows them (the editor's NAND and NOR forms)
   const a = analyzeOutput({ ...newTable('m', ['a', 'b', 'c'], ['f']), table: { f: '10101011' } }, 'f');
-  assert.deepEqual([formatExpr(a.nand.ast, 'slash'), formatExpr(a.nor.ast, 'slash')], ['/(c·/(a·b))', '/(/(a + /c) + /(b + /c))']);
+  assert.deepEqual([formatExpr(a.nand.ast, 'slash'), formatExpr(a.nor.ast, 'slash')], ['/(c./(a.b))', '/(/(a + /c) + /(b + /c))']);
 });
 
 test('HDL of the NAND and NOR forms (#694): exact VHDL and Verilog, NAND / NOR operations only, no warnings, simulates to the table', () => {
