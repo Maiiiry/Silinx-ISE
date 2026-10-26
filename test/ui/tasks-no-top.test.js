@@ -77,6 +77,7 @@ uiTest('#1422 Tasks ▸ Emulate with no top module: said so in its side panel, S
   const emuNote = () => page.eval(() => { const n = document.querySelector('#task-emu-panel .task-no-top'); return n && n.getClientRects().length ? { text: n.querySelector('p').textContent, button: n.querySelector('button').textContent } : null; });
   await page.waitFor(() => !!document.querySelector('#task-emu-panel .task-no-top')?.getClientRects().length, [], { what: 'the note' });
   assert.deepEqual(await emuNote(), { text: 'No top module is set: the design is implemented from its top module, so set one to see its processes.', button: 'Set Top Module…' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-emu-bar .btn')].map((b) => `${b.textContent}${b.disabled ? ' (off)' : ''}`)), ['I/O Pin Planning (off)', 'Emulate on Board (off)'], 'its bar off (#1424)');
   await page.click('#task-emu-panel .task-no-top button');
   await page.waitDialog('Set Top Module');
   await page.eval(() => { document.querySelector('.dlg-overlay select').value = 'top'; });

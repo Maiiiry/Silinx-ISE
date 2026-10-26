@@ -49,7 +49,13 @@ uiTest('#1204 Tasks ▸ Emulate: its Processes, the top\'s User Constraints and 
   await page.click('#task-switch .task-btn[data-task="emu"]');
   // its page: its text, no button: the emulation from the side panel (#1420)
   assert.equal(await page.eval(() => [...document.querySelectorAll('#task-empty button')].filter((b) => b.getClientRects().length).length), 0);
-  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
+  // above its processes, I/O Pin Planning and Emulate on Board (#1424)
+  await page.waitFor(() => !document.querySelector('#task-emu-bar [data-act=emulate]')?.disabled, [], { what: 'on' });
+  assert.deepEqual(await page.eval(() => {
+    const b = [...document.querySelectorAll('#task-emu-bar .btn')].filter((x) => x.getClientRects().length), t = document.querySelector('#task-emu-panel .task-emu-tree').getBoundingClientRect();
+    return { buttons: b.map((x) => x.textContent), above: b.every((x) => x.getBoundingClientRect().bottom <= t.top + 1) };
+  }), { buttons: ['I/O Pin Planning', 'Emulate on Board'], above: true });
+  await page.click('#task-emu-bar [data-act=emulate]');
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
   await page.waitFor((b) => document.querySelectorAll(`${b} .task-emu-tree li`).length > 0, [BOX], { what: 'Emulate\'s Processes' });
   assert.deepEqual(await procs(page), { shown: true, side: true, tab: 'Emulate', rows: EN });
