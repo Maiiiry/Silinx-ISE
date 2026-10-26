@@ -753,6 +753,29 @@ uiTest('#1063 Tasks ▸ Implement: View RTL Schematic opens in Implement, not in
   await noWarnings(page);
 }, { build: DEV });
 
+// #1483: a document opens in the task it is asked from: View RTL Schematic from a module's menu in Design opens in Design
+uiTest('#1483 Tasks ▸ Design: View RTL Schematic from a module\'s menu opens in Design, not in Implement', E, async (page) => {
+  await makeProject(env, { name: 'TasksRtlDesign', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksRtlDesign');
+  await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Design' });
+  await page.click('#left-tabs .tab[data-page="design"]');
+  await page.rightClick('#hier .row .lbl', { text: 'gates' });
+  await page.click('body > .menu-popup .mi', { text: 'View RTL Schematic' });
+  await page.waitFor(() => window.SilinxApp.S.active?.id === 'rtl:gates', [], { what: 'the RTL Schematic', timeout: 60000 });
+  const s = await state(page);
+  assert.equal(s.task, 'edit', 'Design stays in front');
+  assert.deepEqual(s.current, ['edit']);
+  assert.ok(s.tabs.some((t) => /RTL/.test(t)), `among Design's documents: ${s.tabs}`);
+  assert.ok(await shown(page, '#workspace > .doc:not([hidden])'), 'the RTL Schematic shown in Design');
+  // Implement does not list it
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => document.documentElement.dataset.task === 'impl', [], { what: 'Implement' });
+  assert.ok(!(await state(page)).tabs.some((t) => /RTL/.test(t)), 'not among Implement\'s documents');
+  await noWarnings(page);
+}, { build: DEV });
+
 uiTest('#802 Tasks ▸ Implement: the top\'s Processes, the Design Summary as cards; it comes forward, links to Program', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'TasksImpl', template: 'blinky' });
