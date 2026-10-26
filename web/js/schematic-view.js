@@ -314,7 +314,7 @@ function boxShape(n, ports) {
     if (p.clock) { body += `<path class="clk" d="M${x0},${y - 4} L${x0 + 7},${y} L${x0},${y + 4}"/>`; tx = x0 + 10; }
     if (p.reset) { body += `<text class="rmark" x="${tx}" y="${y + 3}">R</text>`; tx += 9; }
     body += `<text class="pinlabel" x="${tx}" y="${y + 3}">${esc(pinLbl(p))}</text>`;
-    if (p.w > 1) body += `<text class="wlabel" x="${STUB / 2}" y="${y - 3}" text-anchor="middle">${p.w}</text>`;
+    if (p.w > 1) body += `<text class="wlabel" x="${STUB / 2}" y="${y - 3}" text-anchor="middle">${esc(p.w)}</text>`;
     body += `<rect class="hit" x="0" y="${y - 6}" width="${STUB + lw + 4}" height="12"/></g>`;
     pins[p.id] = { ...p, x: 0, y, side: 'W' };
   });
@@ -322,7 +322,7 @@ function boxShape(n, ports) {
     const y = y0 + 15 + i * PITCH;
     body += `<g class="pinhit" data-pin="${esc(p.id)}">` + stub(x0 + bw, y, w, y, p.w);
     body += `<text class="pinlabel" x="${x0 + bw - 3}" y="${y + 3}" text-anchor="end">${esc(pinLbl(p))}</text>`;
-    if (p.w > 1) body += `<text class="wlabel" x="${w - STUB / 2}" y="${y - 3}" text-anchor="middle">${p.w}</text>`;
+    if (p.w > 1) body += `<text class="wlabel" x="${w - STUB / 2}" y="${y - 3}" text-anchor="middle">${esc(p.w)}</text>`;
     body += `<rect class="hit" x="${x0 + bw - rw - 4}" y="${y - 6}" width="${rw + 4 + STUB}" height="12"/></g>`;
     pins[p.id] = { ...p, x: w, y, side: 'E' };
   });
@@ -537,7 +537,7 @@ export function mountSchematic(container, opts = {}) {
         const last = i === bc.length - 1;
         return (i ? '<span class="sch-crumb-sep">›</span>' : '') +
           (last ? `<span class="sch-crumb cur" title="${esc(b.path ?? '')}">${esc(b.label ?? b.path)}</span>`
-                : `<a class="sch-crumb" data-i="${i}" title="${esc(b.path ?? '')}">${esc(b.label ?? b.path)}</a>`);
+                : `<a class="sch-crumb" data-i="${esc(i)}" title="${esc(b.path ?? '')}">${esc(b.label ?? b.path)}</a>`);
       }).join('');
     }
     if (meta.title) html += `<span class="sch-title">${esc(meta.title)}</span>`;

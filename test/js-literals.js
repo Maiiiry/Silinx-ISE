@@ -1,18 +1,22 @@
 // Test helper (#1405): the string and template literals of a JavaScript source: { strings: [text], templates: [[text, text, …]] } (a template's
 // static parts, around its ${…}); comments and regular expression literals skipped. Enough for this
 // repository's sources (not a full parser: a '/' is a regular expression after an operator, a bracket or a keyword).
-export function literalsOf(src) {
+// templatesOf (#1443) gives the templates with what they interpolate: [{ parts, exprs: [source of each ${…}], line }],
+// a template inside a ${…} listed on its own too.
+export function templatesOf(src) {
   const strings = [], templates = [];
   let i = 0, prev = '';   // prev: the last significant character of code (a '/' after it starts a regular expression?)
   const regexAfter = c => !c || /[(,=:[!&|?{};+\-*%<>~^]/.test(c);
   const unescape = s => s.replace(/\\(.)/g, (m, c) => ({ n: '\n', t: '\t' }[c] ?? c));
+  let line = 1, lineAt = 0;   // the line of position i, counted from the last position asked
+  const lineOf = k => { line += src.slice(lineAt, k).split('\n').length - 1; lineAt = k; return line; };
   function template() {   // at the char after the opening backtick; returns at the char after the closing one
-    const parts = []; let cur = '';
+    const parts = [], exprs = [], at = lineOf(i); let cur = '';
     while (i < src.length) {
       const c = src[i];
       if (c === '\\') { cur += src.slice(i, i + 2); i += 2; continue; }
-      if (c === '`') { i++; parts.push(unescape(cur)); templates.push(parts); return; }
-      if (c === '$' && src[i + 1] === '{') { parts.push(unescape(cur)); cur = ''; i += 2; code(1); continue; }
+      if (c === '`') { i++; parts.push(unescape(cur)); templates.push({ parts, exprs, line: at }); return; }
+      if (c === '$' && src[i + 1] === '{') { parts.push(unescape(cur)); cur = ''; i += 2; const s = i; code(1); exprs.push(src.slice(s, i - 1).trim()); continue; }
       cur += c; i++;
     }
   }
@@ -41,4 +45,9 @@ export function literalsOf(src) {
   }
   code(0);
   return { strings, templates };
+}
+
+export function literalsOf(src) {
+  const { strings, templates } = templatesOf(src);
+  return { strings, templates: templates.map(t => t.parts) };
 }

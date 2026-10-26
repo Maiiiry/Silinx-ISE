@@ -87,13 +87,13 @@ export function printHtml(title, bounds, imgUrl, L) {
       // a single page centres the drawing; tiles start at the top-left corner of the window
       const x = n === 1 ? (L.aw - W) / 2 : -c * L.aw, y = n === 1 ? 0 : -r * L.ah;
       const cap = n === 1 ? '' : ` — page ${r * L.cols + c + 1} of ${n} (row ${r + 1}, column ${c + 1})`;
-      pages.push(`<section class="page"><header>${esc(title)}${cap}</header><div class="art">`
+      pages.push(`<section class="page"><header>${esc(title)}${esc(cap)}</header><div class="art">`
         + `<img src="${esc(imgUrl)}" alt="" style="left:${mm(x)};top:${mm(y)};width:${mm(W)};height:${mm(H)}"></div></section>`);
     }
   }
   const size = `${Object.hasOwn(PAGE_SIZE, L.paper) ? PAGE_SIZE[L.paper] : PAGE_SIZE.A4} ${L.land ? 'landscape' : 'portrait'}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
-@page { size: ${size}; margin: ${MARGIN}mm; }
+@page { size: ${esc(size)}; margin: ${MARGIN}mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .page { position: relative; width: ${mm(L.aw)}; height: ${mm(L.ah + CAPTION)}; overflow: hidden; break-after: page; page-break-after: always; }

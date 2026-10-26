@@ -41,7 +41,7 @@ export const RULER_H = 30;
 export const UNITS = { fs: 1e-3, ps: 1, ns: 1e3, us: 1e6, ms: 1e9 };
 const DEFAULT_CAP = 1e9; // 1 ms
 
-const S = (b) => `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${b}</svg>`;
+const S = (body) => `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 export const ICON = {
   restart: S('<path d="M2.5 2.5v11" stroke="#1d4f91" stroke-width="2"/><path d="M14 3L5 8l9 5z" fill="#3a86d8" stroke="#1d4f91"/>'),
   runAll: S('<path d="M1.5 3l6 5-6 5z" fill="#2db12d" stroke="#0d6b0d"/><path d="M8 3l6 5-6 5z" fill="#2db12d" stroke="#0d6b0d"/>'),

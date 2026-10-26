@@ -139,7 +139,7 @@ export function bodySvg(sym, def) {
 // symbol's box in every orientation (#1139, #1174)
 function pinWidth(p) {
   const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
-  return `<text class="pwidth on" x="${p.x + 10 * v[0]}" y="${p.y + 10 * v[1] + 3}" text-anchor="middle">${p.width}</text>`;
+  return `<text class="pwidth on" x="${p.x + 10 * v[0]}" y="${p.y + 10 * v[1] + 3}" text-anchor="middle">${esc(p.width)}</text>`;
 }
 // the symbol's type under it (above it turned 180°, beside it turned 90° / 270°), as ISE draws it (#172)
 function typeUnder(sym, def, box, center, name) {
@@ -214,19 +214,19 @@ function textsSvg(sym, def, ctx = {}) {
     if ((o.width || 1) > 1) s += pinWidth(o);
   } else if (def.shape === 'vcc' || def.shape === 'gnd') {
     const t = cx(10, def.shape === 'vcc' ? 6 : 34);
-    s += `<text class="stype" x="${t.x}" y="${t.y + (def.shape === 'vcc' ? -2 : 6)}" text-anchor="middle">${def.shape.toUpperCase()}</text>`;
+    s += `<text class="stype" x="${t.x}" y="${t.y + (def.shape === 'vcc' ? -2 : 6)}" text-anchor="middle">${esc(def.shape.toUpperCase())}</text>`;
     // (a VCC / GND wider than a bit: its width by its output, #953)
     const o = symbolPins(sym, null, def)[0];
     if ((o.width || 1) > 1) s += pinWidth(o);
   } else if (def.shape === 'gate' || def.shape === 'inv' || def.shape === 'buf') {
     const w = sym.params?.width > 1 ? `${sym.params.width}` : '';
-    if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }
+    if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${esc(w)}</text>`; }
     // the type under the symbol (AND2, OR3B1, INV…), as ISE draws it (#172)
     s += typeUnder(sym, def, box, center, symbolTypeName(sym));
   } else if (def.shape === 'tbuf') {
     // bus width inside the triangle (bus pins), as for the gates
     const w = def.rows === 1 && sym.params?.width > 1 ? `${sym.params.width}` : '';
-    if (w) { const t = cx(def.body.x + 7, 30); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }
+    if (w) { const t = cx(def.body.x + 7, 30); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${esc(w)}</text>`; }
   }
   if (def.shape === 'lib' || def.shape === 'demux' || def.shape === 'ff') {
     // pin names inside the body, clear of the 20 px leads; bus widths beside the pin end

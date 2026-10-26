@@ -11,7 +11,7 @@ import { RemoteBoard, hostBoard } from '/core/emulate-remote.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
 import { boardWiring, boardOutputs, lcdState, lcdFeed, emulatorClocks, manualClocks } from '/core/emulate.js';
-import { h } from './dom.js';
+import { esc, h } from './dom.js';
 import { mountBoardParts } from './emulator-board.js';
 import { mountEmuSide } from './emulator-side.js';
 import { mountEmuPaint } from './emulator-paint.js';
@@ -146,7 +146,7 @@ function svgEl(w, hgt, body) {
 }
 const pmod = (x, y, name, silk) => `<rect x="${x}" y="${y}" width="92" height="22" rx="2" fill="#141414"/>`
   + Array.from({ length: 6 }, (_, i) => `<rect x="${x + 8 + i * 14}" y="${y + 7}" width="7" height="7" fill="#c9a94a"/>`).join('')
-  + `<text x="${x + 46}" y="${y + 38}" fill="${silk}" font-size="11" text-anchor="middle" font-family="Arial" font-weight="bold">${name}</text>`;
+  + `<text x="${x + 46}" y="${y + 38}" fill="${silk}" font-size="11" text-anchor="middle" font-family="Arial" font-weight="bold">${esc(name)}</text>`;
 
 /** Digilent Basys2: navy PCB, Pmods JA..JD on the top edge, USB left, PS/2 and VGA right,
  *  LEDs above the 8 slide switches at the bottom, 4-digit display with the 4 buttons below it. */
@@ -171,7 +171,7 @@ function basys2Layout({ board, title, h, mkDigit, mkLed, mkSwitch, mkButton, por
     <rect x="330" y="132" width="128" height="128" rx="4" fill="#121212" stroke="#333"/>
     <text x="394" y="180" fill="#d8d8d8" font-size="15" text-anchor="middle" font-family="Arial" font-weight="bold">XILINX</text>
     <text x="394" y="202" fill="#bbb" font-size="11" text-anchor="middle" font-family="Arial">SPARTAN-3E</text>
-    <text x="394" y="220" fill="#bbb" font-size="11" text-anchor="middle" font-family="Arial">${(board.device?.part || 'XC3S250E').toUpperCase()}</text>
+    <text x="394" y="220" fill="#bbb" font-size="11" text-anchor="middle" font-family="Arial">${esc((board.device?.part || 'XC3S250E').toUpperCase())}</text>
     <rect x="508" y="176" width="34" height="22" rx="3" fill="#c7cbd2" stroke="#8a8f98"/><text x="525" y="214" fill="${silk}" font-size="9" text-anchor="middle" font-family="Arial">MCLK</text>
     <text x="70" y="226" fill="#fff" font-size="34" font-family="Arial Black, Arial" font-weight="900" letter-spacing="1">BASYS 2</text>
     <text x="566" y="262" fill="#fff" font-size="20" font-family="Arial" font-weight="bold" letter-spacing="2">DIGILENT</text>
@@ -214,9 +214,9 @@ const db = (x, y, w, hgt, fill, label, silk, vertical = true) => `<rect x="${x}"
   + (label ? `<text x="${vertical ? x + w + 8 : x + w / 2}" y="${vertical ? y + hgt / 2 + 4 : y + hgt + 14}" fill="${silk}" font-size="11" ${vertical ? '' : 'text-anchor="middle"'} font-family="Arial" font-weight="bold">${label}</text>` : '');
 const pmod12 = (x, y, name, silk) => `<rect x="${x}" y="${y}" width="96" height="30" rx="2" fill="#141414"/>`
   + Array.from({ length: 12 }, (_, i) => `<rect x="${x + 8 + (i % 6) * 14}" y="${y + 6 + Math.floor(i / 6) * 11}" width="7" height="7" fill="#c9a94a"/>`).join('')
-  + `<text x="${x + 48}" y="${y + 46}" fill="${silk}" font-size="11" text-anchor="middle" font-family="Arial" font-weight="bold">${name}</text>`;
+  + `<text x="${x + 48}" y="${y + 46}" fill="${silk}" font-size="11" text-anchor="middle" font-family="Arial" font-weight="bold">${esc(name)}</text>`;
 const chip = (x, y, w, hgt, lines) => `<rect x="${x}" y="${y}" width="${w}" height="${hgt}" rx="3" fill="#121212" stroke="#333"/>`
-  + lines.map((t, i) => `<text x="${x + w / 2}" y="${y + hgt / 2 - (lines.length - 1) * 9 + i * 18 + 4}" fill="${i ? '#bbb' : '#ddd'}" font-size="${i ? 11 : 14}" text-anchor="middle" font-family="Arial" font-weight="${i ? 'normal' : 'bold'}">${t}</text>`).join('');
+  + lines.map((t, i) => `<text x="${x + w / 2}" y="${y + hgt / 2 - (lines.length - 1) * 9 + i * 18 + 4}" fill="${i ? '#bbb' : '#ddd'}" font-size="${i ? 11 : 14}" text-anchor="middle" font-family="Arial" font-weight="${i ? 'normal' : 'bold'}">${esc(t)}</text>`).join('');
 const holes4 = (W, H) => [[22, 22], [W - 22, 22], [22, H - 22], [W - 22, H - 22]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="#d8c67e"/><circle cx="${x}" cy="${y}" r="5" fill="#1b1b1b"/>`).join('');
 
 // "<board> — <design> · <clock note>": the names are data (not translated), the note is UI text

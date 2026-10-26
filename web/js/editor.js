@@ -424,7 +424,7 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       if (!word) return;
       const info = lookupSym(word);
       if (!info) return;
-      tip.innerHTML = `<b>${esc(info.name)}</b> <span class="k">${info.kind}</span>${info.detail ? `<div class="d">${esc(info.detail)}</div>` : ''}`;
+      tip.innerHTML = `<b>${esc(info.name)}</b> <span class="k">${esc(info.kind)}</span>${info.detail ? `<div class="d">${esc(info.detail)}</div>` : ''}`;
       tip.style.left = `${ev.clientX + 12}px`;
       tip.style.top = `${ev.clientY + 14}px`;
       tip.style.display = 'block';

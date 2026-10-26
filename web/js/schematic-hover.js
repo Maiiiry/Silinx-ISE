@@ -57,9 +57,9 @@ export function mountSchHover(ctx) {
       const rows = [];
       const kindName = { in: 'Input port', out: 'Output port', inout: 'Bidirectional port', inst: 'Instance', blackbox: 'Black box (module not found)', reg: 'Clocked process', comb: 'Combinational logic', tb: 'Testbench process', const: 'Constant', netlabel: 'Net (driven elsewhere)' }[n.kind];
       if (n.kind === 'inst' || n.kind === 'blackbox') rows.push(`<b>${esc(n.label)}</b> : ${esc(n.sub)}`);
-      else if (n.kind === 'gate') rows.push(`<b>${esc(n.gate)}</b>${n.label && n.label !== n.gate ? ` <span class="m">${esc(n.label)}</span>` : ''}${n.w > 1 ? ` <span class="m">[${n.w}]</span>` : ''}`);
+      else if (n.kind === 'gate') rows.push(`<b>${esc(n.gate)}</b>${n.label && n.label !== n.gate ? ` <span class="m">${esc(n.label)}</span>` : ''}${n.w > 1 ? ` <span class="m">[${esc(n.w)}]</span>` : ''}`);
       else rows.push(`<b>${esc(n.label)}</b>${n.sub && n.sub !== n.label ? ` <span class="m">${esc(n.sub)}</span>` : ''}`);
-      if (kindName) rows.push(`<span class="m">${kindName}</span>`);
+      if (kindName) rows.push(`<span class="m">${esc(kindName)}</span>`);
       if (Array.isArray(n.params) && n.params.length) rows.push(`<span class="m">generics:</span> ${n.params.map(esc).join(', ')}`);
       if (pin) rows.push(`<hr>pin <b>${esc(pin.label || pin.id)}</b>${pin.w > 1 ? ` [${pin.w}]` : ''}${pin.clock ? ' (clock)' : ''}${pin.reset ? ' (reset)' : ''}${pin.conn ? ` ⇐ <code>${esc(pin.conn)}</code>` : ''}`);
       else if (BOXES.has(n.kind) && (n.ports || []).some(p => p.conn)) {
@@ -68,7 +68,7 @@ export function mountSchHover(ctx) {
         rows.push('<hr>' + list.join('<br>'));
       }
       if (n.ref?.sig) rows.push(`<span class="m">net:</span> ${esc(n.ref.sig)}`);
-      if (n.ref?.file) rows.push(`<span class="m">${esc(n.ref.file)}${n.ref.line ? ':' + n.ref.line : ''}</span>`);
+      if (n.ref?.file) rows.push(`<span class="m">${esc(n.ref.file)}${esc(n.ref.line ? ':' + n.ref.line : '')}</span>`);
       if (n.kind === 'inst' && n.ref?.inst) rows.push('<i>Double-click to push into this instance</i>');
       else if (n.ref?.file && n.kind !== 'in' && n.kind !== 'out') rows.push('<i>Double-click to open source</i>');
       return rows.join('<br>').replace(/<br><hr>/g, '<hr>');
@@ -76,7 +76,7 @@ export function mountSchHover(ctx) {
     const ni = netInfo().get(key.slice(2)); if (!ni) return '';
     const drv = prep().byId.get(ni.from.node);
     const rows = [`net <b>${esc(ni.name || '(unnamed)')}</b>${ni.w > 1 ? ` [${ni.w - 1}:0]` : ''}`];
-    rows.push(`<span class="m">width ${ni.w} bit${ni.w > 1 ? 's' : ''}, ${ni.sinks.length} load${ni.sinks.length > 1 ? 's' : ''}</span>`);
+    rows.push(`<span class="m">width ${esc(ni.w)} bit${ni.w > 1 ? 's' : ''}, ${ni.sinks.length} load${ni.sinks.length > 1 ? 's' : ''}</span>`);
     if (ni.net) rows.push(`<span class="m">${esc(ni.net)}</span>`);
     if (drv) rows.push(`<span class="m">driver:</span> ${esc(drv.kind === 'gate' ? drv.gate : drv.label)}`);
     return rows.join('<br>');

@@ -24,7 +24,7 @@ export function mountRender(ctx) {
       + `<g class="titleblock"><rect x="${W - 10 - tbw}" y="${H - 10 - tbh}" width="${tbw}" height="${tbh}"/>`
       + `<line x1="${W - 10 - tbw}" y1="${H - 10 - tbh / 2}" x2="${W - 10}" y2="${H - 10 - tbh / 2}"/>`
       + `<text x="${W - tbw}" y="${H - 10 - tbh / 2 - 9}" class="tb-l">SHEET</text><text x="${W - tbw + 50}" y="${H - 10 - tbh / 2 - 9}" class="tb-v">${esc(doc.name)}</text>`
-      + `<text x="${W - tbw}" y="${H - 19}" class="tb-l">LANGUAGE</text><text x="${W - tbw + 70}" y="${H - 19}" class="tb-v">${doc.lang.toUpperCase()}</text>`
+      + `<text x="${W - tbw}" y="${H - 19}" class="tb-l">LANGUAGE</text><text x="${W - tbw + 70}" y="${H - 19}" class="tb-v">${esc(doc.lang.toUpperCase())}</text>`
       + `<text x="${W - 20}" y="${H - 19}" class="tb-l" text-anchor="end">Silinx</text></g>`
       // the sheet description (Schematic Wizard / sheet properties), top left
       + (String(doc.description || '').trim() ? `<text class="se-desc" x="30" y="40">${String(doc.description).trim().split(/\r?\n/).map((l, i) => `<tspan x="30" dy="${i ? 16 : 0}">${esc(l)}</tspan>`).join('')}</text>` : '');
@@ -182,7 +182,7 @@ export function mountRender(ctx) {
     const n = doc.symbols.length;
     const tip = live ? 'Trying it out: click the inputs (switches, bus values, clocks), hover a wire or pin to see its value, drag to pan. Esc stops.' : readOnly ? 'Read-only view. Drag on empty space to select, double-click a module to open it, wheel to zoom.' : ((doc.wireStyle === 'curved' && CURVED_HINT[tool]) || TOOL_HINT[tool] || '');
     const d = lastDiags ? ` · ${lastDiags.filter(x => x.severity === 'error').length} error(s), ${lastDiags.filter(x => x.severity === 'warning').length} warning(s)` : '';
-    status.innerHTML = `<span class="hint">${esc(tip)}</span><span class="sp"></span><span>${n} symbol${n === 1 ? '' : 's'}, ${nl ? nl.nets.length : 0} nets${d}</span><span class="xy">X ${snap(cursor.x)} Y ${snap(cursor.y)}</span><span class="zoom">${Math.round(view.s * 100)}%</span>`;
+    status.innerHTML = `<span class="hint">${esc(tip)}</span><span class="sp"></span><span>${esc(n)} symbol${n === 1 ? '' : 's'}, ${nl ? nl.nets.length : 0} nets${esc(d)}</span><span class="xy">X ${snap(cursor.x)} Y ${snap(cursor.y)}</span><span class="zoom">${Math.round(view.s * 100)}%</span>`;
   }
 
   return { renderSheet, render, renderOverlay, updateToolbar, updateStatus };

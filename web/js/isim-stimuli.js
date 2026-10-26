@@ -128,9 +128,9 @@ export function mountStimuli(ctx) {
           <div class="isim-dlg-hint">The inputs of ${esc(stimInst === design.top ? design.top.name : `${stimInst.module || stimInst.name} (${stimInst.path})`)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.</div>
           <div class="isim-dlg-grid">
             <label>Clock:</label><select name="clock"><option value="">None (combinational)</option>${clocks.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('')}</select>
-            <label>Clock Period (ns):</label><input name="period" value="${m?.periodNs ?? 20}">
-            <label>Time Step (ns):</label><input name="step" value="${m?.stepNs ?? 10}">
-            <label>Cycles:</label><input name="cycles" value="${m?.cycles ?? 16}">
+            <label>Clock Period (ns):</label><input name="period" value="${esc(m?.periodNs ?? 20)}">
+            <label>Time Step (ns):</label><input name="step" value="${esc(m?.stepNs ?? 10)}">
+            <label>Cycles:</label><input name="cycles" value="${esc(m?.cycles ?? 16)}">
           </div>
           <div class="isim-dlg-err"></div>
         </div>
@@ -168,7 +168,7 @@ export function mountStimuli(ctx) {
         <div class="isim-dlg-body">
           <div class="isim-dlg-grid">
             <label>Signal Name:</label><input name="sig" value="${esc(p.name)}" readonly>
-            <label>From Cycle:</label><input name="k" value="${k}" readonly>
+            <label>From Cycle:</label><input name="k" value="${esc(k)}" readonly>
             <label>Value:</label><input name="value" value="${esc(list[k])}">
           </div>
           <div class="isim-dlg-note">${isIn ? 'Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.' : 'Bits, most significant first (0 1, - not checked), h… hexadecimal or d… decimal; - alone: not checked.'}</div>
