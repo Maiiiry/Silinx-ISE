@@ -301,3 +301,20 @@ table.grid tr.sel td { background: #dbe8fb; }
 .code-box { background: var(--code-bg); border: 1px solid var(--frame); padding: 10px; font-family: var(--mono); white-space: pre-wrap; }   /* the code a wizard writes */
 th.th-drive { background: var(--drive-bg); }         /* the test bench wizard: what the bench drives on a bidirectional port */
 th.th-expected { background: var(--expected-bg); }   /* … and the expected outputs */
+
+/* Find in Project (#1430, web/js/find-project.js) */
+.fp { display: flex; flex-direction: column; gap: 8px; }
+.fp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fp-row > label:first-child { min-width: 92px; }
+.fp-row input[type=text] { flex: 1 1 260px; min-width: 0; max-width: 520px; }
+.fp-opts { gap: 16px; }
+.fp-status { color: var(--muted, #666); }
+.fp-group { margin-top: 6px; }
+.fp-file { font-weight: 600; padding: 4px 0; }
+.fp-note { font-weight: normal; color: var(--muted, #666); }
+.fp-hit { display: flex; align-items: center; gap: 10px; padding: 2px 8px; cursor: pointer; border-radius: 4px; }
+.fp-hit:hover { background: var(--hover, rgba(0, 0, 0, .05)); }
+.fp-where { min-width: 64px; color: var(--muted, #666); font: 12px var(--mono, monospace); }
+.fp-hit code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.fp-hit mark { background: #ffe58a; color: inherit; border-radius: 2px; }
+.fp-one { padding: 1px 8px; font-size: 12px; }

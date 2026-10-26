@@ -8,6 +8,7 @@ import { setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { lintEnabled, setLintEnabled } from './diaghelp.js';
 import { getInterface, setInterface, getTheme, setTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
+import { openFindInProject } from './find-project.js';
 import { developmentMenu } from './devmenu.js';
 import { S, activateDoc, app, canCopyAny, canDeleteAny, canPasteAny, closeDoc, copyAny, cutAny, deleteAny, docEditor, history, openFile,
   openFpgaView, openImpact, openPinPlanner, openSummary, pasteAny, projectRedo, projectUndo, redoAny, redoesProject, setView, showLeftPage,
@@ -96,6 +97,7 @@ export function setupMenus() {
       '-',
       { label: 'Find…', icon: icon('find'), action: () => S.active?.editor?.exec('findPersistent'), shortcut: 'Ctrl+F', disabled: () => !S.active?.editor },
       { label: 'Replace…', action: () => S.active?.editor?.exec('replace'), disabled: () => !S.active?.editor },
+      { label: 'Find in Project…', icon: icon('find'), action: () => openFindInProject(), shortcut: 'Ctrl+Shift+F', disabled: () => !S.project },   // (#1430)
       { label: 'Go to Line…', action: () => S.active?.editor?.exec('jumpToLine'), shortcut: 'Ctrl+G', disabled: () => !S.active?.editor },
       '-',
       { label: 'Design Checks (Lint Warnings)', checked: lintEnabled(), action: () => { setLintEnabled(!lintEnabled()); toast(lintEnabled() ? 'Design checks on: Check Syntax and the editor show the lint warnings' : 'Design checks off: only errors are shown'); for (const d of S.docs) d.liveCheck?.(); } },
@@ -183,7 +185,7 @@ export function setupToolbar() {
     btn('cut', 'Cut', () => cutAny(), () => canCopyAny() && canDeleteAny()),
     btn('copy', 'Copy', () => copyAny(), canCopyAny),
     btn('paste', 'Paste', () => pasteAny(), canPasteAny),
-    btn('find', 'Find', () => S.active?.editor?.exec('findToggle')),   // (again: closed, #1328)
+    btn('find', 'Find in Project', () => openFindInProject(), () => !!S.project),   // (every source of the project, #1430; an editor's own Find in its bar)
     h('div', { class: 'tb-sep' }),
     btn('asm', 'New ASM State Diagram', () => S.project && wiz.newSourceWizard({ type: 'asm' })),
     h('div', { class: 'tb-sep' }),
