@@ -512,6 +512,9 @@ uiTest('#1395 Tasks ▸ Simulate: the Files page beside Simulation, the test ben
   }, root);
   await page.waitFor(() => document.querySelector('#task-sim-panel .task-sim-bench .row')?.getClientRects().length > 0, [], { what: 'the panel' });
   assert.deepEqual(await state('#task-sim-panel'), { tabs: ['Simulation*', 'Files'], files: [], tree: true });
+  // each tab its icon, as Design's: the one in front its name too, the other its name as its tooltip (#1404)
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-sim-panel .task-sim-tabs .tab')].map((t) => [!!t.querySelector('.tab-ico svg'), t.querySelector('.tab-lbl').getBoundingClientRect().width > 1, t.title])),
+    [[true, true, 'Simulation'], [true, false, 'Files']]);
   await page.click('#task-sim-panel .task-sim-tabs .tab[data-page=files]');
   assert.deepEqual(await state('#task-sim-panel'), { tabs: ['Simulation', 'Files*'], files: ['tb_top.vhd (sim/tb_top.vhd)'], tree: false });
   // its menu; a double-click opens it in Simulate
