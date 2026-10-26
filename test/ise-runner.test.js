@@ -101,6 +101,8 @@ function installIn(args, { env = {}, runner = true } = {}) {
   }
   const log = path.join(tmp, 'calls');
   for (const t of ['launchctl', 'chown']) fs.writeFileSync(path.join(bin, t), `#!/bin/sh\necho "${t} $*" >> "${log}"\n`, { mode: 0o755 });
+  // the runner's svc.sh (the mode without --system starts and stops the service through it)
+  if (runner) fs.writeFileSync(path.join(dir, 'svc.sh'), `#!/bin/sh\necho "svc.sh $*" >> "${log}"\n`, { mode: 0o755 });
   const r = spawnSync('sh', [path.join(DIR, 'install.sh'), ...args.map(a => a.replace('RUNNER', dir))], {
     encoding: 'utf8',
     env: { PATH: process.env.PATH, HOME: home, SILINX_RUNNER_LIBRARY: lib, SILINX_RUNNER_LAUNCHCTL: path.join(bin, 'launchctl'),
@@ -172,6 +174,24 @@ test('install.sh --system: refused without sudo, or on a folder that is not a ru
   assert.equal(n.code, 1);
   assert.equal(n.err, `${n.dir}: not a configured runner (no bin/runsvc.sh / .runner)\n`);
   assert.deepEqual(n.calls(), []);
+});
+
+test('install.sh without --system: the hook and the window as the logged-in user, with a warning that says to use --system (#1442)', { skip: !posix }, () => {
+  const r = installIn(['RUNNER']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.err, /^WARNING: without --system the hook and the runner's \.env belong to \S+, the user the jobs run as; use 'sudo sh \S+install\.sh --system <user> <the runner's folder>' \(see the header\) on the machine that runs the nightly\.\n$/);
+  const dest = path.join(r.home, 'Library/Silinx-ISE-runner');
+  assert.deepEqual(fs.readdirSync(dest).sort(), ['job-started.sh', 'window.mjs', 'window.sh']);
+  assert.equal(r.read(path.join(r.dir, '.env')), `LANG=en_US.UTF-8\nTMPDIR=/old\nACTIONS_RUNNER_HOOK_JOB_STARTED=${dest}/job-started.sh\n`);
+  assert.match(r.read(path.join(r.home, 'Library/LaunchAgents/com.github.pmnmalo.silinx-ise.runner-window.plist')), new RegExp(`<key>RUNNER_DIR</key><string>${r.dir}</string>`));
+  // the service restarted through svc.sh, the window's agent loaded
+  assert.deepEqual(r.calls().filter(c => c.startsWith('svc.sh')), ['svc.sh stop', 'svc.sh start']);
+  assert.match(r.calls().at(-1), /^launchctl bootstrap gui\/\d+ .*runner-window\.plist$/);
+  // the header: --system first, the mode to use; the cache to clear after a suspicious run
+  const install = fs.readFileSync(path.join(DIR, 'install.sh'), 'utf8');
+  assert.ok(install.indexOf('install.sh --system <user>') < install.indexOf('install.sh <the runner\'s folder>'), '--system documented first');
+  assert.match(install, /--system is the one to use/);
+  assert.match(install, /clear the\n# runner user's silinx-cache folder/);
 });
 
 test('install.sh --docker-acl: the runner\'s user on Docker Desktop\'s socket, again each time it is made', { skip: !posix }, () => {

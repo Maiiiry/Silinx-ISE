@@ -46,7 +46,9 @@ powershell -ExecutionPolicy Bypass -File docker\ise\build-ise-image.ps1 -Install
 
 The script checks the installer checksum and x86-64 emulation, builds `xilinx/ise:14.7`
 (20–60 minutes, once), synthesizes a test design to confirm the license works, and configures
-Silinx to use the image. Without arguments it looks for both files in `~/Downloads`.
+Silinx to use the image. Without arguments it looks for both files in `~/Downloads`, and says which
+it took. The checksum is the MD5 AMD publishes: it tells a corrupt or a different download apart,
+not who made the file; download the installer from AMD's site yourself.
 
 **Image size.** By default the install is trimmed to what the command-line flow uses
 (`trim-ise.sh`): EDK, PlanAhead, CORE Generator, SysGen, simulation libraries, documentation and

@@ -6,7 +6,11 @@
 #                                 --license   ~/Downloads/Xilinx.lic  [--tag xilinx/ise:14.7] [--no-md5]
 #                                 [--full | --families "spartan3e spartan6"]
 # Default: ISE trimmed to the command-line flow (about 3 GB, every device family). --full keeps the
-# complete ~18 GB install; --families keeps only the listed families' device data.
+# complete ~18 GB install; --families keeps only the listed families' device data. Without --installer
+# or --license, the file is taken from ~/Downloads, and the script says which it took.
+# The MD5 check compares the installer with the sum AMD publishes: it tells a corrupt or a different
+# download apart (integrity), not who made the file (authenticity): download the installer from AMD's
+# site yourself, over https.
 #
 # Requirements: Docker (Docker Desktop, OrbStack, Colima or Docker Engine) with BuildKit, ~30 GB
 # free disk during the build. The image contains AMD/Xilinx software and your license: never push
@@ -33,15 +37,15 @@ while [ $# -gt 0 ]; do
     --no-md5) CHECK_MD5=0; shift ;;
     --full) BUILD_ARGS+=(--build-arg ISE_FULL=1); shift ;;
     --families) BUILD_ARGS+=(--build-arg "KEEP_FAMILIES=$2"); shift 2 ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
 
-# --- locate the inputs (default: ~/Downloads)
-find_default() { for d in "$HOME/Downloads" "$PWD" "$KIT_DIR"; do [ -f "$d/$1" ] && { echo "$d/$1"; return; }; done; }
-[ -n "$INSTALLER" ] || INSTALLER="$(find_default Xilinx_ISE_DS_Lin_14.7_1015_1.tar || true)"
-[ -n "$LICENSE" ] || LICENSE="$(find_default Xilinx.lic || true)"
+# --- locate the inputs (default: ~/Downloads, said; not the current folder, #1442)
+find_default() { [ -f "$HOME/Downloads/$1" ] && { echo "$HOME/Downloads/$1"; return; }; }
+[ -n "$INSTALLER" ] || { INSTALLER="$(find_default Xilinx_ISE_DS_Lin_14.7_1015_1.tar || true)"; [ -z "$INSTALLER" ] || info "installer: $INSTALLER (no --installer given)"; }
+[ -n "$LICENSE" ] || { LICENSE="$(find_default Xilinx.lic || true)"; [ -z "$LICENSE" ] || info "license: $LICENSE (no --license given)"; }
 [ -f "$INSTALLER" ] || die "installer not found. Download 'ISE Design Suite 14.7 - Full Installer for Linux' (Xilinx_ISE_DS_Lin_14.7_1015_1.tar) from AMD and pass --installer <path>."
 [ -f "$LICENSE" ] || die "license not found. Get a free 'ISE WebPACK License' (Xilinx.lic) from the AMD/Xilinx licensing site and pass --license <path>."
 [ "$(basename "$INSTALLER")" = "Xilinx_ISE_DS_Lin_14.7_1015_1.tar" ] || die "the installer file must be named Xilinx_ISE_DS_Lin_14.7_1015_1.tar"
@@ -78,13 +82,12 @@ fi
 
 # --- build (installer and license folders are passed as named build contexts)
 # The installer gets its own folder (hard link: instant, no extra space), so BuildKit only
-# transfers the tarball and not everything else that sits next to it (e.g. ~/Downloads).
-INSTALLER_DIR="$(cd "$(dirname "$INSTALLER")" && pwd)/.silinx-ise-stage"
-mkdir -p "$INSTALLER_DIR" 2>/dev/null || INSTALLER_DIR="$(mktemp -d)"
-if [ ! -f "$INSTALLER_DIR/Xilinx_ISE_DS_Lin_14.7_1015_1.tar" ]; then
-  ln "$INSTALLER" "$INSTALLER_DIR/Xilinx_ISE_DS_Lin_14.7_1015_1.tar" 2>/dev/null \
-    || { info "copying the installer to a staging folder (different disk)"; cp "$INSTALLER" "$INSTALLER_DIR/Xilinx_ISE_DS_Lin_14.7_1015_1.tar"; }
-fi
+# transfers the tarball and not everything else that sits next to it (e.g. ~/Downloads). The folder
+# is a new one of this run (mktemp, #1442): the trap at the end removes nothing that was there before.
+INSTALLER_DIR="$(mktemp -d "$(cd "$(dirname "$INSTALLER")" && pwd)/.silinx-ise-stage.XXXXXX" 2>/dev/null || mktemp -d)"
+trap 'rm -rf "$INSTALLER_DIR"' EXIT
+ln "$INSTALLER" "$INSTALLER_DIR/Xilinx_ISE_DS_Lin_14.7_1015_1.tar" 2>/dev/null \
+  || { info "copying the installer to a staging folder (different disk)"; cp "$INSTALLER" "$INSTALLER_DIR/Xilinx_ISE_DS_Lin_14.7_1015_1.tar"; }
 LICENSE_DIR="$(mktemp -d)"
 trap 'rm -rf "$LICENSE_DIR" "$INSTALLER_DIR"' EXIT
 cp "$LICENSE" "$LICENSE_DIR/Xilinx.lic"

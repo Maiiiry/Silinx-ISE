@@ -7,19 +7,24 @@
 # The scripts are copied out of the repository (a job's checkout must not change them): run it again
 # after they change.
 #
-# Two ways to run the runner:
-#   sh scripts/ise-runner/install.sh <the runner's folder>
-#       the runner's service as the logged-in user (svc.sh's launchd agent), the window an agent of the
-#       same user;
+# Two ways to run the runner; --system is the one to use (#1442):
 #   sudo sh scripts/ise-runner/install.sh --system <user> <the runner's folder>
 #       the runner as a dedicated standard user with no keys or tokens (#482): a launchd daemon run as
 #       <user>, started and stopped by the window, a daemon of root whose scripts and Node.js are copied
 #       where <user> cannot change them. Its jobs' temporary files stay in the runner's folder
 #       (TMPDIR), the folder Docker Desktop shares, and they reach Docker through its socket;
+#   sh scripts/ise-runner/install.sh <the runner's folder>
+#       the runner's service as the logged-in user (svc.sh's launchd agent), the window an agent of the
+#       same user: the hook's copy and the runner's .env belong to that user, so a job that does run
+#       (main's ise.yml, quality.yml) could change or remove them; a warning says so. For a try, not
+#       for the machine that runs the nightly;
 #   sh scripts/ise-runner/install.sh --docker-acl <user>
 #       run by the user of Docker Desktop: a launchd agent that lets <user> use Docker Desktop's socket,
 #       again each time Docker Desktop makes it anew.
 #   --uninstall before any of them removes what it installed.
+# After a run that looks wrong (a job that should not have run, a design that is not ours), clear the
+# runner user's silinx-cache folder (the quality comparison's design corpus, under that user's home: it
+# persists from run to run; the next run fetches it anew) and its _work folder, and run install.sh again.
 set -eu
 uninstall=no
 if [ "${1:-}" = --uninstall ]; then uninstall=yes; shift; fi
@@ -176,6 +181,8 @@ if [ $uninstall = yes ]; then
   exit 0
 fi
 
+# this user owns the hook's copy and .env, as the jobs do (#1442): --system is the mode for the machine that runs the nightly
+echo "WARNING: without --system the hook and the runner's .env belong to $(id -un), the user the jobs run as; use 'sudo sh $0 --system <user> <the runner's folder>' (see the header) on the machine that runs the nightly." >&2
 mkdir -p "$DEST" "$HOME/Library/LaunchAgents"
 cp "$SRC/job-started.sh" "$SRC/window.sh" "$SRC/window.mjs" "$DEST/"
 chmod 755 "$DEST/job-started.sh" "$DEST/window.sh"
