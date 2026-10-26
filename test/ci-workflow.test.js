@@ -119,3 +119,11 @@ test('CodeQL (#498): a workflow of its own, nightly on main when its code change
   assert.doesNotMatch(read('.github/workflows/ci.yml'), /codeql/i);
   for (const f of ['CLAUDE.md', 'ONBOARDING.md', 'SECURITY.md']) assert.match(read(f), /CodeQL/, f);
 });
+
+test('CI: WebKit and its system packages installed in a step of their own, its time apart from the tests\' (#1559)', () => {
+  const w = jobs(read('.github/workflows/ci.yml'))['webkit-standalone'].join('\n');
+  assert.match(w, /- name: WebKit and its system packages\n\s+run: npx playwright install --with-deps webkit\n\s+timeout-minutes: 25\n/);
+  assert.match(w, /- name: Memory in WebKit \(Safari's engine\)\n\s+run: npm run test:webkit\n\s+timeout-minutes: 15\n/);
+  const job = +w.match(/^    timeout-minutes: (\d+)$/m)[1];
+  assert.ok(job >= 25 + 15, `the job's ${job} minutes hold both steps`);
+});
