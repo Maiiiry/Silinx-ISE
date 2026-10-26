@@ -116,14 +116,14 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.deepEqual([s.task, s.side, s.console, s.empty], ['edit', 'open', 'open', false]);
   assert.ok(s.tabs.includes('top.vhd'), s.tabs.join());
   assert.ok(await shown(page, '#hier') && await shown(page, '#console-body'));
-  // Simulate, nothing simulated yet: its page and its action; the editor is not shown, the messages folded (the
-  // messages' tabs stay), its side panel open (#1408)
+  // Simulate, nothing simulated yet: its page and its action; the editor is not shown, the messages shown (#1429), its
+  // side panel open (#1408)
   await page.click('#task-switch .task-btn[data-task="sim"]');
   s = await state(page);
-  assert.deepEqual(s, { task: 'sim', side: 'open', console: 'folded', max: 'off', current: ['sim'], tabs: [], empty: true });
+  assert.deepEqual(s, { task: 'sim', side: 'open', console: 'open', max: 'off', current: ['sim'], tabs: [], empty: true });
   assert.ok(!(await shown(page, '.doc .cm-editor')));
   assert.ok(!(await shown(page, '#hier')) && !(await shown(page, '#left-tabs')), 'no Design pane, no activity bar (Edit\'s, #876)');
-  assert.ok(!(await shown(page, '#console-body')) && await shown(page, '#console-tabs'));
+  assert.ok(await shown(page, '#console-body') && await shown(page, '#console-tabs'));
   assert.equal(await page.eval(() => document.querySelector('#task-empty h2').textContent), 'Simulate');
   // its action: the simulation of the top module (as the toolbar's Simulate of the modern interface)
   await page.click('#task-sim-panel .task-sim-bench .row.sel');
@@ -172,8 +172,10 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   await page.click('#task-view [data-act="max"]');
   assert.equal((await state(page)).max, 'off');
   assert.ok(await shown(page, '#left'));
-  // the messages: folded in Simulate, they open from their tabs and from the bar
+  // the messages: shown in Simulate (#1429), folded and open again from the bar
   await page.click('#task-switch .task-btn[data-task="sim"]');
+  assert.equal((await state(page)).console, 'open');
+  await page.click('#task-view [data-act="console"]');
   assert.equal((await state(page)).console, 'folded');
   await page.click('#task-view [data-act="console"]');
   assert.equal((await state(page)).console, 'open');
@@ -652,6 +654,8 @@ uiTest('#1022 Tasks ▸ Emulate: the emulation\'s time and rate right below the 
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  // (the messages folded: the board's room on this screen, #1429)
+  await page.click('#task-view [data-act="console"]');
   await page.waitFor(() => /^t = .* cycles .* kHz \(.*% of real time\)$/.test(document.querySelector('.doc:not([hidden]) .emu-board-wrap > .stat')?.textContent || ''), [], { what: 'the status below the board' });
   let s = await emuStatus(page);
   assert.deepEqual({ ...s, text: undefined }, { where: 'board', below: true, seen: true, note: false, text: undefined, noteText: s.noteText });
@@ -849,8 +853,8 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   await page.click('#left-tabs .tab[data-page="files"]');
   assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: true });
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  // (Simulate with nothing simulated: its own side panel always shown, no button to fold it, #1376)
-  assert.deepEqual(await L(), { bar: false, left: false, side: false, procs: false, files: false }, 'sim');
+  // (Simulate with nothing simulated: its own side panel, its button folding it as the other tasks', #1376, #1428)
+  assert.deepEqual(await L(), { bar: false, left: false, side: true, procs: false, files: false }, 'sim');
   // (the workspace from the window's left edge: no empty column)
   assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4, 'sim: no empty column');
   // Emulate: its Processes, as Implement's, under their tab (#1399)
@@ -957,7 +961,12 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
     'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-empty button')].filter((b) => b.getClientRects().length).length), 0);
-  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['task-bench', 'task-model'], beside: true, side: false });
+  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['task-bench', 'task-model'], beside: true, side: true });
+  // (folded by the side panel's button, as the other tasks', #1428)
+  await page.click('#task-view [data-act="side"]');
+  assert.ok(!(await shown(page, '#task-sim-panel')) && Math.round(await page.eval(() => document.getElementById('task-empty').getBoundingClientRect().left)) <= Math.round(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left)) + 1, 'folded');
+  await page.click('#task-view [data-act="side"]');
+  assert.ok(await shown(page, '#task-sim-panel'));
   assert.deepEqual(await prompts(), PROMPTS);
   // the module chosen: not simulated yet, the model still to choose; the model chosen: simulated
   await set('task-bench', 'and2');
@@ -988,7 +997,7 @@ uiTest('#917 #1378 Tasks ▸ Simulate: no test bench, the module and the model c
   assert.deepEqual(await page.eval(() => [document.documentElement.dataset.task, window.Silinx.active.task]), ['sim', 'sim']);
   await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.active));
   await page.waitFor(() => document.querySelector('#task-sim-panel .task-sim-bench .row.sel')?.textContent === '▸tb_and2', [], { what: 'its row' });
-  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['▸tb_and2*'], beside: true, side: false });
+  assert.deepEqual(await panel(), { tab: 'Simulation', rows: ['▸tb_and2*'], beside: true, side: true });
   assert.notEqual(await page.eval(() => document.querySelector('#task-empty p').textContent), 'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.');
   // its row clicked: simulated
   await page.click('#task-sim-panel .task-sim-bench .row.sel');
@@ -1112,7 +1121,7 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
-  await page.click('#task-view [data-act="console"]');
+  // (its messages shown at first, #1429)
   assert.deepEqual(await pressed(page), ['emu']);
   lines = await shownLines(page);
   assert.ok(lines.length && lines.every(([src]) => src === 'emu') && lines.some(([, t]) => /^Board Emulator: 'top'/.test(t)), JSON.stringify(lines));
