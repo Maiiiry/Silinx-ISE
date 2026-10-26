@@ -76,7 +76,7 @@ uiTest('editor: an edit made while the file is being saved is saved too, and sav
   assert.match(await readWs(env, 'SlowSave', 'src/top.vhd'), /^library ieee; -- one two\n/);
 });
 
-// #1328: the Find buttons (the editor's bar, the toolbar) toggle the find bar; Ctrl+F opens it
+// #1328: the editor bar's Find toggles the find bar; Ctrl+F opens it (the toolbar's Find is Find in Project, #1430)
 uiTest('editor: the Find buttons open the find bar and close it when clicked again; Ctrl+F opens it (#1328)', E, async (page) => {
   await project('FindPj');
   await page.openProject('FindPj');
@@ -88,11 +88,11 @@ uiTest('editor: the Find buttons open the find bar and close it when clicked aga
   await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'the find bar' });
   await page.click(bar);
   await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'closed by the second click' });
-  // the toolbar's Find: the same
+  // the toolbar's Find: Find in Project, every source (#1430); the editor's own find stays in its bar
   await page.click('#toolbar .tb-btn[data-cmd=find]');
-  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'opened from the toolbar' });
-  await page.click('#toolbar .tb-btn[data-cmd=find]');
-  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-panel.cm-search'), [], { what: 'closed from the toolbar' });
+  await page.waitFor(() => window.Silinx.active?.id === 'find', [], { what: 'Find in Project from the toolbar' });
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
   // Ctrl+F: opens it (twice: still open)
   await page.eval(() => window.Silinx.active.editor.focus());
   await page.key('f', { modifiers: process.platform === 'darwin' ? 4 : 2 });

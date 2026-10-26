@@ -910,6 +910,8 @@ async function boot() {
     // Ctrl/Cmd+K, Ctrl/Cmd+Shift+P: the command palette (not while a dialog is open)
     if ((e.metaKey || e.ctrlKey) && !e.altKey && ((e.key === 'k' || e.key === 'K') && !e.shiftKey || (e.shiftKey && (e.key === 'p' || e.key === 'P')))
       && !document.querySelector('.dlg-overlay')) { e.preventDefault(); showPalette(); return; }
+    // Ctrl/Cmd+Shift+F: Find in Project (#1430)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F') && S.project && !document.querySelector('.dlg-overlay')) { e.preventDefault(); import('./find-project.js').then(f => f.openFindInProject()); return; }
     if (!e.defaultPrevented && (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P') && (S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor)) { e.preventDefault(); printActive(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (S.active) flushDoc(S.active); }  // nothing to do: edits are saved automatically
     // Ctrl/Cmd+Z outside an editor or text field (the diagram editors handle their own keys): undo the

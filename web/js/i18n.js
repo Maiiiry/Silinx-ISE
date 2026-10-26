@@ -331,6 +331,13 @@ const PT = {
   'Design modules': 'Módulos do projeto',
   'New Test Bench…': 'Nova Bancada de Teste…', 'Add Copy of TB…': 'Adicionar Cópia de TB…', 'Add Copy of Test Bench': 'Adicionar Cópia de Bancada de Teste',
   'Go To Source': 'Ir para a Fonte',
+  // Find in Project (#1430)
+  'Find in Project': 'Procurar no Projeto', 'Find in Project…': 'Procurar no Projeto…', 'Replace All': 'Substituir Tudo', 'Match case': 'Maiúsculas e minúsculas',
+  'Whole word': 'Palavra inteira', 'Regular expression': 'Expressão regular', 'Find:': 'Procurar:', 'Replace with:': 'Substituir por:',
+  'Undo Replace': 'Anular Substituição', 'No results': 'Sem resultados', 'Text to find': 'Texto a procurar', 'Replacement': 'Substituto',
+  'Replace this one': 'Substituir este', 'Open the drawing': 'Abrir o desenho', 'Open at this line': 'Abrir nesta linha',
+  'Open a project first': 'Abra primeiro um projeto', 'Replacement undone': 'Substituição anulada',
+  'generated from its drawing: replace in the drawing': 'gerado do seu desenho: substitua no desenho',
   'Select design module to simulate...': 'Selecione o módulo do projeto a simular...', 'Select simulation model...': 'Selecione o modelo de simulação...',
   'The project has no test bench yet: create one with the wizard, or choose a module to simulate with stimuli drawn in SSim.': 'O projeto ainda não tem bancada de teste: crie uma com o assistente, ou escolha um módulo para o simular com estímulos desenhados no SSim.',
   'The model to simulate': 'O modelo a simular',
@@ -363,6 +370,9 @@ const PT_FF = [['synchronous set and reset (S over R)', 'set e reset síncronos 
   ['clock enable', 'habilitação do relógio'], ['asynchronous clear', 'clear assíncrono'], ['asynchronous preset', 'preset assíncrono'],
   ['synchronous reset', 'reset síncrono'], ['synchronous set', 'set síncrono']];
 const PT_PATTERNS = [
+  // Find in Project (#1430)
+  [/^(\d+) result\(s\) in (\d+) file\(s\)$/, '$1 resultado(s) em $2 ficheiro(s)'], [/^(\d+) replacement\(s\) in (\d+) file\(s\)$/, '$1 substituição(ões) em $2 ficheiro(s)'],
+  [/^Invalid regular expression: (.*)$/, 'Expressão regular inválida: $1'],
   // Simulate's side panel: a test bench's row (#1378)
   [/^Simulate ([A-Za-z][A-Za-z0-9_]*)$/, 'Simular $1'],
   // the Development menu (#707)
