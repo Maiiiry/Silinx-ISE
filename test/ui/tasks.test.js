@@ -1700,26 +1700,37 @@ uiTest('#1398 Tasks ▸ Implement: I/O Pin Planning and Program FPGA above the P
 }, { build: DEV });
 
 // #1409: the four tasks' side panels alike: their width (as the viewer leaves it), background and text, their tabs'
-// row and label, the bar above the tree and its buttons, the tree's rows
-uiTest('#1409 Tasks: the side panels of Design, Simulate, Emulate and Implement alike (width, background, text, tabs, bars, rows)', E, async (page) => {
-  await makeProject(env, { name: 'TasksAlike', template: 'blinky' });
+// row (as high as the documents' tabs beside it) and label, the bar above the tree and its buttons, the tree's rows and
+// how far in its first row starts; Simulate's with a simulation as with none; the Start page's buttons a bar as the
+// others', its commands' icons shown; the Files page's rows as the trees'
+for (const theme of ['light', 'dark']) uiTest(`#1409 Tasks (${theme}): the side panels of Design, Simulate, Emulate and Implement alike (width, background, text, tabs, bars, rows)`, E, async (page) => {
+  await makeProject(env, { name: `TasksAlike-${theme}`, template: 'blinky' });
   await page.setViewport(1440, 900);
+  await page.eval((t) => localStorage.setItem('silinx.theme', t), theme);
   await tasksInterface(page);
-  await page.openProject('TasksAlike');
+  assert.equal(await page.eval(() => document.documentElement.dataset.theme), theme);
+  await page.openProject(`TasksAlike-${theme}`);
   const look = (panel, tabs, lbl, bar, btn, row) => page.eval((p, t, l, b, bt, rw) => {
     const vis = (e) => e && e.getClientRects().length > 0;
     const q = (s) => [...document.querySelectorAll(s)].find(vis);
     const c = (s, f) => { const e = q(s); return e ? f(getComputedStyle(e), e.getBoundingClientRect()) : null; };
     return { width: c(p, (s, r) => Math.round(r.width)), bg: c(p, (s) => s.backgroundColor), text: c(p, (s) => s.fontSize),
       tabs: c(t, (s, r) => Math.round(r.height)), label: c(l, (s) => `${s.fontSize} ${s.fontWeight}`), bar: c(b, (s, r) => Math.round(r.height)),
-      button: c(bt, (s, r) => `${Math.round(r.height)} ${s.fontSize}`), row: c(rw, (s, r) => `${Math.round(r.height)} ${s.fontSize}`) };
+      button: c(bt, (s, r) => `${Math.round(r.height)} ${s.fontSize}`), row: c(rw, (s, r) => `${Math.round(r.height)} ${s.fontSize}`),
+      // (the first row's twisty from the panel's left edge, its selection as far from both edges)
+      indent: Math.round(q(`${rw} .twisty`).getBoundingClientRect().left - q(p).getBoundingClientRect().left),
+      inset: Math.round(q(rw).getBoundingClientRect().left - q(p).getBoundingClientRect().left) };
   }, panel, tabs, lbl, bar, btn, row);
+  const docTabs = () => page.eval(() => Math.round(document.getElementById('doc-tabs').getBoundingClientRect().height));
   const go = async (t) => { await page.click(`#task-switch .task-btn[data-task="${t}"]`); await page.waitFor((x) => document.documentElement.dataset.task === x, [t]); };
   await go('edit');
   // (the side panel made wider by the viewer: every task's the same)
   await page.eval(() => { document.getElementById('left').style.width = '380px'; });
   await go('impl');
   const impl = await look('#left', '#left-tabs', '#task-procs-tab .tab-lbl', '#task-impl-bar', '#task-impl-bar .btn', '#procs .row');
+  // (the Design Summary open: the documents' tabs beside the side panel's, as high)
+  await page.waitFor(() => document.querySelector('#doc-tabs .tab')?.getClientRects().length > 0, [], { what: 'the Design Summary' });
+  assert.equal(await docTabs(), impl.tabs, 'the documents\' tabs as high as the side panel\'s');
   await go('edit');
   const edit = await look('#left', '#left-tabs', '#left-tabs .tab.active .tab-lbl', '#task-src-bar', '#task-src-bar .btn', '#hier .row');
   await go('emu');
@@ -1728,5 +1739,47 @@ uiTest('#1409 Tasks: the side panels of Design, Simulate, Emulate and Implement 
   await page.waitFor(() => document.getElementById('task-sim-panel')?.getClientRects().length > 0, [], { what: 'Simulate\'s panel' });
   const sim = await look('#task-sim-panel', '#task-sim-panel .task-sim-tabs', '#task-sim-panel .task-sim-tabs .tab.active .tab-lbl', '#task-sim-panel .task-sim-src-bar', '#task-sim-panel .task-sim-src-bar .btn', '#task-sim-panel .row');
   assert.equal(impl.width, 380);
+  assert.deepEqual([impl.tabs, impl.bar, impl.button, impl.row, impl.indent, impl.inset], [38, 40, '32 12px', '26 13px', 8, 6]);
   for (const [name, x] of Object.entries({ edit, sim, emu })) assert.deepEqual(x, impl, `${name} as Implement's`);
+  // a simulation: its side panel as with none (its width, tabs, bar, rows), its tabs as high as the documents' beside it
+  await page.click('#task-sim-panel .task-sim-bench .row');
+  await page.waitFor(() => [...document.querySelectorAll('.doc .isim-left .isim-tree .row')].some((r) => r.getClientRects().length), [], { what: 'the simulation', timeout: 60000 });
+  const running = await look('.doc:not([hidden]) .isim-left', '.doc:not([hidden]) .isim-left .task-sim-tabs', '.doc:not([hidden]) .isim-left .task-sim-tabs .tab.active .tab-lbl',
+    '.doc:not([hidden]) .isim-left .task-sim-src-bar', '.doc:not([hidden]) .isim-left .task-sim-src-bar .btn', '.doc:not([hidden]) .isim-left .isim-tree .row');
+  assert.deepEqual(running, impl, 'Simulate\'s side panel with a simulation as with none');
+  // the Start page: its buttons a bar as Design's, its commands' icons shown (none were: 0 px wide)
+  await go('edit');
+  await page.leftTab('start');
+  await page.waitFor(() => document.querySelector('#start-page .start-box h3')?.getClientRects().length > 0, [], { what: 'the Start page' });
+  const start = await page.eval(() => {
+    const r = (s) => document.querySelector(s).getBoundingClientRect(), b = document.querySelector('#start-page .start-btns .btn');
+    return { bar: Math.round(r('#start-page .start-btns').height), button: `${Math.round(b.getBoundingClientRect().height)} ${getComputedStyle(b).fontSize}`,
+      icons: [...new Set([...document.querySelectorAll('#start-page .entry .ico')].map((e) => Math.round(e.getBoundingClientRect().width)))] };
+  });
+  assert.deepEqual(start, { bar: edit.bar, button: edit.button, icons: [16] });
+  // the Files page: its rows as the trees', its folders' icon the app's
+  await page.leftTab('files');
+  await page.waitFor(() => document.querySelector('#files-page tr[data-file]')?.getClientRects().length > 0, [], { what: 'the Files page' });
+  assert.deepEqual(await page.eval(() => ({ rows: [...new Set([...document.querySelectorAll('#files-page tr:not(:first-child)')].map((t) => Math.round(t.getBoundingClientRect().height)))],
+    folder: document.querySelector('#files-page .folder-row td').textContent, icon: !!document.querySelector('#files-page .folder-row .ico svg') })),
+  { rows: [26], folder: 'constraints/', icon: true });
+  await noWarnings(page);
+});
+// #1409: the classic interface keeps its look; what the Start and Files pages share: the commands' icons shown, the
+// folders' icon the app's (its rows as high as before, the files' and the folders')
+uiTest('#1409 classic: the Start page\'s commands with their icons, the Files page\'s folders with the app\'s icon', E, async (page) => {
+  await makeProject(env, { name: 'ClassicAlike', template: 'blinky' });
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
+  await page.waitFor(() => document.documentElement.dataset.ui === 'classic' && !document.documentElement.dataset.layout, [], { what: 'classic' });
+  await page.openProject('ClassicAlike');
+  await page.leftTab('start');
+  await page.waitFor(() => document.querySelector('#start-page .start-box h3')?.getClientRects().length > 0, [], { what: 'the Start page' });
+  assert.deepEqual(await page.eval(() => ({ icons: [...new Set([...document.querySelectorAll('#start-page .entry .ico')].map((e) => Math.round(e.getBoundingClientRect().width)))],
+    pad: getComputedStyle(document.querySelector('#start-page > .page')).padding, bar: getComputedStyle(document.querySelector('#start-page .start-btns')).padding })),
+  { icons: [16], pad: '14px 18px', bar: '0px' });
+  await page.leftTab('files');
+  await page.waitFor(() => document.querySelector('#files-page tr[data-file]')?.getClientRects().length > 0, [], { what: 'the Files page' });
+  assert.deepEqual(await page.eval(() => ({ folder: document.querySelector('#files-page .folder-row td').textContent, icon: Math.round(document.querySelector('#files-page .folder-row .ico').getBoundingClientRect().width),
+    rows: [...new Set([...document.querySelectorAll('#files-page tr:not(:first-child)')].map((t) => Math.round(t.getBoundingClientRect().height)))] })), { folder: 'constraints/', icon: 16, rows: [17] });
+  await noWarnings(page);
 });
