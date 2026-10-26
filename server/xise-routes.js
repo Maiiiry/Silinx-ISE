@@ -25,11 +25,11 @@ export function mountXiseRoutes(ctx) {
     return out;
   }
 
+  // the .xise sent, nothing written (#1432: a GET changes no file; sync-xise writes it on request)
   api.get('/projects/:p/export.xise', wrap(async (req, res) => {
     const name = req.params.p;
     const project = await P.readProject(name);
     const xml = exportXise(project, { sources: await sourcesOf(name, project) });
-    await fs.writeFile(path.join(P.projectDir(name), xiseName(project)), xml);
     // attachment() sets the type from the extension (.xise: octet-stream): set the XML type after it
     res.attachment(xiseName(project)).type('application/xml').send(xml);
   }));
