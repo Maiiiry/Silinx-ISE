@@ -196,9 +196,9 @@ test('symbol library: inverted-input gates, decoder, encoder and demultiplexer',
   assert.equal(SYMBOLS.decoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.encoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.demux.category, 'Mux');
-  // (#324: one DECODER, as D2_4E; one ENCODER, as ENC4_2)
+  // (#324: one DECODER, as D2_4E; one ENCODER, as PENC4_2, #1553)
   assert.deepEqual([SYMBOLS.decoder.presets, SYMBOLS.encoder.presets], [undefined, undefined]);
-  assert.deepEqual([defaultParams('decoder'), defaultParams('encoder')], [{ n: 2, en: true, bus: false }, { n: 2, mode: 'one-hot', bus: false }]);
+  assert.deepEqual([defaultParams('decoder'), defaultParams('encoder')], [{ n: 2, en: true, bus: false }, { n: 2, mode: 'priority', bus: false }]);
   // (#313: one entry per symbol, the enable E a parameter; #334: one MUX (M2_1, its Select bits making M4_1 …
   // M16_1) and one DEMUX (its Select bits), no DEMUX1_n presets)
   assert.equal(SYMBOLS.demux.presets, undefined);
@@ -276,6 +276,72 @@ test('simulation: priority and one-hot encoders n = 2..5, bit and bus pins (rand
   const cases = [];
   for (const n of [2, 3, 4, 5]) for (const mode of ['priority', 'one-hot']) for (const bus of [false, true]) cases.push({ type: 'encoder', params: { n, mode, bus } });
   check('encoders', cases, 60);
+});
+
+// #1553: a new ENCODER is a priority encoder (PENC4_2), the highest index winning; one-hot still a Type; a saved
+// ENCODER keeps its Type, one saved without it (from before) one-hot as it was
+// (the reference: the index of the highest bit set from Math.clz32, the OR of the indexes; not the model above)
+const encRef = (mode, x, m) => ({ A: mode === 'one-hot' ? [...Array(m).keys()].filter(i => (x >> i) & 1).reduce((a, i) => a | i, 0) : x ? 31 - Math.clz32(x) : 0, V: x ? 1 : 0 });
+function checkEncoderExhaustive(name, params) {
+  const n = params.n, m = 1 << n;
+  for (const lang of ['vhdl', 'verilog']) {
+    const { doc, items: [{ s, pins }] } = buildDoc(name, lang, [{ type: 'encoder', params }]);
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(g.diagnostics.map(d => `${d.severity} ${d.message}`), [], `${name} ${lang}: no warnings`);
+    const vecs = [];
+    for (let x = 0; x < m; x++) {
+      const inp = {}, exp = {}, r = encRef(s.params.mode, x, m);
+      if (params.bus) inp[`${s.name}_I`] = [BigInt(x), m]; else for (let i = 0; i < m; i++) inp[`${s.name}_I${i}`] = [BigInt((x >> i) & 1), 1];
+      if (params.bus) exp[`${s.name}_A`] = [BigInt(r.A), n]; else for (let j = 0; j < n; j++) exp[`${s.name}_A${j}`] = [BigInt((r.A >> j) & 1), 1];
+      exp[`${s.name}_V`] = [BigInt(r.V), 1];
+      vecs.push({ inp, exp });
+    }
+    assert.equal(pins.length, (params.bus ? 2 : m + n) + 1);
+    const tb = testbench(lang, name, doc, vecs);
+    const r = simulate([{ path: g.filename, text: g.code }, { path: lang === 'vhdl' ? 'tb.vhd' : 'tb.v', text: tb }], 'tb', { until: 1e7 });
+    assert.deepEqual(r.errors.map(e => `${e.file}:${e.line} ${e.message}`), [], `${lang} compile\n${g.code}`);
+    const log = r.sim.log.map(l => l.text);
+    assert.ok(log.includes('errs=0'), `${name} ${lang}\n${log.slice(0, 20).join('\n')}\n${g.code}`);
+  }
+}
+
+test('#1553 a new ENCODER is a priority encoder: PENC4_2, the highest active input wins', () => {
+  const p = defaultParams('encoder');
+  assert.equal(p.mode, 'priority');
+  assert.equal(SYMBOLS.encoder.params.find(q => q.name === 'mode').options.join(','), 'priority,one-hot');
+  assert.equal(symbolDef({ type: 'encoder', params: p }).title, 'PENC4_2');
+  assert.equal(symbolDef({ type: 'encoder', params: { ...p, mode: 'one-hot' } }).title, 'ENC4_2');
+  // the reference itself: I1 and I3 at 1 give 3 (priority), 1 | 3 = 3 (one-hot); I1 and I2: 2 and 3
+  assert.deepEqual([encRef('priority', 0b1010, 4), encRef('one-hot', 0b1010, 4), encRef('priority', 0b0110, 4), encRef('one-hot', 0b0110, 4), encRef('priority', 0, 4)],
+    [{ A: 3, V: 1 }, { A: 3, V: 1 }, { A: 2, V: 1 }, { A: 3, V: 1 }, { A: 0, V: 0 }]);
+});
+
+test('#1553 simulation: 4- and 8-input encoders, every input pattern, priority (the default) and one-hot, bit and bus pins, VHDL and Verilog', () => {
+  for (const n of [2, 3]) for (const bus of [false, true]) {
+    checkEncoderExhaustive(`penc${n}${bus ? 'b' : ''}`, { ...defaultParams('encoder'), n, bus });   // (the default Type, as placed)
+    checkEncoderExhaustive(`enc${n}${bus ? 'b' : ''}`, { n, mode: 'one-hot', bus });
+  }
+});
+
+test('#1553 a saved ENCODER keeps its Type: one-hot and priority as saved, none (from before) one-hot', () => {
+  const saved = lang => ({ ...newDoc('old', lang), symbols: [
+    { id: 'S1', type: 'encoder', x: 100, y: 100, name: 'U1', params: { n: 2, mode: 'one-hot', bus: false } },
+    { id: 'S2', type: 'encoder', x: 100, y: 300, name: 'U2', params: { n: 3, mode: 'priority', bus: true } },
+    { id: 'S3', type: 'encoder', x: 100, y: 500, name: 'U3', params: { n: 2, bus: true } }] });
+  const d = normalizeDoc(JSON.parse(JSON.stringify(saved('vhdl'))));
+  assert.deepEqual(d.symbols.map(s => [s.params.mode, symbolDef(s).title]), [['one-hot', 'ENC4_2'], ['priority', 'PENC8_3'], ['one-hot', 'ENC4_2']]);
+  // (normalized again, as on every reload: unchanged)
+  assert.deepEqual(normalizeDoc(JSON.parse(JSON.stringify(d))).symbols.map(s => s.params), d.symbols.map(s => s.params));
+  // the HDL of the one saved without a Type: the one-hot encoder's (OR of the indexes), not a chain of choices
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = saved(lang);
+    doc.symbols = [doc.symbols[2]];
+    doc.ports = [{ id: 'P1', name: 'i', dir: 'in', width: 4, x: 100, y: 500 }];
+    const g = generateHdl(normalizeDoc(doc), { lang });
+    const one = generateHdl(normalizeDoc({ ...doc, symbols: [{ ...doc.symbols[0], params: { n: 2, mode: 'one-hot', bus: true } }] }), { lang });
+    assert.equal(g.code, one.code);
+    assert.doesNotMatch(g.code, lang === 'vhdl' ? / when / : / \? /);
+  }
 });
 
 test('simulation: demultiplexers 1:2 .. 1:16 with data widths 1 and 4 (exhaustive / random)', () => {
