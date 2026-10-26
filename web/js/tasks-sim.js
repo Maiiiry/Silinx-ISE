@@ -16,7 +16,7 @@ import { h } from './ui.js';
  *  Tasks interface, #1026; web/css/tasks.css hides them), its stimuli bar under it (#1270), else both back under its title
  *  bar, as SSim made them. */
 export function placeSimToolbar(tasks, S = null) {
-  if (!tasks) for (const sel of document.querySelectorAll('#workspace .isim-toolbar .isim-model')) sel.remove();   // (the Tasks interface's only)
+  if (!tasks) for (const f of document.querySelectorAll('#workspace .isim-toolbar .isim-model-field')) f.remove();   // (the Tasks interface's only)
   else if (S) for (const d of S.docs) if (/^isim:/.test(d.id)) placeModel(d, tasks);
   for (const root of document.querySelectorAll('#workspace .isim')) {
     watchSide(root.querySelector('.isim-left'));
@@ -36,7 +36,7 @@ export function placeSimToolbar(tasks, S = null) {
 function placeModel(d, tasks) {
   const tb = d.el.querySelector('.isim-toolbar');
   let sel = tb?.querySelector('.isim-model');
-  if (!tb || !tasks) { sel?.remove(); return; }
+  if (!tb || !tasks) { sel?.closest('.isim-model-field')?.remove(); return; }
   if (sel) return;
   const [mod, model = ''] = d.id.slice('isim:'.length).split('@');
   sel = h('select', { class: 'isim-model', title: 'The model to simulate', 'aria-label': 'The model to simulate' },
@@ -48,7 +48,7 @@ function placeModel(d, tasks) {
     const { runSimulation } = await import('./viewers.js');   // (not at load: viewers.js loads the app)
     runSimulation(mod, v || undefined);
   });
-  tb.append(sel);
+  tb.append(h('label', { class: 'isim-model-field' }, h('span', {}, 'Model:'), sel));   // (its label, #1391)
 }
 
 /** The simulations' tabs to the right of the side panel, which starts at the top of the work area as Design's and

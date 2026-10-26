@@ -271,7 +271,7 @@ uiTest('#1345 Tasks ▸ Simulate: Maximize hides the side panel too, the waves f
 
 // #1353: the simulation's model at the right end of its toolbar, after Edit Stimuli: its own model shown; another one
 // chosen simulates the module with it, in a tab of its own
-uiTest('#1353 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar, after Edit Stimuli; Portuguese', E, async (page) => {
+uiTest('#1353 #1391 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar, after Edit Stimuli, "Model:" before it; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'TasksSimModel', template: 'blinky' });
   await page.setViewport(1366, 768);
@@ -283,10 +283,11 @@ uiTest('#1353 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar
   const g = () => page.eval(() => {
     const tb = document.querySelector('.doc:not([hidden]) .isim-toolbar'), s = tb.querySelector('.isim-model');
     const stim = [...tb.querySelectorAll('.tb-btn')].find((b) => /Edit Stimuli/.test(b.textContent));
-    return s && { value: s.value, options: [...s.options].map((o) => o.textContent), last: tb.lastElementChild === s,
+    const f = s?.closest('.isim-model-field'), l = f?.querySelector('span');
+    return s && { label: l?.textContent, before: !!l && l.getBoundingClientRect().right <= s.getBoundingClientRect().left, value: s.value, options: [...s.options].map((o) => o.textContent), last: tb.lastElementChild === f,
       right: Math.abs(s.getBoundingClientRect().right - tb.getBoundingClientRect().right) < 12, afterStim: !!stim && s.getBoundingClientRect().left > stim.getBoundingClientRect().right };
   });
-  assert.deepEqual(await g(), { value: '', options: ['Behavioral', 'Post-Synthesis', 'Post-Translate', 'Post-Map', 'Post-Place & Route'], last: true, right: true, afterStim: true });
+  assert.deepEqual(await g(), { label: 'Model:', before: true, value: '', options: ['Behavioral', 'Post-Synthesis', 'Post-Translate', 'Post-Map', 'Post-Place & Route'], last: true, right: true, afterStim: true });
   // Post-Synthesis chosen: generated, then simulated in its own tab; this one keeps Behavioral
   await page.eval(() => { const s = document.querySelector('.doc:not([hidden]) .isim-toolbar .isim-model'); s.value = 'postsynth'; s.dispatchEvent(new Event('change')); });
   await page.waitDialog();
@@ -295,11 +296,12 @@ uiTest('#1353 Tasks ▸ Simulate: the model chosen in the wave window\'s toolbar
   assert.equal((await g()).value, 'postsynth');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim-toolbar .isim-model option')?.textContent === 'Comportamental', [], { what: 'Portuguese' });
+  assert.equal((await g()).label, 'Modelo:');   // (its label, #1391)
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // the classic interface: none
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
-  assert.equal(await page.eval(() => document.querySelectorAll('.isim-toolbar .isim-model').length), 0);
+  assert.equal(await page.eval(() => document.querySelectorAll('.isim-toolbar :is(.isim-model, .isim-model-field)').length), 0);
 }, { build: DEV, timeout: 300000 });
 
 // #1316, #1332: the Simulation tree's test bench shows its types: [Waveform] marked, the simulation's view, then its HDL's
