@@ -177,7 +177,7 @@ const PT = {
   'Device Utilization Summary': 'Resumo da Utilização do Dispositivo', 'Logic Utilization': 'Utilização Lógica', 'Used': 'Usado',
   'Available': 'Disponível', 'Utilization': 'Utilização', 'Timing (post Place & Route)': 'Temporização (após Posicionar e Encaminhar)',
   'Timing Constraints': 'Restrições de Temporização', 'All constraints met': 'Todas as restrições cumpridas', 'Minimum period': 'Período mínimo',
-  'Programming File': 'Ficheiro de Programação', 'Bitstream': 'Bitstream', 'Part': 'Componente', 'Generated': 'Gerado', 'Detailed Reports': 'Relatórios Detalhados',
+  'Programming File': 'Ficheiro de Programação', 'Bitstream': 'Bitstream', 'Part': 'Componente', 'Generated': 'Gerado', 'Detailed Reports': 'Relatórios Detalhados', 'Project Status': 'Estado do Projeto',
   'Report Name': 'Nome do Relatório', 'Status': 'Estado', 'Synthesis Report': 'Relatório de Síntese', 'Map Report': 'Relatório de Mapeamento',
   'Place and Route Report': 'Relatório de Posicionamento e Encaminhamento', 'Post-PAR Static Timing Report': 'Relatório de Temporização Estática pós-PAR',
   'Bitgen Report': 'Relatório do Bitgen', 'Current': 'Atual', '(not set)': '(não definido)', '(none)': '(nenhum)',

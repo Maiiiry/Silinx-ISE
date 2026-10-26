@@ -131,6 +131,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .dlg-x { border: 1px solid transparent; background: none; width: 24px; height: 20px; border-radius: 3px; }
 .dlg-x:hover { background: #e81123; color: #fff; }
 .dlg-body { padding: 12px 14px; overflow: auto; min-height: 0; }
+.dlg-title, .dlg-buttons { flex: none; }   /* (not shrunk by a tall body: #1409) */
 .dlg-buttons { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 10px; border-top: 1px solid #dfdfdf; }
 .dlg label { display: block; margin: 6px 0 2px; }
 .dlg input[type=text], .dlg input[type=number], .dlg select, .dlg textarea { border: 1px solid #abadb3; padding: 2px 4px; background: #fff; height: 22px; }
@@ -193,6 +194,7 @@ table.grid tr.sel td { background: #dbe8fb; }
 #start-page:not([data-project]) .start-export { color: #888; }
 #start-page:not([data-project]) .start-export a { color: inherit; cursor: default; pointer-events: none; text-decoration: none; }
 .summary-table { border-collapse: collapse; margin-bottom: 16px; min-width: 640px; }
+.summary-table caption.summary-status { display: none; }   /* (the Tasks interface's only: web/css/tasks.css) */
 .summary-table caption { text-align: left; font-weight: bold; background: linear-gradient(#e9eff8, #c9d7ed); color: #15428b; padding: 3px 8px; border: 1px solid #99bbe8; border-bottom: none; }
 .summary-table th, .summary-table td { border: 1px solid #c5d3e8; padding: 3px 8px; text-align: left; }
 .summary-table th { background: #f2f6fc; font-weight: normal; color: #333; }
