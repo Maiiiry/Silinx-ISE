@@ -13,6 +13,7 @@ import { confirmDeviceChange } from './device-change.js';
 import { byLastUsed } from './project-store.js';
 import { opened } from './project.js';
 import { prefKey } from './prefs.js';
+import { safeReleaseUrl } from './release-url.js';
 
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -714,6 +715,9 @@ export async function toolchainDialog() {
 }
 
 const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
+// a link from GitHub's release object (#1444: an answer of api.github.com, kept in localStorage): only to GitHub's own
+// origins (web/js/release-url.js), any other URL shown as its text
+const releaseLink = (href, text) => (safeReleaseUrl(href) ? link(href, text) : h('span', {}, text));
 
 // the open-source components shipped with Silinx (core/third-party.js, generated), collapsible;
 // the standalone edition embeds only some of them
@@ -932,20 +936,20 @@ export async function checkUpdatesDialog({ rel: known = null, served = undefined
   const latest = String(rel.tag_name || rel.name || '').replace(/^v/i, '');
   const cmp = compareVersions(latest, VERSION);
   const when = rel.published_at ? new Date(rel.published_at).toLocaleDateString() : '';
-  const assets = (rel.assets || []).map((a) => h('li', {}, link(a.browser_download_url, a.name), ` (${Math.max(1, Math.round(a.size / 1024))} KB)`));
+  const assets = (rel.assets || []).map((a) => h('li', {}, releaseLink(a.browser_download_url, a.name), ` (${Math.max(1, Math.round(a.size / 1024))} KB)`));
   if (cmp > 0) {
     const news = await whatsNew(latest, rel);
     body.replaceChildren(...[
       h('p', {}, h('b', {}, `A new version is available: ${PRODUCT} ${latest}`), when ? ` (released ${when})` : ''),
       h('p', {}, `You are running ${VERSION}.`),
       news?.length ? h('div', {}, h('b', {}, "What's new:"), changesNode(news)) : null,
-      h('p', {}, 'Release notes and downloads: ', link(rel.html_url, rel.name || `v${latest}`)),
+      h('p', {}, 'Release notes and downloads: ', releaseLink(rel.html_url, rel.name || `v${latest}`)),
       assets.length ? h('ul', { style: { margin: '4px 0 8px 18px', padding: 0 } }, ...assets) : null,
       h('p', { class: 'hint' }, 'To update: download silinx-ise-<version>.zip and replace your Silinx folder (your projects in the workspace are kept), or download the new Silinx-ISE.html for the standalone edition.')].filter(Boolean));
   } else {
     body.replaceChildren(...[
       h('p', {}, h('b', {}, `${PRODUCT} ${VERSION} is up to date.`)),
-      h('p', {}, `Latest release on GitHub: ${latest}${when ? ` (${when})` : ''} — `, link(rel.html_url, 'release notes')),
+      h('p', {}, `Latest release on GitHub: ${latest}${when ? ` (${when})` : ''} — `, releaseLink(rel.html_url, 'release notes')),
       cmp < 0 ? h('p', { class: 'hint' }, 'You are running a development version newer than the latest release.') : null].filter(Boolean));
   }
   return done;
