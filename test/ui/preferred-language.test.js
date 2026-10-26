@@ -108,3 +108,20 @@ uiTest('Design Properties, Preferred Language Verilog: the top schematic gets it
   assert.doesNotMatch((await page.consoleText()).split('\n').slice(lines).join('\n'), /Preferred Language|its HDL is now/);
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
+
+uiTest('Reloading the project keeps the drawings linked to their HDL while it reads them (#1543)', E, async (page) => {
+  await makeProject(env, { name: 'ReloadLinks', template: 'traffic' });
+  await page.openProject('ReloadLinks');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/traffic.vhd'], [], { what: 'the drawings linked' });
+  // the links as they are at every file the project reads again, and after
+  const seen = await page.eval(async () => {
+    const { api } = await import('/js/api.js');
+    const seen = new Set(), readFile = api.readFile;
+    api.readFile = (...a) => { seen.add(Object.keys(window.Silinx.hdlToSch).sort().join(' ')); return readFile(...a); };
+    try { await (await import('/js/project.js')).reloadProject(); } finally { api.readFile = readFile; }
+    seen.add(Object.keys(window.Silinx.hdlToSch).sort().join(' '));
+    return [...seen];
+  });
+  assert.deepEqual(seen, ['src/lamps.vhd src/traffic.vhd']);
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
+});
