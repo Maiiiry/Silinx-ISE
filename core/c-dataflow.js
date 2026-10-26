@@ -16,15 +16,15 @@ import { BOOL, INT, typeOf, promote, binaryType, compareType, shiftType, unaryTy
 import { constValue } from './c-check.js';
 
 const MAX_UNROLL = 65536;   // iterations unrolled in all, at most
-const NOT_COMB = '(a sequential module: not supported yet, #1526)';
+export const NOT_COMB = '(a sequential module: not supported yet, #1526)';
 
-class Stop extends Error {}
+export class Stop extends Error {}
 
 export function dataflow(checked) {
   return new Flow(checked).run();
 }
 
-class Flow {
+export class Flow {
   constructor(checked) {
     this.c = checked;
     this.g = new Graph();
@@ -148,6 +148,11 @@ class Flow {
   }
 
   // ------------------------------------------------------------------ statements
+  /** A declaration run when g holds: a new variable (the sequential modules: an assignment of its register). */
+  declare(v, g) {
+    if (v.static) this.error(v.loc, `the static variable '${v.name}' keeps a value between calls ${NOT_COMB}`);
+    this.scopes.at(-1).set(v.name, this.newSlot(v, g));
+  }
   block(items, base) {
     this.scopes.push(new Map());
     try { for (const s of items) this.stmt(s, base); }
@@ -159,12 +164,7 @@ class Flow {
     if (this.g.isConst(g) && !this.g.k(g) && s.kind !== 'decl') return;   // (never runs)
     switch (s.kind) {
       case 'block': return this.block(s.items, base);
-      case 'decl':
-        for (const v of s.vars) {
-          if (v.static) this.error(v.loc, `the static variable '${v.name}' keeps a value between calls ${NOT_COMB}`);
-          this.scopes.at(-1).set(v.name, this.newSlot(v, g));
-        }
-        return;
+      case 'decl': for (const v of s.vars) this.declare(v, g); return;
       case 'expr': this.expr(s.e, g); return;
       case 'if': {
         const c = this.bool(this.expr(s.cond, g));

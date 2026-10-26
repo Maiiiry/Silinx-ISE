@@ -8,18 +8,24 @@
 import { checkC } from './c-check.js';
 import { dataflow } from './c-dataflow.js';
 import { isReservedWord } from './reserved.js';
+import { fsmd } from './c-fsmd.js';
+import { vhdlSeq, verilogSeq } from './c-hdl-seq.js';
 
-const bits = (k, w) => {
+export const bits = (k, w) => {
   const m = (1n << BigInt(w)) - 1n;
   return ((BigInt(k) % (m + 1n)) + (m + 1n)) % (m + 1n);
 };
-const bin = (k, w) => bits(k, w).toString(2).padStart(w, '0');
+export const bin = (k, w) => bits(k, w).toString(2).padStart(w, '0');
 
 export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
   const checked = checkC(source, file);
   const diagnostics = [...checked.diagnostics];
   if (!checked.ok || !checked.top) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
-  const df = dataflow(checked);
+  let df = dataflow(checked);
+  // not combinational (a loop whose count depends on the inputs, a static or global variable): a sequential module,
+  // a state machine (core/c-fsmd.js, #1526)
+  const seqOnly = df.diagnostics.some((d) => d.severity === 'error') && df.diagnostics.every((d) => d.severity !== 'error' || d.message.includes('#1526'));
+  if (seqOnly) df = { ...fsmd(checked), seq: true };
   diagnostics.push(...df.diagnostics);
   diagnostics.sort((a, b) => a.line - b.line || a.col - b.col);
   if (df.diagnostics.some((d) => d.severity === 'error')) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
@@ -31,20 +37,23 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
   }
   for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = rn(node.port.name);
   df.outputs = new Map([...df.outputs].map(([k, v]) => [rn(k.replace(/(_o)?(_ap_vld)?$/, '')) + k.slice(k.replace(/(_o)?(_ap_vld)?$/, '').length), v]));
-  const ctrl = df.ctrl === 'ap_ctrl_hs'
+  const ctrl = df.seq
+    ? [{ name: 'ap_clk', dir: 'in', w: 1 }, { name: 'ap_rst', dir: 'in', w: 1 }, { name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
+    : df.ctrl === 'ap_ctrl_hs'
     ? [{ name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
     : [];
   const portName = (p) => (p.param ? rn(p.param) + p.name.slice(p.param.length) : p.name);
   const ports = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role }))];
   const name = rn(checked.top);
   const src = file.split('/').pop();
-  const hdl = (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
-  return { ok: true, hdl, top: name, ports, diagnostics };
+  const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
+  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0 };
 }
 
 /** The nodes to write: those the outputs need. */
-function nodesOf(df) { return df.graph.needed([...df.outputs.values()]); }
-const sig = (n) => `n${n.id}`;
+export function nodesOf(df) { return df.graph.needed([...df.outputs.values()]); }
+// (the internal names start with ap_, reserved by Vitis HLS for its own: no argument's port meets them)
+export const sig = (n) => `ap_t${n.id}`;
 
 // ------------------------------------------------------------------------------------------- VHDL
 function vhdl(name, src, ports, df) {
@@ -58,6 +67,20 @@ function vhdl(name, src, ports, df) {
   const ty = (n) => `${n.s ? 'signed' : 'unsigned'}(${n.w - 1} downto 0)`;
   for (const n of nodes) L.push(`  signal ${sig(n)} : ${ty(n)};`);
   L.push('begin');
+  vhdlNodes(nodes, g, L);
+  const hs = ports.some((p) => p.name === 'ap_start');
+  if (hs) L.push('  ap_done <= ap_start;', '  ap_ready <= ap_start;', "  ap_idle <= '1';");
+  for (const [p, id] of df.outputs) {
+    const n = g.get(id), port = ports.find((x) => x.name === p);
+    const v = port.w === 1 ? `${sig(n)}(0)` : `std_logic_vector(${sig(n)})`;
+    L.push(`  ${p} <= ${v}${hs && port.role === 'arg_vld' ? ' and ap_start' : ''};`);
+  }
+  L.push('end behav;', '');
+  return L.join('\n');
+}
+
+/** The VHDL concurrent assignments of the nodes (one signal each, n<id>). */
+export function vhdlNodes(nodes, g, L) {
   const as = (n, t) => (n.s === t.s ? sig(n) : `${t.s ? 'signed' : 'unsigned'}(${sig(n)})`);
   const amount = (b) => (b.op === 'const' ? `${b.k > 4096n ? 4096 : b.k < 0n ? 0 : b.k}` : `to_integer(${b.s ? 'unsigned' : ''}(${b.w > 31 ? `${sig(b)}(30 downto 0)` : sig(b)}))`);
   for (const n of nodes) {
@@ -65,6 +88,7 @@ function vhdl(name, src, ports, df) {
     const X = sig(n);
     switch (n.op) {
       case 'const': L.push(`  ${X} <= "${bin(n.k, n.w)}";`); break;
+      case 'reg': L.push(`  ${X} <= ${n.port.name};`); break;
       case 'in': L.push(n.w === 1 ? `  ${X}(0) <= ${n.port.name};` : `  ${X} <= ${n.s ? 'signed' : 'unsigned'}(${n.port.name});`); break;
       case 'ext':
         if (n.w <= a.w) L.push(`  ${X} <= ${n.s ? 'signed' : 'unsigned'}(${sig(a)}(${n.w - 1} downto 0));`);
@@ -85,15 +109,6 @@ function vhdl(name, src, ports, df) {
       default: throw new Error(`c-hdl: no VHDL for '${n.op}'`);
     }
   }
-  const hs = ports.some((p) => p.name === 'ap_start');
-  if (hs) L.push('  ap_done <= ap_start;', '  ap_ready <= ap_start;', "  ap_idle <= '1';");
-  for (const [p, id] of df.outputs) {
-    const n = g.get(id), port = ports.find((x) => x.name === p);
-    const v = port.w === 1 ? `${sig(n)}(0)` : `std_logic_vector(${sig(n)})`;
-    L.push(`  ${p} <= ${v}${hs && port.role === 'arg_vld' ? ' and ap_start' : ''};`);
-  }
-  L.push('end behav;', '');
-  return L.join('\n');
 }
 
 // ------------------------------------------------------------------------------------------- Verilog
@@ -105,13 +120,26 @@ function verilog(name, src, ports, df) {
   ports.forEach((p, k) => L.push(`  ${p.dir === 'in' ? 'input ' : 'output'} wire ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name}${k < ports.length - 1 ? ',' : ''}`));
   L.push(');');
   for (const n of nodes) L.push(`  wire ${n.s ? 'signed ' : ''}[${n.w - 1}:0] ${sig(n)};`);
+  verilogNodes(nodes, g, L);
+  const hs = ports.some((p) => p.name === 'ap_start');
+  if (hs) L.push('  assign ap_done = ap_start;', '  assign ap_ready = ap_start;', "  assign ap_idle = 1'b1;");
+  for (const [p, id] of df.outputs) {
+    const port = ports.find((x) => x.name === p);
+    L.push(`  assign ${p} = ${sig(g.get(id))}${hs && port.role === 'arg_vld' ? ' & ap_start' : ''};`);
+  }
+  L.push('endmodule', '');
+  return L.join('\n');
+}
+
+/** The Verilog continuous assignments of the nodes (one wire each, n<id>; declared before). */
+export function verilogNodes(nodes, g, L) {
   for (const n of nodes) {
     const [a, b, c] = n.args.map((id) => g.get(id));
     const X = sig(n);
     let e;
     switch (n.op) {
       case 'const': e = `${n.w}'b${bin(n.k, n.w)}`; break;
-      case 'in': e = n.port.name; break;
+      case 'in': case 'reg': e = n.port.name; break;
       case 'ext':
         if (n.w <= a.w) e = n.w === a.w ? sig(a) : `${sig(a)}[${n.w - 1}:0]`;
         else e = `{{${n.w - a.w}{${a.s ? `${sig(a)}[${a.w - 1}]` : "1'b0"}}}, ${sig(a)}}`;
@@ -134,12 +162,4 @@ function verilog(name, src, ports, df) {
     }
     L.push(`  assign ${X} = ${e};`);
   }
-  const hs = ports.some((p) => p.name === 'ap_start');
-  if (hs) L.push('  assign ap_done = ap_start;', '  assign ap_ready = ap_start;', "  assign ap_idle = 1'b1;");
-  for (const [p, id] of df.outputs) {
-    const port = ports.find((x) => x.name === p);
-    L.push(`  assign ${p} = ${sig(g.get(id))}${hs && port.role === 'arg_vld' ? ' & ap_start' : ''};`);
-  }
-  L.push('endmodule', '');
-  return L.join('\n');
 }

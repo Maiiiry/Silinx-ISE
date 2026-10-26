@@ -2,8 +2,7 @@
 
 A C function as a design source: Silinx turns it into a VHDL or Verilog module, as AMD's **Vitis HLS**
 (formerly Vivado HLS, user guide UG1399) does for AMD's newer parts. The C file is the module's base;
-its HDL (and, for sequential code, the ASM chart of its schedule) is generated from it, read-only, as
-a drawing's is. The plan and its phases: issue #1532.
+its HDL is generated from it, read-only, as a drawing's is. The plan and its phases: issue #1532.
 
 Silinx C is a **subset of what Vitis HLS accepts**: a source Silinx takes also goes through Vitis HLS
 (as C++), with the same ports and the same behaviour at them. Vitis HLS does not target the
@@ -86,8 +85,15 @@ valid; `ap_idle` is 1 while no call runs.
 
 A function with no `static` variable whose loops all have constant bounds (fully unrolled) is
 **combinational**: with `ap_ctrl_hs`, `ap_done` and `ap_ready` follow `ap_start` and `ap_idle` is 1;
-with `ap_ctrl_none`, only the data ports. Any other function is a **sequential** module: a finite
-state machine with a datapath (its schedule shown as an ASM chart), its latency in the report.
+with `ap_ctrl_none`, only the data ports. Any other function (a loop whose count depends on its inputs, a
+`static` or global variable) is a **sequential** module: a finite state machine with a datapath. Its code is cut
+into basic blocks (what runs with no jump, its ifs and switches with no loop in them included), one state each,
+run in one clock cycle; its variables are registers (a `static` or a global keeps its value between calls, its
+initial value set at the reset); its loops, `break`, `continue` and `return` choose the next state. The arguments
+are read when `ap_start` is 1 in the idle state; the call's last state has `ap_done` and `ap_ready` at 1 for one
+cycle, `ap_return` valid; a pointer output's `_ap_vld` is 1 for one cycle after each write, its value then valid.
+A function with a loop called by another, and a division by a value other than a constant power of 2, are not
+supported yet. The machine shown as an ASM chart: #1575.
 
 ## Pragmas (`#pragma HLS …`)
 
@@ -116,7 +122,7 @@ state machine with a datapath (its schedule shown as an ASM chart), its latency 
 0. This specification (#1523).
 1. The C parser and its checks (#1524), and Check Syntax of a `.c` file.
 2. Combinational C to HDL (#1525).
-3. Sequential C through an ASM chart, `ap_ctrl_hs` (#1526).
+3. Sequential C, `ap_ctrl_hs` (#1526); its machine shown as an ASM chart (#1575).
 4. Arrays and memories (#1527).
 5. C simulation and co-simulation (#1528).
 6. The pragmas (#1529).
