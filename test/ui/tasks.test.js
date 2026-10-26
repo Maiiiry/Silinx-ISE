@@ -1795,3 +1795,47 @@ uiTest('#1409 classic: the Start page\'s commands with their icons, the Files pa
     rows: [...new Set([...document.querySelectorAll('#files-page tr:not(:first-child)')].map((t) => Math.round(t.getBoundingClientRect().height)))] })), { folder: 'constraints/', icon: 16, rows: [17] });
   await noWarnings(page);
 });
+
+// #1564: a maximized task whose last document is closed leaves maximize: its side panel and messages shown again with its
+// page, kept; a document of several closed keeps it maximized
+uiTest('#1564 Tasks: the last document of a maximized task closed shows the side panel and the messages again', E, async (page) => {
+  await makeProject(env, { name: 'TasksMaxClose', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksMaxClose');
+  const closeTab = () => page.click('#doc-tabs > .tab.active .tclose');
+  const maximize = async () => { await page.click('#task-view [data-act="max"]'); assert.equal((await state(page)).max, 'on'); };
+  const restored = async (t) => {
+    await page.waitFor(() => document.documentElement.dataset.max === 'off', [], { what: `${t}: maximize left` });
+    const s = await state(page);
+    assert.deepEqual([s.task, s.side, s.console, s.empty], [t, 'open', 'open', true], t);
+    assert.ok(await shown(page, '#left') && await shown(page, '#console-body'), t);
+    assert.equal(await page.eval((t) => JSON.parse(localStorage.getItem('silinx.tasks')).tasks[t].max, t), false, `${t}: kept`);
+  };
+  // Design: two sources, maximized; one closed: still maximized; the last closed: the side panel and the messages
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitForSelector('.doc:not([hidden]) .cm-editor');
+  await page.eval(() => window.SilinxApp.openFile('src/knight.vhd'));
+  await page.waitFor(() => (window.Silinx.active?.title || '').includes('knight.vhd'), [], { what: 'the second source' });
+  assert.equal((await state(page)).task, 'edit');
+  await maximize();
+  await closeTab();
+  await page.waitFor(() => !(window.Silinx.active?.title || '').includes('knight.vhd'), [], { what: 'the second source closed' });
+  assert.deepEqual([(await state(page)).max, (await state(page)).tabs.length], ['on', 1], 'one left: maximized');
+  await closeTab();
+  await restored('edit');
+  // Implement: its Design Summary maximized, closed
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary'), [], { what: 'the Design Summary' });
+  await maximize();
+  await closeTab();
+  await restored('impl');
+  // Emulate: the board maximized, closed
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
+  await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  await maximize();
+  await closeTab();
+  await restored('emu');
+  await noWarnings(page);
+}, { build: DEV });
