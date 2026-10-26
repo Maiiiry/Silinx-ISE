@@ -27,6 +27,9 @@ const out = path.resolve(opt('out', path.join(root, 'out')));
 const appOnly = argv.includes('--app-only');
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' && cmd === 'npm' });
 
+/** The tracked files the app never reads, left out of the zip: the device measurements (#3, #1541). */
+const NOT_RELEASED = /^research\/s3e-device\/data\//;
+
 /**
  * The tracked files (as `git archive HEAD` gives them in a clean checkout, the release's case) with
  * the file modes of the repository: the start scripts stay executable.
@@ -35,6 +38,7 @@ function copyTracked(dest) {
   const list = execFileSync('git', ['ls-files', '-s', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 });
   for (const entry of list.split('\0').filter(Boolean)) {
     const [, mode, rel] = /^(\d+) \S+ \d+\t(.*)$/s.exec(entry);
+    if (NOT_RELEASED.test(rel)) continue;
     const src = path.join(root, rel), dst = path.join(dest, rel);
     if (!fs.existsSync(src)) continue;            // deleted in the working tree
     fs.mkdirSync(path.dirname(dst), { recursive: true });

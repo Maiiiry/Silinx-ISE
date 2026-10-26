@@ -95,6 +95,11 @@ test('release zip: the launchers are executable (Linux, macOS) and the Windows o
   assert.equal(bat.split('\n').length - 1, bat.split('\r\n').length - 1, 'Start Silinx-ISE.bat: CRLF');
 });
 
+test('release zip: the device measurements left out, the bit database the app reads kept (#1541)', { skip: SKIP }, () => {
+  assert.equal(exists('research/s3e-device/data'), false, 'research/s3e-device/data (#3) not packaged');
+  for (const f of ['research/s3e-bitstream/db/s3e-tiles.json', 'research/s3e-device/build-measured.mjs']) assert.ok(exists(f), f);
+});
+
 test('release zip: within its size budget', { skip: SKIP }, () => {
   const zipMB = fs.statSync(zip).size / 1048576, appMB = sizeOf(APP) / 1048576;
   const biggest = fs.readdirSync(path.join(APP, 'node_modules')).flatMap((f) => (f.startsWith('@') ? fs.readdirSync(path.join(APP, 'node_modules', f)).map((g) => `${f}/${g}`) : [f]))
