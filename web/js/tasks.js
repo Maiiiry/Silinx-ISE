@@ -234,7 +234,8 @@ function tagDocs() {
     const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
     empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
     // (Simulate's side panel: the wizard's row whenever there is a design module to test, a bench or not, #1312, #1376)
-    simPanel?.refresh(on() && current() === 'sim' && !!app.S.project && mine === 0);
+    // (whenever no simulation is open: a test bench's HDL left open in Simulate beside it, #1396)
+    simPanel?.refresh(on() && current() === 'sim' && !!app.S.project && !app.S.docs.some(d => /^isim:/.test(d.id)));
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];

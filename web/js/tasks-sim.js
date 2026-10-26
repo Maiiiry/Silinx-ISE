@@ -59,7 +59,8 @@ export function fitSimTabs() {
   if (!center) return;
   // (the side panel's right edge: its splitter's, or its own beside a source, #1343)
   const shown = sel => [...document.querySelectorAll(`#workspace > .doc ${sel}`)].find(e => e.getClientRects().length);
-  const edge = shown('.isim-split-main') || shown('.isim-left');
+  const panel = document.getElementById('task-sim-panel');   // (Simulate's own, nothing simulated: #1376, #1396)
+  const edge = shown('.isim-split-main') || shown('.isim-left') || (panel?.getClientRects().length ? panel : null);
   const side = edge ? Math.max(0, Math.round(edge.getBoundingClientRect().right - center.getBoundingClientRect().left)) : 0;
   center.style.setProperty('--sim-side', `${side}px`);
   center.style.setProperty('--sim-tabs', `${tabs?.offsetHeight || 0}px`);

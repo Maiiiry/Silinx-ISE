@@ -167,6 +167,8 @@ html[data-layout="tasks"][data-task="sim"]:not([data-side="folded"], [data-max="
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #task-sim-panel:not([hidden]) { display: flex; flex-direction: column; position: absolute; z-index: 1;
   top: 0; bottom: 0; left: 0; width: min(300px, 45%); border-right: 1px solid var(--m-border); background: var(--m-surface-2); font-size: 12px; }
 html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #workspace:has(> #task-sim-panel:not([hidden])) > #task-empty { left: min(300px, 45%); }
+/* (a test bench's HDL open, no simulation: beside the panel, under the tabs that start at its edge, #1396) */
+html[data-layout="tasks"][data-task="sim"]:not([data-max="on"]) #workspace:has(> #task-sim-panel:not([hidden])) > .doc:not([hidden]) { left: var(--sim-side, 0px); }
 html[data-layout="tasks"][data-task="sim"]:has(#task-sim-panel:not([hidden])) #task-view [data-act="side"] { display: none; }   /* (always shown) */
 #task-sim-panel > .task-sim-trees { flex: 1; min-height: 0; overflow: auto; }
 #task-sim-panel .tree { padding: 4px 0; }
