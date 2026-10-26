@@ -105,6 +105,9 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   assert.ok(file.includes('Open Project Bundle…') && file.includes('Download Project Bundle…'), file.join(' | '));
   await page.closeMenus();
   // New Project wizard from the embedded blinky example
+  // (what Implement needs would be fetched as soon as the project opens: not from a file, #1450)
+  await page.eval(() => { window.SILINX_PREPARE_DELAY = 0; });
+  served.length = 0;
   await page.menu('File', 'New Project…');
   await page.waitDialog('New Project Wizard');
   // where the project goes: this browser's storage, not the full application's workspace folder (#125)
@@ -119,6 +122,11 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.waitFor(() => window.Silinx.project?.name === 'Solo' && [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'u_knight - knight'));
   // the project lives in localStorage
   assert.ok(await page.eval(() => Object.keys(localStorage).some((k) => (localStorage.getItem(k) || '').includes('"Solo"'))));
+  // nothing of what Implement needs downloaded in the background from a page opened from a file (#1450): WebKit and
+  // Firefox give it a Cache Storage, and the download, cancelled by the reload below, was a console error in WebKit
+  const fetched = () => served.filter((p) => /^assets\//.test(p));
+  for (let t = Date.now(); Date.now() - t < 3000 && !fetched().length;) await new Promise((r) => setTimeout(r, 100));
+  assert.deepEqual(fetched(), [], 'no assets fetched when the project opens');
   // behavioural simulation of the test bench in the ISim view
   await page.setView('sim');
   await page.treeRow('#hier', 'tb_top');

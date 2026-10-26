@@ -157,13 +157,15 @@ export async function runBrowserFlow({ project, files, steps, resources = null, 
 /**
  * What Implement of the project's device fetches (Yosys, the device description, its bit database), fetched into the
  * browser's Cache Storage by the flow's worker, in the background, when a project opens (#967): its first run does not
- * wait for 17 MB to download. Nothing where there is no Cache Storage (a page opened from a file), for a device the
- * Silinx toolchain does not support, or once the device's are prepared. Resolves { fetched, bytes, pruned } or null.
+ * wait for 17 MB to download. Nothing in a page opened from a file (the single file: WebKit and Firefox give it a
+ * Cache Storage, and a navigation that cancelled the download was a console error in WebKit, #1450), where there is
+ * no Cache Storage, for a device the Silinx toolchain does not support, or once the device's are prepared.
+ * Resolves { fetched, bytes, pruned } or null.
  */
 const prepared = new Set();
 export function prepareBrowserFlow(device = {}) {
   const st = browserOpenStatus(device);
-  if (!st.available || prepared.has(st.graph) || !globalThis.isSecureContext || !globalThis.caches) return Promise.resolve(null);
+  if (!st.available || prepared.has(st.graph) || globalThis.location?.protocol === 'file:' || !globalThis.isSecureContext || !globalThis.caches) return Promise.resolve(null);
   prepared.add(st.graph);
   const w = getWorker(), id = ++runSeq;
   return new Promise(resolve => {
