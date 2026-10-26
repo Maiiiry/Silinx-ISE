@@ -3,6 +3,156 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.15.0
+
+Each task gets its own side panel: Simulate's lists the test benches and their files, Emulate's has its processes as
+Implement's; a reload comes back where you were without showing the project opening; the Board Emulator follows the
+design as it changes.
+
+In short:
+
+- **Simulate:** its side panel lists the test benches (one clicked is simulated) and, under a Files tab, their files;
+  with no test bench, the module and the model to simulate; New Test Bench and Add Copy of TB above it, right-click
+  menus as Design's; an HDL opened there is edited there; the model in SSim's toolbar; several signals selected by a
+  selection window; a test bench always runs its own inputs.
+- **Emulate:** its processes in the side panel, as Implement's, with I/O Pin Planning and Emulate on Board above them;
+  the Watch beside the board; the emulator's document in its tab.
+- **Implement:** I/O Pin Planning and Program FPGA above its processes; Set Top Module… opens the Design Summary.
+- **Every task:** the side panels open and the messages shown by default; no buttons on the tasks' pages; a 1024 px
+  window (an iPad in landscape) keeps the side panels docked.
+- **A reload** comes back where you were (the task, the documents), showing nothing of the project reopening.
+- **Board Emulator:** it runs the design again by itself when a source or the pins change; its Model list without
+  "(not generated)".
+- **Design:** a right-click on the tree's empty space: New Source, Add Copy of Source, Close Project.
+- **Faster small designs at Optimization Effort Normal with the Silinx toolchain:** a design of 250 LUTs at most is also
+  synthesized as at High, and that netlist kept when it is no slower: 8 % shorter critical paths on the designs it
+  changes (up to 19 %), by ISE's timing analyser, for 2-3 s more of synthesis.
+- **Projects:** a symbolic link in a project folder that leads out of it is no longer followed by the local server;
+  a file still being read when another project is opened is no longer opened in that project; Rename Folder keeps
+  removed files removed; a name with `$&` or `$'` shows as written in the Portuguese labels.
+
+In detail:
+
+- Tasks: Simulate and Emulate show the messages (the console) by default, as Design and Implement; folding them stays the viewer's choice, kept (#1429).
+- Tasks ▸ Simulate: with nothing simulated the header's side panel button is shown, as in the other tasks, and folds and unfolds Simulate's side panel (#1376), kept (#1428).
+- Tasks ▸ Emulate: no task has a single document any more: the emulator's document shows in its tab (Board Emulator (…), its close), the header no longer shows its module, model and close (#854); the model stays in the emulator's Model choice (#1426).
+- Board Emulator: its Model list without "(not generated)" after the netlists not generated yet; one chosen is still offered to be generated first (#490) (#1425).
+- Tasks ▸ Emulate: above its side panel's processes, as Implement's bar (#1398), I/O Pin Planning and Emulate on Board (the behavioural model, RTL), both off with no top module (#1424).
+- Tasks: the buttons of the bars above and under the hierarchies (I/O Pin Planning, Check Design, …) are set as the project is when it opens, when its processes are drawn again and when its design changes (its top set or unset), not only by the check once a second (#1423).
+- Tasks ▸ Emulate: its side panel with no top module shows why it lists no process and a Set Top Module… button, as Implement's (#1224); the top set, its processes (#1422).
+- Tasks ▸ Implement: Program FPGA programs also when the iMPACT open was opened before (by a version without that command): it is opened again, its Program FPGA run, instead of only being brought to the front (#1421).
+- Tasks ▸ Emulate: the page shown with nothing emulated has no Emulate button, as Design's, Simulate's and Implement's; the emulation is started from the side panel, Emulate on Board and its models (#1420).
+- The narrow layout (#266) starts under 1024 px: at 1024 px the side panels of Design, Emulate and Implement are docked at the left, as on a laptop, instead of a drawer closed when the task comes to the front; the drawings' side panels follow the same width (#1418).
+- Tasks: the state of Simulate's and Emulate's side panels kept from before they changed (Emulate's button folded the Watch, #1399; Simulate's panel was folded at first, #1408) is dropped once, the panels open; the kept state has a version since (#1415).
+- Tasks ▸ Simulate: the side panel is open by default, as Design's, Emulate's and Implement's: opening a simulation shows its Simulation tree and Objects instead of folding them (the panel always shown with nothing simulated, #1376); folding it stays the user's choice, kept (#1408).
+- **One copy of each small helper (#1406):** `clone`, `hex2`, `lineStarts`, `isKw` / `isOp`, `tokenText` and a symbol
+  parameter's `int` in core/util.js, `cleanLoc` and `portText` in web/js/wizard-util.js, the drawing editors' `sv` in
+  web/js/dom.js; the modules that had a copy import it (the old ones still export what they exported), and
+  test/util.test.js fails on a new copy. No change of behaviour.
+- **A test for translations of texts the interface no longer has (#1405):** test/web-i18n.test.js fails on a key of
+  the Portuguese dictionary that no string or template literal of web/, core/ or server/ has (each `${…}` of a
+  template any text), read by a small tokenizer (test/js-literals.js); the six such keys left are removed.
+- Tasks ▸ Simulate: the Simulation and Files tabs of the side panel and of SSim's tree have their icons, as Design's pages: the tab in front its icon and name, the other its icon, its name as its tooltip; Emulate's tab has its icon since #1399 (#1404).
+- Start-up with a project to reopen: the app is hidden from the first paint (set by the page's start-up script, shown anyway after 10 s) until the project is back where the user was (its documents, the task in front, its side panel), instead of showing Design, the Design Summary and each reopened document in turn; with no project to reopen it is shown at once (#1403).
+- Board Emulator: a change of the design (a source or a drawing saved with a change, I/O Pin Planning, the UCF saved) runs its emulation again, its settings kept (engine, timing), behind the document in front, which stays there with its task; a save with no change runs nothing again; a netlist's emulation says in the console that it is the one before (emulated again, the netlist is generated anew) (#1401).
+- Tasks ▸ Emulate: the Processes (User Constraints, Emulate on Board…, #1204) are the task's side panel, as Implement's: under an Emulate tab with its icon, its width (and splitter), a drawer on a narrow screen, folded by the side panel's button; the Watch stays beside the board (below it when the width runs short), no longer folded by that button. The board's zoom leaves room for a scrollbar, and the header's document name is shortened rather than past the edge on a narrow screen (#1399).
+- Tasks ▸ Implement: above its Processes, as Design's and Simulate's hierarchies have their commands, I/O Pin Planning (off with no top module) and Program FPGA (iMPACT's, opened beside: the design implemented first when it is not) (#1398).
+- Tasks ▸ Simulate: the side panel with nothing simulated (#1376) is shown whenever no simulation is open, a test bench's HDL left open in Simulate beside it and under the tabs (it was shown only with no document at all) (#1396).
+- Tasks ▸ Simulate: the side panel (and SSim's tree) has a Files page beside Simulation, as Design's pages, the same page in front in both: the test benches' files (the simulation sources), a double-click opening one in Simulate, a right-click Open, Rename…, Check Syntax, Remove from Project and Source Properties… (#1395).
+- Tasks ▸ Simulate: the Test Bench Wizard started from Simulate (New Test Bench…) opens the test bench it writes in Simulate, not in Design (the task switched to Design) (#1392).
+- Tasks ▸ Simulate: the model's choice at the right end of SSim's toolbar (#1353) has its label, "Model:" (#1391).
+- Tasks ▸ Simulate: above the Simulation hierarchy (its side panel, and SSim's tree), New Test Bench… and Add Copy of TB… (Add Copy of Test Bench, Add Copy of Source… with the Simulation only association), the side panel's Create a test bench (Wizard)… row gone; a right-click on a test bench: Open, Rename…, Check Syntax, New Test Bench…, Add Copy of TB…, Remove from Project, Source Properties… (in SSim's tree after its own commands); on the hierarchy's empty space: New Test Bench…, Add Copy of TB…. SSim's tree's Go To Source Code is Go To Source there, and opens the module's source in Design, its drawing if it has one (#1385).
+- Tasks ▸ Design: a right-click on the tree's empty space (not on a row) opens a menu with New Source…, Add Copy of Source… and Close Project, as the buttons around the tree (#1384).
+- SSim: Edit Stimuli on a test bench forces its unit under test's inputs in that simulation only; they are no longer saved for the bench nor forced again in its next simulations (whose own vectors then failed their checks), and stimuli kept for a bench before are dropped (#1380).
+- Tasks ▸ Simulate: the side panel with nothing simulated (#1376) shows the project's test benches as rows, as SSim's tree, the one simulated marked, one clicked simulated; with no test bench, the module's and the model's choices, each on its prompt whenever the panel is shown, the simulation run once both are chosen, and the Test Bench Wizard; no Simulate row (#1378).
+- Tasks ▸ Simulate: with no simulation open, a side panel under a Simulation tab (as SSim's) holds the module to simulate and the model (a choice simulates at once, #1018), then Simulate and Create a test bench (Wizard)… as rows in the style of Implement's processes; Simulate's page keeps its title and text, without its buttons and choices. A simulation open, the side panel is SSim's tree (#1376; supersedes #1366).
+- Tasks ▸ Implement: Set Top Module… (#1224) opens the Design Summary in front once the top is set, as choosing Implement with a top does (#1372).
+- Tasks ▸ Implement: the page shown with nothing open in the task has no Implement button, as Design's (#1349); the processes are run from the Implementation panel and the toolbar (#1367).
+- Tasks ▸ Simulate: the Simulation tree's `[Waveform]` and `[VHDL]` / `[Verilog]` badges are on the simulated module's row (and the other test benches') only; the instances under it show their name and module (#1365).
+- SSim: the open simulations' trees are drawn again when the project is read again, so a test bench added (Save as Test Bench, the wizard), removed or renamed is listed at once, not after a reload of the page (#1364).
+- Tasks ▸ Simulate: the page shown with nothing simulated has no Edit button beside the module's choice; a source is opened from the Design panel, or in Simulate from the Simulation tree's badges (#1363).
+- Tasks ▸ Simulate: a source opened there sits under the documents' tabs, so its editor bar (Save, Find, Undo…) is shown and it is edited as in Design; the `[VHDL]` / `[Verilog]` badge of the Simulation tree is drawn solid, as `[Waveform]`, the module's own source (#1357).
+- **15.14.0's tag CI (#1354):** test/ui/standalone.test.js's own builds without GITHUB_REF (a tag's CI made them the
+  release's); test/ui/harness.js imports the app's modules for a hidden menu only where the page loads them (the
+  single-file editions have none, and Firefox reported the failed loads as console errors).
+- **The model in SSim's toolbar (#1353):** web/js/tasks-sim.js (placeModel: the simulation's model shown; another one
+  simulated, a netlist not generated yet offered first), web/js/tasks.js, web/css/tasks.css; the Tasks interface's
+  only. Test: test/ui/tasks-sim.test.js.
+- **A selection window in the wave window (#1351):** web/js/isim-input.js (boxSelect: the rows the window crosses
+  selected; a click without a drag selects the row under it), web/css/isim.css (its look). Test:
+  test/ui/isim-input.test.js.
+- **Design's page without Check (#1349):** web/js/tasks.js (its hint, its button hidden in Design), web/css/tasks.css,
+  web/js/i18n.js. Tests: test/ui/tasks.test.js, test/ui/modern.test.js.
+- **The Silinx toolchain first (#1347):** web/js/wizards.js (Execution mode's choices: the Silinx toolchain, then the
+  Xilinx ISE modes). Tests: test/ui/app.test.js, test/ui/open-toolchain.test.js.
+- **Maximize in Simulate (#1345):** web/css/tasks.css (the simulation's side panel hidden while maximized, as folded; beside a source too, #1343).
+  Test: test/ui/tasks-sim.test.js.
+- **The Simulation tree beside a source (#1343):** web/js/tasks-sim.js (placeSimSide: the last simulation's side panel
+  kept at the left of a source in front in Simulate; fitSimTabs measures it), web/js/tasks.js, web/css/tasks.css. Test:
+  test/ui/tasks-sim.test.js.
+- **Documents reopened out of sight (#1339):** web/js/project.js (data-restoring while a project's documents reopen),
+  web/js/app.js (at start-up, until the task in front is back too, #1337), web/css/app.css (the work area hidden then).
+  Test: test/ui/tasks.test.js.
+- **A reload keeps the task (#1337):** web/js/tasks.js (restoreStartTask: the task in front when the page was left,
+  brought back once the last project is reopened), web/js/app.js. Test: test/ui/tasks.test.js.
+- **The private-data check's history scan (#1336):** scripts/check-private-data.mjs allows the made-up macOS home
+  folder where 15.14.0's history names it (a commit's message, the changelog of one commit).
+- **Translations and styles of what the interface no longer has (#1241):** the Portuguese of 24 labels and messages no
+  label uses any more (web/js/i18n.js, i18n-schematic.js, i18n-fpga.js, i18n-fsm.js) and the CSS classes no element
+  has (`.linkish`, `.start-grid`, `.se-lang`, `.se-tip`) removed.
+- **Exports nothing imports (#1240):** 46 constants and functions of core/, web/js/ and scripts/ used only in their own
+  file are no longer exported (the names stay).
+- **Dead code removed (#1239):** constants and helpers nothing read (core/schdoc.js, stimuli.js, symdocs.js,
+  fpga/s6/place.js, web/js/implement.js's `STEP_TOOL`, eight test helpers) and the re-exports the #405 split left in
+  web/js/app.js and core/scopes.js, which no module imports.
+- **Helpers taken from the module that has them (#1238):** core/compiled-words.js and compiled-tables.js use
+  core/compiled-helpers.js's `int`, `pbits` and `isConst` (now there); the Spartan-6 placer uses core/fpga/place.js's
+  `crossing`; core/synth-open-path.js uses core/lut-resynth.js's `LEVEL_CELL` / `COMB_CELL`. No change of behaviour.
+- **The cached tools checked against their SHA-256 (#1237):** the build writes each published asset's SHA-256 (the
+  device descriptions, the bit database, Yosys) into the page's asset layout; web/js/asset-cache.js checks a copy
+  before it keeps or uses it, in the flow worker and the Yosys workers: a cached copy that differs (truncated, or put
+  there by another page of the same site) is dropped and fetched again, and a download that differs is not kept.
+- **Small checks in the local server (#1236):** Sync with ISE Project keeps a constraints path of the `.xise` only when
+  it is inside the project (an absolute or a Windows drive path was stored); every response says
+  `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`, and no longer `X-Powered-By`; a programmer's
+  cable or device named by the page must be a plain value (not an option of the tool).
+- **body-parser 2.4.0 (#1235):** the local server's JSON body parser (through express) updated past the advisory
+  GHSA-27r3-jxmh-p828; `npm audit` reports nothing. The third-party notices follow.
+- **The server's project paths confined once their symbolic links are followed (#1234):** server/paths.js (`within`,
+  `realOf`), used by `safeJoin` and ISE's build (server/ise.js): a project folder put in the workspace by hand (a
+  clone, a copy) with a link to a file outside it is not read, written, copied into the build or sent to the build
+  host; a link to a folder of the project itself still works.
+- **MCP `write_file`: Silinx's own files by any spelling (#1233):** the guard on `silinx.json` and `build/` tests the
+  path as the project lists it, so `./silinx.json` or `src/../silinx.json` no longer pass; the file written is
+  reported by its plain path.
+- **t(): the translation put back as text (#1232):** web/js/i18n.js replaces the label with a function, so `$&`,
+  `` $` ``, `$'` and `$$` in the translated text (a captured name) are not taken as replacement patterns.
+- **A document opened for the project it was read from (#1231):** web/js/app.js `openFile` and the drawings' openers
+  (web/js/drawings.js, drawings-tt.js) read from the project open at the start and open nothing when another project
+  was opened during the read (project A's text was shown, and saved, as project B's file of the same path).
+- **Delete Folder in the local server: the deleted UCF is not the constraints any more (#1230):** server/projects.js
+  `deleteFile` clears `constraints` when it is under the deleted path, as the browser store does, so a UCF added
+  later is adopted and Edit Constraints does not recreate the deleted one.
+- **The server's file route takes a path as the project lists it (#1229):** server/projects.js `writeFile` stores
+  `./src/a.vhd` and `src//a.vhd` as `src/a.vhd` (the same file was listed, and synthesised, several times) and refuses
+  `silinx.json` (written by the project's own routes), as the browser store does.
+- **A folder renamed: the excluded files follow (#1228):** server/projects.js and web/js/project-store.js `renameFile`
+  remap `excluded` with the files and the constraints (a folder, and a single file); a deleted folder's excluded
+  entries are dropped.
+- **Normal synthesizes a small design as High does too, the faster kept (#652):** High's mappings (the depth-oriented
+  ones, the state machines one-hot, the speedup, the critical LUTs made shallower) were tried at Normal only on a design
+  limited by its depth; by ISE's trce they make the corpus's designs of 500 LUTs at most 2.5 % faster than Normal's
+  netlists, up to 19 %. At Normal a design whose usual mapping has `SMALL_RULE.maxLuts` (250) LUTs at most is now
+  synthesized both ways, side by side (`core/synth-open.js`), and High's netlist kept when the estimate says it is no
+  slower than Normal's (itc99-b08's, 13 % slower by the estimate, was 15 % slower by trce: Normal's kept); the console
+  says which. Normal's place and route is unchanged. Measured: 16 routings of the corpus and the examples change at
+  Normal; by ISE's trce on the 14 timed ones 8.0 % faster in geometric mean (2.0 % over the 57 timed designs): epfl-router
+  and itc99-b10 −19.3 %, itc99-b13 −18.0 %, iwls05-sasc −16.8 %, the traffic example −12.6 %, verilog-uart −9.7 %,
+  verilog-i2c-master −8.4 %, itc99-b07 −8.2 %; three slower by 4 % at most (verilog-lfsr-crc, itc99-b09, the stopwatch
+  example); every bitstream byte-identical to ISE's bitgen with a clean DRC. A small design's synthesis takes 2-3 s more
+  (blinky 2.0 → 4.3 s). The Process Properties' note on the effort says so, in English and in Portuguese; README and
+  docs/PROJECT.md too.
+
 ## 15.14.0
 
 The modern interface is now organised by tasks (Design, Simulate, Emulate, Implement), with no menu bar; schematics
