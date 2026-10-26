@@ -47,6 +47,9 @@ whoever has the address with its token has the server, as the warning says at st
 - Every release lists its files' SHA-256 checksums (`SHA256SUMS`, also in its notes) and carries GitHub's
   build provenance attestation of each file: how to check a download is in the README and
   [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
+- The workflows install the dependencies without their install scripts, their checkouts keep no credentials,
+  and a token reaches only the step that publishes (a release, the development build, the site); Dependabot
+  proposes an npm version a week after it is published.
 - The self-hosted runner with Xilinx ISE (the maintainer's machine) runs only `ise.yml` and `quality.yml`,
   scheduled or started by hand, on `main`, with a read-only token and no credentials kept; never a pull
   request's code. Every workflow's jobs are checked for it in `test/workflows.test.js`; a pull request from

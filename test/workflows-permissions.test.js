@@ -1,7 +1,8 @@
 // The workflows' least privilege (#479): every workflow says at the top what its token may do (the ones
 // that only test the code read the repository; the ones that publish say what they write, for every job
 // of theirs), and the self-hosted runner (the maintainer's machine: ise.yml, quality.yml) installs the
-// dependencies without their install scripts.
+// dependencies without their install scripts. Every job does (#1436): a compromised dependency's install
+// script would otherwise run with the job's token, which no checkout keeps and only a publishing step gets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -63,4 +64,54 @@ test('quality.yml: one job writes, contents only, on GitHub\'s runner; the self-
   const script = jobs.publish.slice(check, commit);
   assert.match(script, /\[ -L "\$R\/\$f" \] \|\| \[ ! -f "\$R\/\$f" \]/);
   assert.match(script, /jq -e '\.designs \| type == "array"'/);
+});
+
+const ACTION = path.join(DIR, '..', 'actions', 'setup', 'action.yml');
+const FILES = fs.readdirSync(DIR).filter(f => f.endsWith('.yml'));
+
+test('the dependencies\' install scripts never run (#1436): the setup action says so, and every other npm ci is in a job that does', () => {
+  const action = fs.readFileSync(ACTION, 'utf8');
+  assert.match(action, /\n    - run: npm ci\n      shell: bash\n      env:\n        NPM_CONFIG_IGNORE_SCRIPTS: 'true'\n/, 'the setup action');
+  for (const f of FILES) {
+    const yml = read(f);
+    for (const part of yml.slice(yml.indexOf('\njobs:\n') + 7).split(/\n(?= {2}[\w-]+:\n)/)) {
+      const npm = part.replace(/^\s*#.*$/gm, '').match(/^.*\bnpm (ci|install)\b.*$/gm) || [];
+      if (!npm.length) continue;
+      const name = /^ {2}([\w-]+):/.exec(part)[1];
+      // the job's env, or --ignore-scripts on every npm line of its own (yosys-update's measure)
+      if (!npm.every(l => /--ignore-scripts\b/.test(l)))
+        assert.match(part, /\n    env:\n(?:      .*\n)*      NPM_CONFIG_IGNORE_SCRIPTS: 'true'(\n|$)/, `${f}:${name}: npm ci in the job, without NPM_CONFIG_IGNORE_SCRIPTS in its env`);
+    }
+  }
+});
+
+test('no checkout keeps its credentials; a git push names the token of its own step (#1436)', () => {
+  for (const f of FILES) {
+    const yml = read(f);
+    const checkouts = yml.match(/uses: actions\/checkout@.+/g) || [];
+    const without = yml.match(/uses: actions\/checkout@.+\n\s+with:\n(?:\s+(?:[\w-]+: .*|#.*)\n)*?\s+persist-credentials: false/g) || [];
+    assert.equal(without.length, checkouts.length, `${f}: persist-credentials: false on every checkout`);
+    // a push: to origin (no credentials in a URL), in a step that holds the token and sets it as git's
+    // authorization header for github.com (GIT_CONFIG_*: the configuration of that step's processes only)
+    for (const m of yml.matchAll(/^.*\bgit push\b.*$/gm)) {
+      assert.match(m[0], /git push( -\w+)* origin /, `${f}: ${m[0].trim()}`);
+      const step = yml.slice(yml.lastIndexOf('\n      - ', m.index), m.index);
+      assert.match(step, /\n {8}env:\n(?: {10}.*\n)*? {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/, `${f}: the token in the pushing step's env`);
+      assert.match(step, /GIT_CONFIG_KEY_0=http\.https:\/\/github\.com\/\.extraheader\n\s+GIT_CONFIG_VALUE_0="AUTHORIZATION: basic \$\(printf 'x-access-token:%s' "\$GH_TOKEN" \| base64 \| tr -d '\\n'\)"/, `${f}: the authorization header before the push`);
+    }
+  }
+});
+
+test('pages.yml: the deployment\'s token on the deploy job only; the build job, which runs the code, has none (#1436)', () => {
+  const yml = read('pages.yml');
+  const top = /\npermissions:\n((?:  \S.*\n)+)/.exec(yml)[1];
+  assert.doesNotMatch(top, /write/, 'no write permission at the top');
+  const deploy = yml.slice(yml.indexOf('\n  deploy:\n'));
+  assert.match(deploy, /\n    permissions:\n      pages: write\n      id-token: write\n/);
+  assert.doesNotMatch(yml.slice(yml.indexOf('\n  build:\n'), yml.indexOf('\n  deploy:\n')), /\n    permissions:/);
+});
+
+test('dependabot waits a week before proposing an npm version (#1436)', () => {
+  const yml = fs.readFileSync(path.join(DIR, '..', 'dependabot.yml'), 'utf8');
+  assert.match(yml, /\n  - package-ecosystem: npm\n(?:    .*\n)*?    cooldown:\n      default-days: 7\n/);
 });

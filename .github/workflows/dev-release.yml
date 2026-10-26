@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Build the single-file edition
         # (the token only reads the issues' labels of the Development menu, #707: it is not written anywhere)
@@ -38,11 +39,15 @@ jobs:
       # the changes not released yet (the changelog fragments, changes/*.md, and CHANGELOG.md's newest section when it is not a release)
       - name: Notes
         run: node scripts/dev-notes.mjs > out-notes.md && cat out-notes.md
-      # the tag dev moved to this commit, the pre-release's files replaced
+      # the tag dev moved to this commit, the pre-release's files replaced (the token reaches this step
+      # only: the checkout keeps no credentials, #1436)
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # the token as git's authorization header for github.com (as actions/checkout sets it), for this step's pushes only
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"; export GIT_CONFIG_VALUE_0
           git tag -f dev HEAD
           git push -f origin refs/tags/dev
           if gh release view dev >/dev/null 2>&1; then
