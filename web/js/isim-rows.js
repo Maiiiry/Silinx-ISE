@@ -22,7 +22,7 @@ function bitIndices(t) {
   return out.slice(0, t.w);
 }
 
-/** { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix, selectedItems,
+/** { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, waveSignals, itemWave, valueOf, itemType, itemRadix, selectedItems,
  *  removeSelectedRows, renameDivider, radixItems, waveRowMenu } of an SSim window (flat(): the lines shown). */
 export function mountRows(ctx) {
   const { st, sim, onOpenSource, updateVScroll, invalidate, renderObjects, forceDialog, isForced, removeForces, openSource } = ctx;
@@ -69,6 +69,12 @@ export function mountRows(ctx) {
     for (const p of inst.ports || []) if (!seen.has(p.sig)) { seen.add(p.sig); out.push({ sig: p.sig, port: p }); }
     for (const s of inst.signals || []) if (!seen.has(s)) { seen.add(s); out.push({ sig: s, port: null }); }
     return out;
+  }
+  /** The signals in the wave window as a simulation opens: a design module's inputs and outputs, in their order (the
+   *  rest added from Objects, #1519); a test bench's (no ports) top-level signals, as ISE does. */
+  function waveSignals(inst) {
+    const all = instSignals(inst), ports = all.filter(o => o.port);
+    return (ports.length ? ports : all).map(o => o.sig);
   }
   function itemWave(it) {
     const sig = it.row.sig;
@@ -184,6 +190,6 @@ export function mountRows(ctx) {
     ];
   }
 
-  return { flat: () => flat, rebuildFlat, clearBits: () => bitCache.clear(), newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix,
-    selectedItems, removeSelectedRows, renameDivider, radixItems, waveRowMenu };
+  return { flat: () => flat, rebuildFlat, clearBits: () => bitCache.clear(), newRow, addSignals, instSignals, waveSignals, itemWave, valueOf, itemType,
+    itemRadix, selectedItems, removeSelectedRows, renameDivider, radixItems, waveRowMenu };
 }

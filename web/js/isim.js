@@ -370,7 +370,7 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- rows model and commands (isim-rows.js)
   // (made here, in mount order; the Objects panel and the forces, made below, are used when the rows change or from their menu)
-  const { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix, selectedItems, removeSelectedRows,
+  const { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, waveSignals, itemWave, valueOf, itemType, itemRadix, selectedItems, removeSelectedRows,
     renameDivider, radixItems, waveRowMenu } = mountRows({ st, sim, onOpenSource, updateVScroll: (...a) => updateVScroll(...a), invalidate,
     renderObjects: () => renderObjects(),
     forceDialog: (...a) => forceDialog(...a), isForced: (...a) => isForced(...a), removeForces: (...a) => removeForces(...a), openSource });
@@ -516,7 +516,7 @@ export function mountISim(container, opts = {}) {
   cleanups.push(onPrefsChange(() => requestAnimationFrame(() => { readColors(); layout(); })));   // light / dark theme
   renderTree();
   if (design.top) {
-    const sigs = instSignals(design.top).map(o => o.sig);
+    const sigs = waveSignals(design.top);   // (a module's ports, a test bench's signals: #1519)
     st.rows = sigs.map(s => newRow(s));
   }
   rebuildFlat();
