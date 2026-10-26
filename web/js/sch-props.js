@@ -1,7 +1,7 @@
 // The schematic editor's Properties panel (#405: out of mountSchEditor): the sheet's (its language), a symbol's (its
 // name, its parameters, a gate's inputs, a flip-flop's pins, a LUT's function, a module's ports and nets), a port's, a
-// net label's and a wire's (its net, renamed with the whole net), several objects' commands. mountProps(ctx) is called
-// by mountSchEditor where this code was.
+// net label's and a wire's (its net, renamed with the whole net), several objects' commands and the properties they
+// have in common (#1471). mountProps(ctx) is called by mountSchEditor where this code was.
 import {
   SYMBOLS, symbolDef, symbolParams, symbolPins, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, netByName, renameNet,
 } from '/core/schdoc.js';
@@ -13,12 +13,14 @@ import { dialog } from './ui.js';
 import { h } from './dom.js';
 import { reservedError } from '/core/reserved.js';
 import { clone, snap, KEYS } from './sch-editor.js';
+import { mountMultiProps } from './sch-multi.js';
 
 /** { renderProps, openSelected, renamed, joinByName } of a schematic editor (doc(), sel(), nl(), live(), modules(): its current ones). */
 export function mountProps(ctx) {
   const { opts, container, propBody, readOnly, doc, sel, nl, live, modules, setGenLang, edit, flash, rotateSel, mirrorSel, deleteSel, nextId,
     openInfo, infoTarget } = ctx;
 
+  const multiProps = mountMultiProps({ propBody, doc, edit, field: (...a) => field(...a), keepFocus: (...a) => keepFocus(...a) });   // (#1471)
   function field(label, input, note) { return h('div', { class: 'se-field' }, h('label', { text: label }), input, note ? h('div', { class: 'se-note', text: note }) : null); }
   // the single selected module instance (RTL view: "push into"), or null
   function selectedModuleSym() {
@@ -43,8 +45,9 @@ export function mountProps(ctx) {
     const items = [...sel()];
     if (items.length === 0) return sheetProps();
     if (items.length > 1) {
-      propBody.append(h('div', { class: 'se-ptitle', text: `${items.length} objects selected` }),
-        h('div', { class: 'se-pbtns' }, h('button', { class: 'btn', type: 'button', text: 'Rotate', onclick: rotateSel }), h('button', { class: 'btn', type: 'button', text: 'Mirror', onclick: mirrorSel }), h('button', { class: 'btn', type: 'button', text: 'Delete', onclick: deleteSel })));
+      propBody.append(h('div', { class: 'se-ptitle', text: `${items.length} objects selected` }));
+      multiProps(items);   // (sch-multi.js)
+      propBody.append(h('div', { class: 'se-pbtns' }, h('button', { class: 'btn', type: 'button', text: 'Rotate', onclick: rotateSel }), h('button', { class: 'btn', type: 'button', text: 'Mirror', onclick: mirrorSel }), h('button', { class: 'btn', type: 'button', text: 'Delete', onclick: deleteSel })));
       return;
     }
     const [kind, id] = items[0].split(/:(.*)/s);

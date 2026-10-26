@@ -270,7 +270,7 @@ test('schematic editor and its RTL / Technology views (#130): every symbol descr
   // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above; the editor's
   // parts in modules of their own (#405) too
   // (the editor's labels: in its parts too since #405)
-  for (const f of ['sch-editor.js', 'sch-props.js', 'sch-modsym.js', 'sch-tools.js', 'sch-palette.js', 'sch-toolbar.js', 'sch-try.js']) {
+  for (const f of ['sch-editor.js', 'sch-props.js', 'sch-multi.js', 'sch-modsym.js', 'sch-tools.js', 'sch-palette.js', 'sch-toolbar.js', 'sch-try.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');
     for (const m of src.matchAll(/\btext: '([^'$`]+)'/g)) if (/[a-z]{2}/.test(m[1]) && !['labels', 'Verilog', 'schematic'].includes(m[1])) check(m[1], f);
   }
@@ -285,7 +285,7 @@ test('schematic editor and its RTL / Technology views (#130): every symbol descr
     '2 objects selected': '2 objetos selecionados', '1 symbol, 3 nets': '1 símbolo, 3 redes', '12 symbols, 30 nets · 0 error(s), 2 warning(s)': '12 símbolos, 30 redes · 0 erro(s), 2 aviso(s)',
     '3 ports · VHDL · src/knight.vhd': '3 portos · VHDL · src/knight.vhd', '1 ports': '1 porto', 'Check Schematic: 1 error(s), 0 warning(s)': 'Verificar Esquemático: 1 erro(s), 0 aviso(s)',
     'Open top.vhd': 'Abrir top.vhd', 'Open pong.v': 'Abrir pong.v', 'Drawing Technology schematic of top…': 'A desenhar o esquemático tecnológico de top…',
-    'Drawing RTL schematic of knight…': 'A desenhar o esquemático RTL de knight…',
+    'Drawing RTL schematic of knight…': 'A desenhar o esquemático RTL de knight…', '(mixed)': '(vários)',
   };
   for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
   // not a source file: unchanged
