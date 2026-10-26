@@ -39,14 +39,15 @@ const firstLine = (stmts) => {
   }
   return null;
 };
-const clone = (x) => JSON.parse(JSON.stringify(x, (k, v) => (typeof v === 'bigint' ? { $big: String(v) } : v)), (k, v) => (v && typeof v === 'object' && '$big' in v ? BigInt(v.$big) : v));
+// (a deep copy keeping BigInt values: not core/util.js's clone, #1580)
+const cloneBig = (x) => JSON.parse(JSON.stringify(x, (k, v) => (typeof v === 'bigint' ? { $big: String(v) } : v)), (k, v) => (v && typeof v === 'object' && '$big' in v ? BigInt(v.$big) : v));
 
 class SeqFlow extends Flow {
   // ------------------------------------------------------------------ the registers: every variable a unique name
   /** The top function's body with each local variable renamed to a name of its own (the registers'), and the list of
    *  its declarations. */
   renameLocals(fn) {
-    const body = clone(fn.body);
+    const body = cloneBig(fn.body);
     const used = new Set([...fn.params.map((p) => p.name), ...this.c.funcs.keys(), ...this.globals.keys()]);
     const decls = [];
     const scopes = [new Map()];
