@@ -3,6 +3,52 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.18.1
+
+15.18.0 was not published (its tests failed at the release): its changes, in the next section, come with this
+release too.
+
+In short:
+
+- **Drawings stay linked while the project reloads:** a reload no longer leaves the drawings unlinked from their HDL
+  for a moment while it reads them.
+- **Print the Board Emulator:** Print shows the board as it is (its LEDs, displays, switches and buttons in their
+  current state, the VGA monitor's picture), the Watch and the emulation's time, on one page.
+- **Print the waveform:** in SSim, Print shows the signals' names and values, every row's wave over the time range
+  shown, the time ruler, the cursor and the markers, on a white background, with the cursor's time and the range.
+- **Print a truth table:** Print shows the table, the Karnaugh map of the output in front (flat or 3D, as
+  shown) and the results (the canonical and minimal forms), with the notes when the table has some.
+- **Print any document:** File ▸ Print…, Ctrl+P and the toolbar's Print work with whatever is in front: an HDL
+  source (its text, numbered), View RTL / Technology Schematic, a truth table's schematic, a Petri net, View
+  Implemented Design (the FPGA view), the Design Summary and the reports. The page is light, also in the dark
+  theme, and names the project and the file.
+
+In detail:
+
+- **The drawings' links set once a reload has read them (#1543):** reloading a project built its maps of drawings and
+  their HDL files from empty while it read the drawings, so whatever looked at them meanwhile saw no drawing linked; the
+  maps are made first and set together.
+- **One copy of clone (#1542):** Beautify's whole-sheet layout (core/schbeautify-sheet.js) takes core/util.js's clone
+  instead of its own.
+- **The release zip within its budget again (#1541):** the XC3S250E's measurements (research/s3e-device/data, #3), which
+  the app never reads, are left out of the release zip; a release test checks it.
+- **The Board Emulator's print view (#1512):** a copy of the board and its side panel under the emulation's time,
+  without the toolbar, the Watch's list of signals, the knob's arrows, the hints and the messages, fitted to one
+  page (`web/js/emulator-print.js`).
+- **SSim's print view (#1511):** the wave window is drawn again for the print on canvases of its own (its drawing,
+  `isim-draw.js`, with the paper's colours and sizes): every row from the first one, nothing selected, the window's
+  own scroll and selection untouched; under it the cursor's time, the range shown, the simulation's time and the
+  markers (`web/js/isim-print.js`).
+- **A truth table's print view (#1510):** the truth table editor gives its own print view: a copy of the table,
+  the output's tab, its Karnaugh map as shown and the results, without the toolbar, the expression's field, the
+  hints, the map's options or the other outputs' tabs (`printView()` in `web/js/truthtable.js`).
+- **Every document in front prints (#1509):** Print is enabled with any document. A drawing (ASM chart, state
+  diagram, schematic, Petri net, a read-only schematic) opens the print dialog of diagrams, its drawing's styles
+  read in the light theme and its page's header naming the project and the file; an HDL or UCF source prints its
+  text with line numbers, HDL highlighted (the generated, read-only HDL too); any other document prints a copy of
+  what it shows (its toolbars and buttons left out, its canvases as images) fitted to the page width, the FPGA
+  view's die drawn light and fitted to one page (`web/js/print-doc.js`, `web/js/print-view.js`).
+
 ## 15.18.0
 
 In short:
