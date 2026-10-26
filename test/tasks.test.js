@@ -78,6 +78,25 @@ test('arrangement: the task in front gets the space; what the viewer left wins',
   assert.deepEqual(T.OWN_SIDE, ['sim']);   // (Emulate's as Implement's: #1399)
 });
 
+test('openedState: a project opened shows every task\'s side panel and messages, no document maximized (#1557)', () => {
+  const kept = T.readState(JSON.stringify({ v: T.STATE_V, task: 'sim', tasks: {
+    edit: { side: false, console: false, max: true, doc: 'file:src/top.vhd' }, sim: { console: false, doc: 'isim' },
+    emu: { side: false, narrowSide: true }, impl: { max: true } } }));
+  const opened = T.openedState(kept);
+  assert.deepEqual(opened, { task: 'sim', tasks: {
+    edit: { side: true, console: true, max: false, doc: 'file:src/top.vhd' }, sim: { side: true, console: true, max: false, doc: 'isim' },
+    emu: { side: true, console: true, max: false }, impl: { side: true, console: true, max: false } } });
+  for (const t of T.TASKS) assert.deepEqual(T.arrangement(t, opened.tasks[t]), { ...opened.tasks[t], side: true, console: true, max: false }, t);
+  // (on a narrow screen Emulate's side panel back to its default, folded: the board its room, #1463; the others open)
+  assert.equal(T.arrangement('emu', opened.tasks.emu, true).side, false);
+  for (const t of ['edit', 'sim', 'impl']) assert.equal(T.arrangement(t, opened.tasks[t], true).side, true, t);
+  // (nothing kept before: the same; the kept state not changed in place)
+  assert.deepEqual(T.openedState(T.readState(null)).tasks.edit, { side: true, console: true, max: false });
+  assert.deepEqual(kept.tasks.edit, { side: false, console: false, max: true, doc: 'file:src/top.vhd' });
+  // (read back as kept)
+  assert.deepEqual(T.readState(JSON.stringify({ ...opened, v: T.STATE_V })), opened);
+});
+
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
   assert.deepEqual(T.SINGLE, []);   // (Simulate: its tabs, several simulations, #1161; Emulate its tab, #1426)
   assert.deepEqual(T.docDetail('SSim (top)'), { module: 'top', model: null });
