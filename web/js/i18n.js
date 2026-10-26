@@ -552,7 +552,7 @@ PT_PATTERNS.unshift(
   [/^The last implementation of '(.+)' failed\.$/, "A última implementação de '$1' falhou."],
   // board emulator
   [/^Divide the timing generics \((.*)\) so that the design runs visibly at the emulator's speed$/, 'Dividir os genéricos de temporização ($1) para que o projeto avance visivelmente à velocidade do emulador'],
-  [/^(Post-Synthesis|Post-Translate|Post-Map|Post-Place & Route) netlist( \(not generated\))?$/, (m, n, ng) => `Netlist ${PT_POST[n]}${ng ? ' (não gerada)' : ''}`],
+  [/^(Post-Synthesis|Post-Translate|Post-Map|Post-Place & Route) netlist$/, (m, n) => `Netlist ${PT_POST[n]}`],
   [/^(.+) = (.+) \(pin (\w+)\)( — click to toggle| — press and hold \(Shift\+click keeps it pressed\))?$/, (m, r, b, p, s) => `${r} = ${b} (pino ${p})${s ? PT_PRESS[s] : ''}`],
   [/^(.+): not connected in the UCF( — click to toggle| — press and hold \(Shift\+click keeps it pressed\))?$/, (m, r, s) => `${r}: não ligado no UCF${s ? PT_PRESS[s] : ''}`],
   [/^Clock (.+): ([\d.]+) MHz on the board( \(not in the UCF: assumed\))?( · not emulated: (.*))?$/, (m, c, f, a, n, l) => `Relógio ${c}: ${f} MHz na placa${a ? ' (não está no UCF: assumido)' : ''}${n ? ` · não emulado: ${l}` : ''}`],

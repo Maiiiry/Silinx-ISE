@@ -674,8 +674,9 @@ uiTest('#878 open mode: the emulator\'s Model menu: a model not generated chosen
   await page.treeRow('#procs', 'Emulate Behavioral Model (RTL)', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { timeout: 60000, what: 'the emulator' });
   const menu = () => page.eval(() => { const s = document.querySelector('.doc:not([hidden]) .emu-bar select'); return { value: s.value, options: [...s.options].map((o) => [o.value, o.textContent, o.disabled]) }; });
-  assert.deepEqual(await menu(), { value: '', options: [['', 'Behavioral (RTL)', false], ['postsynth', 'Post-Synthesis netlist (not generated)', false],
-    ['posttrans', 'Post-Translate netlist (not generated)', false], ['postmap', 'Post-Map netlist (not generated)', false], ['postpar', 'Post-Place & Route netlist (not generated)', false]] });
+  // (those not generated yet not marked: #1425)
+  assert.deepEqual(await menu(), { value: '', options: [['', 'Behavioral (RTL)', false], ['postsynth', 'Post-Synthesis netlist', false],
+    ['posttrans', 'Post-Translate netlist', false], ['postmap', 'Post-Map netlist', false], ['postpar', 'Post-Place & Route netlist', false]] });
   const choose = (v) => page.eval((x) => { const s = document.querySelector('.doc:not([hidden]) .emu-bar select'); s.value = x; s.dispatchEvent(new Event('change', { bubbles: true })); }, v);
   // chosen: the question of the process; cancelled: the emulator on the RTL, its menu too
   await choose('postsynth');
@@ -732,7 +733,7 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
     await new Promise((r) => setTimeout(r, 25));
   }
   for (const l of leds) assert.ok(l.filter((v) => v > 0.05 && v < 0.95).length <= 2, JSON.stringify(l));
-  // the emulator's model menu knows the model just generated (not "(not generated)")
+  // the emulator's model menu knows the model just generated
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select option')].filter((o) => o.value === 'postsynth').map((o) => o.textContent)), ['Post-Synthesis netlist']);
   // #625: another model generated after it (another run of the flow, its report without this model), the model is
   // still there, the board's with it: no dialog, the same model on the board
