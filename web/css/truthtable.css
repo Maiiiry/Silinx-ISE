@@ -60,5 +60,5 @@
 .tt-ess { color: #a00; font-style: italic; }
 .tt-results { display: flex; flex-direction: column; gap: 6px; }
 .tt-res code, .tt-expr { font-family: var(--mono, monospace); font-size: 13px; }
-.tt-cost { color: var(--muted, #666); }
+.tt-cost, .tt-circuit { color: var(--muted, #666); }   /* (a form as a circuit: its gates and delay, #1427) */
 .tt-note { display: block; color: #8a5a00; }

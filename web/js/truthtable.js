@@ -2,7 +2,8 @@
 // number: the table scrolls, one output at a time in the tabs) are named in the toolbar; the truth table is edited by clicking its output cells (0 → 1 → X) or by
 // typing an expression per output. For the selected output: Karnaugh map with the groups of the
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
-// gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694).
+// gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694), each one's gates and delay
+// as a circuit, and the forms of the fewest gates and of the least delay (#1427).
 // The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434); one may be written
 // by hand (#1056), and the whole table drawn by hand (#1066), both from the Development menu (#1098). Tables read from a
 // module may have up to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module,
@@ -17,7 +18,7 @@
 import { h, undoButton, linkModel, linkSnapshot } from './ui.js';
 import {
   normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr,
-  kmapLayout, kmapRects, MAX_EDIT_INPUTS,
+  kmapLayout, kmapRects, MAX_EDIT_INPUTS, circuitCost, outputForm,
 } from '/core/logic.js';
 import { reservedError } from '/core/reserved.js';
 
@@ -32,6 +33,24 @@ const sv = (tag, attrs = {}, ...kids) => {
   return el;
 };
 const names = s => String(s || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
+
+// the HDL logic of the fewest gates, or of the least delay, among the other forms (#1427)
+const GATES_TIP = 'The form with the fewest gates, each symbol one gate whatever its number of inputs';
+const DELAY_TIP = 'The form with the fewest gates on its longest path, every gate the same delay';
+const leastOptions = () => [h('option', { value: 'gates', title: GATES_TIP }, 'Least number of gates'), h('option', { value: 'delay', title: DELAY_TIP }, 'Least delay')];
+// a form as a circuit: its gates (each symbol one) and its delay (its longest path, every gate the same delay, #1427)
+function circuit(ast) {
+  const c = circuitCost(ast);
+  return h('div', { class: 'tt-circuit' }, `As a circuit: ${c.gates} gate(s), delay ${c.delay}`);
+}
+// the form of the fewest gates or of the least delay of an output (#1427): which one, its expression, its gates and delay
+const FORM_NAMES = { sop: 'Minimal SOP', pos: 'Minimal POS', xor: 'XOR form', nand: 'NAND form', nor: 'NOR form' };
+function bestForm(doc, out, goal, label, tip, notation) {
+  const r = outputForm(doc, out, goal);
+  return h('div', { class: `tt-res tt-${goal}`, title: tip },
+    h('div', {}, h('b', {}, label), ': ', h('span', { class: 'tt-best-form' }, FORM_NAMES[r.form] || FORM_NAMES.sop)),
+    h('div', {}, h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(r.ast, notation)}`)), circuit(r.ast));
+}
 
 export function mountTtEditor(container, opts = {}) {
   let M = normalizeTable(opts.model);
@@ -89,7 +108,7 @@ export function mountTtEditor(container, opts = {}) {
   const FORM_TIP = 'Form of the logic in the generated HDL module and schematic';
   const formSel = h('select', { class: 'tt-form', title: FORM_TIP, onchange: () => { M.form = formSel.value; changed(); } },
     h('option', { value: 'sop' }, 'Minimal SOP'), h('option', { value: 'pos' }, 'Minimal POS'), h('option', { value: 'xor' }, 'XOR form (when simpler)'),
-    h('option', { value: 'nand' }, 'NAND gates only'), h('option', { value: 'nor' }, 'NOR gates only'));
+    h('option', { value: 'nand' }, 'NAND gates only'), h('option', { value: 'nor' }, 'NOR gates only'), ...leastOptions());
   // its HDL module's language (#696): the host makes the module again in it (drawings.js drawnHdlLanguage)
   const langSel = h('select', { class: 'tt-lang', title: 'HDL language', onchange: () => { M.lang = langSel.value; changed(); } },
     h('option', { value: 'vhdl' }, 'VHDL'), h('option', { value: 'verilog' }, 'Verilog'));
@@ -271,18 +290,19 @@ export function mountTtEditor(container, opts = {}) {
       return h('div', { class: `tt-res ${cls}` },
         h('div', {}, h('b', {}, label), ': ', h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(r.ast, notation)}`)),
         h('div', { class: 'tt-cost' }, `${r.terms.length} term(s), ${r.literals} literal(s); gates: ${g.and} AND, ${g.or} OR, ${g.not} NOT (${g.inputs} gate inputs)`),
-        ...note);
+        circuit(r.ast), ...note);
     };
     // the XOR form, when cheaper than both (#435)
     const x = A.xor;
     const xorForm = x && h('div', { class: 'tt-res tt-xor', title: 'Shown when it has fewer literals than the minimal SOP and POS, or as many and fewer operators' },
       h('div', {}, h('b', {}, 'XOR form'), ': ', h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(x.ast, notation)}`)),
-      h('div', { class: 'tt-cost' }, `${x.literals} literal(s), ${x.ops} two-input operator(s): ${x.xor} XOR / XNOR, ${x.and} AND, ${x.or} OR`),
+      h('div', { class: 'tt-cost' }, `${x.literals} literal(s), ${x.ops} two-input operator(s): ${x.xor} XOR / XNOR, ${x.and} AND, ${x.or} OR`), circuit(x.ast),
       x.exact ? null : h('span', { class: 'tt-note' }, 'The search was cut short: a simpler XOR form may exist.'));
     // NAND and NOR only (#694): the minimal SOP and POS by double negation
     const gateForm = (label, g, cls, from) => h('div', { class: `tt-res ${cls}`, title: from },
       h('div', {}, h('b', {}, label), ': ', h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(g.ast, notation)}`)),
-      h('div', { class: 'tt-cost' }, `${g.gates} gate(s), ${g.inverters} of them inverter(s)`));
+      h('div', { class: 'tt-cost' }, `${g.gates} gate(s), ${g.inverters} of them inverter(s)`), circuit(g.ast));
+    const best = (goal, label, tip) => bestForm(M, out, goal, label, tip, notation);
     results.append(
       h('div', { class: 'tt-row' }, h('label', {}, 'Notation:'), nsel),
       h('div', { class: 'tt-res tt-canon' }, h('b', {}, 'Canonical forms'), ': ', h('code', { 'data-no-i18n': '' }, `${out} = ${A.sigma}`), h('br'), h('code', { 'data-no-i18n': '', style: { marginLeft: '0' } }, `${out} = ${A.pi}`)),
@@ -290,7 +310,8 @@ export function mountTtEditor(container, opts = {}) {
       form('Minimal POS', A.pos, 'tt-pos'),
       ...(xorForm ? [xorForm] : []),
       gateForm('NAND form', A.nand, 'tt-nand', 'The minimal SOP with NAND gates only (double negation); an inverter is a NAND of one input'),
-      gateForm('NOR form', A.nor, 'tt-nor', 'The minimal POS with NOR gates only (double negation); an inverter is a NOR of one input'));
+      gateForm('NOR form', A.nor, 'tt-nor', 'The minimal POS with NOR gates only (double negation); an inverter is a NOR of one input'),
+      best('gates', 'Least number of gates', GATES_TIP), best('delay', 'Least delay', DELAY_TIP));
   }
 
   function renderLink() {

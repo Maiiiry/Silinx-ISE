@@ -15,6 +15,9 @@ export const TT_PT = {
   'HDL logic:': 'Lógica do HDL:', 'Form of the logic in the generated HDL module and schematic': 'Forma da lógica no módulo HDL e no esquemático gerados',
   'Minimal SOP': 'SOP mínima', 'Minimal POS': 'POS mínima', 'XOR form (when simpler)': 'Forma XOR (quando mais simples)',
   'NAND gates only': 'Só portas NAND', 'NOR gates only': 'Só portas NOR',
+  'Least number of gates': 'Menor número de portas', 'Least delay': 'Menor atraso',
+  'The form with the fewest gates, each symbol one gate whatever its number of inputs': 'A forma com menos portas, cada símbolo uma porta qualquer que seja o seu número de entradas',
+  'The form with the fewest gates on its longest path, every gate the same delay': 'A forma com menos portas no caminho mais longo, todas as portas com o mesmo atraso',
   'Truth Table from Module…': 'Tabela de Verdade de um Módulo…',
   'Fill the table with the truth table of a combinational module of the project (exhaustive simulation)': 'Preencher a tabela com a tabela de verdade de um módulo combinatório do projeto (simulação exaustiva)',
   'Not in sync with': 'Não sincronizado com', '— generated from the table': '— gerado a partir da tabela',
@@ -44,6 +47,7 @@ export const TT_PT = {
 };
 
 export const TT_PT_PATTERNS = [
+  [/^As a circuit: (\d+) gate\(s\), delay (\d+)$/, 'Como circuito: $1 porta(s), atraso $2'],   // (#1427)
   [/^(\d+) term\(s\), (\d+) literal\(s\); gates: (\d+) AND, (\d+) OR, (\d+) NOT \((\d+) gate inputs\)$/, '$1 termo(s), $2 literal(is); portas: $3 AND, $4 OR, $5 NOT ($6 entradas de portas)'],
   [/^(\d+) literal\(s\), (\d+) two-input operator\(s\): (\d+) XOR \/ XNOR, (\d+) AND, (\d+) OR$/, '$1 literal(is), $2 operador(es) de duas entradas: $3 XOR / XNOR, $4 AND, $5 OR'],
   [/^(\d+|many) minimal solutions exist; one is shown\.$/, (m, k) => `${k === 'many' ? 'Muitas' : k} soluções mínimas; é mostrada uma.`],
