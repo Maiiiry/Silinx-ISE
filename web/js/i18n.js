@@ -469,7 +469,7 @@ Object.assign(PT, {
   'Device Utilization Summary (not yet implemented)': 'Resumo da Utilização do Dispositivo (ainda não implementado)',
   'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Toolchain Settings (the gear in the toolbar)).':
     'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese/implementação requer o Xilinx ISE 14.7 (Definições da Toolchain (a roda dentada da barra de ferramentas)).',
-  'Print…': 'Imprimir…', 'Print': 'Imprimir', 'Source': 'Fonte', 'Source (read-only)': 'Fonte (só de leitura)', 'project name': 'nome do projeto', 'new project name': 'nome do novo projeto', 'file name': 'nome do ficheiro',
+  'Print…': 'Imprimir…', 'Print': 'Imprimir', 'Source': 'Fonte', 'Source (read-only)': 'Fonte (só de leitura)', 'Marker': 'Marcador', 'Time shown': 'Tempo mostrado', 'Simulation time': 'Tempo de simulação', 'project name': 'nome do projeto', 'new project name': 'nome do novo projeto', 'file name': 'nome do ficheiro',
   'Device': 'Dispositivo', 'Top': 'Topo', 'Board': 'Placa', 'Last Used': 'Último uso', '.zip file:': 'Ficheiro .zip:',
   'Import a whole Silinx project from a .zip made with File ▸ Export Silinx ISE Project (silinx.json and every project file: sources, ASM charts, schematics, constraints, simulation files).':
     'Importe um projeto Silinx completo a partir de um .zip feito com Ficheiro ▸ Exportar Projeto Silinx ISE (silinx.json e todos os ficheiros do projeto: fontes, diagramas ASM, esquemáticos, restrições, ficheiros de simulação).',
@@ -593,6 +593,7 @@ PT_PATTERNS.unshift(
   [/^(\d+) port bit\(s\) have no LOC on a (.+) resource \(inputs are held at 0\):$/, '$1 bit(s) de porto sem LOC num recurso da $2 (as entradas ficam a 0):'],
   // print dialog
   [/^Print — (.*)$/, 'Imprimir — $1'],
+  [/^The first (\d+) of (\d+) rows$/, 'As primeiras $1 de $2 linhas'],   // (SSim's print, #1511)
   [/^(\d+) pages? \((\d+) across × (\d+) down\), (\S+) (landscape|portrait); 12 px text prints at ([\d.]+) pt$/,
     (m, n, c, r, p, o, pt) => `${n} página${n === '1' ? '' : 's'} (${c} na horizontal × ${r} na vertical), ${p} ${o === 'landscape' ? 'horizontal' : 'vertical'}; texto de 12 px impresso a ${pt} pt`],
   [/^Drawing: (\d+) × (\d+) px\. Large diagrams: several pages across \(tiles\) or A3; text below ~5 pt is hard to read on paper\. For a PDF choose "Save as PDF" in the print dialog \(keep the margins at "Default"\)\.$/,
