@@ -471,21 +471,28 @@ export async function importSilinxDialog() {
 }
 
 // ------------------------------------------------------------------ replacing an existing file
-// A wizard that would create a file which already exists asks once whether to replace it
+// A wizard that would create a file which already exists asks once whether to replace it: Replace / Cancel (#1467)
 // (returns null = go on, or the message that keeps the wizard on its page).
 export function replaceGuard(title) {
   const ok = new Set();
   return async (path) => {
     if (!(S.diskTree || S.fileTree).includes(path) || ok.has(path)) return null;   // on disk (also a file removed from the project)
-    if (await confirmDlg(title, `${path} already exists.\n\nReplace it? Its current contents will be lost.`)) { ok.add(path); return null; }
+    if (await confirmDlg(title, `${path} already exists.\n\nReplace it? Its current contents will be lost.`, { yes: 'Replace', no: 'Cancel' })) { ok.add(path); return null; }
     return `${path} already exists: choose another name.`;
   };
 }
-// close the editors of a file about to be replaced (its new contents are opened afterwards)
+// close the editors of a file about to be replaced (its new contents are opened afterwards); a drawing's HDL file,
+// generated from it (generatedFile), goes with it: made again from the new drawing when the project is reloaded
+// (#1467: else it was in the new drawing's way, a clash)
 export async function closeBeforeReplace(path) {
-  for (const d of [...S.docs]) {
-    if (d.path === path || String(d.id || '').endsWith(`:${path}`)) { d.dirty = false; clearTimeout(d._autosave); await app.closeDoc(d); }
+  let owned = null;
+  if (isView(path)) { try { owned = JSON.parse(S.viewTexts?.[path] ?? '').generatedFile || null; } catch { /* not read */ } }
+  for (const p of [path, owned].filter(Boolean)) {
+    for (const d of [...S.docs]) {
+      if (d.path === p || String(d.id || '').endsWith(`:${p}`)) { d.dirty = false; clearTimeout(d._autosave); await app.closeDoc(d); }
+    }
   }
+  if (owned && (S.diskTree || S.fileTree || []).includes(owned)) await api.deleteFile(S.project.name, owned);
 }
 // a module of that name defined in another file than `path` (the file being replaced may define it)
 export const moduleElsewhere = (name, path) => S.modules.find(m => m.name.toLowerCase() === String(name).toLowerCase() && m.file !== path
