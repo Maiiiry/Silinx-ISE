@@ -3,10 +3,23 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.18.4
+
+15.18.0 to 15.18.3 were not published (their tests failed at the release): their changes, in the next
+sections, come with this release too.
+
+In detail:
+
+- **CI: the unit tests' parts given 60 minutes (#1582):** a Windows part took over the 45 it had (the others 33 to 40,
+  Linux about 12).
+- **One copy of clone (#1580):** the C to HDL state machines' deep copy, which keeps BigInt values (core/c-fsmd.js), is
+  named cloneBig: not a copy of core/util.js's clone.
+- **CI: WebKit's install timed apart from its tests (#1559):** Playwright's WebKit and its system packages are installed
+  in a step of their own (25 minutes: a slow package mirror took 13), the memory test in its 15.
+
 ## 15.18.3
 
-15.18.0, 15.18.1 and 15.18.2 were not published (their tests failed at the release): their changes, in the
-next sections, come with this release too.
+Not published (its tests failed at the release): its changes come with 15.18.4.
 
 In short:
 
@@ -83,7 +96,7 @@ In detail:
 
 ## 15.18.2
 
-Not published (its tests failed at the release): its changes come with 15.18.3.
+Not published (its tests failed at the release): its changes come with 15.18.4.
 
 In short:
 
@@ -144,7 +157,7 @@ In detail:
 
 ## 15.18.1
 
-Not published (its tests failed at the release): its changes come with 15.18.3.
+Not published (its tests failed at the release): its changes come with 15.18.4.
 
 In short:
 
@@ -189,7 +202,7 @@ In detail:
 
 ## 15.18.0
 
-Not published (its tests failed at the release): its changes come with 15.18.3.
+Not published (its tests failed at the release): its changes come with 15.18.4.
 
 In short:
 
