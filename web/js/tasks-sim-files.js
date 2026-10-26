@@ -4,7 +4,7 @@
 // have it, the page in front the same in every one.
 
 import { h, popupMenu } from './ui.js';
-import { icon } from './icons.js';
+import { icon, icons } from './icons.js';
 
 let page = 'tree';   // ('tree': Simulation; 'files')
 const panels = new Set();
@@ -13,8 +13,12 @@ const panels = new Set();
  *  page after them). */
 export function mountSimPages(app, tabs, tree) {
   const files = h('ul', { class: 'tree task-sim-files' });
-  tabs.querySelector('.tab').dataset.page = 'tree';
-  tabs.append(h('span', { class: 'tab', role: 'tab', 'data-page': 'files' }, h('span', { class: 'tab-lbl' }, 'Files')));
+  // (each tab its icon, as Design's: the one in front its name too, the others theirs as their tooltip, #1404)
+  const sim = tabs.querySelector('.tab');
+  Object.assign(sim.dataset, { page: 'tree' });
+  sim.title = 'Simulation';
+  sim.prepend(h('span', { class: 'ico-inline tab-ico', html: icons.mWave }));
+  tabs.append(h('span', { class: 'tab', role: 'tab', 'data-page': 'files', title: 'Files' }, h('span', { class: 'ico-inline tab-ico', html: icons.mFiles }), h('span', { class: 'tab-lbl' }, 'Files')));
   tree.at(-1).after(files);
   const p = { tabs, files, render: () => renderFiles(app, files) };
   panels.add(p);
