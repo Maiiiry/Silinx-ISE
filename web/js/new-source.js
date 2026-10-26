@@ -104,7 +104,9 @@ export async function newSourceWizard({ type } = {}) {
         const taken = drawnHdlTaken(p, mod, S.project.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl');
         if (taken) return taken;
       }
-      return guard(p);
+      const r = await guard(p);
+      if (r) setTimeout(() => { fname.focus(); fname.select(); }, 0);   // Cancel: the name kept, to edit (#1467)
+      return r;
     },
   };
   // ports page (modules)
@@ -197,17 +199,16 @@ export async function newSourceWizard({ type } = {}) {
     if (st.only) return [p1, pFile];   // the wizard only: Wizard on the File Name page
     return [p1, pFile, pSum];
   };
-  pSum.validate = () => {   // the language (extension) may have changed after page 1
-    const nn = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
-    return guard(`${loc.value.trim().replace(/\/+$/, '')}/${nn}${extOf(st)}`);
-  };
+  // the language (extension) may have changed after page 1; the name as on the File Name page (#1467: x.fsm.json was
+  // checked there as src/x.fsm.json and written as src/x.fsm.json.fsm.json)
+  pSum.validate = () => guard(`${loc.value.trim().replace(/\/+$/, '')}/${nameOf()}${extOf(st)}`);
   const ok = await wizard('New Source Wizard', pages, {
     width: 760, bind: r => { refresh = r; },
     extra: { label: 'Wizard', value: 'wizard', shown: p => p === pFile, disabled: () => !st.wiz, validate: fileError },
   });
   if (!ok) return;
   if (ok === 'wizard') return openWizard(st.wiz, { name: nameOf(), location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
+  const n = nameOf();
   const path = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
   let text;
   const pj = S.project;

@@ -80,10 +80,11 @@ export const alertDlg = (title, message, kind = 'info') => dialog({
   buttons: [{ label: 'OK', value: true, primary: true }],
 });
 
-export const confirmDlg = (title, message) => dialog({
+// the answers' labels: Yes / No, or others (`{ yes: 'Replace', no: 'Cancel' }`, #1467)
+export const confirmDlg = (title, message, { yes = 'Yes', no = 'No' } = {}) => dialog({
   title, width: 420,
   body: h('div', { class: 'msg msg-question' }, h('div', { class: 'msg-icon' }, '?'), h('div', { class: 'msg-text' }, message)),
-  buttons: [{ label: 'Yes', value: true, primary: true }, { label: 'No', value: false }],
+  buttons: [{ label: yes, value: true, primary: true }, { label: no, value: false }],
 });
 
 export async function promptDlg(title, label, value = '') {

@@ -115,7 +115,7 @@ const PT = {
   'SSim Simulator': 'Simulador SSim', 'Behavioral Check Syntax': 'Verificar Sintaxe (Comportamental)',
   'View/Edit State Diagram (ASM)': 'Ver/Editar Diagrama de Estados (ASM)', 'No processes for the selected item': 'Sem processos para o item selecionado',
   // dialogs & wizards
-  'Cancel': 'Cancelar', 'Yes': 'Sim', 'No': 'Não', 'Next >': 'Seguinte >', '< Back': '< Anterior', 'Finish': 'Concluir', 'Import': 'Importar',
+  'Cancel': 'Cancelar', 'Yes': 'Sim', 'No': 'Não', 'Replace': 'Substituir', 'Next >': 'Seguinte >', '< Back': '< Anterior', 'Finish': 'Concluir', 'Import': 'Importar',
   'New Project Wizard': 'Assistente de Novo Projeto', 'Create New Project': 'Criar Novo Projeto', 'Project Settings': 'Definições do Projeto',
   'Project Summary': 'Resumo do Projeto', 'Enter a name and location for the project.': 'Indique um nome e uma localização para o projeto.',
   'Name:': 'Nome:', 'Location:': 'Localização:', 'Start from:': 'Começar a partir de:',
