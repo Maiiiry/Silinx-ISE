@@ -443,9 +443,9 @@ test('HDL of a 6-output table: the exact VHDL and Verilog, which simulate to the
   const doc = SIX();
   const vhd = generateTableHdl(doc, 'vhdl');
   assert.equal(vhd.code.slice(vhd.code.indexOf('-- y4 =')), `-- y4 = Σm(0, 2)
--- y4 = a'·c'   (minimal SOP, 2 literal(s))
+-- y4 = a'·c'   (minimal SOP, 2 literal(s), 3 gate(s), delay 2)
 -- y5 = Σm(0, 6) + d(1, 3, 5, 7)
--- y5 = a'·b' + a·b   (minimal SOP, 4 literal(s))
+-- y5 = a'·b' + a·b   (minimal SOP, 4 literal(s), 5 gate(s), delay 3)
 -- don't care: y5 = d(1, 3, 5, 7)
 
 library ieee;
@@ -667,17 +667,17 @@ test("HDL with the XOR form (#435): form 'xor' uses it where it is simpler, else
   assert.equal(normalizeTable({ ...doc, form: 'esop' }).form, 'sop');
   const vhd = generateTableHdl(doc, 'vhdl');
   assert.equal(vhd.code.slice(vhd.code.indexOf('-- y0 =')), `-- y0 = Σm(7)
--- y0 = a·b·c   (minimal SOP, 3 literal(s))
+-- y0 = a·b·c   (minimal SOP, 3 literal(s), 1 gate(s), delay 1)
 -- y1 = Σm(1, 2, 3, 4, 5, 6, 7)
--- y1 = c + b + a   (minimal SOP, 3 literal(s))
+-- y1 = c + b + a   (minimal SOP, 3 literal(s), 1 gate(s), delay 1)
 -- y2 = Σm(1, 2, 4, 7)
--- y2 = a ⊕ b ⊕ c   (XOR form, 3 literal(s))
+-- y2 = a ⊕ b ⊕ c   (XOR form, 3 literal(s), 1 gate(s), delay 1)
 -- y3 = Σm(3, 5, 6, 7)
--- y3 = a·b + c·(a ⊕ b)   (XOR form, 5 literal(s))
+-- y3 = a·b + c·(a ⊕ b)   (XOR form, 5 literal(s), 4 gate(s), delay 3)
 -- y4 = Σm(0, 2)
--- y4 = a'·c'   (minimal SOP, 2 literal(s))
+-- y4 = a'·c'   (minimal SOP, 2 literal(s), 3 gate(s), delay 2)
 -- y5 = Σm(0, 6) + d(1, 3, 5, 7)
--- y5 = (a ⊕ b)'   (XOR form, 2 literal(s))
+-- y5 = (a ⊕ b)'   (XOR form, 2 literal(s), 1 gate(s), delay 1)
 -- don't care: y5 = d(1, 3, 5, 7)
 
 library ieee;
@@ -829,7 +829,8 @@ test('HDL of the NAND and NOR forms (#694): exact VHDL and Verilog, NAND / NOR o
     assert.deepEqual(vhd.code.split('\n').filter(l => /^ {4}y\d <=/.test(l)).map(l => l.trim()), vhdl);
     assert.deepEqual(v.code.split('\n').filter(l => /^ {4}assign/.test(l)).map(l => l.trim()), verilog);
     const G = form.toUpperCase();
-    assert.match(vhd.code, new RegExp(`-- y4 = .*   \\(${G} gates only, from the minimal ${form === 'nand' ? 'SOP' : 'POS'}, 2 literal\\(s\\): ${form === 'nand' ? 4 : 1} gate\\(s\\)\\)`));
+    // (its gates and delay as a circuit, #1427)
+    assert.match(vhd.code, new RegExp(`-- y4 = .*   \\(${G} gates only, from the minimal ${form === 'nand' ? 'SOP' : 'POS'}, 2 literal\\(s\\), ${form === 'nand' ? 4 : 1} gate\\(s\\), delay \\d+\\)`));
     // NAND (NOR) operations only: no other operator but the NOT of an n-input AND (OR)
     const body = vhd.code.slice(vhd.code.indexOf('begin'));
     assert.doesNotMatch(body, form === 'nand' ? /\bx?or\b|\bnor\b|\bxnor\b/ : /\bx?and\b|\bnand\b|\bxor\b/);

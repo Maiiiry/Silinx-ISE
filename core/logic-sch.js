@@ -100,12 +100,15 @@ export function schematicFromTable(docIn, { form, lang, name } = {}) {
   const n = tt.inputs.length;
   const doc = newDoc(name || tt.name, lang || tt.lang);
   let sid = 0, wid = 0, pid = 0, lid = 0;
-  const only = form === 'nand' || form === 'nor' ? form : null;   // the inverters' gate
   const fanIn = op => (op === 'and' || op === 'or' ? 5 : 4);
   const index = new Map(tt.inputs.map((v, j) => [v, j]));
+  // (each output's form: the one asked, or the one of least gates or delay, #1427; the inverters' gate NAND / NOR when
+  // every output is in that form)
+  const forms = tt.outputs.map(o => outputForm(tt, o, form));
+  const only = ['nand', 'nor'].find(g => forms.every(f => f.form === g || f.ast.t === 'const')) || null;
   // ---- trees
-  const trees = tt.outputs.map(o => {
-    const { ast } = outputForm(tt, o, form);
+  const trees = tt.outputs.map((o, i) => {
+    const { ast } = forms[i];
     if (ast.t === 'const') return { o, t: { const: ast.v } };
     // (f = /a in NAND or NOR gates only: an inverter gate, not the inverted rail)
     let t = only && ast.args?.length === 1 && ast.args[0].t === 'var' ? { op: `${only}1`, kids: [{ leaf: index.get(ast.args[0].name), neg: false }] } : astTree(ast, index);

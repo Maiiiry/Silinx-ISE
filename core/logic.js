@@ -22,6 +22,8 @@ import { compile, elaborate, simulate } from './compile.js';
 import { clocksOf, latchGates } from './schematic.js';
 import { tbPorts, generateTestbench, expectedFromTrace } from './testbench.js';
 import { gateForm } from './logic-sch.js';
+import { circuitCost, costOrder } from './logic-cost.js';
+export { circuitCost } from './logic-cost.js';
 export { gateForm, schematicErrors, schematicFromTable } from './logic-sch.js';
 
 export const TT_VERSION = 1;
@@ -717,7 +719,7 @@ const IDENT = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RESERVED = new Set([...VHDL93_WORDS, ...VERILOG_WORDS, 'logic', 'std_logic', 'ieee']);
 
 /** The logic forms of a table's HDL module and schematic (#694). */
-export const FORMS = ['sop', 'pos', 'xor', 'nand', 'nor'];
+export const FORMS = ['sop', 'pos', 'xor', 'nand', 'nor', 'gates', 'delay'];   // (the last two: the form of least gates or delay, #1427)
 
 export function newTable(name = 'truth_table', inputs = ['a', 'b', 'c'], outputs = ['f']) {
   const n = inputs.length;
@@ -800,9 +802,22 @@ export function analyzeOutput(doc, out, opts = {}) {
 
 /**
  * The expression of output `o` of a (normalized) table in a form (FORMS), the one of both its HDL
- * module and its schematic (#694): { ast, what }.
+ * module and its schematic (#694): { ast, what, form (the form it is in), cost ({ gates, delay }) }. 'gates' and
+ * 'delay': the form of the fewest gates, or of the least delay, among the others (the first when they tie, #1427).
  */
 export function outputForm(doc, o, form = doc.form) {
+  if (form === 'gates' || form === 'delay') {
+    const order = costOrder(form);
+    const best = ['sop', 'pos', 'xor', 'nand', 'nor'].map(f => outputForm(doc, o, f)).reduce((a, b) => (order(b.cost, a.cost) < 0 ? b : a));
+    return { ...best, what: `least ${form === 'gates' ? 'gates' : 'delay'}: ${best.what}` };
+  }
+  return withCost(plainForm(doc, o, form), form);
+}
+const withCost = (r, form) => {
+  const cost = circuitCost(r.ast);
+  return { ...r, form: r.form || form, cost, what: `${r.what}, ${cost.gates} gate(s), delay ${cost.delay}` };
+};
+function plainForm(doc, o, form) {
   const n = doc.inputs.length;
   const m = minimize(doc.table[o], n, { form: form === 'pos' || form === 'nor' ? 'pos' : 'sop', ...(n > MAX_EDIT_INPUTS ? { maxNodes: 50000 } : {}) });
   const ast = minimalAst(m, doc.inputs);
@@ -812,12 +827,13 @@ export function outputForm(doc, o, form = doc.form) {
     // same table always gives the same module
     const x = minimizeXor(doc.table[o], doc.inputs, { timeMs: Infinity });
     if (x) return { ast: x.ast, what: `XOR form, ${x.literals} literal(s)` };
+    return { ast, what, form: m.form };   // (none: its minimal SOP)
   }
   if (form === 'nand' || form === 'nor') {
     const g = gateForm(m, doc.inputs, form);
-    if (g.ast.t !== 'const') return { ast: g.ast, what: `${form.toUpperCase()} gates only, from the ${what}: ${g.gates} gate(s)` };
+    if (g.ast.t !== 'const') return { ast: g.ast, what: `${form.toUpperCase()} gates only, from the ${what}` };
   }
-  return { ast, what };
+  return { ast, what, form: m.form };
 }
 
 // ===================================================================== HDL module of a table

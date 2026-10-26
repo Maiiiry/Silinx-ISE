@@ -74,7 +74,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, linked VHDL module followi
   // no Check my answer, no My expression (#694); the NAND and NOR forms below the minimal ones
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-caption`)].map((c) => c.textContent), T), ['Truth table', 'Notes', 'Expression', 'Karnaugh map', 'Results']);
   assert.equal(await page.eval((t) => document.querySelectorAll(`${t} .tt-mine-in, ${t} .tt-mine-out`).length, T), 0);
-  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-res > div:first-child b`)].map((b) => b.textContent), T), ['Minimal SOP', 'Minimal POS', 'XOR form', 'NAND form', 'NOR form']);
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-res > div:first-child b`)].map((b) => b.textContent), T), ['Minimal SOP', 'Minimal POS', 'XOR form', 'NAND form', 'NOR form', 'Least number of gates', 'Least delay']);   // (the last two: #1427)
   // no list of the essential prime implicants below them (#705): the K-map's legend marks them
   assert.deepEqual(await page.eval((t) => [document.querySelectorAll(`${t} .tt-ess-list`).length, /Essential prime implicants/.test(document.querySelector(t).textContent)], T), [0, false]);
   assert.deepEqual(await page.eval((t) => [`${t} .tt-nand`, `${t} .tt-nor`].map((q) => [document.querySelector(`${q} .tt-expr`).textContent, document.querySelector(`${q} .tt-cost`).textContent]), T), [
@@ -433,8 +433,8 @@ end rtl;
   await page.click(`${T} .tt-groups input[value=pos]`);
   assert.deepEqual((await texts()).groups, ['a + b + c', 'a + /b + /c', '/a + b + /c', '/a + /b + c']);
   await page.click(`${T} .tt-groups input[value=sop]`);
-  // below the XOR form, the NAND and NOR forms (#694)
-  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-res > div:first-child b`)].map((b) => b.textContent), T), ['Minimal SOP', 'Minimal POS', 'XOR form', 'NAND form', 'NOR form']);
+  // below the XOR form, the NAND and NOR forms (#694), then those of the fewest gates and of the least delay (#1427)
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-res > div:first-child b`)].map((b) => b.textContent), T), ['Minimal SOP', 'Minimal POS', 'XOR form', 'NAND form', 'NOR form', 'Least number of gates', 'Least delay']);
   // co: the carry a·b + c·(a ⊕ b), 5 literals against 6
   await page.click(`${T} .tt-tab[data-out=co]`);
   let x = await texts();
@@ -467,13 +467,13 @@ end rtl;
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/fa.vhd'] === 'src/fa.tt.json', [], { what: 'linked HDL' });
   await page.waitFor(async () => /co = Σm\(3, 5, 6, 7\)/.test(await (await fetch('/api/projects/TtXor/file?path=src%2Ffa.vhd')).text()), [], { what: 'the HDL of the table', timeout: 15000 });
   assert.doesNotMatch(await readWs(env, 'TtXor', 'src/fa.vhd'), /xor/);
-  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-form option`)].map((o) => `${o.value}:${o.textContent}`), T), ['sop:Minimal SOP', 'pos:Minimal POS', 'xor:XOR form (when simpler)', 'nand:NAND gates only', 'nor:NOR gates only']);
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-form option`)].map((o) => `${o.value}:${o.textContent}`), T), ['sop:Minimal SOP', 'pos:Minimal POS', 'xor:XOR form (when simpler)', 'nand:NAND gates only', 'nor:NOR gates only', 'gates:Least number of gates', 'delay:Least delay']);
   await page.fill(`${T} .tt-form`, 'xor');
   await page.waitFor(async () => /s <= a xor b xor c;/.test(await (await fetch('/api/projects/TtXor/file?path=src%2Ffa.vhd')).text()), [], { what: 'the HDL with the XOR form', timeout: 15000 });
   const vhd = await readWs(env, 'TtXor', 'src/fa.vhd');
   assert.match(vhd, /^ {4}co <= \(a and b\) or \(c and \(a xor b\)\);$/m);
   assert.match(vhd, /^ {4}x <= c or \(a and b\);$/m);
-  assert.match(vhd, /^-- co = a·b \+ c·\(a ⊕ b\) {3}\(XOR form, 5 literal\(s\)\)$/m);
+  assert.match(vhd, /^-- co = a·b \+ c·\(a ⊕ b\) {3}\(XOR form, 5 literal\(s\), 4 gate\(s\), delay 3\)$/m);
   assert.deepEqual(simTable(vhd, 'fa.vhd', 'fa'), fa.table);
   await page.waitFor(async () => (await (await fetch('/api/projects/TtXor/file?path=src%2Ffa.tt.json')).json()).form === 'xor', [], { what: 'saved' });
   await page.eval(() => window.SilinxApp.openFile('src/fa.vhd'));
@@ -541,7 +541,7 @@ end rtl;
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-xor b`).textContent, T), 'Forma XOR');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-xor .tt-cost`).textContent, T), '3 literal(is), 2 operador(es) de duas entradas: 2 XOR / XNOR, 0 AND, 0 OR');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-form option[value=xor]`).textContent, T), 'Forma XOR (quando mais simples)');
-  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-form option`)].slice(3).map((o) => o.textContent), T), ['Só portas NAND', 'Só portas NOR']);
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-form option`)].slice(3).map((o) => o.textContent), T), ['Só portas NAND', 'Só portas NOR', 'Menor número de portas', 'Menor atraso']);
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-toolbar label`)].map((l) => l.textContent), T), ['Entradas:', 'Saídas:', 'Lógica do HDL:', 'Linguagem:']);
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-nand b, ${t} .tt-nor b, ${t} .tt-nand .tt-cost`)].map((b) => b.textContent), T), ['Forma NAND', '8 porta(s), 3 delas inversora(s)', 'Forma NOR']);
   // the Design pane's badges and the schematic's bar
@@ -565,4 +565,35 @@ uiTest('#1120 Truth Table: solid lines between the row number, the inputs and th
   })));
   assert.equal(rows.length, 9, 'the header and 8 rows');
   for (const r of rows) assert.deepEqual(r.slice(1), ['2px solid', '1px solid', '1px solid', '2px solid', '1px solid'], JSON.stringify(r));
+});
+
+// #1427: the HDL logic of the fewest gates or of the least delay; every form's gates and delay as a circuit, and those
+// two forms with theirs; the module in the form chosen; in Portuguese
+uiTest('#1427 Truth Table: Least number of gates and Least delay, every form\'s gates and delay; the HDL in the one chosen; Portuguese', E, async (page) => {
+  const fa = { version: 1, name: 'fa', inputs: ['a', 'b', 'c'], outputs: ['s', 'co'], table: { s: '01101001', co: '00010111' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
+  await makeProject(env, { name: 'TtCost', files: { 'src/fa.tt.json': JSON.stringify(fa, null, 2) } });
+  await page.openProject('TtCost');
+  await page.eval(() => window.SilinxApp.openTt('src/fa.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/fa.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor .tt-gates'), [], { what: 'truth table editor' });
+  const T = '.doc:not([hidden]) .tt-editor';
+  const circuits = () => page.eval((t) => Object.fromEntries(['sop', 'pos', 'xor', 'nand', 'nor', 'gates', 'delay']
+    .map((c) => [c, document.querySelector(`${t} .tt-${c} .tt-circuit`)?.textContent ?? null])), T);
+  // output s (a parity): the XOR form, one gate, one level
+  assert.deepEqual(await circuits(), { sop: 'As a circuit: 8 gate(s), delay 3', pos: 'As a circuit: 8 gate(s), delay 3', xor: 'As a circuit: 1 gate(s), delay 1',
+    nand: 'As a circuit: 8 gate(s), delay 3', nor: 'As a circuit: 8 gate(s), delay 3', gates: 'As a circuit: 1 gate(s), delay 1', delay: 'As a circuit: 1 gate(s), delay 1' });
+  assert.deepEqual(await page.eval((t) => ['gates', 'delay'].map((g) => [document.querySelector(`${t} .tt-${g} b`).textContent, document.querySelector(`${t} .tt-${g} .tt-best-form`).textContent, document.querySelector(`${t} .tt-${g} .tt-expr`).textContent]), T),
+    [['Least number of gates', 'XOR form', 's = a ⊕ b ⊕ c'], ['Least delay', 'XOR form', 's = a ⊕ b ⊕ c']]);
+  // the module in the form of the fewest gates: s its XOR, co its minimal SOP; it simulates to the table
+  await page.fill(`${T} .tt-form`, 'gates');
+  await page.waitFor(async () => /least gates/.test(await (await fetch('/api/projects/TtCost/file?path=src%2Ffa.vhd')).text()), [], { what: 'the HDL of least gates', timeout: 15000 });
+  const vhd = await readWs(env, 'TtCost', 'src/fa.vhd');
+  assert.match(vhd, /^-- s = a ⊕ b ⊕ c {3}\(least gates: XOR form, 3 literal\(s\), 1 gate\(s\), delay 1\)$/m);
+  assert.match(vhd, /^-- co = .* {3}\(least gates: minimal SOP, 6 literal\(s\), 4 gate\(s\), delay 2\)$/m);
+  assert.deepEqual(simTable(vhd, 'fa.vhd', 'fa'), fa.table);
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor((t) => document.querySelector(`${t} .tt-gates b`)?.textContent === 'Menor número de portas', [T], { what: 'Portuguese' });
+  assert.deepEqual(await page.eval((t) => [document.querySelector(`${t} .tt-delay b`).textContent, document.querySelector(`${t} .tt-xor .tt-circuit`).textContent, [...document.querySelectorAll(`${t} .tt-form option`)].slice(-2).map((o) => o.textContent)], T),
+    ['Menor atraso', 'Como circuito: 1 porta(s), atraso 1', ['Menor número de portas', 'Menor atraso']]);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
 });
