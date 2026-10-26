@@ -6,10 +6,23 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addAnalytics, addAnalyticsToSite } from '../scripts/site-analytics.mjs';
+import { addAnalytics, addAnalyticsToSite, COUNT_JS, COUNT_JS_INTEGRITY } from '../scripts/site-analytics.mjs';
 import { countEvent, EVENTS } from '../web/js/analytics.js';
 
 const PAGE = '<!doctype html><html><head></head><body><div id="app"></div><script>/* </body> in a string */</script></body></html>';
+
+// #1439: the counter's script pinned: GoatCounter's versioned file (never changes) with its subresource integrity
+// hash, so that a changed script does not run; crossorigin for the check
+test('#1439 the loader creates the script with the versioned count.v<n>.js, its integrity hash and crossorigin anonymous', () => {
+  assert.match(COUNT_JS, /^https:\/\/gc\.zgo\.at\/count\.v\d+\.js$/, 'versioned, never count.js');
+  assert.match(COUNT_JS_INTEGRITY, /^sha384-[A-Za-z0-9+/]{64}$/, 'a sha384 as goatcounter.com publishes it');
+  const out = addAnalytics(PAGE, 'silinx');
+  const loader = /<script id="silinx-site-analytics">([\s\S]*?)<\/script>/.exec(out)[1];
+  assert.ok(loader.includes(`s.src = '${COUNT_JS}';`), loader);
+  assert.ok(loader.includes(`s.integrity = '${COUNT_JS_INTEGRITY}';`), loader);
+  assert.ok(loader.includes("s.crossOrigin = 'anonymous';"), loader);
+  assert.doesNotMatch(loader, /count\.js'/, 'the unversioned script is gone');
+});
 
 test('addAnalytics: GoatCounter\'s loader before the last </body>, once; only on *.github.io; a code is checked', () => {
   const out = addAnalytics(PAGE, 'silinx');

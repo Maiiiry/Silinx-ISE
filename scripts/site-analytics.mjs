@@ -11,27 +11,35 @@ import { fileURLToPath } from 'node:url';
 import { addSources, metaCsp, scriptHash, withMetaCsp } from '../server/csp.js';
 
 const MARK = 'silinx-site-analytics';
+// GoatCounter's versioned script, which never changes, with its published subresource integrity hash (#1439): the
+// browser runs it only when its bytes are those hashed; the unversioned count.js updates itself, and could not be
+// pinned. To move to a newer version: the URL and the sha384 are listed at goatcounter.com/help/countjs-versions;
+// check the hash against the script itself first: curl -sL <url> | openssl dgst -sha384 -binary | base64
+export const COUNT_JS = 'https://gc.zgo.at/count.v5.js';
+export const COUNT_JS_INTEGRITY = 'sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ';
 
 /** The page with the counter's loader (once: a page that has it is returned unchanged). */
 export function addAnalytics(html, code) {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(code || '')) throw new Error(`not a GoatCounter code: '${code}'`);
   // (the loader's tag itself: the application's code, bundled into the page, names its id too, #257)
   if (html.includes(`<script id="${MARK}">`)) return html;
+  // (crossorigin anonymous: an integrity check needs a CORS response, which gc.zgo.at gives)
   const loader = `<script id="${MARK}">
 /* usage counts of the published site: GoatCounter, no cookies, no personal data (web/js/analytics.js) */
-if (/\\.github\\.io$/.test(location.hostname)) { var s = document.createElement('script'); s.async = true; s.src = 'https://gc.zgo.at/count.js'; s.dataset.goatcounter = 'https://${code}.goatcounter.com/count'; document.head.appendChild(s); }
+if (/\\.github\\.io$/.test(location.hostname)) { var s = document.createElement('script'); s.async = true; s.src = '${COUNT_JS}'; s.integrity = '${COUNT_JS_INTEGRITY}'; s.crossOrigin = 'anonymous'; s.dataset.goatcounter = 'https://${code}.goatcounter.com/count'; document.head.appendChild(s); }
 </script>
 `;
   const i = html.lastIndexOf('</body>');
   if (i < 0) throw new Error('no </body> in the page');
   let out = html.slice(0, i) + loader + html.slice(i);
-  // the page's Content-Security-Policy (#487) allows the loader (its hash), the counter's script and its
+  // the page's Content-Security-Policy (#487) allows the loader (its hash), the counter's script (that one URL, not
+  // its host) and its
   // counts (sent to <code>.goatcounter.com as an image or a beacon)
   const csp = metaCsp(out);
   if (csp) {
     const text = loader.slice(loader.indexOf('>') + 1, loader.lastIndexOf('</script>'));
     const counts = `https://${code}.goatcounter.com`;
-    out = withMetaCsp(out, addSources(addSources(addSources(csp, 'script-src', [scriptHash(text), 'https://gc.zgo.at']), 'connect-src', [counts]), 'img-src', [counts]));
+    out = withMetaCsp(out, addSources(addSources(addSources(csp, 'script-src', [scriptHash(text), COUNT_JS]), 'connect-src', [counts]), 'img-src', [counts]));
   }
   return out;
 }
