@@ -298,14 +298,14 @@ uiTest('#839 Tasks in a development build: with the Development menu, in Portugu
   await noWarnings(page);
 }, { build: FULL });
 
-// #854: Emulate has one document (a new one replaces the old; Simulate its tabs, #1161; iMPACT Implement's, #1172): no tab bar there; the
-// document's module and model, and its close, in the task's bar; Edit keeps its tabs
+// #854: Emulate has one document (a new one replaces the old; Simulate its tabs, #1161; iMPACT Implement's, #1172); its tab,
+// as the other tasks', no document's title in the task's bar (#1426); Edit keeps its tabs
 const docInfo = (page) => page.eval(() => {
   const vis = (e) => !!e && e.getClientRects().length > 0;
   const i = document.getElementById('task-doc');
   return { tabs: vis(document.getElementById('doc-tabs')), info: vis(i) ? [...i.querySelectorAll('span')].filter(vis).map((x) => x.textContent) : null };
 });
-uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module and model, and its close, in the task\'s bar; Simulate its tabs', E, async (page) => {
+uiTest('#854 #1161 #1426 Tasks: Emulate\'s document in its tab, no title in the task\'s bar; Simulate its tabs', E, async (page) => {
   await makeProject(env, { name: 'TasksSingle', template: 'blinky' });
   await page.setViewport(1366, 768);
   await tasksInterface(page);
@@ -324,19 +324,13 @@ uiTest('#854 #1161 Tasks: no tab bar in Emulate (a single document); its module 
   await page.click('#task-switch .task-btn[data-task="emu"]');
   await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
   await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
-  assert.deepEqual(await docInfo(page), { tabs: false, info: ['top', 'Behavioral (RTL)'] });
-  // its close: the emulator closes, the task's page again
-  await page.click('#task-doc [data-act="close"]');
+  assert.deepEqual(await docInfo(page), { tabs: true, info: null });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#doc-tabs > .tab')].filter((t) => t.getClientRects().length).map((t) => t.textContent)), ['Board Emulator (top)✕']);
+  // its tab's close: the emulator closes, the task's page again
+  await page.click('#doc-tabs > .tab.active .tclose');
   await page.waitFor(() => !window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator closed' });
   assert.deepEqual(await docInfo(page), { tabs: false, info: null });
   assert.ok(await shown(page, '#task-empty'));
-  // in Portuguese: the bar's close (Emulate's board again)
-  await page.click('#task-switch .task-btn[data-task="emu"]');
-  await page.dblclick('#task-emu-panel .row .lbl', { text: 'Emulate Behavioral Model (RTL)' });
-  await page.waitFor(() => !!window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator', timeout: 30000 });
-  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
-  await page.waitFor(() => document.querySelector('#task-doc [data-act="close"]')?.title === 'Fechar', [], { what: 'Portuguese' });
-  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // back to Edit: its tabs
   await page.click('#task-switch .task-btn[data-task="edit"]');
   assert.deepEqual(await docInfo(page), { tabs: true, info: null });
