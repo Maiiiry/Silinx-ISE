@@ -2,6 +2,9 @@
 // and Technology Schematics (#130): the symbol palette and its tooltips (the descriptions of
 // core/schdoc.js SYMBOLS), the properties panel, the status bar; merged into web/js/i18n.js.
 export const SCH_PT = {
+  // Rename… of the right-click menu (#1546)
+  'Rename Instance': 'Mudar o Nome da Instância', 'Rename I/O Marker': 'Mudar o Nome do Marcador de E/S', 'Rename Net Name': 'Mudar o Nome da Rede',
+  'Type a name.': 'Escreva um nome.',
   // a module's symbol out of date (#1183)
   'Update Symbol': 'Atualizar Símbolo',
   // palette
@@ -82,6 +85,10 @@ export const SCH_PT = {
 };
 
 export const SCH_PT_PATTERNS = [
+  // a name refused by Rename… (core/schname.js, #1546)
+  [/^'(.*)' is not a valid name: use a letter, then letters, digits and single _ \(not at the end\)\.$/, "'$1' não é um nome válido: use uma letra, seguida de letras, dígitos e _ simples (não no fim)."],
+  [/^'(.*)' is already the name of (another instance|an instance|another I\/O marker|an I\/O marker): choose another name\.$/, (m, n, w) =>
+    `'${n}' já é o nome de ${{ 'another instance': 'outra instância', 'an instance': 'uma instância', 'another I/O marker': 'outro marcador de E/S', 'an I/O marker': 'um marcador de E/S' }[w]}: escolha outro nome.`],
   // a net connected by name renamed as a whole (#734)
   [/^Renamed to '(.+)' with the net: (.+)$/, (m, n, parts) => `Mudado para '${n}' com a rede: ${parts.split(' and ').map(p => {
     let k;

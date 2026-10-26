@@ -13,7 +13,7 @@ import { mountStroke } from './sch-stroke.js';
 /** { finishMove, onMove, onUp } of mountSchEditor (cursor(), destroyed(), doc(), drag(), hoverPin(), keepConn(), live(), modules(), sel(), spaceDown(), tool(), view(), wireDraw(): its current values). */
 export function mountSchMouse(ctx) {
   const {
-    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, curve,
+    container, opts, applyMove, applySegMove, applyView, bandRect, bandSelect, beginMove, beginSegMove, canvas, changed, contextMenu, curve,
     cursor, destroyed, doc, drag, finishSegMove, finishWire, flash, hoverPin, ioClick, itemAt, keepConn, live, modules,
     netClick, pinNear, placeAt, propBody, pushUndo, readOnly, refusedShort, render, renderOverlay, renderProps, sel,
     setTool, spaceDown, startPlace, svg, toSheet, tool, updateStatus, view, wireClick, wireDraw, zoomAt, setCursor, setDoc, setDrag,
@@ -183,7 +183,8 @@ export function mountSchMouse(ctx) {
   }
   twoFingerView(svg, { cancel: cancelDrag, pan: (dx, dy) => { view().tx += dx; view().ty += dy; applyView(); }, zoom: zoomAt });
   svg.addEventListener('pointerdown', onDown);
-  svg.addEventListener('contextmenu', e => e.preventDefault());
+  // (a symbol's, an I/O marker's, a net name's menu: Rename…, #1546)
+  svg.addEventListener('contextmenu', e => { e.preventDefault(); contextMenu(e, itemAt(e.target)); });
   svg.addEventListener('dblclick', e => {
     if (live()) { e.preventDefault(); return; }
     if (tool() === 'wire') { e.preventDefault(); finishWire(); return; }
