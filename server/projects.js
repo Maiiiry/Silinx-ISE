@@ -8,6 +8,7 @@ import { primitiveSources } from '../core/unisim.js';
 import { boardAutoAssign, generateUcf } from '../core/ucf.js';
 import { resolveBoard } from './devices.js';
 import { within } from './paths.js';
+import { topNameError } from './ident.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const EXAMPLES_DIR = path.join(HERE, '..', 'examples');
@@ -111,8 +112,11 @@ export async function renameOver(from, to, { tries = 10, wait = 15 } = {}) {
 }
 
 // Atomic write (temp file + rename): a concurrent reader never sees a half-written silinx.json.
+// The top and simulation top must be identifiers (#1431): build/<top>.bit and the like are paths of the project.
 async function writeProjectUnlocked(name, pj) {
   const dir = projectDir(name);
+  const badTop = topNameError(pj);
+  if (badTop) throw new HttpError(400, badTop);
   const clean = { ...pj, name };
   delete clean.fileTree;
   const file = path.join(dir, PROJECT_FILE);

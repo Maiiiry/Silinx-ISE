@@ -14,11 +14,19 @@ import { programJob, scanJob, promJob, readBitInfo, checkBitPart, expectedDevice
 import { importXise, importIseSchematics } from './xise.js';
 import * as Projects from './projects.js';
 import { mountXiseRoutes } from './xise-routes.js';
+import { IDENT } from './ident.js';
 
 // files that only Silinx understands: not part of an exported Xilinx ISE project
 export const SILINX_ONLY = /(^|\/)(silinx\.json|[^/]+\.(asm|sch|tt|fsm)\.json)$/i;
 
 const implJobs = new Map();   // project name -> id of its latest implementation job
+
+// A project's top as the build's file names take it (build/<top>.bit, <top>.ncd, <top>.xdl): an identifier,
+// else 400 (#1431: silinx.json written by hand, or by an older server, could name a path outside the project).
+function topOf(project) {
+  if (project.top && !IDENT.test(project.top)) throw new Projects.HttpError(400, `invalid top module name '${project.top}'`);
+  return project.top;
+}
 
 /**
  * Start an implementation of a project: POST /projects/:p/implement, and the MCP server's run_process
@@ -31,7 +39,7 @@ export async function startImplementation(name, body = {}) {
   const projectDir = P.projectDir(name);
   let steps;
   try { steps = normalizeSteps(body.steps); } catch (e) { throw bad(e.message); }
-  if (!project.top) throw bad('set the top module of the project before implementing');
+  if (!topOf(project)) throw bad('set the top module of the project before implementing');
   // one ISE run per project: two runs would share (and wipe) the same build/ folder
   const key = name.toLowerCase();   // case-insensitive file systems: one folder
   const running = implJobs.get(key);
@@ -58,7 +66,7 @@ export async function projectReports(name) {
   const buildDir = path.join(P.projectDir(name), 'build');
   try { return JSON.parse(await fs.readFile(path.join(buildDir, 'reports.json'), 'utf8')); }
   catch { /* not saved yet */ }
-  if (!fss.existsSync(buildDir) || !project.top) return { available: false };
+  if (!fss.existsSync(buildDir) || !topOf(project)) return { available: false };
   return collectReports(buildDir, project.top, project.device);
 }
 
@@ -110,7 +118,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   // routed design (build/open/routed.xdl) with the device description when it is newer than ISE's.
   api.get('/projects/:p/fpga-view', wrap(async req => {
     const project = await P.readProject(req.params.p);
-    if (!project.top) return { available: false, reason: 'no-top' };
+    if (!topOf(project)) return { available: false, reason: 'no-top' };
     const dir = path.join(P.projectDir(req.params.p), 'build');
     const f = name => path.join(dir, name);
     const mtime = p => { try { return fss.statSync(p).mtimeMs; } catch { return 0; } };
@@ -140,7 +148,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
 
   api.get('/projects/:p/bitinfo', wrap(async req => {
     const project = await P.readProject(req.params.p);
-    if (!project.top) return { available: false, reason: 'no top module' };
+    if (!topOf(project)) return { available: false, reason: 'no top module' };
     const bit = path.join(P.projectDir(req.params.p), 'build', `${project.top}.bit`);
     if (!fss.existsSync(bit)) return { available: false, path: bit };
     try {
@@ -158,7 +166,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
       const dir = P.projectDir(b.project);
       if (b.bitfile) bitfile = path.isAbsolute(b.bitfile) ? b.bitfile : P.safeJoin(dir, b.bitfile);
       else {
-        if (!project.top) throw bad('project has no top module; cannot locate build/<top>.bit');
+        if (!topOf(project)) throw bad('project has no top module; cannot locate build/<top>.bit');
         bitfile = path.join(dir, 'build', `${project.top}.bit`);
       }
     } else if (b.bitfile) {
@@ -192,7 +200,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     if (board && !resolveBoard(board)) throw bad(`unknown board '${board}'`);
     const opts = { op: b.op, device: b.device, verify: b.verify !== false, reconfigure: !!b.reconfigure, board, expectDevice: expectedDevice(project, board) };
     if (b.op === 'program' || b.op === 'verify') {
-      if (!project.top && !b.bitfile) throw bad('project has no top module; cannot locate build/<top>_prom.bit');
+      if (!topOf(project) && !b.bitfile) throw bad('project has no top module; cannot locate build/<top>_prom.bit');
       opts.bitfile = b.bitfile ? P.safeJoin(dir, b.bitfile) : path.join(dir, 'build', `${project.top}_prom.bit`);
       if (!/\.bit$/i.test(opts.bitfile)) throw bad('only .bit files can be written to the PROM');
     }

@@ -26,6 +26,7 @@ import { validateDevice, findPart } from './devices.js';
 import { resourceCount } from '../core/resources.js';
 import { parseBitHeader } from './programmer.js';
 import { within } from './paths.js';
+import { IDENT } from './ident.js';
 
 // the default flow (an empty request runs these)
 export const STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
@@ -82,8 +83,6 @@ export function partStrings(device) {
   }
   return { xst: `${part}${speed}-${pkg}`, impl: `${part}-${pkg}${speed}`, speedNum: speed.slice(1), speed, bitPart: `${part.replace(/^xc/, '')}${pkg}` };
 }
-
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Contents of the XST .prj file. `files` = [{ lang, buildPath }] with paths relative to build/. */
 export function generatePrj(files) {

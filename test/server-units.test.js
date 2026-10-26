@@ -18,6 +18,7 @@ const tc = await import('../server/toolchain.js');
 const xise = await import('../server/xise.js');
 const fam = await import('../core/family.js');
 const { createZip, readZip } = await import('../core/zip.js');
+const { IDENT, topNameError } = await import('../server/ident.js');
 
 // ------------------------------------------------------------------------------------------------
 // jobs
@@ -634,4 +635,15 @@ test('toolchain: iseWorkBase, the host\'s folder for ISE work outside a project:
   } finally {
     if (saved === null) await fs.rm(cfg, { force: true }); else await fs.writeFile(cfg, saved);
   }
+});
+
+test('ident: a project\'s top and simTop are identifiers (#1431): the names the build\'s files take', () => {
+  for (const ok of ['top', 'Top_1', '_t', 'a1b2']) assert.ok(IDENT.test(ok), ok);
+  for (const no of ['', '1top', 'a-b', 'a b', 'a/b', '../x', 'a.b', 'top\n', 'é', '\\top\\']) assert.ok(!IDENT.test(no), JSON.stringify(no));
+  // no top yet (empty, null, missing): fine; anything that is not an identifier string: the error
+  for (const pj of [{ top: 'top', simTop: 'tb' }, { top: '', simTop: '' }, { top: null }, {}, null, undefined]) assert.equal(topNameError(pj), null, JSON.stringify(pj));
+  assert.equal(topNameError({ top: '../../x' }), "invalid top module name '../../x' (a letter or _, then letters, digits and _)");
+  assert.equal(topNameError({ top: 'top', simTop: 'tb;rm' }), "invalid simulation top module name 'tb;rm' (a letter or _, then letters, digits and _)");
+  assert.equal(topNameError({ top: 7 }), "invalid top module name '7' (a letter or _, then letters, digits and _)");
+  assert.equal(topNameError({ top: { a: 1 } }), "invalid top module name '[object Object]' (a letter or _, then letters, digits and _)");
 });
