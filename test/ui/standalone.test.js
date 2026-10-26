@@ -1276,6 +1276,9 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
     ...(await ls(`assets/vendor/yowasp-yosys/${yosysVersion}/gen`)).map((f) => `vendor/yowasp-yosys/${yosysVersion}/gen/${f}`)];
   assert.deepEqual(Object.keys(layout.integrity).sort(), published.sort());
   for (const f of published) assert.equal(layout.integrity[f], `sha256-${createHash('sha256').update(await fs.readFile(path.join(site, 'assets', f))).digest('base64')}`, f);
+  // #1445: Yosys's bundle.js, the one script the page imports from the site, is among them (the Yosys workers check it
+  // before they import it: core/synth-open-yosys.js verifiedYosysUrl; ELK is inlined in the page, never loaded from the site)
+  assert.match(layout.integrity[`vendor/yowasp-yosys/${yosysVersion}/gen/bundle.js`] || '', /^sha256-[A-Za-z0-9+/]{43}=$/);
   // --assets-only: the same assets alone, into a site's assets folder (the Pages build keeps the last
   // releases' with it)
   const only = path.join(env.tmp, 'assets-only');
