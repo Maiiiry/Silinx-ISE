@@ -20,6 +20,9 @@ import { setViewAsTop, topOfView, viewSel } from './drawings.js';
 import { checkSyntax, runProcess, saveAll, topConfirmed } from './processes.js';
 import { setTop, unsetTop } from './design.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
+import { printActive, printable } from './print-doc.js';
+// (Print: the document in front, whichever it is, #1509)
+export { printActive, printable };
 
 const $ = id => document.getElementById(id);
 
@@ -226,16 +229,6 @@ export function refreshSteps() {
 export function showPalette() {
   const files = S.project ? [...new Set(S.project.files.map(f => f.path))].sort().map(path => ({ path, open: () => openFile(path) })) : [];
   return openPalette({ commands: menuCommands(S.menus), files });
-}
-
-// a drawing in front: what Print prints (File ▸ Print…, the toolbar's Print)
-const printable = () => !!(S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor);
-// Print the diagram of the active document (ASM chart or schematic)
-export function printActive() {
-  const d = S.active;
-  if (d?.asmEditor) d.asmEditor.print();
-  else if (d?.fsmEditor) d.fsmEditor.print();
-  else if (d?.schEditor) d.schEditor.print(`Schematic ${d.path || ''}`.trim());
 }
 
 export function downloadUrl(url, filename) {

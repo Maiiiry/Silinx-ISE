@@ -47,3 +47,28 @@ test('#487 the print page has no script', () => {
     assert.doesNotMatch(page, /<script|alert/i, String(paper));
   }
 });
+
+// #1509: the page's header has the project and the file; the print view of a source (web/js/print-view.js)
+test('#1509 the header of a diagram\'s page: its title and the project and file, escaped', () => {
+  const bounds = { w: 800, h: 600 };
+  const html = printHtml('ASM <x>', bounds, 'blob:x', pageLayout(bounds, {}), 'Project: P&Q  ·  File: src/a.asm.json');
+  assert.match(html, /<header><b>ASM &lt;x&gt;<\/b><span>Project: P&amp;Q {2}· {2}File: src\/a\.asm\.json<\/span><\/header>/);
+  assert.match(printHtml('t', bounds, 'blob:x', pageLayout(bounds, {})), /<header><b>t<\/b><\/header>/, 'no project: the title alone');
+});
+
+test('#1509 the print view of a source: every line numbered, HDL highlighted, escaped; a light page with no script', async () => {
+  const { textBody, printPageHtml, metaLine, TEXT_CSS } = await import('../web/js/print-view.js');
+  const code = 'entity e is -- a <b>\n  port (a : in bit);\n\nend e;\n';
+  const body = textBody(code, 'vhdl');
+  assert.deepEqual([...body.matchAll(/<td class="n">(\d+)<\/td>/g)].map((m) => +m[1]), [1, 2, 3, 4]);
+  assert.match(body, /<td><span class="tk-kw">entity<\/span> e <span class="tk-kw">is<\/span> <span class="tk-com">-- a &lt;b&gt;<\/span><\/td>/);
+  assert.match(body, /<td class="n">3<\/td><td> <\/td>/, 'an empty line kept');
+  assert.match(textBody('a <b> & c', null), /<td>a &lt;b&gt; &amp; c<\/td>/, 'a text file: escaped, not highlighted');
+  assert.equal(metaLine({ project: 'P', file: 'src/e.vhd' }), 'Project: P  ·  File: src/e.vhd');
+  assert.equal(metaLine({ project: 'P' }), 'Project: P');
+  const page = printPageHtml({ title: 'Source <e>', meta: 'Project: P', body, css: TEXT_CSS });
+  assert.match(page, /^<!doctype html><html data-ui="classic" data-theme="light"/);
+  assert.match(page, /<header class="pv-head"><b>Source &lt;e&gt;<\/b><span>Project: P<\/span><\/header>/);
+  assert.match(page, /background: #fff !important/);
+  assert.doesNotMatch(page, /<script/i);
+});

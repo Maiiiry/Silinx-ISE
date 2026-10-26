@@ -757,8 +757,8 @@ uiTest('Design Summary: once closed it reopens from the Processes panel whatever
   await reopenFromProcesses('test bench');
 });
 
-// #1251, #1252: the toolbar's Print (as File ▸ Print…: a drawing in front), no Design Summary, RTL Schematic or Pin Planning
-uiTest('toolbar: Print, enabled with a drawing in front, opens its print preview; no Design Summary, View RTL Schematic or I/O Pin Planning', E, async (page) => {
+// #1251, #1252: the toolbar's Print (as File ▸ Print…: a document in front, #1509), no Design Summary, RTL Schematic or Pin Planning
+uiTest('toolbar: Print, enabled with a document in front, opens its print preview; no Design Summary, View RTL Schematic or I/O Pin Planning', E, async (page) => {
   const cmds = () => page.eval(() => [...document.querySelectorAll('#toolbar .tb-btn')].map((b) => b.dataset.cmd));
   const printOff = () => page.eval(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled);
   const list = await cmds();
@@ -770,7 +770,7 @@ uiTest('toolbar: Print, enabled with a drawing in front, opens its print preview
   await page.openProject('TbPrint');
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor, [], { what: 'the editor' });
-  await page.waitFor(() => document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled, [], { what: 'HDL in front: Print off' });
+  await page.waitFor(() => !document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled, [], { what: 'HDL in front: Print on (#1509)' });
   await page.eval(() => window.SilinxApp.openAsm('src/speed_ctrl.asm.json'));
   await page.waitFor(() => window.Silinx.active?.asmEditor && !document.querySelector('#toolbar .tb-btn[data-cmd=print]').disabled, [], { what: 'a drawing in front: Print on' });
   await page.click('#toolbar .tb-btn[data-cmd=print]');
