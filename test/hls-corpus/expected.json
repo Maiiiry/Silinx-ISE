@@ -128,7 +128,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C synthesis: 25: 'sfunc1' has a loop and is called from 'ecc_flags': a function with a loop called by another is not supported yet (write the loop in 'ecc_flags')"
+    "reason": "C synthesis: 22: a division by a value that is not a constant is not supported yet (#1526)"
   },
   "interface-memory-lmem-2rw": {
     "csim": "fail",
@@ -307,10 +307,14 @@
   },
   "modeling-conditional-control-of-pragmas-using-template-function": {
     "csim": "pass",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C synthesis: 2: 'adder_1_4' has a loop and is called from 'top': a function with a loop called by another is not supported yet (write the loop in 'top')"
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 80,
+      "max": 80,
+      "avg": 80
+    },
+    "reason": null
   },
   "modeling-cpp-templates-for-multiple-instances": {
     "csim": "pass",
@@ -514,7 +518,7 @@
   },
   "task-level-parallelism-control-driven-channels-simple-fifos": {
     "csim": "fail",
-    "synth": "fail",
+    "synth": "pass",
     "cosim": "skip",
     "latency": null,
     "reason": "C simulation: main() returned 1"

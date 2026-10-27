@@ -17,6 +17,7 @@ import { constValue } from './c-check.js';
 import { memMethods, MEM_MIN } from './c-mem.js';
 import { fifoMethods } from './c-fifo.js';
 import { loopPragma, unrollBy } from './c-pragma.js';
+import { inlineCalls } from './c-inline.js';
 
 export function fsmd(checked) {
   return new SeqFlow(checked).runSeq();
@@ -206,9 +207,11 @@ class SeqFlow extends Flow {
     this.regs = new Map();
     this.blocks = [];
     try {
-      for (const f of funcs.values()) if (f !== fn && f.name !== 'main' && f.body && hasLoop(f.body) && this.calls(fn, f.name)) this.error(f.loc, `'${f.name}' has a loop and is called from '${top}': a function with a loop called by another is not supported yet (write the loop in '${top}')`);
-      const { body, decls } = this.renameLocals(fn);
-      this.makeRegisters(fn, decls);
+      // (the calls of a function with a loop, or given an array: inlined, its loops the top's, #1632)
+      const inl = { ...fn, body: inlineCalls(fn, funcs, (loc, m) => this.error(loc, m)) };
+      this.fn = inl;
+      const { body, decls } = this.renameLocals(inl);
+      this.makeRegisters(inl, decls);
       this.entry = this.cfg(body.items, null, null);
       this.thread();
       this.runBlocks();

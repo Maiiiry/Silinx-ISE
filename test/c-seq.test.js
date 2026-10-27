@@ -192,7 +192,6 @@ test('C to HDL, sequential: the module made: ap_clk / ap_rst and the block proto
   assert.match(v.hdl, /-- line 5\n/);
   const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line}:${d.col} ${d.severity}: ${d.message}`);
   assert.deepEqual(msgs('int g(int n) { int s = 0; while (s < n) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n s++; } return s; }\nint f(int n) {\n#pragma HLS INTERFACE ap_ctrl_none port=return\n  return g(n);\n}'), [
-    "1:5 error: 'g' has a loop and is called from 'f': a function with a loop called by another is not supported yet (write the loop in 'f')",
     '5:1 warning: ap_ctrl_none: this function is sequential, it needs its block protocol: ap_ctrl_hs is made',
   ]);
   assert.deepEqual(msgs('int f(int n) {\n#pragma HLS INTERFACE ap_ctrl_none port=return\n  static int k = 0;\n  k += n;\n  return k;\n}'), [

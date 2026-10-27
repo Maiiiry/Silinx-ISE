@@ -42,7 +42,7 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | fail | fail | skip | - | C simulation: example.cpp:23: the pointer to a struct 'a_in' indexed: write the parameter as an array, a_in[N] |
 | interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 30: the function 'round' is not declared |
-| interface-memory-ecc-flags | C++ | pass | fail | skip | - | C synthesis: 25: 'sfunc1' has a loop and is called from 'ecc_flags': a function with a loop called by another is not supported yet (write the loop in 'ecc_flags') |
+| interface-memory-ecc-flags | C++ | pass | fail | skip | - | C synthesis: 22: a division by a value that is not a constant is not supported yet (#1526) |
 | interface-memory-lmem-2rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | fail | fail | skip | - | C simulation: 19: 'NUM' is declared twice |
 | interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success | C++ | fail | fail | skip | - | C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
@@ -70,7 +70,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-pointers-stream-good | C | fail | fail | skip | - | C simulation: 23: pointer arithmetic is not possible in Silinx HLS: index the array instead |
 | modeling-pointers-using-double | C | fail | fail | skip | - | C simulation: 19: the parameter 'flagPtr': a pointer to a pointer is not possible (Silinx HLS: pointers only to arguments) |
 | modeling-conditional-control-of-pragmas-using-defines | C++ | pass | pass | pass | 71 |  |
-| modeling-conditional-control-of-pragmas-using-template-function | C++ | pass | fail | skip | - | C synthesis: 2: 'adder_1_4' has a loop and is called from 'top': a function with a loop called by another is not supported yet (write the loop in 'top') |
+| modeling-conditional-control-of-pragmas-using-template-function | C++ | pass | pass | pass | 80 |  |
 | modeling-cpp-templates-for-multiple-instances | C++ | pass | pass | pass | 1 |  |
 | modeling-fixed-point-sqrt | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'out_data_t' |
 | modeling-free-running-kernel-remerge-ii4to1 | C++ | fail | fail | skip | - | C simulation: 24: a type expected, not '"in_stream"' |
@@ -93,14 +93,14 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-merge-split-split-load-balance | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-merge-split-split-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
-| task-level-parallelism-control-driven-channels-simple-fifos | C++ | fail | fail | skip | - | C simulation: main() returned 1 |
+| task-level-parallelism-control-driven-channels-simple-fifos | C++ | fail | pass | skip | - | C simulation: main() returned 1 |
 | task-level-parallelism-control-driven-channels-using-fifos | C++ | fail | fail | skip | - | C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-using-stream-of-blocks | C++ | fail | fail | skip | - | C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-mixed-control-and-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 
-73 designs: 16 through co-simulation.
+73 designs: 17 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS
