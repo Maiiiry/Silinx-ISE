@@ -69,3 +69,25 @@ test('#1528 co-simulation: an HDL that differs from the C: each mismatch with it
   const fails = cosimulate('int f(int a) { return a; }\nint main(void) { int z = 0; return f(1) / z; }');
   assert.deepEqual([fails.ok, fails.errors], [false, ['the C simulation failed: line 2: division by zero']]);
 });
+
+test('#1588 co-simulation: an ap_int division by a wider divisor: its operands divided as they are, the quotient wrapped (the divisor kept its value), in the C simulation and the HDL', () => {
+  const src = `#include "ap_int.h"
+#include <stdio.h>
+ap_int<4> div8(ap_int<4> x) {
+  ap_uint<4> d = 8;
+  return x / d;
+}
+int main(void) {
+  for (int x = -8; x < 8; x += 3) printf("%d ", (int)div8(x));
+  return 0;
+}
+`;
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'div8.c', lang });
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.output, '-1 0 0 0 0 0 ');
+    assert.deepEqual(r.gen.diagnostics.filter((d) => d.severity !== 'info'), []);
+    assert.equal(r.pass, true, JSON.stringify(r.mismatches, (k, v) => (typeof v === 'bigint' ? `${v}` : v)));
+    assert.equal(r.calls, 6);
+  }
+});

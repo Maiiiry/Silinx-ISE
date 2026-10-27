@@ -1,8 +1,8 @@
 // Silinx C, the C simulation (#1528): core/c-interp.js and core/c-interp-expr.js. Each program's main() is run by the
 // interpreter and compiled with the host's cc (-fsigned-char -fwrapv): the same output, character by character, and
 // the same exit code. Also: the calls of the top function recorded (what co-simulation replays), and the run
-// stopped with its place on a division by zero, an index outside an array, an endless loop. ap_int / ap_uint:
-// values worked out by hand from Vitis HLS's rules.
+// stopped with its place on a division by zero, an index outside an array, an endless loop. ap_int / ap_uint: values
+// worked out by hand from Vitis HLS's rules, and every operator against AMD's ap_int.h compiled as C++ (#1588).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,7 +10,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { simulateC } from '../core/c-interp.js';
-import { CC, noCC } from './c-helpers.js';
+import { CC, noCC, values, rng } from './c-helpers.js';
+import { apIntHeaders, runWithApInt } from './ap-int-ref.js';
+
+const AP = await apIntHeaders();
 
 /** The program's output and exit code, compiled with cc. */
 function compiled(src) {
@@ -118,4 +121,28 @@ test('C simulation: the run stopped where it fails (division by zero, an index o
   assert.equal(bad.ok, false);
   assert.ok(bad.diagnostics.some((d) => /recursion/.test(d.message)));
   assert.deepEqual(err('int f(int a) { return a; }'), [false, '', '1:no main() to run: the C simulation runs the test bench, main()']);
+});
+
+test('#1588 C simulation against AMD\'s ap_int.h: every operator (arithmetic, bitwise, comparisons, unary, shifts, compound assignments) on ap_int / ap_uint of many widths and signs, their edge values', { skip: AP.why || false }, () => {
+  const r = rng(7);
+  const types = [[1, false], [3, true], [4, false], [8, true], [8, false], [13, true], [16, false], [31, true], [32, false]];
+  const ty = ([w, s]) => `ap_${s ? '' : 'u'}int<${w}>`;
+  const ops = ['+', '-', '*', '&', '|', '^', '<', '>', '==', '!=', '<=', '>='];
+  const lines = [];
+  let k = 0;
+  for (const a of types) for (const b of types) {
+    const va = values(a[0], a[1], 3, r), vb = values(b[0], b[1], 3, r);
+    for (let i = 0; i < 3; i++, k++) {
+      const x = `x${k}`, y = `y${k}`, yv = vb[(i + 1) % 3];
+      lines.push(`  { ${ty(a)} ${x} = ${va[i]}LL; ${ty(b)} ${y} = ${yv}LL;`,
+        `    printf("${k}:${ops.map(() => ' %lld').join('')}\\n", ${ops.map((o) => `(long long)(${x} ${o} ${y})`).join(', ')});`,
+        ...(yv ? [`    printf("${k}/: %lld %lld\\n", (long long)(${x} / ${y}), (long long)(${x} % ${y}));`] : []),
+        `    printf("${k}u: %lld %lld %lld %lld\\n", (long long)(-${x}), (long long)(~${x}), (long long)(${x} >> 2), (long long)(${x} << 3));`,
+        `    ${x} += ${y}; printf("${k}=: %lld ", (long long)${x}); ${x} *= ${y}; printf("%lld ", (long long)${x}); ${x}++; printf("%lld\\n", (long long)${x}); }`);
+    }
+  }
+  const src = `#include "ap_int.h"\n#include <stdio.h>\nint main(void) {\n${lines.join('\n')}\n  return 0;\n}\n`;
+  const sim = simulateC(src, { file: 't.c' });
+  assert.equal(sim.error, null, JSON.stringify(sim.error));
+  assert.deepEqual(sim.output.split('\n'), runWithApInt(src, AP.dir).split('\n'));
 });

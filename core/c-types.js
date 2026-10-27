@@ -47,7 +47,8 @@ export function binaryType(op, a, b) {
     case '+': w = Math.max(a.w + (b.s && !a.s ? 1 : 0), b.w + (a.s && !b.s ? 1 : 0)) + 1; break;
     case '-': w = Math.max(a.w + (b.s && !a.s ? 1 : 0), b.w + (a.s && !b.s ? 1 : 0)) + 1; return { res: { w, s: true, ap: true }, opnd: { w, s: true, ap: true } };
     case '*': w = a.w + b.w; break;
-    case '/': w = a.w + (b.s ? 1 : 0); break;
+    // (/: W1 + S2 bits, the operands divided as they are (a bit more: -min / -1), as AMD's ap_int.h, #1588)
+    case '/': w = a.w + (b.s ? 1 : 0); return { res: { w, s, ap: true }, opnd: { w: Math.max(sw(a), sw(b)) + 1, s: true, ap: true } };
     case '%': w = Math.max(sw(a), sw(b)); return { res: { w, s: a.s, ap: true }, opnd: { w: w + 1, s: true, ap: true } };
     default: w = s ? Math.max(sw(a), sw(b)) : Math.max(a.w, b.w); break;   // & | ^
   }
