@@ -102,3 +102,17 @@ Not part of `npm test` (it needs the network once).
 
 73 designs: 13 through co-simulation.
 <!-- /results -->
+
+## Against Vitis HLS
+
+AMD's Vitis HLS is the oracle (#1624): `scripts/hls-vitis.mjs` runs each design through it on the ISE runner's machine
+(its own Docker image, [scripts/vitis-hls-image](../../scripts/vitis-hls-image/README.md): Vivado ML Standard, free for
+the small 7-series parts; a fixed Artix-7, the Vivado flow's interfaces) and compares its C simulation, its RTL ports
+(by name, direction and width), its co-simulation and its latency with Silinx's. Vitis does not target the
+Spartan-3E: the ports and the behaviour at them must be the same; the latency and the loops' II are a quality
+reference (Silinx's schedule is its own). `--update` writes `vitis.json` (numbers and port names only, no Vitis file)
+and this table:
+
+<!-- vitis -->
+Not run yet.
+<!-- /vitis -->
