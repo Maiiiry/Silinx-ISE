@@ -126,3 +126,20 @@ test('#1604 a pointer written under a condition, then read: where the condition 
     }
   }
 });
+
+test('#1622 a pointer read and written named as a reserved word (out): its ports out_r_i, out_r_o, out_r_o_ap_vld, the module reading out_r_i, combinational and sequential', () => {
+  const comb = '#include <stdio.h>\nvoid f(int x, int *out) {\n  *out += x;\n}\nint main(void) { int o = 1; f(2, &o); f(5, &o); printf("%d\\n", o); return 0; }\n';
+  const seq = '#include <stdio.h>\nvoid f(int x, int *out) {\n  static int a;\n  a += x;\n  *out += a;\n}\nint main(void) { int o = 1; f(2, &o); f(5, &o); printf("%d\\n", o); return 0; }\n';
+  for (const [src, out] of [[comb, '8\n'], [seq, '10\n']]) {
+    for (const lang of ['vhdl', 'verilog']) {
+      const r = cosimulate(src, { file: 'p.c', lang });
+      assert.equal(r.output, out);
+      assert.deepEqual(r.errors, []);
+      assert.equal(r.pass, true, lang);
+      assert.deepEqual(r.gen.ports.filter((p) => p.param === 'out').map((p) => p.name), ['out_r_i', 'out_r_o', 'out_r_o_ap_vld']);
+      assert.deepEqual(r.gen.diagnostics.map((d) => d.message), ["'out' is a reserved word of VHDL or Verilog: it is named out_r in the module"]);
+      assert.match(r.gen.hdl, /out_r_i/);
+      assert.doesNotMatch(r.gen.hdl, /\bout_i\b/);
+    }
+  }
+});

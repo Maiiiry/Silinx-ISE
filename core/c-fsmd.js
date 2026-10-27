@@ -471,7 +471,7 @@ class SeqFlow extends Flow {
       if (o.read && !o.written) { ports.push({ name: pa.name, dir: 'in', w: o.t.w, s: o.t.s, role: 'arg', param: pa.name }); continue; }
       if (!o.written) continue;
       const base = o.read ? `${pa.name}_o` : pa.name;
-      if (o.read) { this.inputs.get(`${pa.name}#in`).port.name = `${pa.name}_i`; ports.push({ name: `${pa.name}_i`, dir: 'in', w: o.t.w, s: o.t.s, role: 'arg', param: pa.name }); }
+      if (o.read) { Object.assign(this.inputs.get(`${pa.name}#in`).port, { name: `${pa.name}_i`, param: pa.name, suffix: '_i' }); ports.push({ name: `${pa.name}_i`, dir: 'in', w: o.t.w, s: o.t.s, role: 'arg', param: pa.name }); }
       ports.push({ name: base, dir: 'out', w: o.t.w, s: o.t.s, role: 'arg', param: pa.name });
       outputs.set(base, { reg: o.reg.name });
       if (mode !== 'ap_none') {
