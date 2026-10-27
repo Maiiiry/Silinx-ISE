@@ -1,10 +1,10 @@
 // AMD's Vitis HLS as the HLS corpus's oracle (#1624, scripts/hls-vitis.mjs): the config a design runs with, the parsing
-// of Vitis's reports (hand-written snippets in their format, not Vitis's files), the comparison of the ports with
+// of Vitis's reports (hand-written snippets in their format, 2025.2's, not Vitis's files), the comparison of the ports with
 // Silinx's and the README's table. No Vitis: the comparison itself runs on the ISE runner's machine.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { vitisConfig, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, PART } from '../scripts/hls-vitis.mjs';
+import { vitisConfig, elements, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, PART } from '../scripts/hls-vitis.mjs';
 import { cToHdl } from '../core/c-hdl.js';
 
 test('#1624 the config: the part fixed, the Vivado flow, no packaging nor Vivado run; the rest kept', () => {
@@ -28,27 +28,31 @@ const CSYNTH = `<?xml version="1.0" encoding="UTF-8"?>
     </SummaryOfOverallLatency>
     <SummaryOfLoopLatency>
       <outer>
-        <Name>outer</Name>
+        <Slack>2.92</Slack>
         <TripCount>4</TripCount>
+        <isPerfectNested>0</isPerfectNested>
         <Latency><range><min>8</min><max>32</max></range></Latency>
+        <AbsoluteTimeLatency>-</AbsoluteTimeLatency>
         <IterationLatency><range><min>2</min><max>8</max></range></IterationLatency>
         <PipelineDepth>-</PipelineDepth>
+        <InstanceList/>
         <VITIS_LOOP_12_1>
-          <Name>VITIS_LOOP_12_1</Name>
+          <Slack>2.92</Slack>
           <TripCount><range><min>0</min><max>6</max></range></TripCount>
           <Latency><range><min>0</min><max>6</max></range></Latency>
           <PipelineII>1</PipelineII>
           <PipelineDepth>2</PipelineDepth>
+          <InstanceList/>
         </VITIS_LOOP_12_1>
       </outer>
     </SummaryOfLoopLatency>
   </PerformanceEstimates>
   <InterfaceSummary>
-    <RtlPorts><name>ap_clk</name><Object>f</Object><Type>return value</Type><Scope/><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Direction>in</Direction></RtlPorts>
-    <RtlPorts><name>ap_start</name><Object>f</Object><Type>return value</Type><Scope/><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Direction>in</Direction></RtlPorts>
-    <RtlPorts><name>x</name><Object>x</Object><Type>scalar</Type><Scope/><IOProtocol>ap_none</IOProtocol><Bits>32</Bits><Direction>in</Direction></RtlPorts>
-    <RtlPorts><name>y</name><Object>y</Object><Type>pointer</Type><Scope/><IOProtocol>ap_vld</IOProtocol><Bits>16</Bits><Direction>out</Direction></RtlPorts>
-    <RtlPorts><name>y_ap_vld</name><Object>y</Object><Type>pointer</Type><Scope/><IOProtocol>ap_vld</IOProtocol><Bits>1</Bits><Direction>out</Direction></RtlPorts>
+    <RtlPorts><name>ap_clk</name><Object>f</Object><Type>return value</Type><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Dir>in</Dir></RtlPorts>
+    <RtlPorts><name>ap_start</name><Object>f</Object><Type>return value</Type><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Dir>in</Dir></RtlPorts>
+    <RtlPorts><name>x</name><Object>x</Object><Type>scalar</Type><IOProtocol>ap_none</IOProtocol><Bits>32</Bits><Dir>in</Dir></RtlPorts>
+    <RtlPorts><name>y</name><Object>y</Object><Type>pointer</Type><IOProtocol>ap_vld</IOProtocol><Bits>16</Bits><Dir>out</Dir></RtlPorts>
+    <RtlPorts><name>y_ap_vld</name><Object>y</Object><Type>pointer</Type><IOProtocol>ap_vld</IOProtocol><Bits>1</Bits><Dir>out</Dir></RtlPorts>
   </InterfaceSummary>
 </profile>
 `;
@@ -65,6 +69,15 @@ test('#1624 csynth.xml: the latency and interval, the loops (nested, a range, a 
     ['ap_clk', 'in', 1, 'ap_ctrl_hs', 'f'], ['ap_start', 'in', 1, 'ap_ctrl_hs', 'f'], ['x', 'in', 32, 'ap_none', 'x'],
     ['y', 'out', 16, 'ap_vld', 'y'], ['y_ap_vld', 'out', 1, 'ap_vld', 'y'],
   ]);
+});
+
+test('#1624 the element tree: nested elements, empty ones, each one\'s inner text; two loops side by side', () => {
+  const r = elements('<a><b>1</b><c/><d><e> x </e></d></a>');
+  assert.deepEqual(r.children.map((x) => x.tag), ['a']);
+  assert.deepEqual(r.children[0].children.map((x) => [x.tag, x.text, x.children.length]), [['b', '1', 0], ['c', '', 0], ['d', '<e> x </e>', 1]]);
+  assert.equal(r.children[0].children[2].children[0].text, 'x');
+  const two = parseCsynth('<SummaryOfLoopLatency><read><TripCount>8</TripCount><Latency>16</Latency><PipelineII>2</PipelineII></read><VITIS_LOOP_30_2><TripCount>8</TripCount><Latency>9</Latency><PipelineII>1</PipelineII></VITIS_LOOP_30_2></SummaryOfLoopLatency>');
+  assert.deepEqual(two.loops.map((l) => [l.name, l.line, l.trip.max, l.latency.max, l.ii]), [['read', null, 8, 16, 2], ['VITIS_LOOP_30_2', 30, 8, 9, 1]]);
 });
 
 test('#1624 csynth.xml: an undefined latency (a loop of unknown trip count), no loops, no ports; an empty report', () => {
@@ -114,7 +127,7 @@ test('#1624 the ports compared by name: the same; missing, extra, a direction or
 test('#1624 a design compared: Silinx\'s ports (cToHdl) against a Vitis report written from them; the README\'s table', () => {
   const g = cToHdl('void f(int x, short *y) { *y = x + 1; }', { file: 'f.c', top: 'f' });
   assert.ok(g.ok, JSON.stringify(g.diagnostics));
-  const xml = `<profile>${g.ports.map((p) => `<RtlPorts><name>${p.name}</name><Bits>${p.w}</Bits><Direction>${p.dir}</Direction></RtlPorts>`).join('')}</profile>`;
+  const xml = `<profile>${g.ports.map((p) => `<RtlPorts><name>${p.name}</name><Bits>${p.w}</Bits><Dir>${p.dir}</Dir></RtlPorts>`).join('')}</profile>`;
   const vitis = { ...parseStatus('csim 0\nsynth 0\ncosim 0\n'), ...parseCsynth(xml), latency: { min: 0, max: 0 }, loops: [{ name: 'VITIS_LOOP_3_1', line: 3, ii: 1 }] };
   const silinx = { csim: 'pass', synth: 'pass', cosim: 'pass', latency: { min: 1, max: 2 }, loops: [{ name: null, line: 3, ii: 2, cycles: 9 }], ports: g.ports.map(({ name, dir, w }) => ({ name, dir, w })) };
   const r = compareDesign(vitis, silinx);
