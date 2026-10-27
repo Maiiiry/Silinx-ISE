@@ -3,6 +3,7 @@ import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, splitter, toast } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, typeText } from './editor.js';
+import { cRunButtons } from './c-source.js';
 import { compile, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import * as wiz from './wizards.js';
@@ -516,6 +517,7 @@ export async function openFile(path, line, col, { task } = {}) {
           ...editing,
           h('button', { class: 'tb-btn', title: 'Find (Ctrl+F)', html: icons.find, onclick: () => d.editor.exec('findToggle') }),   // (again: closed, #1328)
           (lang === 'vhdl' || lang === 'verilog') ? tplBtn : null,
+          ...(lang === 'c' ? cRunButtons(path) : []),   // (C Simulation, C/RTL Co-simulation: #1528)
           (lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' || lang === 'c') ? h('button', { class: 'btn', style: { minWidth: '0' }, title: 'Check Syntax of this file', onclick: () => (lang === 'ucf' ? checkUcfFile(path) : checkFileSyntax(path)) }, h('span', { class: 'ico-inline', html: icons.ok }), ' Check Syntax') : null,
           h('span', { class: 'path' }, path),
           syncBanner(path));
