@@ -219,6 +219,31 @@ CRC on and off) are written again byte-identical, every CRC computed as bitgen w
 the empty designs' and stopwatch's size, SHA-256 and CRCs, which `test/s6-bitstream.test.js` checks the writer
 against without ISE.
 
+### The LUTs (#725, S6-B, 2026-10-27)
+
+`gen-lutmap6.mjs` writes designs in XDL with the four LUTs of every slice set and no nets; `ise-xdl-bits.sh` turns
+them into bitstreams on the Mac mini (`xdl -xdl2ncd -force`, `bitgen -d -g CRC:Disable`) and `ana-lutmap6.mjs` reads
+them: every LUT `O6 = 1` (where all the LUT bits are), `O6 = 0` (the bits a used slice sets besides them), `O6 = A1`
+… `A6` (which entry each bit is: entry e has bit k - 1 set in design a<k>) and the id designs (LUT n all ones when bit
+j of n is 1: whose bit it is). `db/<device>-lut.json` keeps the map per slice kind and LUT, as (frame, bit) offsets
+from the slice's base, and every slice's base.
+
+- **The XC6SLX16**, every slice (22 designs, 50 minutes; the `a<k>` designs take 6 minutes each, `xdl`'s DRC
+  checking every LUT's dangling inputs): all 9112 LUTs found, every entry at one place, every slice of a kind laid
+  out alike. A slice's 4 × 64 bits are in 4 frames (SLICEX and SLICEL: minors 0 to 3 from its base, SLICEM: 0, 1, 3,
+  4) and 64 bits of the frame.
+- **A slice's base** follows from its column and its Y alone: its frame is the column's first frame (by X) plus
+  `rowFrames × (Y div 16)`, its bit a function of `Y mod 16`, 64 bits per slice from Y15 (bit 0) down to Y0 (bit 976),
+  with the frame's middle word (bits 512 to 527, the HCLK's) between Y8 and Y7.
+- **The XC6SLX45** from a sample (`gen-lutmap6.mjs --sample`: the first row of CLBs and the top slice of every other
+  row, 1204 of its 6822 slices, 21 designs, 40 minutes): its 4816 LUTs found, laid out as the XC6SLX16's, and the rule
+  checked on it gives every slice's base (`extendBases`; the XC6SLX16's sample gives its measured map exactly, which
+  the tests check).
+- **A used slice** (every LUT `O6 = 0`) sets 8 bits besides the LUTs' in a SLICEL (frame 4, bits 9, 10, 15, 29, 30,
+  44, 45, 47 from its base) and in a SLICEM (frame 5, the same bits), none in a SLICEX: the slice settings' matter
+  (S6-C). On the XC6SLX45 the zero design also sets 8 bits of the top row's HCLK word (bit 527) in minors 16 to 19 of
+  columns 16 and 32: the clocking's (#727).
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -291,4 +316,7 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `ise-place-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `par -k` and `drc` of the placed XDL, `drc` of the routed one |
 | `summarize-ise-check.mjs` | That check's logs as `measured/ise-check.json` (the messages by id and count) |
 | `ise-format.sh` | Inside the ISE container: the empty designs through bitgen with Silinx's options and their variants (#724) |
+| `gen-lutmap6.mjs` | The LUT map's designs in XDL (`--sample`: a sample of the slices) (#725) |
+| `ise-xdl-bits.sh` | Inside the ISE container: XDL designs through `xdl -xdl2ncd` and bitgen (#725) |
+| `ana-lutmap6.mjs` | The LUT map from their bitstreams: `db/<device>-lut.json` (#725) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
