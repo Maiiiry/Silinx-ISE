@@ -55,7 +55,7 @@ Not part of `npm test` (it needs the network once).
 | interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'packet' |
 | interface-streaming-axi-stream-to-master | C++ | fail | fail | skip | - | C simulation: 32: 'out_memory' is an array: give an index |
 | interface-streaming-axis-array-stream-no-side-channel-data | C++ | pass | pass | pass | 203 |  |
-| interface-streaming-using-array-of-streams | C++ | fail | fail | skip | - | C simulation: 23: '.write' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
+| interface-streaming-using-array-of-streams | C++ | pass | pass | pass | 348 |  |
 | interface-streaming-using-axi-stream-with-side-channel-data | C++ | pass | pass | pass | 31-34 |  |
 | interface-streaming-using-axi-stream-with-struct | C++ | fail | fail | skip | - | C simulation: example.h:3: the header 'complex' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | migration-python-scripts | C | pass | pass | pass | 1 |  |
@@ -73,7 +73,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-conditional-control-of-pragmas-using-template-function | C++ | pass | pass | pass | 80 |  |
 | modeling-cpp-templates-for-multiple-instances | C++ | pass | pass | pass | 1 |  |
 | modeling-fixed-point-sqrt | C++ | pass | pass | pass | - |  |
-| modeling-free-running-kernel-remerge-ii4to1 | C++ | fail | fail | skip | - | C simulation: 24: a type expected, not '"in_stream"' |
+| modeling-free-running-kernel-remerge-ii4to1 | C++ | pass | pass | pass | 459 |  |
 | modeling-using-arbitrary-precision-arith | C++ | pass | pass | pass | - |  |
 | modeling-using-arbitrary-precision-casting | C++ | pass | pass | pass | - |  |
 | modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 23: the parameter 'in': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 36 through co-simulation.
+73 designs: 38 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS
