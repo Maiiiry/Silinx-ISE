@@ -75,7 +75,11 @@ export function checkC(source, file = 'input.c', opts = {}) {
       if (prev?.body && it.body) report(it.loc, `the function '${it.name}' is defined twice (first at line ${prev.loc.line})`);
       if (!prev || it.body) funcs.set(it.name, it);
     } else if (it.kind === 'var') {
-      if (globals.has(it.name)) report(it.loc, `'${it.name}' is declared twice`);
+      // (a constant of a header two sources include, const int N = 10; in each: the same constant, as C++'s file-scope
+      // constants are each source's own, #1700)
+      const prev = globals.get(it.name);
+      if (prev && prev.const && it.const && prev.init && it.init && constValue(prev.init, consts) !== null && constValue(prev.init, consts) === constValue(it.init, consts)) continue;
+      if (prev) report(it.loc, `'${it.name}' is declared twice`);
       globals.set(it.name, it);
       if (it.const && it.type.kind === 'int' && it.init && it.init.kind !== 'init') { const v = constValue(it.init, consts); if (v !== null) consts.set(it.name, v); }
     }
@@ -396,7 +400,8 @@ function checkFunction(f, ctx) {
         if (hw) {
           const trip = s.kind === 'for' ? tripCount(s) : null;
           const max = trip === null ? tripPragma(s.body) : trip;
-          if (max === null) report(s.loc, `the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it`);
+          // (not known: a state machine runs it as is, its latency unknown, as Vitis HLS, #1699)
+          if (max === null) report(s.loc, `the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)`, 'warning');
           loops.push({ loc: s.loc, trip, max, fn: f.name });
         }
         stmt(s.body);

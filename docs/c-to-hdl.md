@@ -125,9 +125,9 @@ structs is an array per member; a member array of an array of structs is one arr
 1. The whole functionality in the top function and the functions it calls.
 2. No system calls: `printf`, `fprintf`, `puts` are ignored by synthesis (a note); `malloc`, `free`,
    `exit`, file I/O, `time`, `rand` are refused.
-3. Fixed or bounded sizes: no dynamic memory, no recursion (direct or through other functions),
-   every loop with a bound Silinx can compute (a constant trip count, or `#pragma HLS
-   LOOP_TRIPCOUNT max=` for a loop whose count depends on its inputs).
+3. Fixed sizes: no dynamic memory, no recursion (direct or through other functions). A loop whose count depends on
+   its inputs is made, as Vitis HLS makes it (#1699): a state machine that runs until its condition is false, its
+   latency unknown (a warning; `#pragma HLS LOOP_TRIPCOUNT max=` gives the report a bound).
 4. Unambiguous: a pointer only to an argument, an array or a variable, never cast between types, no
    function pointers, no `goto`. Pointer arithmetic (#1599) as Vitis HLS takes it: `*(p + e)` is `p[e]`; a
    local pointer is set to an array, `&x`, `&a[i]` or `a + i` (`p = sel ? a : b` in an `if`), read as `*p` or
@@ -202,7 +202,7 @@ other side effect in it; the index of a memory has no side effect; a memory is a
 | `INTERFACE ap_ctrl_none / ap_ctrl_hs port=return` | the block protocol |
 | `INTERFACE ap_none / ap_vld / ap_ovld / ap_memory port=` | the argument's interface |
 | `INLINE` / `INLINE off` | every function is inlined (`off` is ignored, with a warning) |
-| `LOOP_TRIPCOUNT min= max=` | the bound of a loop whose count depends on the inputs |
+| `LOOP_TRIPCOUNT min= max=` | the report's bound of a loop whose count depends on the inputs (its latency, else unknown) |
 | `PIPELINE [II=]` (in a loop's body) | a sequential module's loop: an iteration a state (II=1: its condition, body and step in one clock cycle); a loop that accesses a memory, has a loop or a `continue` in it keeps its states, a warning saying the II made |
 | `UNROLL` / `UNROLL factor=N` (in a loop's body) | whole: a loop of constant count run in the state it is in (no state of its own); `factor=N`: N iterations a state. A combinational module's loops are all unrolled |
 | `ARRAY_PARTITION variable= type=complete` | the array's elements registers, whatever its size (not a memory); `block` / `cyclic` ignored with a warning |

@@ -154,8 +154,10 @@ void apx(ap_uint<8> a, ap_uint<8> b, ap_int<4> c, ap_uint<9> *sum, ap_int<9> *di
 test('C to HDL: what is not combinational is a sequential module (#1526): a loop whose count depends on the inputs, static and global variables; divisions by any value combinational (#1656); array arguments are sequential (ap_memory)', () => {
   const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line}:${d.col} ${d.message}`);
   const seq = (src) => { const r = cToHdl(src); return [r.ok, r.sequential, r.diagnostics.length]; };
+  // (a loop of unknown count: a sequential module, its latency unknown, said, #1699)
   assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < n; i++) s += i;\n  return s;\n}'),
-    ['3:3 the number of iterations of this loop is not known: give its bound (a \'for\' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it']);
+    ['3:3 the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)']);
+  assert.deepEqual(seq('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < n; i++) s += i;\n  return s;\n}'), [true, true, 1]);
   assert.deepEqual(seq('int f(int n) {\n  int s = 0;\n  while (s < n) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    s++;\n  }\n  return s;\n}'), [true, true, 0]);
   assert.deepEqual(seq('int f(int a) {\n  static int acc = 0;\n  acc += a;\n  return acc;\n}'), [true, true, 0]);
   assert.deepEqual(seq('int total;\nint f(int a) { total += a; return total; }'), [true, true, 0]);
