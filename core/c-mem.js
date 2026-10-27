@@ -6,7 +6,6 @@
 // driven) and the statement's own state (the values read, kept in registers ap_r_ap_mem_<n>); a write is a
 // statement of its own (a[i] = v; a[i] += v; a[i]++). Isomorphic ES module: no DOM and no Node APIs.
 import { BOOL, typeOf } from './c-types.js';
-import { constValue } from './c-check.js';
 
 export const MEM_MIN = 64;   // a local array of more elements than this is a memory (fewer: registers)
 
@@ -25,7 +24,7 @@ export const memMethods = {
     let init = null;
     if (v.init) {
       if (v.init.kind !== 'init') this.error(v.loc, `'${v.name}': an array is initialized with { … }`);
-      init = v.init.items.map((x) => { const c = constValue(x, this.consts()); if (c === null) this.error(x.loc || v.loc, `'${v.name}': a memory's initial values must be constants`); return c; });
+      init = v.init.items.map((x) => { const c = this.constOf(x, et); if (c === null) this.error(x.loc || v.loc, `'${v.name}': a memory's initial values must be constants`); return c; });
     }
     // (a static or a global with no initial values: zeros, as C)
     if (!init && !ext && v.static) init = [];

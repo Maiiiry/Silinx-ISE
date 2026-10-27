@@ -13,7 +13,6 @@
 //     outputs: Map port -> { reg } (a register shown on the port)
 import { Flow, Stop } from './c-dataflow.js';
 import { BOOL, typeOf } from './c-types.js';
-import { constValue } from './c-check.js';
 import { memMethods, MEM_MIN } from './c-mem.js';
 import { fifoMethods } from './c-fifo.js';
 import { loopPragma, unrollBy } from './c-pragma.js';
@@ -301,21 +300,21 @@ class SeqFlow extends Flow {
   regSlot(v) {
     const t = v.type;
     const parted = this.partitioned?.has(v.orig ?? v.name);
-    const init = (e) => (e ? constValue(e, this.consts()) : 0n);
+    const init = (e, et) => (e ? this.constOf(e, et) : 0n);
     if (t.kind === 'array') {
       if (this.arrayLength(v) > MEM_MIN && !parted) return this.memSlot(v);
       const et = typeOf(t.of);
       if (!et) this.error(v.loc, `'${v.name}': only arrays of integers (one dimension) are supported yet`);
       const n = t.length ?? (v.init?.kind === 'init' ? v.init.items.length : null);
       if (!n) this.error(v.loc, `'${v.name}': an array needs its size`);
-      const regs = Array.from({ length: n }, (_, k) => this.reg(`${v.name}_${k}`, et, v.static && v.init?.kind === 'init' ? (init(v.init.items[k]) ?? 0n) : 0n));
-      if (v.static && v.init?.kind === 'init' && v.init.items.some((x) => constValue(x, this.consts()) === null)) this.error(v.loc, `the static '${v.name}': its initial values must be constants`);
+      const regs = Array.from({ length: n }, (_, k) => this.reg(`${v.name}_${k}`, et, v.static && v.init?.kind === 'init' ? (init(v.init.items[k], et) ?? 0n) : 0n));
+      if (v.static && v.init?.kind === 'init' && v.init.items.some((x) => this.constOf(x, et) === null)) this.error(v.loc, `the static '${v.name}': its initial values must be constants`);
       return { kind: 'array', t: et, regs, elems: null, name: v.name };
     }
     const et = typeOf(t);
     if (!et) this.error(v.loc, `'${v.name}' is not an integer`);
     let reset = 0n;
-    if (v.static && v.init) { reset = init(v.init); if (reset === null) this.error(v.loc, `the static '${v.name}': its initial value must be a constant`); }
+    if (v.static && v.init) { reset = init(v.init, et); if (reset === null) this.error(v.loc, `the static '${v.name}': its initial value must be a constant`); }
     return { kind: 'var', t: et, reg: this.reg(v.name, et, reset), name: v.name, static: !!v.static };
   }
   arrayLength(v) { return Number(v.type.length ?? (v.init?.kind === 'init' ? v.init.items.length : 0)); }

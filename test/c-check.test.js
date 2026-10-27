@@ -55,7 +55,7 @@ test('lex: pragmas (HLS parsed, others dropped with a warning); headers known an
   assert.deepEqual(r.includes.map((i) => [i.name, i.system]), [['ap_int.h', false], ['unistd.h', true], ['hls_stream.h', true]]);
   assert.deepEqual(r.pragmas.map((p) => [p.name, p.args]), [['PIPELINE', { ii: '2', rewind: true }], ['INTERFACE', { mode: 'ap_vld', port: 'y' }]]);
   assert.deepEqual(r.errors.map((e) => `${e.line} ${e.severity}: ${e.message}`), [
-    "2 error: the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)",
+    "2 error: the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)",
     '3 error: hls_stream.h: hls::stream is C++: write the source as a .cpp file',
     '5 warning: #pragma GCC optimize is ignored (only #pragma HLS)',
     '11 error: #endif with no #if',
@@ -163,7 +163,6 @@ out:
 }`), [
     "3:8 error: 'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
     "4:9 error: 'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>",
-    '4:13 error: floating point (1.5) is not supported in Silinx HLS yet',
     "6:3 error: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it",
     '7:3 warning: printf is ignored by synthesis (it only prints in C simulation)',
     "8:8 error: 'm': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
@@ -217,7 +216,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
     ["'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>", 'c-float'],
     ["the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it", 'c-loop-bound'],
-    ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)", 'c-header'],
+    ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
   ]) {
     const h = hintFor({ message: msg });
@@ -233,7 +232,7 @@ test('#1597 lex: the project\'s own headers read in place (their macros the sour
     'fir.c': '#include "fir.h"\nint fir(data_t x) { return x * N; }\n',
   };
   const r = lex('#include "fir.h"\n#include "fir.h"\n#include "types.h"\n#include "src/fir.c"\nint main(void) { return fir(N); }\n#include "nope.h"\n', 'tb.c', { headers });
-  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"]);
+  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"]);
   const text = r.tokens.filter((t) => t.t !== 'eof').map((t) => t.v).join(' ');
   assert.equal(text, 'typedef short data_t ; int fir ( data_t x ) ; int fir ( data_t x ) { return x * 4 ; } int main ( void ) { return fir ( 4 ) ; }');
   // (the tokens of a header carry its name)

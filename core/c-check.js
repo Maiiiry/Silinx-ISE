@@ -19,7 +19,7 @@ import { Q_MODES, O_MODES } from './c-fixed.js';
 
 // the library calls Silinx HLS refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
-  'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy', 'assert']);
+  'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy']);
 const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
 const STREAMS = new Set(['stdout', 'stderr', 'stdin']);
 const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush']);
@@ -183,7 +183,6 @@ function checkFunction(f, ctx) {
   function typeHw(t, loc, what) {
     if (!t) return;
     if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx HLS yet: use integers or ap_int<W>`);
-    else if (t.fixed) report(loc, `${what}: ${t.name} is not synthesized yet (#1643): the C simulation runs it`);
     else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx HLS yet`);
     else if (t.kind === 'array') typeHw(t.of, loc, what);
     else if (t.kind === 'ptr') {
@@ -219,7 +218,8 @@ function checkFunction(f, ctx) {
     if (!e) return;
     switch (e.kind) {
       case 'num': case 'chr': return;
-      case 'float': if (hw) report(e.loc, `floating point (${e.text}) is not supported in Silinx HLS yet`); return;
+      // (in hardware a double constant is only an ap_fixed's value: said by the synthesis otherwise, #1643)
+      case 'float': return;
       case 'str': if (hw && !how.printf) report(e.loc, 'a string is only possible in printf (ignored by synthesis)'); return;
       case 'init': for (const x of e.items) expr(x); return;
       case 'id':
@@ -239,7 +239,7 @@ function checkFunction(f, ctx) {
       case 'binary':
         if (hw && (e.op === '+' || e.op === '-') && (isPtr(e.l) || isPtr(e.r))) report(e.loc, 'pointer arithmetic is not possible in Silinx HLS: index the array instead');
         if (e.op === '/' || e.op === '%') { const d = constValue(e.r, consts); if (d === 0n) report(e.loc, 'division by zero'); }
-        if (e.op === '<<' || e.op === '>>') { const s = constValue(e.r, consts); if (s !== null && s < 0n) report(e.loc, `a shift by a negative amount (${s}) is undefined in C`); }
+        if ((e.op === '<<' || e.op === '>>') && !ctx.dead) { const s = constValue(e.r, consts); if (s !== null && s < 0n) report(e.loc, `a shift by a negative amount (${s}) is undefined in C`); }
         expr(e.l); expr(e.r); return;
       case 'assign': expr(e.l); expr(e.r); return;
       case 'cond': expr(e.c); expr(e.a); expr(e.b); return;
@@ -275,6 +275,12 @@ function checkFunction(f, ctx) {
       if (fn.params.length !== e.args.length) report(e.loc, `'${name}' takes ${fn.params.length} argument(s), not ${e.args.length}`);
       e.args.forEach((a, k) => expr(a, { arg: fn.params[k]?.type?.kind === 'ptr' || fn.params[k]?.type?.kind === 'array' }));
       if (name === 'main' && hw) report(e.loc, 'main() is the test bench: the synthesized code cannot call it');
+      return;
+    }
+    // (assert: checked by the C simulation, not made into hardware, as Vitis HLS's)
+    if (name === 'assert' && !lookup(name)) {
+      if (hw) report(e.loc, 'assert is ignored by synthesis (the C simulation checks it)', 'warning');
+      for (const a of e.args) expr(a);
       return;
     }
     if (IGNORED.has(name)) {
@@ -360,7 +366,17 @@ function checkFunction(f, ctx) {
       case 'block': scopes.push(new Map()); s.items.forEach(stmt); scopes.pop(); return;
       case 'decl': s.vars.forEach(declare); return;
       case 'expr': expr(s.e); return;
-      case 'if': expr(s.cond); stmt(s.then); stmt(s.else); return;
+      case 'if': {
+        // (a branch a constant condition never runs: its shifts by negative constants not said, as a template's
+        // `if (SCALE >= 0) x << SCALE; else x >> -SCALE;`)
+        expr(s.cond);
+        const c = constValue(s.cond, consts);
+        const was = ctx.dead;
+        ctx.dead = was || c === 0n; stmt(s.then);
+        ctx.dead = was || (c !== null && c !== 0n); stmt(s.else);
+        ctx.dead = was;
+        return;
+      }
       case 'switch': expr(s.e); stmt(s.body); return;
       case 'case': if (constValue(s.value, consts) === null) report(s.loc, "a 'case' value must be a constant"); return;
       case 'return':

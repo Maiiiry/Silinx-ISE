@@ -19,7 +19,7 @@ import { cppTemplates } from './cpp-template.js';
 import { cppSugar } from './cpp-sugar.js';
 import { cStructs } from './c-struct.js';
 
-export const KNOWN_HEADERS = new Set(['ap_int.h', 'ap_fixed.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
+export const KNOWN_HEADERS = new Set(['ap_int.h', 'ap_fixed.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h', 'assert.h']);
 // the macros of the standard headers a test bench uses (#1598)
 const HEADER_MACROS = { 'stdio.h': { EOF: '(-1)', NULL: '0' }, 'stdbool.h': { true: '1', false: '0' }, 'stdlib.h': { NULL: '0', EXIT_SUCCESS: '0', EXIT_FAILURE: '1', RAND_MAX: '2147483647' }, 'stddef.h': { NULL: '0' },
   'limits.h': { CHAR_BIT: '8', INT_MAX: '2147483647', INT_MIN: '(-2147483647 - 1)', UINT_MAX: '4294967295u', SHRT_MAX: '32767', UCHAR_MAX: '255' } };

@@ -283,7 +283,10 @@ function exprParser(T, typedefs, cpp = false) {
     if (at('(')) {
       S.p++;
       if (startsType()) {
+        const from = S.p;
         const s = specifiers();
+        // ((T(x) << 2): a parenthesized expression starting with C++'s cast T(x), not a C cast)
+        if (cpp && at('(')) { S.p = from - 1; return postfix(); }
         const d = declarator(s.type, true);
         expect(')', 'after the type of a cast');
         return { kind: 'cast', type: d.type, e: unary(), loc: loc(t) };
