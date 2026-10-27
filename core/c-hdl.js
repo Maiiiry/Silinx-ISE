@@ -11,6 +11,7 @@ import { isReservedWord } from './reserved.js';
 import { fsmd } from './c-fsmd.js';
 import { vhdlSeq, verilogSeq } from './c-hdl-seq.js';
 import { aggregate, aggregable } from './c-aggregate.js';
+import { cProcesses } from './c-processes.js';
 
 export const bits = (k, w) => {
   const m = (1n << BigInt(w)) - 1n;
@@ -19,10 +20,19 @@ export const bits = (k, w) => {
 export const bin = (k, w) => bits(k, w).toString(2).padStart(w, '0');
 
 // (headers, top: a source of several files, its top function named, #1597)
-export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null, top = null } = {}) {
-  const checked = checkC(source, file, { headers, top });
+// (depths, module, flat: a DATAFLOW process's, core/c-processes.js, #1707: its pointer arguments' depths, its module's
+// name, its struct arguments' members ports of their own)
+export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null, top = null, depths = null, module = null, flat = false } = {}) {
+  const checked = checkC(source, file, { headers, top, depths });
   const diagnostics = [...checked.diagnostics];
   if (!checked.ok || !checked.top) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
+  // #pragma HLS DATAFLOW: the top's calls processes of their own (#1707); a region not of calls, sequential (said)
+  if (checked.dataflow) {
+    const r = cProcesses(source, checked, { file, lang, headers, cToHdl });
+    if (!r.fallback) return r;
+    // (said once: why it is made sequential)
+    diagnostics.splice(0, diagnostics.length, ...diagnostics.filter((d) => !/^#pragma HLS DATAFLOW is accepted and ignored/.test(d.message)), r.fallback);
+  }
   let df = dataflow(checked);
   // not combinational (a loop whose count depends on the inputs, a static or global variable): a sequential module,
   // a state machine (core/c-fsmd.js, #1526)
@@ -41,7 +51,7 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
   }
   // a struct argument or result (#1590): one port (#1628, core/c-aggregate.js); a stream or an array of structs, a
   // stream or a memory per member for now (#1668)
-  for (const a of sargs.filter((x) => !aggregable(x, fn.params))) {
+  for (const a of sargs.filter((x) => !flat && !aggregable(x, fn.params))) {
     diagnostics.push({ file, line: a.loc.line, col: a.loc.col, message: a.stream ? `the stream of a struct '${a.name}': its members are streams of their own (${a.members.join(', ')}); Vitis HLS makes one stream of them (not yet, #1668)`
       : `the struct argument '${a.name}': its members are memories of their own (${a.members.join(', ')}); Vitis HLS makes one memory of them (not yet, #1668)`, severity: 'warning' });
   }
@@ -53,17 +63,17 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
     ? [{ name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
     : [];
   const portName = (p) => (p.param ? rn(p.param) + p.name.slice(p.param.length) : p.name);
-  const flat = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
+  const flatPorts = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
   // (each output by its port's name: an argument named as a reserved word, in, its ports in_r_…: a memory's, a stream's too, #1590)
   const renamed = new Map(df.ports.map((p) => [p.name, portName(p)]));
   df.outputs = new Map([...df.outputs].map(([k, v]) => [renamed.get(k) ?? rn(k), v]));
   // a struct's members' ports signals inside the module, its port theirs (#1628)
-  const agg = aggregate(sargs, fn.params, flat, { seq: !!df.seq, rn });
+  const agg = aggregate(flat ? [] : sargs, fn.params, flatPorts, { seq: !!df.seq, rn });
   const ports = agg.ports;
   const inner = new Map(agg.groups.flatMap((x) => [...x.renamed])), drop = new Set(agg.groups.flatMap((x) => x.drop));
   for (const node of df.graph.nodes) if (node.op === 'in' && inner.has(node.port.name)) node.port.name = inner.get(node.port.name);
   df.outputs = new Map([...df.outputs].filter(([k]) => !drop.has(k)).map(([k, v]) => [inner.get(k) ?? k, v]));
-  const name = rn(checked.top);
+  const name = module || rn(checked.top);
   const src = file.split('/').pop();
   const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df, agg) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df, agg);
   // the report (#1529): a sequential module's states, registers, memories and loops (each one's II and cycles)

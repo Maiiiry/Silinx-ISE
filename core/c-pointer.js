@@ -6,7 +6,7 @@
 //
 //   pointerArithmetic(funcs, globals, synth, report, structArgs, top)   (funcs: Map name -> Func; synth: the
 //   synthesized functions; structArgs: core/c-struct.js's, a pointer to structs' members said once by its name; top:
-//   the one whose depths are said, #1684)
+//   the one whose depths are said, #1684; depths: its pointer arguments' depths, a DATAFLOW process's, #1707)
 
 export const DEFAULT_DEPTH = 1024;
 
@@ -34,7 +34,7 @@ function sum(ts, loc) {
   return e;
 }
 
-export function pointerArithmetic(funcs, globals, synth, report, structArgs = new Map(), top = null) {
+export function pointerArithmetic(funcs, globals, synth, report, structArgs = new Map(), top = null, depths = null) {
   for (const f of funcs.values()) {
     if (!f.body) continue;
     // (the names of its pointers and arrays: its parameters', its variables', the globals')
@@ -80,6 +80,8 @@ export function pointerArithmetic(funcs, globals, synth, report, structArgs = ne
       if (!arrays.has(pa)) continue;
       let depth = null;
       walk(f.body, (n) => { if (n.kind === 'pragma' && n.pragma.name === 'INTERFACE' && n.pragma.args.port === pa.name && n.pragma.args.depth !== undefined) depth = Number(n.pragma.args.depth); });
+      // (a DATAFLOW process's: its caller's array's size, #1707)
+      if (!(depth >= 1) && f.name === top && depths?.[pa.name] >= 1) depth = depths[pa.name];
       if (!(depth >= 1)) {
         depth = DEFAULT_DEPTH;
         // (said of the top function's: the others are inlined, their arrays the caller's)
