@@ -29,10 +29,38 @@ export function openCHdl(path) {
   });
 }
 
-/** A C module's badges on its Design row: the C (its base, opened) and its HDL (generated from it, read-only). */
+/** Whether a C source's module is sequential (a state machine: its ASM chart, #1575). */
+export const cSequential = (path) => !!S.sources.find((s) => s.view && s.path === path)?.sequential;
+
+/** A sequential C module's machine as an ASM chart (core/c-asm.js), read-only, in a document of its own (#1575). */
+export async function openCAsm(path) {
+  const id = `casm:${path}`;
+  const old = findDoc(id);
+  if (old) closeDoc(old);
+  const { cAsm } = await import('/core/c-asm.js');
+  const r = cAsm(await text(path), { file: path, lang: hdlLang() });
+  if (!r.ok) { log(`ERROR:SilinxC - "${path}" ${r.diagnostics.filter((d) => d.severity === 'error').map((d) => `line ${d.line}: ${d.message}`).join('; ')}`, 'err'); return null; }
+  const { mountAsmEditor } = await import('./asm-editor.js');
+  const name = `${r.model.name}.asm`;
+  return openDoc({
+    id, title: name, tooltip: `${name}, the state machine made from ${path}`, icon: 'asm',
+    create(el, d) {
+      const link = h('a', { onclick: () => openFile(path) }, path.split('/').pop());
+      const bar = h('div', { class: 'editor-bar' }, h('span', { class: 'path' }, name), h('span', { class: 'gen-banner read-only' }, 'Read-only, the state machine made from ', link));
+      const host = h('div', { class: 'doc-body' });
+      el.append(bar, host);
+      d.asmEditor = mountAsmEditor(host, { model: r.model, readOnly: true });
+      return { destroy: () => d.asmEditor.destroy?.() };
+    },
+  });
+}
+
+/** A C module's badges on its Design row: the C (its base, opened), a sequential one's ASM chart, its HDL (generated from
+ *  it, read-only). */
 export function cBadges(file, lang, context) {
   return [
     { text: 'C', base: true, title: 'Open', open: () => openFile(file), context },
+    ...(cSequential(file) ? [{ text: 'ASM', base: false, title: 'The state machine made from the C (read-only)', open: () => openCAsm(file), context }] : []),
     { text: lang === 'verilog' ? 'Verilog' : 'VHDL', base: false, title: 'Generated from the C', open: () => openCHdl(file), context },
   ];
 }
@@ -115,6 +143,7 @@ export function cProcesses(path) {
     { id: 'c-cosim', label: 'C/RTL Co-simulation', ico: 'wave', run: () => runCosimulation(path) },
     { id: 'c-report', label: 'View C Synthesis Report', ico: 'summary', run: () => runCReport(path) },
     { id: 'c-hdl', label: 'View Generated HDL', ico: 'process', run: () => openCHdl(path) },
+    ...(cSequential(path) ? [{ id: 'c-asm', label: 'View State Machine (ASM)', ico: 'asm', run: () => openCAsm(path) }] : []),
   ] }];
 }
 
