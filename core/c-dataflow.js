@@ -41,7 +41,8 @@ export class Flow {
 
   // ------------------------------------------------------------------ values: { id, t }
   v(id, t) { return { id, t }; }
-  conv(x, t) { return this.v(this.g.add('ext', [x.id], t), t); }
+  // (to bool: 0 or 1, as C converts: any value other than 0 is 1, #1528)
+  conv(x, t) { return t.bool ? this.v(this.bool(x), t) : this.v(this.g.add('ext', [x.id], t), t); }
   bool(x) {
     if (x.t.w === 1 && !x.t.s) return x.id;
     return this.g.add('ne', [x.id, this.g.const(0, x.t)], BOOL);

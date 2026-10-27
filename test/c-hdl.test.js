@@ -254,3 +254,13 @@ test('#1531 viewHdl: a C source\'s HDL made in memory (its top function\'s modul
   const bad = viewHdl('src/g.c', 'int g(int n) { return n ? g(n - 1) : 0; }');
   assert.deepEqual([bad.text, bad.module, bad.errors], ['', 'g', ['src/g.c: line 1: recursion is not possible in hardware (Silinx C, as Vitis HLS): g → g']]);
 });
+
+test('#1528 C to HDL against the C: a value made a bool is 1 when it is not 0 (not its lowest bit)', { skip: noCC }, () => {
+  against(`#include <stdbool.h>
+bool tob(int a, unsigned char c, bool *b, bool *d) {
+  *b = a;
+  *d = (bool)(c & 6) + (bool)(a >> 4);
+  bool e = c;
+  return e && (a & 2);
+}`, 'tob', { ins: [{ name: 'a', w: 32, s: true }, { name: 'c', w: 8, s: false }], outs: [{ name: 'b', w: 1, s: false }, { name: 'd', w: 1, s: false }], ret: { w: 1, s: false }, n: 30, seed: 9 });
+});

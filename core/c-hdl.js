@@ -43,7 +43,7 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
     ? [{ name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
     : [];
   const portName = (p) => (p.param ? rn(p.param) + p.name.slice(p.param.length) : p.name);
-  const ports = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role }))];
+  const ports = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
   const name = rn(checked.top);
   const src = file.split('/').pop();
   const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
