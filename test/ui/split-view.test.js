@@ -144,13 +144,13 @@ uiTest('#1652 the Split button: the right side empty, a document opened there, a
   assert.ok(!(await tabMenu(page, 'tb_gates.vhd')).some((l) => /Side|Split/.test(l)));
   await page.closeMenus();
 
-  // the button: at the header's right end (in the Tasks interface, before the side panel's button)
+  // the button: at the header's right end (in the Tasks interface, between the messages' button and Maximize, #1657)
   const btn = await page.eval(() => {
     const b = document.getElementById('split-btn'), r = b?.getBoundingClientRect();
     return b && { right: r.right > innerWidth * 0.6, top: r.top < 90, shown: !!b.getClientRects().length, next: b.nextElementSibling?.dataset.act || null, pressed: b.getAttribute('aria-pressed'), title: b.title };
   });
-  assert.deepEqual({ ...btn, next: btn.next === 'side' || btn.next === null }, { right: true, top: true, shown: true, next: true, pressed: 'false', title: 'Split the editor: two documents side by side, each side with its tabs' });
-  if (await page.eval(() => !!document.getElementById('task-view'))) assert.equal(btn.next, 'side');
+  assert.deepEqual({ ...btn, next: btn.next === 'max' || btn.next === null }, { right: true, top: true, shown: true, next: true, pressed: 'false', title: 'Split the editor: two documents side by side, each side with its tabs' });
+  if (await page.eval(() => !!document.getElementById('task-view'))) assert.equal(btn.next, 'max');
   await page.click('#split-btn');
   await page.waitFor(() => document.getElementById('workspace').classList.contains('split'), [], { what: 'split' });
   // the right side empty, worked in: what to open there (the other documents, one click away)
@@ -240,8 +240,8 @@ uiTest('#1619 Tasks interface: the schematic and its VHDL side by side in Design
     await page.openProject('SplitTasks');
     await page.eval(() => window.SilinxApp.openSch('src/gates.sch.json'));
     await page.waitFor((id) => window.Silinx.active?.id === id && window.Silinx.active.schEditor, [SCH], { what: 'the schematic' });
-    // (the Split button first in the header's layout buttons, before the side panel's)
-    assert.deepEqual(await page.eval(() => [...document.getElementById('task-view').children].map((b) => b.id || b.dataset.act)), ['split-btn', 'side', 'console', 'max']);
+    // (the Split button in the header's layout buttons, before Maximize: #1657)
+    assert.deepEqual(await page.eval(() => [...document.getElementById('task-view').children].map((b) => b.id || b.dataset.act)), ['side', 'console', 'split-btn', 'max']);
     await page.menu('View', 'Show Generated HDL Beside');
     await page.waitFor(() => document.getElementById('workspace').classList.contains('split'), [], { what: 'split' });
     assert.deepEqual(await ids(page), [`a:${SCH}*`, `b:${VHD}`]);
