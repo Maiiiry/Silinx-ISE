@@ -8,11 +8,11 @@ import { clocksOf } from './schematic.js';
 import { elaborate } from './elaborate.js';
 import { placeAndRoute } from './schdoc-place.js';
 import {
-  blankDirectives, constBits, defaultParams, findMod, lineStarts, newDoc, normModules, offsetOf, prVhdl, prVlog,
+  constBits, defaultParams, findMod, lineStarts, newDoc, normModules, offsetOf, prVhdl, prVlog,
   rangeTextVlog, skipParen, squash, stripComments, tokAt, tokenize, typeTextVhdl, unparen,
 } from './schdoc.js';
 import { mountGateConversion } from './schdoc-gates.js';
-import { mountSourcePieces } from './schdoc-source.js';
+import { activeVerilog, includeOf, mountSourcePieces } from './schdoc-source.js';
 
 // ===================================================================== HDL -> schematic
 // Module port lists for module symbols, from a compiled library ({ name: { name, lang, ports:[{name,dir,width,type}], generics } }).
@@ -151,9 +151,11 @@ export async function schematicFromHdl(inst, opts = {}) {
   const itf = ci && entText ? vhdlInterface(entText, mod) : { generics: [], ports: new Map() };
   const typeText = new Map();     // name -> type text (VHDL)
   let toks = [], ls = [];
-  if (archText) { toks = tokenize(ci ? archText : blankDirectives(archText), lang); ls = lineStarts(archText); }
+  // (Verilog: the text as the compiler reads it, the `ifdef branches not taken and the directives blanked, #1716)
+  const read = archText && !ci ? activeVerilog(archText, includeOf(opts.sources)) : archText;
+  if (archText) { toks = tokenize(read, lang); ls = lineStarts(archText); }
   const { itemSpan } = mountSourcePieces({
-    inst, archText, ci, diags, doc, entText, itf, lang, ls, mod, toks,
+    inst, archText, read, ci, diags, doc, entText, itf, lang, ls, mod, toks,
     typeText, setArchTok: (v) => { archTok = v; }
   });
 

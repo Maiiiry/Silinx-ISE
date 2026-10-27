@@ -4,12 +4,59 @@
 // sheet's own HDL. Isomorphic ES module: no DOM and no Node APIs.
 import { dedent, dedentBlock, lineStarts, offsetOf, prVlog, squash, stripComments, toSemi, tokAt, tokenize, unparen, vStmt, vStmtStart, withComments } from './schdoc.js';
 
+// Verilog (#1716): a text as the compiler reads it, with the same offsets: its compiler directive lines and the lines of
+// the `ifdef / `ifndef / `elsif / `else branches not taken blanked, the macros defined before (in the text and in the
+// files it includes) deciding as the lexer does. A statement cut from it keeps no directive without its partner (the
+// directives' choices kept). include(name): the text of an `include file, or null.
+const DIRECTIVE = /^[ \t]*`(ifdef|ifndef|elsif|else|endif|define|undef|include|timescale|default_nettype|resetall|celldefine|endcelldefine|line|pragma)\b[ \t]*([^\n]*)/;
+export function activeVerilog(text, include = () => null) {
+  const defined = new Set();
+  const scan = (src, depth, blank) => {
+    // (a directive inside a block comment is not one)
+    const lines = src.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')).split('\n');
+    const cond = [];
+    const on = () => cond.every(c => c.active);
+    lines.forEach((line, k) => {
+      const m = DIRECTIVE.exec(line);
+      if (!m) { if (blank && !on()) blank.add(k); return; }
+      if (blank) blank.add(k);
+      const arg = m[2].trim().split(/[\s(]/)[0], top = cond[cond.length - 1];
+      if (m[1] === 'ifdef' || m[1] === 'ifndef') { const a = defined.has(arg) === (m[1] === 'ifdef'); cond.push({ active: a, taken: a }); }
+      else if (m[1] === 'elsif') { if (top) { top.active = !top.taken && defined.has(arg); top.taken ||= top.active; } }
+      else if (m[1] === 'else') { if (top) { top.active = !top.taken; top.taken = true; } }
+      else if (m[1] === 'endif') cond.pop();
+      else if (!on()) { /* not read */ }
+      else if (m[1] === 'define') defined.add(arg);
+      else if (m[1] === 'undef') defined.delete(arg);
+      else if (m[1] === 'include' && depth < 16) {
+        const inc = /^["<]([^">]+)[">]/.exec(m[2].trim());
+        const t = inc ? include(inc[1]) : null;
+        if (t != null) scan(String(t), depth + 1, null);
+      }
+    });
+  };
+  const blank = new Set();
+  scan(String(text), 0, blank);
+  return String(text).split('\n').map((l, k) => (blank.has(k) ? ' '.repeat(l.length) : l)).join('\n');
+}
+// the `include files of { path: text } as the compiler finds them: by path, else by base name
+export const includeOf = (sources = {}) => name => {
+  const base = name.split(/[\\/]/).pop();
+  const p = name in sources ? name : Object.keys(sources).find(x => x.split(/[\\/]/).pop() === base);
+  return p != null ? sources[p] : null;
+};
+
 /** { itemSpan } of schematicFromHdl (setArchTok: where the module's VHDL architecture starts, for the declarations
- *  read after). */
+ *  read after; read: the Verilog text as the compiler reads it, activeVerilog). */
 export function mountSourcePieces(ctx) {
   const {
-    inst, archText, ci, diags, doc, entText, itf, lang, ls, mod, toks, typeText, setArchTok
+    inst, archText, read = archText, ci, diags, doc, entText, itf, lang, ls, mod, toks, typeText, setArchTok
   } = ctx;
+  // a piece of the Verilog text as read, without the lines blanked (a directive, a branch not taken)
+  const piece = (a, b) => {
+    const o = archText.slice(a, b).split('\n');
+    return read.slice(a, b).split('\n').filter((l, k) => l.trim() || !o[k].trim()).join('\n');
+  };
 
   const itemSpan = new Map();     // item -> { code, start, end }
   let modStart = 0, modEnd = toks.length;
@@ -125,13 +172,13 @@ export function mountSourcePieces(ctx) {
     for (const sp of [...spans.values()].sort((a, b) => a.st - b.st)) {
       if (sp.names.some(n => portNames.has(n))) continue;
       // (with its comments and attributes, #225)
-      const [a, b] = withComments(archText, toks[sp.st].s, toks[sp.en - 1].e, lang);
-      let txt = archText.slice(a, b);
+      const [a, b] = withComments(read, toks[sp.st].s, toks[sp.en - 1].e, lang);
+      let txt = piece(a, b);
       // net declaration assignment "wire [3:0] s = a + b;" -> declaration only (assignment becomes a block)
       const kw = toks[sp.st].v;
       if (['wire', 'tri', 'logic', 'wand', 'wor', 'supply0', 'supply1'].includes(kw) && sp.names.length === 1) {
         const eq = toks.slice(sp.st, sp.en).findIndex(t => t.v === '=');
-        if (eq > 0) { txt = archText.slice(a, toks[sp.st + eq - 1].e) + ';'; sp.splitAssign = true; }
+        if (eq > 0) { txt = piece(a, toks[sp.st + eq - 1].e) + ';'; sp.splitAssign = true; }
       }
       const col = a - (ls[archText.slice(0, a).split('\n').length - 1] ?? 0) + 1;
       declTexts.push(dedent(txt, col));
@@ -152,13 +199,13 @@ export function mountSourcePieces(ctx) {
       else if (it.kind === 'generate_for' || it.kind === 'generate_if') en = vStmt(toks, st);
       else en = toSemi(toks, st);
       const s0 = toks[st].s, e0 = toks[en - 1].e;
-      const [a, b] = withComments(archText, s0, e0, lang);
+      const [a, b] = withComments(read, s0, e0, lang);
       const col = a - (ls[archText.slice(0, a).split('\n').length - 1] ?? 0) + 1;
-      code = dedent(archText.slice(a, b), col);
+      code = dedent(piece(a, b), col);
       if (['wire', 'tri', 'logic', 'wand', 'wor'].includes(kw) && it.kind === 'assign') {
         // from a net declaration assignment
         const eq = toks.slice(st, en).findIndex(t => t.v === '=');
-        code = `assign ${squash(prVlog(it.target))} = ${archText.slice(toks[st + eq + 1].s, toks[en - 2].e).trim()};`;
+        code = `assign ${squash(prVlog(it.target))} = ${piece(toks[st + eq + 1].s, toks[en - 2].e).trim()};`;
       } else if (it.kind === 'process' && it.initial && !['initial', 'always', 'always_comb', 'always_ff', 'always_latch', 'final'].includes(kw)
         && it.body?.length && it.body.every(b => b.kind === 'assign' && b.target)) {
         // a variable declared with its initial value ("reg [7:0] q = 8'h05;" of an output port q,
