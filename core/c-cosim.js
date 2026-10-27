@@ -16,6 +16,8 @@ import { simulate } from './compile.js';
 export const MAX_CYCLES = 100000;
 const mask = (w) => (1n << BigInt(w)) - 1n;
 const hex = (v, w) => `${w}'h${(BigInt(v) & mask(w)).toString(16)}`;
+/** A struct's port's value (#1628): its members' (value(member)) at their fields, the padding 0. */
+export const pack = (fields, value) => fields.reduce((acc, f) => acc | ((BigInt(value(f.param) ?? 0n) & mask(f.w)) << BigInt(f.off)), 0n);
 
 /** The Verilog test bench replaying the calls: one line of hex values per call (and the protocol's faults last). */
 export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
@@ -66,6 +68,7 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
     ...mems.filter((x) => x.written).flatMap((x) => Array.from({ length: x.n }, (_, k) => `mem_${x.name}[${k}]`))].filter(Boolean);
   for (const c of calls) {
     const asg = gen.ports.filter((p) => p.dir === 'in' && p.param && p.role !== 'mem' && p.role !== 'fifo').map((p) => {
+      if (p.fields) return `${p.name} = ${hex(pack(p.fields, (m) => c.ptrIn[m] ?? c.args[m]), p.w)};`;
       const v = p.name.endsWith('_i') && c.ptrIn[p.param] !== undefined ? c.ptrIn[p.param] : (c.args[p.param] ?? c.ptrIn[p.param] ?? 0n);
       return `${p.name} = ${hex(v, p.w)};`;
     }).concat(mems.flatMap((x) => (c.memIn[x.name] || []).map((v, k) => `mem_${x.name}[${k}] = ${hex(v, x.w)};`)))
@@ -103,11 +106,12 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
     const row = rows[k] || [];
     let q = 0;
     const say = (p, expected, got) => mismatches.push({ call: k + 1, port: p, expected, got });
-    if (port('ap_return')) { const w = port('ap_return').w; const exp = c.ret === null ? null : c.ret & mask(w); const got = row[q++]; if (exp !== null && got !== exp) say('ap_return', exp, got); }
+    if (port('ap_return')) { const { w, fields } = port('ap_return'); const exp = fields ? pack(fields, (m) => c.ptrOut[m]) : c.ret === null ? null : c.ret & mask(w); const got = row[q++]; if (exp !== null && got !== exp) say('ap_return', exp, got); }
     for (const o of gen.ports.filter((p) => p.dir === 'out' && p.role === 'arg')) {
       const val = row[q++], vld = row[q++];
-      const exp = (c.ptrOut[o.param] ?? 0n) & mask(o.w);
-      const before = c.ptrIn[o.param] === undefined ? null : c.ptrIn[o.param] & mask(o.w);
+      // (a struct's: its members', those not written as they were, #1628)
+      const exp = o.fields ? pack(o.fields, (m) => c.ptrOut[m] ?? c.ptrIn[m]) : (c.ptrOut[o.param] ?? 0n) & mask(o.w);
+      const before = o.fields ? pack(o.fields, (m) => c.ptrIn[m]) : c.ptrIn[o.param] === undefined ? null : c.ptrIn[o.param] & mask(o.w);
       if (vld === 1n) { if (val !== exp) say(o.name, exp, val); }
       else if (o.name.endsWith('_o') ? exp !== before : before !== null && exp !== before) say(`${o.name}_ap_vld`, 1n, vld);
     }

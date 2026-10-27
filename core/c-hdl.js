@@ -10,6 +10,7 @@ import { dataflow } from './c-dataflow.js';
 import { isReservedWord } from './reserved.js';
 import { fsmd } from './c-fsmd.js';
 import { vhdlSeq, verilogSeq } from './c-hdl-seq.js';
+import { aggregate, aggregable } from './c-aggregate.js';
 
 export const bits = (k, w) => {
   const m = (1n << BigInt(w)) - 1n;
@@ -33,14 +34,16 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
   // a name that is a reserved word of VHDL or Verilog: its port named <name>_r (a warning)
   const rn = (n) => (isReservedWord(n) ? `${n}_r` : n);
   const fn = checked.funcs.get(checked.top);
-  for (const n of [checked.top, ...fn.params.map((p) => p.name)]) {
+  const sargs = checked.ast.structArgs?.get(checked.top) || [];
+  // (a struct argument's port its name's, #1628)
+  for (const n of [checked.top, ...fn.params.map((p) => p.name), ...sargs.filter((a) => a.name !== 'return' && aggregable(a, fn.params)).map((a) => a.name)]) {
     if (isReservedWord(n)) diagnostics.push({ file, line: fn.loc.line, col: fn.loc.col, message: `'${n}' is a reserved word of VHDL or Verilog: it is named ${n}_r in the module`, severity: 'warning' });
   }
-  // a struct argument (#1590): its members ports of their own (Vitis HLS aggregates them into one port: #1628)
-  for (const a of checked.ast.structArgs?.get(checked.top) || []) {
-    diagnostics.push({ file, line: a.loc.line, col: a.loc.col, message: a.name === 'return' ? `the struct returned by '${checked.top}': its members are outputs of their own (${a.members.join(', ')}); Vitis HLS makes one port of them (not yet, #1628)`
-      : a.stream ? `the stream of a struct '${a.name}': its members are streams of their own (${a.members.join(', ')}); Vitis HLS makes one stream of them (not yet, #1628)`
-      : `the struct argument '${a.name}': its members are ports of their own (${a.members.join(', ')}); Vitis HLS makes one port of them (not yet, #1628)`, severity: 'warning' });
+  // a struct argument or result (#1590): one port (#1628, core/c-aggregate.js); a stream or an array of structs, a
+  // stream or a memory per member for now (#1668)
+  for (const a of sargs.filter((x) => !aggregable(x, fn.params))) {
+    diagnostics.push({ file, line: a.loc.line, col: a.loc.col, message: a.stream ? `the stream of a struct '${a.name}': its members are streams of their own (${a.members.join(', ')}); Vitis HLS makes one stream of them (not yet, #1668)`
+      : `the struct argument '${a.name}': its members are memories of their own (${a.members.join(', ')}); Vitis HLS makes one memory of them (not yet, #1668)`, severity: 'warning' });
   }
   diagnostics.sort((a, b) => a.line - b.line || a.col - b.col);
   for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = node.port.param ? rn(node.port.param) + node.port.suffix : rn(node.port.name);
@@ -50,13 +53,19 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
     ? [{ name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
     : [];
   const portName = (p) => (p.param ? rn(p.param) + p.name.slice(p.param.length) : p.name);
-  const ports = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
+  const flat = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
   // (each output by its port's name: an argument named as a reserved word, in, its ports in_r_…: a memory's, a stream's too, #1590)
   const renamed = new Map(df.ports.map((p) => [p.name, portName(p)]));
   df.outputs = new Map([...df.outputs].map(([k, v]) => [renamed.get(k) ?? rn(k), v]));
+  // a struct's members' ports signals inside the module, its port theirs (#1628)
+  const agg = aggregate(sargs, fn.params, flat, { seq: !!df.seq, rn });
+  const ports = agg.ports;
+  const inner = new Map(agg.groups.flatMap((x) => [...x.renamed])), drop = new Set(agg.groups.flatMap((x) => x.drop));
+  for (const node of df.graph.nodes) if (node.op === 'in' && inner.has(node.port.name)) node.port.name = inner.get(node.port.name);
+  df.outputs = new Map([...df.outputs].filter(([k]) => !drop.has(k)).map(([k, v]) => [inner.get(k) ?? k, v]));
   const name = rn(checked.top);
   const src = file.split('/').pop();
-  const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
+  const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df, agg) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df, agg);
   // the report (#1529): a sequential module's states, registers, memories and loops (each one's II and cycles)
   const report = df.seq
     ? { sequential: true, states: df.states.length + 2, registerBits: df.regs.reduce((a, r) => a + r.w, 0) + df.stateT.w,
@@ -72,7 +81,7 @@ export function nodesOf(df) { return df.graph.needed([...df.outputs.values()]); 
 export const sig = (n) => `ap_t${n.id}`;
 
 // ------------------------------------------------------------------------------------------- VHDL
-function vhdl(name, src, ports, df) {
+function vhdl(name, src, ports, df, agg) {
   const nodes = nodesOf(df);
   const g = df.graph;
   const L = [`-- Generated by Silinx from ${src} (Silinx HLS, compatible with Vitis HLS): edit the C source`,
@@ -82,17 +91,26 @@ function vhdl(name, src, ports, df) {
   L.push('  );', `end ${name};`, '', `architecture behav of ${name} is`);
   const ty = (n) => `${n.s ? 'signed' : 'unsigned'}(${n.w - 1} downto 0)`;
   for (const n of nodes) L.push(`  signal ${sig(n)} : ${ty(n)};`);
+  innerSignals(agg, 'vhdl', L);
   L.push('begin');
   vhdlNodes(nodes, g, L);
+  L.push(...agg.vhdl);
   const hs = ports.some((p) => p.name === 'ap_start');
   if (hs) L.push('  ap_done <= ap_start;', '  ap_ready <= ap_start;', "  ap_idle <= '1';");
   for (const [p, id] of df.outputs) {
-    const n = g.get(id), port = ports.find((x) => x.name === p);
+    const n = g.get(id), port = [...ports, ...agg.inner].find((x) => x.name === p);
     const v = port.w === 1 ? `${sig(n)}(0)` : `std_logic_vector(${sig(n)})`;
     L.push(`  ${p} <= ${v}${hs && port.role === 'arg_vld' ? ' and ap_start' : ''};`);
   }
   L.push('end behav;', '');
   return L.join('\n');
+}
+
+/** The signals of a struct's members' ports (#1628). */
+export function innerSignals(agg, lang, L) {
+  for (const p of agg?.inner || []) {
+    L.push(lang === 'vhdl' ? `  signal ${p.name} : ${p.w === 1 ? 'std_logic' : `std_logic_vector(${p.w - 1} downto 0)`};` : `  wire ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name};`);
+  }
 }
 
 /** The VHDL concurrent assignments of the nodes (one signal each, n<id>). */
@@ -128,7 +146,7 @@ export function vhdlNodes(nodes, g, L) {
 }
 
 // ------------------------------------------------------------------------------------------- Verilog
-function verilog(name, src, ports, df) {
+function verilog(name, src, ports, df, agg) {
   const nodes = nodesOf(df);
   const g = df.graph;
   const L = [`// Generated by Silinx from ${src} (Silinx HLS, compatible with Vitis HLS): edit the C source`,
@@ -136,11 +154,13 @@ function verilog(name, src, ports, df) {
   ports.forEach((p, k) => L.push(`  ${p.dir === 'in' ? 'input ' : 'output'} wire ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name}${k < ports.length - 1 ? ',' : ''}`));
   L.push(');');
   for (const n of nodes) L.push(`  wire ${n.s ? 'signed ' : ''}[${n.w - 1}:0] ${sig(n)};`);
+  innerSignals(agg, 'verilog', L);
   verilogNodes(nodes, g, L);
+  L.push(...agg.verilog);
   const hs = ports.some((p) => p.name === 'ap_start');
   if (hs) L.push('  assign ap_done = ap_start;', '  assign ap_ready = ap_start;', "  assign ap_idle = 1'b1;");
   for (const [p, id] of df.outputs) {
-    const port = ports.find((x) => x.name === p);
+    const port = [...ports, ...agg.inner].find((x) => x.name === p);
     L.push(`  assign ${p} = ${sig(g.get(id))}${hs && port.role === 'arg_vld' ? ' & ap_start' : ''};`);
   }
   L.push('endmodule', '');
