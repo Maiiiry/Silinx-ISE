@@ -12,6 +12,7 @@
 //     states:  [{ id, name, updates: Map reg -> node, next: node, line? }] (the blocks; idle and done apart)
 //     outputs: Map port -> { reg } (a register shown on the port)
 import { Flow, Stop } from './c-dataflow.js';
+import { hdlName } from './c-graph.js';
 import { BOOL, typeOf } from './c-types.js';
 import { memMethods, MEM_MIN } from './c-mem.js';
 import { fifoMethods } from './c-fifo.js';
@@ -230,7 +231,7 @@ class SeqFlow extends Flow {
     if (!this.regs.has(name)) this.regs.set(name, { name, w: t.w, s: !!t.s, t, reset: BigInt(reset), latch });
     return this.regs.get(name);
   }
-  regNode(r) { return this.g.add('reg', [], r.t, { port: { key: `reg:${r.name}`, name: `ap_r_${r.name}` } }); }
+  regNode(r) { return this.g.add('reg', [], r.t, { port: { key: `reg:${r.name}`, name: `ap_r_${hdlName(r.name)}` } }); }
   makeRegisters(fn, decls) {
     this.slots = new Map();
     // ARRAY_PARTITION complete (#1529): the array's elements registers, whatever its size

@@ -12,6 +12,7 @@
 //     ok:          no error
 // The synthesized code is the top function and the functions it calls; main() and what only it calls are the
 // test bench, checked for names and calls only.
+import { pointerArithmetic, pointerVariables } from './c-pointer.js';
 import { parse } from './c-parse.js';
 import { checkPragmas } from './c-pragma.js';
 import { MATH } from './c-float.js';
@@ -158,6 +159,8 @@ export function checkC(source, file = 'input.c', opts = {}) {
 
   // ---------------------------------------------------------------- each function: names, calls, constructs
   const loops = [];
+  pointerArithmetic(funcs, globals, synth, report);   // (*(p + e) is p[e]; a pointer argument indexed an array, #1599)
+  pointerVariables(funcs, globals, synth, report);   // (a local pointer: its target and offset)
   for (const f of funcs.values()) {
     if (!f.body) continue;
     const hw = synth.has(f.name);
@@ -197,7 +200,7 @@ function checkFunction(f, ctx) {
     if (hw) {
       typeHw(v.type, v.loc, `'${v.name}'`);
       if (v.type.kind === 'stream') report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
-      if (v.type.kind === 'ptr') report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)`);
+      if (v.type.kind === 'ptr' && !v.said) report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)`);
       if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
     }
     if (v.init) expr(v.init);

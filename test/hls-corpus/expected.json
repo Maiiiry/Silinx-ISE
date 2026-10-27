@@ -289,11 +289,15 @@
     "reason": null
   },
   "misc-malloc-removed": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 120: 'out_accum': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 253,
+      "max": 253,
+      "avg": 253
+    },
+    "reason": null
   },
   "misc-rtl-as-blackbox": {
     "csim": "fail",
@@ -350,25 +354,33 @@
     "reason": "C simulation: 24: a type expected, not '\"in_stream\"'"
   },
   "modeling-pointers-basic-arithmetic": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 24: '*' reads a pointer parameter (Silinx HLS: pointers only as arguments)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 19,
+      "max": 19,
+      "avg": 19
+    },
+    "reason": null
   },
   "modeling-pointers-multiple-pointers": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 23: 'ptr': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 1,
+      "max": 1,
+      "avg": 1
+    },
+    "reason": null
   },
   "modeling-pointers-native-casts": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 112: 'ptr': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)"
+    "reason": "C simulation: 114: a cast of a pointer is not possible in Silinx HLS"
   },
   "modeling-pointers-stream-better": {
     "csim": "pass",
@@ -378,11 +390,15 @@
     "reason": null
   },
   "modeling-pointers-stream-good": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 23: pointer arithmetic is not possible in Silinx HLS: index the array instead"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 5,
+      "max": 5,
+      "avg": 5
+    },
+    "reason": null
   },
   "modeling-pointers-using-double": {
     "csim": "fail",

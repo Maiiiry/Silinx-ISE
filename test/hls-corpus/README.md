@@ -61,13 +61,13 @@ Not part of `npm test` (it needs the network once).
 | migration-python-scripts | C | pass | pass | pass | 1 |  |
 | migration-vitis-unified-cli | C | pass | pass | pass | 1 |  |
 | misc-initialization-and-reset-static-array-rom | C++ | pass | pass | pass | 1 |  |
-| misc-malloc-removed | C | fail | fail | skip | - | C simulation: 120: 'out_accum': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index) |
+| misc-malloc-removed | C | pass | pass | pass | 253 |  |
 | misc-rtl-as-blackbox | C++ | fail | fail | skip | - | C simulation: 29: 'rtl_model' is declared but not defined |
-| modeling-pointers-basic-arithmetic | C | fail | fail | skip | - | C simulation: 24: '*' reads a pointer parameter (Silinx HLS: pointers only as arguments) |
-| modeling-pointers-multiple-pointers | C | fail | fail | skip | - | C simulation: 23: 'ptr': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index) |
-| modeling-pointers-native-casts | C | fail | fail | skip | - | C simulation: 112: 'ptr': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index) |
+| modeling-pointers-basic-arithmetic | C | pass | pass | pass | 19 |  |
+| modeling-pointers-multiple-pointers | C | pass | pass | pass | 1 |  |
+| modeling-pointers-native-casts | C | fail | fail | skip | - | C simulation: 114: a cast of a pointer is not possible in Silinx HLS |
 | modeling-pointers-stream-better | C | pass | pass | pass | - |  |
-| modeling-pointers-stream-good | C | fail | fail | skip | - | C simulation: 23: pointer arithmetic is not possible in Silinx HLS: index the array instead |
+| modeling-pointers-stream-good | C | pass | pass | pass | 5 |  |
 | modeling-pointers-using-double | C | fail | fail | skip | - | C simulation: 19: the parameter 'flagPtr': a pointer to a pointer is not possible (Silinx HLS: pointers only to arguments) |
 | modeling-conditional-control-of-pragmas-using-defines | C++ | pass | pass | pass | 71 |  |
 | modeling-conditional-control-of-pragmas-using-template-function | C++ | pass | pass | pass | 80 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 
-73 designs: 24 through co-simulation.
+73 designs: 28 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

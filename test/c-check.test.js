@@ -161,15 +161,15 @@ int top(int *p, int n) {
 out:
   return p[0] + *(p + 1) + n / 0 + (n << -1);
 }`), [
-    "3:8 error: 'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
+    "2:9 warning: the pointer argument 'p' is indexed: a memory (ap_memory) of 1024 elements, its depth not given (#pragma HLS INTERFACE port=p depth=N)",
+    "3:12 error: the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet",
     "4:9 error: 'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>",
     "6:3 error: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it",
     '7:3 warning: printf is ignored by synthesis (it only prints in C simulation)',
-    "8:8 error: 'm': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
+    "8:12 error: the pointer 'm': set to something other than an array, &x, &a[i] or a + i: not supported yet",
     '8:12 error: malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)',
     '9:3 error: exit is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)',
     "11:3 error: 'goto' is not supported in Silinx HLS (use loops, 'break' and 'continue')",
-    '13:21 error: pointer arithmetic is not possible in Silinx HLS: index the array instead',
     '13:30 error: division by zero',
     '13:39 error: a shift by a negative amount (-1) is undefined in C',
   ]);
@@ -213,6 +213,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ['malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)', 'c-dynamic-memory'],
     ['exit is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)', 'c-system-call'],
     ["'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)", 'c-pointer-variable'],
+    ["the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet", 'c-pointer-variable'],
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
     ["'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>", 'c-float'],
     ["the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it", 'c-loop-bound'],

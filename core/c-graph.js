@@ -10,6 +10,13 @@
 //   slice (bits hi..lo of args[0], unsigned).
 import { wrap } from './c-types.js';
 
+/** A C name as a part of an HDL name (VHDL: no '__', no '_' at its ends; ap_r_<name>, ap_m_<name>): _x is u0_x. */
+export function hdlName(name) {
+  let n = String(name).replace(/^_/, 'u0_').replace(/_$/, '_u0');
+  while (n.includes('__')) n = n.replace('__', '_u0_');
+  return n;
+}
+
 export class Graph {
   constructor() { this.nodes = []; this.keys = new Map(); }
   get(id) { return this.nodes[id]; }
