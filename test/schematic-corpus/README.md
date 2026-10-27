@@ -93,7 +93,7 @@ and b11, apart); their ISE export does not compile in 36 of them (#1695). Ten ar
 <!-- results -->
 | Schematic | Source | load | check | hdl | sim | ise | synth (LUTs / FFs) | flow | Warnings |
 |---|---|---|---|---|---|---|---|---|---|
-| bus_taps | hand | pass | pass | fail: vhdl: bus_taps.vhd:27: Type error near a ; current type std_logic_vector; expected type std_logic | pass | pass | pass (1 / 0) | complete | 1 |
+| bus_taps | hand | pass | pass | pass | pass | pass | pass (1 / 0) | complete | 1 |
 | bus_taps_turned | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete | 1 |
 | bus_join | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete | 1 |
 | net_names | hand | pass | pass | pass | pass | pass | pass (6 / 0) | complete | 1 |

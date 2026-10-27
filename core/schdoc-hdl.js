@@ -137,7 +137,8 @@ export function generateHdl(docIn, opts = {}) {
   };
   const clsOf = nm => {
     if (!nm) return 'slv';
-    const net = nl.nets.find(n => nk(netName(n)) === nk(nm));
+    // (an output port's local copy, its <port>_int read inside, #1693: the port's net)
+    const net = nl.nets.find(n => nk(netName(n)) === nk(nm)) || [...outRead].find(([, l]) => nk(l) === nk(nm))?.[0];
     return net ? vhdlClass(netType(net)) : 'slv';
   };
 
