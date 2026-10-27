@@ -3,10 +3,16 @@
 // multiplexer from MUXF5 to MUXF8 (one CLB: F5, FX and FXINA / FXINB at every position) and a comparator on the carry
 // chain (its result out through XB / YB). Each multiplexer a permutation of its own of the shared data and selects (or
 // XST merges them), each comparator a rotation of its own; every result registered, into the output.
-//   node gen-obsmux.mjs outdir [muxes=300] [comparators=60]      (folder muxes: top.v, top.ucf)
+//   node gen-obsmux.mjs outdir [muxes] [comparators=60]      (folder muxes: top.v, top.ucf; muxes: muxCount, 300 on the
+//                                                             XC3S250E)
 import fs from 'node:fs';
+import { loadDeviceCache } from '../../core/fpga/device-node.js';
 
 const PART = process.env.PART || 'xc3s250ecp132-4';
+
+/** The part's multiplexers: 300, or a quarter of its SLICEMs where it has fewer (a multiplexer takes two SLICEMs; the
+ *  XC3S100E's 480 hold 120). */
+export const muxCount = dev => Math.min(300, Math.floor(dev.sites('SLICEM').length / 4));
 
 /** { v, ucf }: n 16:1 multiplexers, c 16-bit comparators. */
 export function muxDesign(n = 300, c = 60, part = PART) {
@@ -39,7 +45,7 @@ endmodule
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const [out, n = '300', c = '60'] = process.argv.slice(2);
+  const [out, n = muxCount(loadDeviceCache(PART)), c = '60'] = process.argv.slice(2);
   const { v, ucf } = muxDesign(+n, +c);
   fs.mkdirSync(`${out}/muxes`, { recursive: true });
   fs.writeFileSync(`${out}/muxes/top.v`, v);
