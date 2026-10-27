@@ -26,7 +26,7 @@ showed it.
 | `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
 | `gen-obshdl.mjs` | Observation designs in HDL for ISE to implement: every block RAM's and multiplier's outputs, every pad's input (round 5) |
 | `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
-| `measure.mjs` | The XC3S250E's recipe for another die, in stages: `designs` (every observation design, sized to the part), `observe` (#3, the other devices) |
+| `measure.mjs` | The XC3S250E's recipe for another die, in stages: `designs` (every observation design, sized to the part), `observe`, `tiles` (the tile probe: switch-tiles.txt, clb-tiles.txt) (#3, the other devices) |
 | `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph; `score`: the tests' verdicts against the shipped graph |
 
 What the experiments produce (ISE's routed XDL and logs, the candidates, the verdicts) stays in the
