@@ -52,7 +52,8 @@ export function assembleIseImport(ctx) {
   }
 
   // ------------------------------------------------------------- assemble, check connectivity, repair
-  const labelText = k => (mainInfo.has(k) || keyWidth(k) > 1 ? `${keyName.get(k)}(${keyWidth(k) - 1}:0)` : keyName.get(k));
+  const labelText = k => (mainInfo.get(k)?.lsb > 0 ? `${keyName.get(k)}(${mainInfo.get(k).msb}:${mainInfo.get(k).lsb})`
+    : mainInfo.has(k) || keyWidth(k) > 1 ? `${keyName.get(k)}(${keyWidth(k) - 1}:0)` : keyName.get(k));
   const build = () => {
     for (const l of labels) l.net = labelText(labelKey.get(l.id));
     const d = normalizeDoc({ version: DOC_VERSION, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });

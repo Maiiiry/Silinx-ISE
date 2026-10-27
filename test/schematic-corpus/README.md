@@ -108,7 +108,7 @@ memory limits (`skip: too large`).
 | full_adder | hand | pass | pass | pass | pass | pass | pass (2 / 0) | complete | 1 |
 | curved_hops | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete |  |
 | bus_bitnames | hand | pass | fail: invalid net name 'a(0)' | fail: vhdl: bus_bitnames.vhd:16: expected ':' but found '(' | mismatch: vhdl: does not elaborate: bus_bitnames.vhd:16 expected ':' but found '(' | mismatch: the reference does not elaborate: bus_bitnames.vhd:16 expected ':' but found '(' | fail: bus_bitnames.vhd:16 expected ':' but found '(' | xc3s100ecp132-4: fail: the design has errors | 2 |
-| bus_offset | hand | pass | pass | pass | mismatch: vhdl: simulation: the simulation stopped (error) | mismatch: the reference's simulation: the simulation stopped (error) | pass (0 / 0) | complete | 3 |
+| bus_offset | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete | 1 |
 | tap_range | hand | pass | pass | pass | skip: no reference | mismatch: the reference's simulation: the simulation stopped (error) | pass (0 / 0) | complete | 5 |
 | tap_reversed | hand | pass | pass | fail: vhdl: tap_reversed.vhd:16: slice 1 to 2 of 'a' against its direction (3 downto 0) | skip: no reference | mismatch: the reference does not elaborate: tap_reversed.vhd:16 slice 1 to 2 of 'a' against its direction (3 downto 0) | pass (0 / 0) | complete | 1 |
 | ise-MyAND2b4 | ise | pass | pass | pass | pass | pass | pass (4 / 0) | complete |  |

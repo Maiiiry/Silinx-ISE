@@ -217,7 +217,7 @@ export function exportIseSch(docIn, opts = {}) {
     if (s.type !== 'slice') continue;
     const I = pinNetOf(s, 'I'), O = pinNetOf(s, 'O');
     const msb = parseInt(s.params.msb, 10) || 0, lsb = parseInt(s.params.lsb, 10) || 0;
-    if (!I || !O || I === O || member.has(I) || !free(O) || msb < lsb || msb >= I.width || O.width !== msb - lsb + 1) continue;
+    if (!I || !O || I === O || member.has(I) || !free(O) || msb < lsb || lsb < (I.range?.lsb ?? 0) || msb > (I.range?.msb ?? I.width - 1) || O.width !== msb - lsb + 1) continue;
     if (doc.symbols.some(q => q !== s && ((q.type === 'slice' && pinNetOf(q, 'I') === O) || (q.type === 'busjoin' && pinNetOf(q, 'O') === O)))) continue;
     member.set(O, { main: I, msb, lsb }); mains.add(I); tapSyms.set(s.id, 'slice');
   }
@@ -229,7 +229,7 @@ export function exportIseSch(docIn, opts = {}) {
     if (!O || member.has(O)) continue;
     if (!ins.every(({ q, n }) => free(n) && n !== O && n.width === q.width) || new Set(ins.map(i => i.n)).size !== ins.length) continue;
     if (ins.reduce((a, i) => a + i.q.width, 0) !== O.width) continue;
-    let hi = O.width - 1;
+    let hi = O.range ? O.range.msb : O.width - 1;
     for (const { q, n } of ins) { member.set(n, { main: O, msb: hi, lsb: hi - q.width + 1 }); hi -= q.width; }
     mains.add(O); tapSyms.set(s.id, 'join');
   }
@@ -242,7 +242,8 @@ export function exportIseSch(docIn, opts = {}) {
     if (portOwner.has(n)) base = claimName(portOwner.get(n).name, n);
     else if (!n.auto) base = claimName(n.name, n);
     else { do auto++; while (taken.has(lc(`XLXN_${auto}`))); base = claimName(`XLXN_${auto}`, n); }
-    sigOf.set(n, n.width > 1 ? `${base}(${n.width - 1}:0)` : base);
+    // (a bus named with its indices, d(7:4), keeps them, #1689)
+    sigOf.set(n, n.width > 1 ? `${base}(${n.range ? `${n.range.msb}:${n.range.lsb}` : `${n.width - 1}:0`})` : base);
   }
   for (const [n, m] of member) {
     const base = sigOf.get(m.main).replace(/\(.*$/, '');

@@ -153,13 +153,13 @@ export function normalizeDoc(d, { modules } = {}) {
   return doc;
 }
 
-// ISE style bus names: "data(7:0)" / "data[7:0]" -> { base: 'data', width: 8 }
+// ISE style bus names: "data(7:0)" / "data[7:0]" -> { base: 'data', width: 8, msb: 7, lsb: 0 }
 export function parseNetName(s) {
   // (an escaped identifier, \opcode[0], #1697: a name, its brackets not a range)
   if (/^\s*\\[!-~]+\s*$/.test(String(s ?? ''))) return { base: String(s).trim(), width: null };
   const m = /^\s*([A-Za-z_][\w$]*)\s*(?:[([]\s*(\d+)\s*(?::|downto|to)\s*(\d+)\s*[)\]])?\s*$/i.exec(String(s ?? ''));
   if (!m) return { base: String(s ?? '').trim(), width: null, bad: true };
-  return { base: m[1], width: m[2] != null ? Math.abs(+m[2] - +m[3]) + 1 : null };
+  return { base: m[1], width: m[2] != null ? Math.abs(+m[2] - +m[3]) + 1 : null, ...(m[2] != null ? { msb: +m[2], lsb: +m[3] } : {}) };
 }
 
 // The net, other than `except`, that a net name would join (#689): net names (labels) and I/O markers of
@@ -373,6 +373,9 @@ export function netlist(docIn, { modules = {} } = {}) {
     net.drivers = drv;
     net.width = portW[0] ?? lw[0] ?? drv.find(e => isNum(e.width))?.width ?? (cands.length ? Math.max(...cands) : (wires.some(id => doc.wires.find(w => w.id === id)?.bus) ? null : 1));
     if (net.width == null) net.width = 1;
+    // a bus named with its indices, not from 0 (d(7:4), #1689): declared with them; an I/O marker's net keeps 0
+    const rng = !ports.length && labels.find(L => L.lsb != null && L.msb > L.lsb && L.width === net.width);
+    if (rng && rng.lsb > 0) net.range = { msb: rng.msb, lsb: rng.lsb };
     const mism = new Set(cands);
     if (mism.size > 1) {
       const where = pinW.find(e => e.width !== net.width) || eps[0];

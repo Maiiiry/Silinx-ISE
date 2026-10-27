@@ -141,6 +141,8 @@ export function generateHdl(docIn, opts = {}) {
     // a net driven by tri-state buffers needs a resolved type (std_logic, not std_ulogic)
     const res = ty => (net.tristate ? String(ty).replace(/\bstd_ulogic\b/gi, 'std_logic') : ty);
     if (d?.type) return res(d.type);
+    // (a bus named with its indices, d(7:4), #1689)
+    if (net.range && !pinType.get(net)) return res(`std_logic_vector(${net.range.msb} downto ${net.range.lsb})`);
     return res(pinType.get(net) || vtype(net.width));
   };
   const clsOf = nm => {
@@ -243,7 +245,7 @@ export function generateHdl(docIn, opts = {}) {
     if (ci) sigDecls.push(`  signal ${nm} : ${netType(net)}${iv ? ` := ${vhdlClass(netType(net)) === 'sl' ? vhdlBits(iv, true) : vhdlBits(iv, false)}` : ''};`);
     else {
       const reg = regNets.has(net);
-      sigDecls.push(`  ${reg ? 'reg ' : 'wire'}${net.width > 1 ? ` [${net.width - 1}:0]` : ''} ${nm}${reg && iv ? ` = ${vlogBits(iv)}` : ''};`);
+      sigDecls.push(`  ${reg ? 'reg ' : 'wire'}${net.range ? ` [${net.range.msb}:${net.range.lsb}]` : net.width > 1 ? ` [${net.width - 1}:0]` : ''} ${nm}${reg && iv ? ` = ${vlogBits(iv)}` : ''};`);
     }
   }
   for (const x of extra) {
