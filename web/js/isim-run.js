@@ -29,8 +29,9 @@ export function mountRun(ctx) {
   // Break: the run going on stops at its next chunk, the commands waiting are cancelled
   function breakCommands() { st.breakReq = true; cmdGen++; }
   // runs for `dur` ps from the time the run starts: a run asked for during another (the Run for field
-  // while SSim's first run goes on) waits for it
-  async function runTo(dur, label) {
+  // while SSim's first run goes on) waits for it; keepView (the stimuli run again after an edit, #1616): the view and
+  // the cursor stay where they are, only Zoom to Full View follows the run
+  async function runTo(dur, label, { keepView = false } = {}) {
     const gen = cmdGen;
     while (st.running) await runDone;
     if (destroyed || gen !== cmdGen) return;
@@ -39,7 +40,7 @@ export function mountRun(ctx) {
     let endRun;
     runDone = new Promise((r) => { endRun = r; });
     st.running = true; st.breakReq = false; st.runStart = sim.now; st.runTarget = target;
-    const follow = st.fit || (sim.now >= st.t0 && sim.now <= tOf(width()) + 1);
+    const follow = st.fit || (!keepView && sim.now >= st.t0 && sim.now <= tOf(width()) + 1);
     setMsg(label || 'Running...');
     invalidate(false);
     let lastYield = performance.now();
@@ -62,7 +63,7 @@ export function mountRun(ctx) {
           lastYield = performance.now();
           setMsg(`${label || 'Running'}... ${fmtTime(sim.now)}`);
           if (follow) followEnd();
-          setCursor(sim.now);
+          if (!keepView) setCursor(sim.now);
           invalidate();
           await yieldUI();
         }
@@ -79,7 +80,7 @@ export function mountRun(ctx) {
     if (sim.waveTruncated) setMsg('Waveform recording limit reached');
     else setMsg(sim.finished ? `Simulation ${sim.finished === 'error' ? 'stopped with an error' : 'finished'} at ${fmtTime(sim.now)}` : `Ready`);
     if (follow) followEnd();
-    setCursor(sim.now);
+    if (!keepView) setCursor(sim.now);
     objectsChanged();
     invalidate();
   }
