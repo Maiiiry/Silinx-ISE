@@ -65,7 +65,12 @@ so its hardware is the C's:
   `adder_1_4`), so `template <int K>` gives one copy, and one set of statics, per `K`. In an instance a pragma
   may use a parameter (`factor=N`), and `#pragma HLS if (cond) …` is kept only when `cond` holds.
 - **Classes of static members** (a class template's too): their functions, constants and types are named by
-  the class (`S::f`). A class with methods or constructors is not supported yet.
+  the class (`S::f`).
+- **Member functions and constructors** of a struct or a class (a class template's too): each a function of the
+  struct taking it by reference (`int S::get() const` is `int S_get(const S &)`), defined in the class or outside it
+  (`int S::get() const { … }`); constructors with initializer lists, called where the object is declared
+  (`S v(3);`, `S v;`); a default constructor of constants only gives the members their initial values (so a
+  `static S v;` starts with them); `operator()` (`v(x)`); destructors do nothing.
 - `auto x = e;` (the type `e` is declared with) and the **range for** over an array (`for (auto &x : a)`); over
   an array argument it is refused, as C++ does (the argument is a pointer).
 - **`hls::stream<T>`** arguments: the `ap_fifo` interface (`_dout`, `_empty_n`, `_read`; `_din`, `_full_n`,
@@ -75,7 +80,7 @@ so its hardware is the C's:
 - Macros are expanded in pragmas (`#define F 4` … `#pragma HLS UNROLL factor=F`), as Vitis HLS does.
 
 Not synthesizable, as in Vitis HLS: `new` / `delete`, exceptions, RTTI, virtual functions, recursion, the STL
-(but the headers above). Not yet: methods and constructors, `ap_fixed`, floating point.
+(but the headers above). Not yet: operators other than `()`, base classes, `ap_fixed`, floating point.
 
 ## Structs and enums (C and C++)
 
@@ -94,7 +99,7 @@ structs is an array per member; a member array of an array of structs is one arr
 - The top function's struct arguments and result: **one port per member** for now, with a warning. Vitis HLS
   aggregates them into one port (#1628).
 - Not possible: unions, pointers in a struct, a pointer to a struct as a variable, bit fields (`ap_uint<W>`
-  instead). Not yet: methods, constructors, base classes.
+  instead). Not yet: base classes; a static object or an array of objects whose constructor is not of constants.
 
 ## What can be synthesized (UG1399's rules)
 
