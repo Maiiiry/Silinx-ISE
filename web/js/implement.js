@@ -400,7 +400,8 @@ export async function readBuildFile(rel) {
   if (t == null) throw new Error(`file '${rel}' not found`);
   return typeof t === 'string' ? t : new TextDecoder().decode(t);
 }
-async function showTextDoc(title, text) {
+/** A read-only text in a document of its own (the power report), made again when it is shown again (#1621). */
+export async function showTextDoc(title, text) {
   const id = `text:${title}`;
   const old = findDoc(id);
   if (old) await closeDoc(old);

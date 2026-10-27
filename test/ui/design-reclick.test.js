@@ -3,7 +3,7 @@
 // click found it still there, only brought it forward, and the close then removed it. Every row kind's badges, clicked
 // twice and double-clicked, and every row double-clicked twice: the drawings (FSM, truth table and its schematic,
 // schematic, Petri net), plain VHDL and Verilog, C (combinational and sequential);
-// View C Model run twice. Both interfaces. No warnings.
+// View C Model run twice; a text report (the power report) shown twice. Both interfaces. No warnings.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -82,5 +82,9 @@ uiTest('#1621 a view clicked again in the Design pane stays open and in front: e
   // View C Model run again: its model stays open
   await page.eval(async () => { const { openCModel } = await import('/js/c-model.js'); await openCModel('lamps'); await openCModel('lamps'); });
   assert.equal(await settled(page), 'cmodel:lamps');
+  // a text report shown again (the power report, made again at each Generate Power Data): it stays open
+  await page.eval(async () => { const { showTextDoc } = await import('/js/implement.js'); await showTextDoc('top.pwr', 'Power 1'); await showTextDoc('top.pwr', 'Power 2'); });
+  assert.equal(await settled(page), 'text:top.pwr');
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .report-text')?.textContent), 'Power 2');
   assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn' || c.type === 'error').map((c) => c.text), []);
 });
