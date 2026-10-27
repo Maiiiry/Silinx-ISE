@@ -2,7 +2,7 @@
 // those of its column's frames and its 64-bit band (from its base, db/<device>-lut.json), as (frame, bit) offsets
 // from its base; a variant's settings are the bits it sets and clears against the base slice's (the two bases
 // equal, checked).
-//   node research/s6/ana-slice6.mjs <dir> [part …]   -> research/s6/db/<device>-slice.json
+//   node research/s6/ana-slice6.mjs [--nets] <dir> [part …]   -> research/s6/db/<device>-slice[-nets].json
 // { kinds: { X|L|M: { base: [[frame, bit]], variants: { name: { set: [[frame, bit]], clear: [[frame, bit]] } } } } }
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,21 +45,22 @@ export function sliceSettings(fdri, dev, manifest, bases) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [dir, ...parts] = process.argv.slice(2);
-  if (!dir) { console.error('usage: node research/s6/ana-slice6.mjs <dir> [part …]'); process.exit(1); }
+  const args = process.argv.slice(2), nets = args[0] === '--nets', design = nets ? 'nets' : 'slice';
+  const [dir, ...parts] = nets ? args.slice(1) : args;
+  if (!dir) { console.error('usage: node research/s6/ana-slice6.mjs [--nets] <dir> [part …]'); process.exit(1); }
   for (const part of parts.length ? parts : ['xc6slx16csg324-3']) {
     const dev = bitFormat6(part), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2');
     const bases = JSON.parse(fs.readFileSync(new URL(`./db/${dev.device}-lut.json`, import.meta.url), 'utf8')).slices;
     const kinds = {};
     for (const kind of ['X', 'L', 'M']) {
-      const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${p}.slice${kind}.json`), 'utf8'));
-      const { fdri } = readBit6(fs.readFileSync(path.join(dir, `${p}.slice${kind}.bit`)));
+      const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${p}.${design}${kind}.json`), 'utf8'));
+      const { fdri } = readBit6(fs.readFileSync(path.join(dir, `${p}.${design}${kind}.bit`)));
       const { base, variants, problems } = sliceSettings(fdri, dev, manifest, bases);
       const none = Object.entries(variants).filter(([, v]) => !v.set.length && !v.clear.length).map(([n]) => n);
       console.log(`${part} SLICE${kind}: base ${base.length} bits, ${Object.keys(variants).length} variants, ${none.length} with no bits${none.length ? ` (${none.join(' ')})` : ''}; ${problems.length} problems${problems.length ? `: ${problems.join('; ')}` : ''}`);
       kinds[kind] = { base, variants };
     }
     fs.mkdirSync(new URL('./db/', import.meta.url), { recursive: true });
-    fs.writeFileSync(new URL(`./db/${dev.device}-slice.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
+    fs.writeFileSync(new URL(`./db/${dev.device}-slice${nets ? '-nets' : ''}.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
   }
 }

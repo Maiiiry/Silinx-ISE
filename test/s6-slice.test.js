@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { primitiveDefs } from '../research/s6/prim-defs6.mjs';
-import { baseSettings, sliceVariants, sliceXdl, oneSlicePerTile, sliceDesign } from '../research/s6/gen-slice6.mjs';
+import { baseSettings, sliceVariants, sliceXdl, oneSlicePerTile, sliceDesign, harnessNets } from '../research/s6/gen-slice6.mjs';
 import { columnOf, sliceBits, sliceSettings } from '../research/s6/ana-slice6.mjs';
 import { S6_DEVICES, emptyFdri, FRAME_WORDS } from '../core/fpga/s6/bitstream.js';
 
@@ -78,6 +78,29 @@ test('gen-slice6: a design: one slice per tile, the base first and last; too few
   assert.deepEqual(['SLICEX', 'SLICEL', 'SLICEM'].map(k => sliceVariants(DEFS[k]).length), [70, 114, 169]);
 });
 
+test('gen-slice6 --nets: every pin of the measured slices on a net, from a driver and to a sink of its own', () => {
+  assert.equal(baseSettings({ nets: true }).length, 28);
+  assert.deepEqual(baseSettings({ nets: true }).filter(s => /OUTMUX/.test(s[0])).map(s => s.join(':')), ['AOUTMUX::O6', 'BOUTMUX::O6', 'COUTMUX::O6', 'DOUTMUX::O6']);
+  assert.ok(sliceVariants({ AOUTMUX: { bel: false, cfg: ['O5', 'O6'] } }, { nets: true }).some(v => v.name === 'AOUTMUX=#OFF'));
+  const cell = n => ({ name: n, kind: 'M', tile: `T${n}` });
+  const nets = harnessNets('M', [cell('S0'), cell('S1')], cell('DRV'), [cell('K0'), cell('K1')]);
+  assert.match(nets, /^net "in_AX" , \n {2}outpin "DRV" A ,\n {2}inpin "S0" AX ,\n {2}inpin "S1" AX ,\n {2};\n/);
+  assert.match(nets, /net "in_DI" , \n {2}outpin "DRV" DQ ,/);
+  assert.match(nets, /net "o1_COUT" , \n {2}outpin "S1" COUT ,\n {2}inpin "K1" C1 ,\n {2};\n/);
+  assert.equal((nets.match(/^net /gm) || []).length, 12 + 2 * 13);
+  assert.equal((harnessNets('X', [cell('S0')], cell('DRV'), [cell('K0')]).match(/^net /gm) || []).length, 7 + 12);
+  // a design: the driver and the sinks in tiles none of the measured slices is in
+  const slices = Array.from({ length: 12 }, (_, y) => [{ name: `SLICE_X0Y${y}`, kind: 'L', tile: `L${y}` }, { name: `SLICE_X1Y${y}`, kind: 'X', tile: `L${y}` }]).flat();
+  const { xdl, manifest } = sliceDesign('p', slices, 'L', { AFFMUX: { bel: false, cfg: ['O6', 'AX'] } }, { nets: true });
+  assert.deepEqual(Object.keys(manifest), ['SLICE_X0Y0', 'SLICE_X0Y1', 'SLICE_X0Y2', 'SLICE_X0Y3']);
+  assert.match(xdl, /^design "netsL" p v3\.2/);
+  assert.match(xdl, /inst "SLICE_X1Y11" "SLICEX",placed L11 SLICE_X1Y11 {2},\n {2}cfg "" ;\n/);
+  assert.match(xdl, /net "in_CLK" , \n {2}outpin "SLICE_X1Y11" AMUX ,/);
+  assert.match(xdl, /net "o3_COUT" , \n {2}outpin "SLICE_X0Y3" COUT ,\n {2}inpin "SLICE_X1Y9" C1 ,/);
+  assert.doesNotMatch(xdl, /"SLICE_X1Y[0-3]"/);
+  assert.throws(() => sliceDesign('p', slices.slice(0, 10), 'L', { AFFMUX: { bel: false, cfg: ['O6', 'AX'] } }, { nets: true }), /p: 2 free slices for 5/);
+});
+
 const dev = S6_DEVICES.xc6slx16;
 test('ana-slice6: a frame\'s column; a slice\'s bits in its column and band; the variants against the base', () => {
   assert.deepEqual(columnOf(dev, 0), [0, 4]);
@@ -117,4 +140,22 @@ test('the XC6SLX16\'s slice settings, measured: the flip-flops\', the SLICEX\'s 
   const xb = db.kinds.X.base.filter(([f]) => f === -1).map(([, x]) => x);
   assert.deepEqual(xb, [9, 10, 15, 33, 47]);
   assert.deepEqual(['A', 'B', 'C', 'D'].map(p => v('X', `${p}FFMUX=${p}X`).set), [[[-1, 45]], [[-1, 44]], [[-1, 30]], [[-1, 29]]]);
+});
+
+test('the XC6SLX16\'s slice settings with nets on the pins, measured: CLKINV, CE and SR used, the outputs\' muxes', () => {
+  const db = JSON.parse(fs.readFileSync(new URL('../research/s6/db/xc6slx16-slice-nets.json', import.meta.url), 'utf8'));
+  const v = (k, n) => db.kinds[k].variants[n];
+  for (const [k, f] of [['L', 4], ['M', 5], ['X', -1]]) {
+    assert.deepEqual(v(k, 'CLKINV=CLK_B'), { set: [[f, k === 'X' ? 24 : 35]], clear: [] }, k);
+    assert.deepEqual(v(k, 'CEUSED=#OFF'), { set: [], clear: [[f, k === 'X' ? 31 : 28]] }, k);
+    assert.deepEqual(v(k, 'SRUSED=#OFF'), { set: [], clear: [[f, k === 'X' ? 32 : 26]] }, k);
+  }
+  // AOUTMUX: O6 one bit (the base's), O5 none; XOR, CY, F7, A5Q their own
+  assert.deepEqual(v('L', 'AOUTMUX=O5'), { set: [], clear: [[4, 63]] });
+  assert.deepEqual(v('L', 'AOUTMUX=CY'), { set: [[4, 61], [4, 62]], clear: [[4, 63]] });
+  assert.deepEqual(v('L', 'AFFMUX=AX'), { set: [[4, 56], [4, 58]], clear: [] });
+  assert.deepEqual(v('M', 'WEMUX=CE'), { set: [[2, 40]], clear: [] });
+  // the settings without a pin are as without nets
+  const plain = JSON.parse(fs.readFileSync(new URL('../research/s6/db/xc6slx16-slice.json', import.meta.url), 'utf8'));
+  for (const k of ['X', 'L', 'M']) for (const n of ['SYNC_ATTR=ASYNC', 'AFF=#LATCH', 'BFFSRINIT=SRINIT1', 'CFFMUX=XOR'].filter(x => plain.kinds[k].variants[x])) assert.deepEqual(v(k, n), plain.kinds[k].variants[n], `${k} ${n}`);
 });
