@@ -59,8 +59,12 @@ export const exprMethods = {
     return null;
   },
   readOut(o) {
-    // (after a write, its value: not an input, #1603)
-    if (o.val !== null) return this.v(o.val, o.t);
+    // (after a write, its value: not an input, #1603; after a write under a condition, the caller's value where it
+    // does not hold: the input, the flow run again with the pointer read from its start, #1604)
+    if (o.val !== null) {
+      if (!o.whole && !o.read) (this.rerun ||= new Set()).add(o.name);
+      return this.v(o.val, o.t);
+    }
     o.read = true;
     const key = `${o.name}#in`;
     if (!this.inputs.has(key)) this.inputs.set(key, { name: key, t: o.t, port: { key, name: o.name }, id: null });
@@ -195,6 +199,7 @@ export const exprMethods = {
     const nv = this.conv(val, o.t);
     const old = o.val ?? (o.read ? this.readOut(o).id : this.g.const(0, o.t));
     o.val = this.mux(g, nv.id, old, o.t);
+    if (this.g.isConst(g) && this.g.k(g)) o.whole = true;   // (written whatever the inputs)
     o.vld = this.or(o.vld, g);
     o.written = true;
     return nv;

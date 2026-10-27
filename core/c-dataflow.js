@@ -21,7 +21,13 @@ export const NOT_COMB = '(a sequential module: not supported yet, #1526)';
 export class Stop extends Error {}
 
 export function dataflow(checked) {
-  return new Flow(checked).run();
+  const f = new Flow(checked);
+  const r = f.run();
+  if (!f.rerun?.size) return r;
+  // (a pointer read after a write under a condition: an input from the start, #1604)
+  const again = new Flow(checked);
+  again.preRead = f.rerun;
+  return again.run();
 }
 
 export class Flow {
@@ -93,6 +99,7 @@ export class Flow {
       if (!et) this.error(pa.loc, `the argument '${pa.name}' is not an integer pointer`);
       const out = { name: pa.name, t: et, val: null, vld: this.F, read: false, written: false, loc: pa.loc };
       this.outs.set(pa.name, out);
+      if (this.preRead?.has(pa.name)) this.readOut(out);
       return { kind: 'out', out };
     }
     const et = typeOf(t);
