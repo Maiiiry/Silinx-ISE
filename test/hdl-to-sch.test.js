@@ -256,6 +256,55 @@ test('a module that does not elaborate is not converted (nothing written)', asyn
   await assert.rejects(convertModuleToSchematic({ sources: srcList(files), module: 'nothere' }), /^Error: No module 'nothere' in the project\.$/);
 });
 
+test('#1717 a port of width 0 with its generics\' defaults (a null range): a marker of width 1, as normalizeDoc keeps it, its type as the entity has it', async () => {
+  const NULL = 'std_logic_vector(natural(ceil(log2(real(N))))-1 downto 0)';
+  const files = {
+    'src/nr.vhd': `library ieee; use ieee.std_logic_1164.all; use ieee.math_real.all;
+entity nr is
+  generic (N : natural := 1);
+  port (clk, b : in std_logic; a : in ${NULL}; y : out std_logic; q : out ${NULL});
+end nr;
+architecture rtl of nr is
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      y <= b;
+      if a'length > 0 then y <= not b; end if;
+    end if;
+  end process;
+  q <= a;
+end rtl;
+`,
+    'sim/tb_nr.vhd': `library ieee; use ieee.std_logic_1164.all;
+entity tb_nr is end tb_nr;
+architecture sim of tb_nr is
+  signal clk, b, y : std_logic := '0';
+  signal a, q : std_logic_vector(-1 downto 0);
+begin
+  uut : entity work.nr port map (clk => clk, b => b, a => a, y => y, q => q);
+  clk <= not clk after 10 ns;
+  process begin
+    for i in 0 to 7 loop b <= not b; wait for 30 ns; end loop;
+    wait;
+  end process;
+end sim;
+`,
+  };
+  const sources = srcList(files);
+  const r = await convertModuleToSchematic({ sources, module: 'nr', layout });
+  assert.deepEqual(r.warnings, []);
+  assert.deepEqual(r.doc.ports.map(p => [p.name, p.width, p.type]), [['clk', 1, 'std_logic'], ['b', 1, 'std_logic'], ['a', 1, NULL], ['y', 1, 'std_logic'], ['q', 1, NULL]]);
+  assert.deepEqual(kinds(r.doc), { hdlblock: 1, buf: 1 });
+  // saved as it was made (it was width 0, made 1 the first time it was saved)
+  assert.equal(JSON.stringify(normalizeDoc(r.doc)), JSON.stringify(r.doc));
+  assert.match(r.writes['src/nr.vhd'], new RegExp(`^ {4}a : in ${NULL.replace(/[()]/g, '\\$&')};$`, 'm'));
+  const after = applied(sources, r);
+  assert.deepEqual(messages(after, 'tb_nr'), messages(sources, 'tb_nr'));
+  const a = waves(sources, 'tb_nr', 300e3), b = waves(after, 'tb_nr', 300e3);
+  assert.ok(a.waves.y.split(' ').length > 4, 'the testbench makes activity');
+  assert.deepEqual(b.waves, a.waves);
+});
+
 // ------------------------------------------------------------------ the layout engine (elkjs, #351)
 test('every ELK layout option Silinx sets is one the installed elkjs knows (schdoc-place.js, schematic-view.js)', async () => {
   const known = new Set((await elk.knownLayoutOptions()).map(o => o.id));

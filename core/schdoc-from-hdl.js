@@ -142,7 +142,9 @@ export async function schematicFromHdl(inst, opts = {}) {
   for (const p of inst.ports) { sigByName.set(nk(p.name), p.sig); portSig.add(p.sig); }
   for (const s of inst.signals) if (!/[.[]/.test(s.name)) sigByName.set(nk(s.name), s);
   const moduleLevel = s => s && sigByName.get(nk(s.name)) === s;
-  const W = s => s?.t?.w ?? 1;
+  // (a null range, a port of width 0 with its generics' defaults, #1717: drawn of width 1, as normalizeDoc keeps a
+  // marker, its type written as the module has it)
+  const W = s => Math.max(1, s?.t?.w ?? 1);
 
   let archTok = -1;               // VHDL: the token 'architecture' of the module's architecture
   // ---- source text pieces
