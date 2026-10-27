@@ -1,0 +1,513 @@
+{
+  "array-array-partition-block-cyclic": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "array-array-partition-complete": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fft-interface-array": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fft-interface-array-float-ssr2": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fft-interface-stream": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fft-interface-stream-float-ssr2": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fft-logicore-fft-float-ssr": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "dsp-fir-decimator": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-aggregation-of-m-axi-ports": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-aggregation-of-nested-structs": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-aggregation-of-struct": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-auto-disaggregation-of-struct": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-disaggregation-of-axis-port": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-aggregation-disaggregation-struct-ii-issue": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-burst-rw": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-coefficient-filter": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: hamming_window.h:19: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "interface-memory-ecc-flags": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-lmem-2rw": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-manual-burst-manual-burst-with-conditionals": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-max-widen-port-width": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-ram-uram": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-rom-lookup-table-math": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-memory-using-axi-master": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-register-using-axi-lite-with-user-defined-offset": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-axi-stream-custom-side-channel-data-2": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-axi-stream-to-master": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-axis-array-stream-no-side-channel-data": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-using-array-of-streams": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-using-axi-stream-with-side-channel-data": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "interface-streaming-using-axi-stream-with-struct": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "migration-python-scripts": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "migration-vitis-unified-cli": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "misc-initialization-and-reset-static-array-rom": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "misc-malloc-removed": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: malloc_removed_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "misc-rtl-as-blackbox": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-conditional-control-of-pragmas-using-defines": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-conditional-control-of-pragmas-using-template-function": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-cpp-templates-for-multiple-instances": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-fixed-point-sqrt": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-free-running-kernel-remerge-ii4to1": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-pointers-basic-arithmetic": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_arith_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "modeling-pointers-multiple-pointers": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: 23: 'ptr': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)"
+  },
+  "modeling-pointers-native-casts": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_cast_native_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "modeling-pointers-stream-better": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_stream_better_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "modeling-pointers-stream-good": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: pointer_stream_good_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "modeling-pointers-using-double": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: 19: the parameter 'flagPtr': a pointer to a pointer is not possible (Silinx C: pointers only to arguments)"
+  },
+  "modeling-using-arbitrary-precision-arith": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-arbitrary-precision-casting": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-array-stencil-1d": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-array-stencil-2d": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-cpp-templates": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-fixed-point": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-using-float-and-double": {
+    "csim": "fail",
+    "synth": "fail",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C simulation: fp_mul_pow2_test.c:17: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+  },
+  "modeling-using-vectors": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "modeling-variable-bound-loops": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "pipelining-functions-function-instantiate": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "pipelining-functions-hier-func": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "pipelining-loops-imperfect-loop": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "pipelining-loops-perfect-loop": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "pipelining-loops-using-free-running-pipeline": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-autorestart": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-merge-split-merge-load-balance": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-merge-split-merge-round-robin": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-merge-split-split-load-balance": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-merge-split-split-round-robin": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-simple-fifos": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-using-fifos": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-control-driven-channels-using-stream-of-blocks": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-data-driven-mixed-control-and-data-driven": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-data-driven-simple-data-driven": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  },
+  "task-level-parallelism-data-driven-unique-task-regions": {
+    "csim": "skip",
+    "synth": "skip",
+    "cosim": "skip",
+    "latency": null,
+    "reason": "C++ (#1590)"
+  }
+}

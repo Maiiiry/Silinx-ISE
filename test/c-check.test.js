@@ -228,7 +228,7 @@ test('hints: the main messages of Silinx C have their help in English and in Por
   }
 });
 
-test('#1597 lex: the project\'s own headers read in place (their macros the source\'s; include guards, #pragma once; a header in a folder by its name); one not given refused', () => {
+test('#1597 lex: the project\'s own headers read in place (their macros the source\'s; include guards, #pragma once; a header beside its includer, else by its name alone); one not given refused', () => {
   const headers = {
     'fir.h': '#ifndef FIR_H\n#define FIR_H\n#define N 4\n#include "types.h"\nint fir(data_t x);\n#endif\n',
     'types.h': '#pragma once\ntypedef short data_t;\n',
@@ -239,5 +239,5 @@ test('#1597 lex: the project\'s own headers read in place (their macros the sour
   const text = r.tokens.filter((t) => t.t !== 'eof').map((t) => t.v).join(' ');
   assert.equal(text, 'typedef short data_t ; int fir ( data_t x ) ; int fir ( data_t x ) { return x * 4 ; } int main ( void ) { return fir ( 4 ) ; }');
   // (the tokens of a header carry its name)
-  assert.deepEqual([...new Set(r.tokens.map((t) => t.file).filter(Boolean))], ['types.h', 'fir.h', 'src/fir.c']);
+  assert.deepEqual([...new Set(r.tokens.map((t) => t.file).filter(Boolean))], ['types.h', 'fir.h', 'fir.c']);
 });

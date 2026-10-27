@@ -1,0 +1,1392 @@
+{
+  "about": "The HLS corpus (#1597): AMD's Vitis HLS Introductory Examples, written by scripts/hls-corpus-manifest.mjs; fetched by scripts/fetch-design-corpus.mjs, run by test/hls-corpus/run.mjs.",
+  "sources": {
+    "vitis-hls-examples": {
+      "repo": "Xilinx/Vitis-HLS-Introductory-Examples",
+      "commit": "aa5c160faf5d5ebf58674df8f0591f9984ebae0f",
+      "url": "https://github.com/Xilinx/Vitis-HLS-Introductory-Examples",
+      "licence": "Apache-2.0",
+      "licenceFile": "LICENSE.txt"
+    }
+  },
+  "designs": [
+    {
+      "name": "array-array-partition-block-cyclic",
+      "source": "vitis-hls-examples",
+      "dir": "Array/array_partition_block_cyclic",
+      "top": "matmul_partition",
+      "language": "c++",
+      "files": [
+        "Array/array_partition_block_cyclic/matmul_partition.cpp"
+      ],
+      "tb": [
+        "Array/array_partition_block_cyclic/matmul_partition_test.cpp"
+      ],
+      "headers": [
+        "Array/array_partition_block_cyclic/matmul_partition.h"
+      ]
+    },
+    {
+      "name": "array-array-partition-complete",
+      "source": "vitis-hls-examples",
+      "dir": "Array/array_partition_complete",
+      "top": "matmul_partition",
+      "language": "c++",
+      "files": [
+        "Array/array_partition_complete/matmul_partition.cpp"
+      ],
+      "tb": [
+        "Array/array_partition_complete/matmul_partition_test.cpp"
+      ],
+      "headers": [
+        "Array/array_partition_complete/matmul_partition.h"
+      ]
+    },
+    {
+      "name": "dsp-fft-interface-array",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fft/interface_array",
+      "top": "fft_top",
+      "language": "c++",
+      "files": [
+        "DSP/fft/interface_array/fft_top.cpp"
+      ],
+      "tb": [
+        "DSP/fft/interface_array/fft_tb.cpp",
+        "DSP/fft/interface_array/data/stimulus_00.dat",
+        "DSP/fft/interface_array/data/stimulus_00.res",
+        "DSP/fft/interface_array/data/stimulus_01.dat",
+        "DSP/fft/interface_array/data/stimulus_01.res",
+        "DSP/fft/interface_array/data/stimulus_02.dat",
+        "DSP/fft/interface_array/data/stimulus_02.res",
+        "DSP/fft/interface_array/data/stimulus_03.dat",
+        "DSP/fft/interface_array/data/stimulus_03.res",
+        "DSP/fft/interface_array/data/stimulus_04.dat",
+        "DSP/fft/interface_array/data/stimulus_04.res",
+        "DSP/fft/interface_array/data/stimulus_05.dat",
+        "DSP/fft/interface_array/data/stimulus_05.res",
+        "DSP/fft/interface_array/data/stimulus_06.dat",
+        "DSP/fft/interface_array/data/stimulus_06.res",
+        "DSP/fft/interface_array/data/stimulus_07.dat",
+        "DSP/fft/interface_array/data/stimulus_07.res",
+        "DSP/fft/interface_array/data/stimulus_08.dat",
+        "DSP/fft/interface_array/data/stimulus_08.res",
+        "DSP/fft/interface_array/data/stimulus_09.dat",
+        "DSP/fft/interface_array/data/stimulus_09.res",
+        "DSP/fft/interface_array/data/stimulus_10.dat",
+        "DSP/fft/interface_array/data/stimulus_10.res",
+        "DSP/fft/interface_array/data/stimulus_11.dat",
+        "DSP/fft/interface_array/data/stimulus_11.res",
+        "DSP/fft/interface_array/data/stimulus_12.dat",
+        "DSP/fft/interface_array/data/stimulus_12.res",
+        "DSP/fft/interface_array/data/stimulus_13.dat",
+        "DSP/fft/interface_array/data/stimulus_13.res",
+        "DSP/fft/interface_array/data/stimulus_14.dat",
+        "DSP/fft/interface_array/data/stimulus_14.res",
+        "DSP/fft/interface_array/data/stimulus_15.dat",
+        "DSP/fft/interface_array/data/stimulus_15.res",
+        "DSP/fft/interface_array/data/stimulus_16.dat",
+        "DSP/fft/interface_array/data/stimulus_16.res",
+        "DSP/fft/interface_array/data/stimulus_17.dat",
+        "DSP/fft/interface_array/data/stimulus_17.res",
+        "DSP/fft/interface_array/data/stimulus_18.dat",
+        "DSP/fft/interface_array/data/stimulus_18.res",
+        "DSP/fft/interface_array/data/stimulus_19.dat",
+        "DSP/fft/interface_array/data/stimulus_19.res"
+      ],
+      "headers": [
+        "DSP/fft/interface_array/fft_top.h"
+      ]
+    },
+    {
+      "name": "dsp-fft-interface-array-float-ssr2",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fft/interface_array_float_ssr2",
+      "top": "fft_top",
+      "language": "c++",
+      "files": [
+        "DSP/fft/interface_array_float_ssr2/fft_top.cpp"
+      ],
+      "tb": [
+        "DSP/fft/interface_array_float_ssr2/fft_tb.cpp",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_00.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_00.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_01.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_01.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_02.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_02.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_03.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_03.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_04.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_04.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_05.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_05.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_06.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_06.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_07.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_07.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_08.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_08.res",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_09.dat",
+        "DSP/fft/interface_array_float_ssr2/data-ssr2/stimulus_09.res"
+      ],
+      "headers": [
+        "DSP/fft/interface_array_float_ssr2/fft_top.h"
+      ]
+    },
+    {
+      "name": "dsp-fft-interface-stream",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fft/interface_stream",
+      "top": "fft_top",
+      "language": "c++",
+      "files": [
+        "DSP/fft/interface_stream/fft_top.cpp"
+      ],
+      "tb": [
+        "DSP/fft/interface_stream/fft_tb.cpp",
+        "DSP/fft/interface_stream/data/stimulus_00.dat",
+        "DSP/fft/interface_stream/data/stimulus_00.res",
+        "DSP/fft/interface_stream/data/stimulus_01.dat",
+        "DSP/fft/interface_stream/data/stimulus_01.res",
+        "DSP/fft/interface_stream/data/stimulus_02.dat",
+        "DSP/fft/interface_stream/data/stimulus_02.res",
+        "DSP/fft/interface_stream/data/stimulus_03.dat",
+        "DSP/fft/interface_stream/data/stimulus_03.res",
+        "DSP/fft/interface_stream/data/stimulus_04.dat",
+        "DSP/fft/interface_stream/data/stimulus_04.res",
+        "DSP/fft/interface_stream/data/stimulus_05.dat",
+        "DSP/fft/interface_stream/data/stimulus_05.res",
+        "DSP/fft/interface_stream/data/stimulus_06.dat",
+        "DSP/fft/interface_stream/data/stimulus_06.res",
+        "DSP/fft/interface_stream/data/stimulus_07.dat",
+        "DSP/fft/interface_stream/data/stimulus_07.res",
+        "DSP/fft/interface_stream/data/stimulus_08.dat",
+        "DSP/fft/interface_stream/data/stimulus_08.res",
+        "DSP/fft/interface_stream/data/stimulus_09.dat",
+        "DSP/fft/interface_stream/data/stimulus_09.res",
+        "DSP/fft/interface_stream/data/stimulus_10.dat",
+        "DSP/fft/interface_stream/data/stimulus_10.res",
+        "DSP/fft/interface_stream/data/stimulus_11.dat",
+        "DSP/fft/interface_stream/data/stimulus_11.res",
+        "DSP/fft/interface_stream/data/stimulus_12.dat",
+        "DSP/fft/interface_stream/data/stimulus_12.res",
+        "DSP/fft/interface_stream/data/stimulus_13.dat",
+        "DSP/fft/interface_stream/data/stimulus_13.res",
+        "DSP/fft/interface_stream/data/stimulus_14.dat",
+        "DSP/fft/interface_stream/data/stimulus_14.res",
+        "DSP/fft/interface_stream/data/stimulus_15.dat",
+        "DSP/fft/interface_stream/data/stimulus_15.res",
+        "DSP/fft/interface_stream/data/stimulus_16.dat",
+        "DSP/fft/interface_stream/data/stimulus_16.res",
+        "DSP/fft/interface_stream/data/stimulus_17.dat",
+        "DSP/fft/interface_stream/data/stimulus_17.res",
+        "DSP/fft/interface_stream/data/stimulus_18.dat",
+        "DSP/fft/interface_stream/data/stimulus_18.res",
+        "DSP/fft/interface_stream/data/stimulus_19.dat",
+        "DSP/fft/interface_stream/data/stimulus_19.res"
+      ],
+      "headers": [
+        "DSP/fft/interface_stream/fft_top.h"
+      ]
+    },
+    {
+      "name": "dsp-fft-interface-stream-float-ssr2",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fft/interface_stream_float_ssr2",
+      "top": "fft_top",
+      "language": "c++",
+      "files": [
+        "DSP/fft/interface_stream_float_ssr2/fft_top.cpp"
+      ],
+      "tb": [
+        "DSP/fft/interface_stream_float_ssr2/fft_tb.cpp",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_00.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_00.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_01.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_01.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_02.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_02.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_03.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_03.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_04.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_04.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_05.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_05.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_06.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_06.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_07.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_07.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_08.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_08.res",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_09.dat",
+        "DSP/fft/interface_stream_float_ssr2/data-ssr2/stimulus_09.res"
+      ],
+      "headers": [
+        "DSP/fft/interface_stream_float_ssr2/fft_top.h"
+      ]
+    },
+    {
+      "name": "dsp-fft-logicore-fft-float-ssr",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fft/logicore_fft_float_ssr",
+      "top": "fft_top",
+      "language": "c++",
+      "files": [
+        "DSP/fft/logicore_fft_float_ssr/fft_top.cpp"
+      ],
+      "tb": [
+        "DSP/fft/logicore_fft_float_ssr/new_fft_tb.cpp",
+        "DSP/fft/logicore_fft_float_ssr/data/impulse_fft_mag_phase.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/impulse_fft_output.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/impulse_input.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/mixed_fft_mag_phase.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/mixed_fft_output.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/mixed_input.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/ramp_fft_mag_phase.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/ramp_fft_output.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/ramp_input.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sawtooth_fft_mag_phase.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sawtooth_fft_output.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sawtooth_input.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sine_fft_mag_phase.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sine_fft_output.dat",
+        "DSP/fft/logicore_fft_float_ssr/data/sine_input.dat"
+      ],
+      "headers": [
+        "DSP/fft/logicore_fft_float_ssr/fft_top.h"
+      ]
+    },
+    {
+      "name": "dsp-fir-decimator",
+      "source": "vitis-hls-examples",
+      "dir": "DSP/fir/decimator",
+      "top": "fir_top",
+      "language": "c++",
+      "files": [
+        "DSP/fir/decimator/fir_top.cpp"
+      ],
+      "tb": [
+        "DSP/fir/decimator/fir_tb.cpp"
+      ],
+      "headers": [
+        "DSP/fir/decimator/fir_top.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-aggregation-of-m-axi-ports",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/aggregation_of_m_axi_ports",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_m_axi_ports/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_m_axi_ports/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_m_axi_ports/example.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-aggregation-of-nested-structs",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/aggregation_of_nested_structs",
+      "top": "top",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_nested_structs/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_nested_structs/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_nested_structs/example.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-aggregation-of-struct",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/aggregation_of_struct",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_struct/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_struct/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/aggregation_of_struct/example.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-auto-disaggregation-of-struct",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/auto_disaggregation_of_struct",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/auto_disaggregation_of_struct/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/auto_disaggregation_of_struct/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/auto_disaggregation_of_struct/example.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-disaggregation-of-axis-port",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/disaggregation_of_axis_port",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/disaggregation_of_axis_port/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/disaggregation_of_axis_port/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/disaggregation_of_axis_port/example.h"
+      ]
+    },
+    {
+      "name": "interface-aggregation-disaggregation-struct-ii-issue",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Aggregation_Disaggregation/struct_ii_issue",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Aggregation_Disaggregation/struct_ii_issue/example.cpp"
+      ],
+      "tb": [
+        "Interface/Aggregation_Disaggregation/struct_ii_issue/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Aggregation_Disaggregation/struct_ii_issue/example.h"
+      ]
+    },
+    {
+      "name": "interface-memory-burst-rw",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/burst_rw",
+      "top": "vadd",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/burst_rw/vadd.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/burst_rw/vadd_test.cpp"
+      ],
+      "headers": [
+        "Interface/Memory/burst_rw/vadd.h"
+      ]
+    },
+    {
+      "name": "interface-memory-coefficient-filter",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/coefficient_filter",
+      "top": "hamming_window",
+      "language": "c",
+      "files": [
+        "Interface/Memory/coefficient_filter/hamming_window.c"
+      ],
+      "tb": [
+        "Interface/Memory/coefficient_filter/hamming_window_test.c"
+      ],
+      "headers": [
+        "Interface/Memory/coefficient_filter/hamming_window.h"
+      ]
+    },
+    {
+      "name": "interface-memory-ecc-flags",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/ecc_flags",
+      "top": "ecc_flags",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/ecc_flags/ecc_flags.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/ecc_flags/ecc_flags_test.cpp",
+        "Interface/Memory/ecc_flags/result.golden.dat"
+      ],
+      "headers": [
+        "Interface/Memory/ecc_flags/ecc_flags.h"
+      ]
+    },
+    {
+      "name": "interface-memory-lmem-2rw",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/lmem_2rw",
+      "top": "vadd",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/lmem_2rw/vadd.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/lmem_2rw/vadd_test.cpp"
+      ],
+      "headers": [
+        "Interface/Memory/lmem_2rw/vadd.h"
+      ]
+    },
+    {
+      "name": "interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/manual_burst/manual_burst_example/auto_burst_inference_failure",
+      "top": "krnl_transfer",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/manual_burst/manual_burst_example/auto_burst_inference_failure/example.cpp",
+        "Interface/Memory/manual_burst/manual_burst_example/auto_burst_inference_failure/example.h"
+      ],
+      "tb": [
+        "Interface/Memory/manual_burst/manual_burst_example/auto_burst_inference_failure/example_tb.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/manual_burst/manual_burst_example/manual_burst_inference_success",
+      "top": "transfer_kernel",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/manual_burst/manual_burst_example/manual_burst_inference_success/example.cpp",
+        "Interface/Memory/manual_burst/manual_burst_example/manual_burst_inference_success/example.h"
+      ],
+      "tb": [
+        "Interface/Memory/manual_burst/manual_burst_example/manual_burst_inference_success/example_tb.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "interface-memory-manual-burst-manual-burst-with-conditionals",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/manual_burst/manual_burst_with_conditionals",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/manual_burst/manual_burst_with_conditionals/example.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/manual_burst/manual_burst_with_conditionals/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Memory/manual_burst/manual_burst_with_conditionals/example.h"
+      ]
+    },
+    {
+      "name": "interface-memory-max-widen-port-width",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/max_widen_port_width",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/max_widen_port_width/example.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/max_widen_port_width/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Memory/max_widen_port_width/example.h"
+      ]
+    },
+    {
+      "name": "interface-memory-ram-uram",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/ram_uram",
+      "top": "resource_uram",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/ram_uram/resource_uram.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/ram_uram/resource_uram_test.cpp",
+        "Interface/Memory/ram_uram/result.golden.dat"
+      ],
+      "headers": [
+        "Interface/Memory/ram_uram/resource_uram.h"
+      ],
+      "directives": [
+        "interface resource_uram dataout mode=m_axi depth=1"
+      ]
+    },
+    {
+      "name": "interface-memory-rom-lookup-table-math",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/rom_lookup_table_math",
+      "top": "lookup_math",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/rom_lookup_table_math/lookup_math.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/rom_lookup_table_math/lookup_math_test.cpp",
+        "Interface/Memory/rom_lookup_table_math/result.golden.dat"
+      ],
+      "headers": [
+        "Interface/Memory/rom_lookup_table_math/lookup_math.h"
+      ]
+    },
+    {
+      "name": "interface-memory-using-axi-master",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Memory/using_axi_master",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Memory/using_axi_master/example.cpp"
+      ],
+      "tb": [
+        "Interface/Memory/using_axi_master/example_test.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "interface-register-using-axi-lite-with-user-defined-offset",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Register/using_axi_lite_with_user_defined_offset",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Register/using_axi_lite_with_user_defined_offset/example.cpp"
+      ],
+      "tb": [
+        "Interface/Register/using_axi_lite_with_user_defined_offset/example_test.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "interface-streaming-axi-stream-custom-side-channel-data-2",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/axi_stream_custom_side_channel_data_2",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/axi_stream_custom_side_channel_data_2/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/axi_stream_custom_side_channel_data_2/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Streaming/axi_stream_custom_side_channel_data_2/example.h"
+      ]
+    },
+    {
+      "name": "interface-streaming-axi-stream-to-master",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/axi_stream_to_master",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/axi_stream_to_master/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/axi_stream_to_master/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Streaming/axi_stream_to_master/example.h"
+      ]
+    },
+    {
+      "name": "interface-streaming-axis-array-stream-no-side-channel-data",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/axis_array_stream_no_side_channel_data",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/axis_array_stream_no_side_channel_data/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/axis_array_stream_no_side_channel_data/example_test.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "interface-streaming-using-array-of-streams",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/using_array_of_streams",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/using_array_of_streams/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/using_array_of_streams/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Streaming/using_array_of_streams/example.h"
+      ]
+    },
+    {
+      "name": "interface-streaming-using-axi-stream-with-side-channel-data",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/using_axi_stream_with_side_channel_data",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/using_axi_stream_with_side_channel_data/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/using_axi_stream_with_side_channel_data/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Streaming/using_axi_stream_with_side_channel_data/example.h"
+      ]
+    },
+    {
+      "name": "interface-streaming-using-axi-stream-with-struct",
+      "source": "vitis-hls-examples",
+      "dir": "Interface/Streaming/using_axi_stream_with_struct",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Interface/Streaming/using_axi_stream_with_struct/example.cpp"
+      ],
+      "tb": [
+        "Interface/Streaming/using_axi_stream_with_struct/example_test.cpp"
+      ],
+      "headers": [
+        "Interface/Streaming/using_axi_stream_with_struct/example.h"
+      ]
+    },
+    {
+      "name": "migration-python-scripts",
+      "source": "vitis-hls-examples",
+      "dir": "Migration/python_scripts",
+      "top": "pointer_basic",
+      "language": "c",
+      "files": [
+        "Migration/pointer_basic.c"
+      ],
+      "tb": [
+        "Migration/pointer_basic_test.c",
+        "Migration/result.golden.dat"
+      ],
+      "headers": [
+        "Migration/pointer_basic.h"
+      ],
+      "directives": [
+        "interface pointer_basic mode=m_axi depth=1 d"
+      ]
+    },
+    {
+      "name": "migration-vitis-unified-cli",
+      "source": "vitis-hls-examples",
+      "dir": "Migration/vitis_unified_cli",
+      "top": "pointer_basic",
+      "language": "c",
+      "files": [
+        "Migration/pointer_basic.c"
+      ],
+      "tb": [
+        "Migration/pointer_basic_test.c",
+        "Migration/result.golden.dat"
+      ],
+      "headers": [
+        "Migration/pointer_basic.h"
+      ],
+      "directives": [
+        "interface pointer_basic mode=m_axi depth=1 d"
+      ]
+    },
+    {
+      "name": "misc-initialization-and-reset-static-array-rom",
+      "source": "vitis-hls-examples",
+      "dir": "Misc/initialization_and_reset/static_array_ROM",
+      "top": "test",
+      "language": "c++",
+      "files": [
+        "Misc/initialization_and_reset/static_array_ROM/test.cpp"
+      ],
+      "tb": [
+        "Misc/initialization_and_reset/static_array_ROM/test_tb.cpp"
+      ],
+      "headers": [
+        "Misc/initialization_and_reset/static_array_ROM/test.h"
+      ]
+    },
+    {
+      "name": "misc-malloc-removed",
+      "source": "vitis-hls-examples",
+      "dir": "Misc/malloc_removed",
+      "top": "malloc_removed",
+      "language": "c",
+      "files": [
+        "Misc/malloc_removed/malloc_removed.c"
+      ],
+      "tb": [
+        "Misc/malloc_removed/malloc_removed_test.c",
+        "Misc/malloc_removed/result.golden.dat"
+      ],
+      "headers": [
+        "Misc/malloc_removed/malloc_removed.h"
+      ]
+    },
+    {
+      "name": "misc-rtl-as-blackbox",
+      "source": "vitis-hls-examples",
+      "dir": "Misc/rtl_as_blackbox",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Misc/rtl_as_blackbox/example.cpp"
+      ],
+      "tb": [
+        "Misc/rtl_as_blackbox/example_test.cpp",
+        "Misc/rtl_as_blackbox/result.golden.dat"
+      ],
+      "headers": [
+        "Misc/rtl_as_blackbox/example.h"
+      ]
+    },
+    {
+      "name": "modeling-pointers-basic-arithmetic",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/basic_arithmetic",
+      "top": "pointer_arith",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/basic_arithmetic/pointer_arith.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/basic_arithmetic/pointer_arith_test.c",
+        "Modeling/Pointers/basic_arithmetic/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/basic_arithmetic/pointer_arith.h"
+      ],
+      "directives": [
+        "interface pointer_arith mode=m_axi depth=5 d"
+      ]
+    },
+    {
+      "name": "modeling-pointers-multiple-pointers",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/multiple_pointers",
+      "top": "pointer_multi",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/multiple_pointers/pointer_multi.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/multiple_pointers/pointer_multi_test.c",
+        "Modeling/Pointers/multiple_pointers/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/multiple_pointers/pointer_multi.h"
+      ]
+    },
+    {
+      "name": "modeling-pointers-native-casts",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/native_casts",
+      "top": "pointer_cast_native",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/native_casts/pointer_cast_native.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/native_casts/pointer_cast_native_test.c",
+        "Modeling/Pointers/native_casts/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/native_casts/pointer_cast_native.h"
+      ]
+    },
+    {
+      "name": "modeling-pointers-stream-better",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/stream_better",
+      "top": "pointer_stream_better",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/stream_better/pointer_stream_better.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/stream_better/pointer_stream_better_test.c",
+        "Modeling/Pointers/stream_better/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/stream_better/pointer_stream_better.h"
+      ],
+      "directives": [
+        "interface pointer_stream_better mode=ap_hs d_i",
+        "interface pointer_stream_better mode=ap_hs d_o"
+      ]
+    },
+    {
+      "name": "modeling-pointers-stream-good",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/stream_good",
+      "top": "pointer_stream_good",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/stream_good/pointer_stream_good.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/stream_good/pointer_stream_good_test.c",
+        "Modeling/Pointers/stream_good/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/stream_good/pointer_stream_good.h"
+      ],
+      "directives": [
+        "interface pointer_stream_good d_i depth=4 mode=ap_fifo",
+        "interface pointer_stream_good d_o depth=2 mode=ap_fifo"
+      ]
+    },
+    {
+      "name": "modeling-pointers-using-double",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/Pointers/using_double",
+      "top": "pointer_double",
+      "language": "c",
+      "files": [
+        "Modeling/Pointers/using_double/pointer_double.c"
+      ],
+      "tb": [
+        "Modeling/Pointers/using_double/pointer_double_test.c",
+        "Modeling/Pointers/using_double/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/Pointers/using_double/pointer_double.h"
+      ],
+      "directives": [
+        "interface pointer_double flag mode=m_axi depth=1"
+      ]
+    },
+    {
+      "name": "modeling-conditional-control-of-pragmas-using-defines",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/conditional_control_of_pragmas/using_defines",
+      "top": "dot_product",
+      "language": "c++",
+      "files": [
+        "Modeling/conditional_control_of_pragmas/using_defines/dot_product.cpp"
+      ],
+      "tb": [
+        "Modeling/conditional_control_of_pragmas/using_defines/tb_dot_product.cpp"
+      ],
+      "headers": [
+        "Modeling/conditional_control_of_pragmas/using_defines/dot_product.h"
+      ]
+    },
+    {
+      "name": "modeling-conditional-control-of-pragmas-using-template-function",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/conditional_control_of_pragmas/using_template_function",
+      "top": "top",
+      "language": "c++",
+      "files": [
+        "Modeling/conditional_control_of_pragmas/using_template_function/adder.cpp"
+      ],
+      "tb": [
+        "Modeling/conditional_control_of_pragmas/using_template_function/adder_tb.cpp"
+      ],
+      "headers": [
+        "Modeling/conditional_control_of_pragmas/using_template_function/adder.h"
+      ]
+    },
+    {
+      "name": "modeling-cpp-templates-for-multiple-instances",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/cpp_templates_for_multiple_instances",
+      "top": "cpp_template",
+      "language": "c++",
+      "files": [
+        "Modeling/cpp_templates_for_multiple_instances/cpp_template.cpp"
+      ],
+      "tb": [
+        "Modeling/cpp_templates_for_multiple_instances/cpp_template_test.cpp"
+      ],
+      "headers": [
+        "Modeling/cpp_templates_for_multiple_instances/cpp_template.h"
+      ],
+      "directives": [
+        "interface cpp_template out mode=m_axi depth=1"
+      ]
+    },
+    {
+      "name": "modeling-fixed-point-sqrt",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/fixed_point_sqrt",
+      "top": "fxp_sqrt_top",
+      "language": "c++",
+      "files": [
+        "Modeling/fixed_point_sqrt/fxp_sqrt_top.cpp"
+      ],
+      "tb": [
+        "Modeling/fixed_point_sqrt/fxp_sqrt_test.cpp"
+      ],
+      "headers": [
+        "Modeling/fixed_point_sqrt/fxp_sqrt.h",
+        "Modeling/fixed_point_sqrt/fxp_sqrt_top.h"
+      ],
+      "directives": [
+        "interface fxp_sqrt_top in_val register",
+        "interface fxp_sqrt_top mode=ap_ctrl_hs return register",
+        "pipeline fxp_sqrt_top"
+      ]
+    },
+    {
+      "name": "modeling-free-running-kernel-remerge-ii4to1",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/free_running_kernel_remerge_ii4to1",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Modeling/free_running_kernel_remerge_ii4to1/example.cpp"
+      ],
+      "tb": [
+        "Modeling/free_running_kernel_remerge_ii4to1/example_test.cpp"
+      ],
+      "headers": [
+        "Modeling/free_running_kernel_remerge_ii4to1/example.h"
+      ]
+    },
+    {
+      "name": "modeling-using-arbitrary-precision-arith",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_arbitrary_precision_arith",
+      "top": "cpp_ap_int_arith",
+      "language": "c++",
+      "files": [
+        "Modeling/using_arbitrary_precision_arith/cpp_ap_int_arith.cpp"
+      ],
+      "tb": [
+        "Modeling/using_arbitrary_precision_arith/cpp_ap_int_arith_test.cpp",
+        "Modeling/using_arbitrary_precision_arith/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/using_arbitrary_precision_arith/cpp_ap_int_arith.h"
+      ],
+      "directives": [
+        "interface cpp_ap_int_arith out1 mode=m_axi depth=1",
+        "interface cpp_ap_int_arith out2 mode=m_axi depth=1",
+        "interface cpp_ap_int_arith out3 mode=m_axi depth=1",
+        "interface cpp_ap_int_arith out4 mode=m_axi depth=1"
+      ]
+    },
+    {
+      "name": "modeling-using-arbitrary-precision-casting",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_arbitrary_precision_casting",
+      "top": "arbitrary_precision_casting",
+      "language": "c++",
+      "files": [
+        "Modeling/using_arbitrary_precision_casting/arbitrary_precision_casting.cpp"
+      ],
+      "tb": [
+        "Modeling/using_arbitrary_precision_casting/arbitrary_precision_casting_test.cpp",
+        "Modeling/using_arbitrary_precision_casting/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/using_arbitrary_precision_casting/arbitrary_precision_casting.h"
+      ]
+    },
+    {
+      "name": "modeling-using-array-stencil-1d",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_array_stencil_1d",
+      "top": "top",
+      "language": "c++",
+      "files": [
+        "Modeling/using_array_stencil_1d/dut.cpp"
+      ],
+      "tb": [
+        "Modeling/using_array_stencil_1d/test.cpp"
+      ],
+      "headers": []
+    },
+    {
+      "name": "modeling-using-array-stencil-2d",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_array_stencil_2d",
+      "top": "Filter2DKernel",
+      "language": "c++",
+      "files": [
+        "Modeling/using_array_stencil_2d/filter2d_hw.cpp"
+      ],
+      "tb": [
+        "Modeling/using_array_stencil_2d/filter2d_sw.cpp",
+        "Modeling/using_array_stencil_2d/test.cpp",
+        "Modeling/using_array_stencil_2d/cmdlineparser.cpp"
+      ],
+      "headers": [
+        "Modeling/using_array_stencil_2d/cmdlineparser.h",
+        "Modeling/using_array_stencil_2d/coefficients.h",
+        "Modeling/using_array_stencil_2d/common.h"
+      ]
+    },
+    {
+      "name": "modeling-using-cpp-templates",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_cpp_templates",
+      "top": "cpp_template",
+      "language": "c++",
+      "files": [
+        "Modeling/using_cpp_templates/cpp_template.cpp"
+      ],
+      "tb": [
+        "Modeling/using_cpp_templates/cpp_template_test.cpp",
+        "Modeling/using_cpp_templates/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/using_cpp_templates/cpp_template.h"
+      ]
+    },
+    {
+      "name": "modeling-using-fixed-point",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_fixed_point",
+      "top": "cpp_ap_fixed",
+      "language": "c++",
+      "files": [
+        "Modeling/using_fixed_point/cpp_ap_fixed.cpp"
+      ],
+      "tb": [
+        "Modeling/using_fixed_point/cpp_ap_fixed_test.cpp",
+        "Modeling/using_fixed_point/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/using_fixed_point/cpp_ap_fixed.h"
+      ]
+    },
+    {
+      "name": "modeling-using-float-and-double",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_float_and_double",
+      "top": "double_mul_pow2",
+      "language": "c",
+      "files": [
+        "Modeling/using_float_and_double/fp_mul_pow2.c"
+      ],
+      "tb": [
+        "Modeling/using_float_and_double/fp_mul_pow2_test.c"
+      ],
+      "headers": [
+        "Modeling/using_float_and_double/fp_mul_pow2.h"
+      ]
+    },
+    {
+      "name": "modeling-using-vectors",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/using_vectors",
+      "top": "example",
+      "language": "c++",
+      "files": [
+        "Modeling/using_vectors/example.cpp"
+      ],
+      "tb": [
+        "Modeling/using_vectors/example_test.cpp"
+      ],
+      "headers": [
+        "Modeling/using_vectors/example.h"
+      ]
+    },
+    {
+      "name": "modeling-variable-bound-loops",
+      "source": "vitis-hls-examples",
+      "dir": "Modeling/variable_bound_loops",
+      "top": "loop_var",
+      "language": "c++",
+      "files": [
+        "Modeling/variable_bound_loops/loop_var.cpp"
+      ],
+      "tb": [
+        "Modeling/variable_bound_loops/loop_var_test.cpp",
+        "Modeling/variable_bound_loops/result.golden.dat"
+      ],
+      "headers": [
+        "Modeling/variable_bound_loops/loop_var.h"
+      ],
+      "directives": [
+        "unroll loop_var/LOOP_X"
+      ]
+    },
+    {
+      "name": "pipelining-functions-function-instantiate",
+      "source": "vitis-hls-examples",
+      "dir": "Pipelining/Functions/function_instantiate",
+      "top": "top",
+      "language": "c++",
+      "files": [
+        "Pipelining/Functions/function_instantiate/example.cpp"
+      ],
+      "tb": [
+        "Pipelining/Functions/function_instantiate/example_test.cpp",
+        "Pipelining/Functions/function_instantiate/result.golden.dat"
+      ],
+      "headers": [
+        "Pipelining/Functions/function_instantiate/example.h"
+      ]
+    },
+    {
+      "name": "pipelining-functions-hier-func",
+      "source": "vitis-hls-examples",
+      "dir": "Pipelining/Functions/hier_func",
+      "top": "hier_func4",
+      "language": "c++",
+      "files": [
+        "Pipelining/Functions/hier_func/hier_func4.cpp"
+      ],
+      "tb": [
+        "Pipelining/Functions/hier_func/hier_func4_test.cpp",
+        "Pipelining/Functions/hier_func/tb_data/inA.dat",
+        "Pipelining/Functions/hier_func/tb_data/inB.dat",
+        "Pipelining/Functions/hier_func/tb_data/outC.golden.dat",
+        "Pipelining/Functions/hier_func/tb_data/outD.golden.dat"
+      ],
+      "headers": [
+        "Pipelining/Functions/hier_func/hier_func4.h"
+      ]
+    },
+    {
+      "name": "pipelining-loops-imperfect-loop",
+      "source": "vitis-hls-examples",
+      "dir": "Pipelining/Loops/imperfect_loop",
+      "top": "loop_imperfect",
+      "language": "c++",
+      "files": [
+        "Pipelining/Loops/imperfect_loop/loop_imperfect.cpp"
+      ],
+      "tb": [
+        "Pipelining/Loops/imperfect_loop/loop_imperfect_test.cpp",
+        "Pipelining/Loops/imperfect_loop/result.golden.dat"
+      ],
+      "headers": [
+        "Pipelining/Loops/imperfect_loop/loop_imperfect.h"
+      ],
+      "directives": [
+        "pipeline loop_imperfect/LOOP_J"
+      ]
+    },
+    {
+      "name": "pipelining-loops-perfect-loop",
+      "source": "vitis-hls-examples",
+      "dir": "Pipelining/Loops/perfect_loop",
+      "top": "loop_perfect",
+      "language": "c++",
+      "files": [
+        "Pipelining/Loops/perfect_loop/loop_perfect.cpp"
+      ],
+      "tb": [
+        "Pipelining/Loops/perfect_loop/loop_perfect_test.cpp",
+        "Pipelining/Loops/perfect_loop/result.golden.dat"
+      ],
+      "headers": [
+        "Pipelining/Loops/perfect_loop/loop_perfect.h"
+      ],
+      "directives": [
+        "pipeline loop_perfect/LOOP_J"
+      ]
+    },
+    {
+      "name": "pipelining-loops-using-free-running-pipeline",
+      "source": "vitis-hls-examples",
+      "dir": "Pipelining/Loops/using_free_running_pipeline",
+      "top": "free_pipe_mult",
+      "language": "c++",
+      "files": [
+        "Pipelining/Loops/using_free_running_pipeline/free_pipe_mult.cpp"
+      ],
+      "tb": [
+        "Pipelining/Loops/using_free_running_pipeline/free_pipe_mult_tb.cpp",
+        "Pipelining/Loops/using_free_running_pipeline/result.golden.dat"
+      ],
+      "headers": [
+        "Pipelining/Loops/using_free_running_pipeline/free_pipe_mult.h"
+      ],
+      "directives": [
+        "interface free_pipe_mult mode=ap_fifo B",
+        "interface free_pipe_mult mode=ap_fifo out"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-autorestart",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/autorestart",
+      "top": "diamond",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/autorestart/diamond.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/autorestart/diamond_test.cpp",
+        "Task_level_Parallelism/Control_driven/Channels/autorestart/result.golden.dat"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/autorestart/diamond.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-merge-split-merge-load-balance",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_load_balance",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_load_balance/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_load_balance/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_load_balance/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-merge-split-merge-round-robin",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_round_robin",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_round_robin/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_round_robin/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/merge_round_robin/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-merge-split-split-load-balance",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/merge_split/split_load_balance",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_load_balance/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_load_balance/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_load_balance/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-merge-split-split-round-robin",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/merge_split/split_round_robin",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_round_robin/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_round_robin/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/merge_split/split_round_robin/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-simple-fifos",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/simple_fifos",
+      "top": "diamond",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/simple_fifos/diamond.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/simple_fifos/diamond_test.cpp",
+        "Task_level_Parallelism/Control_driven/Channels/simple_fifos/result.golden.dat"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/simple_fifos/diamond.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-using-fifos",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/using_fifos",
+      "top": "diamond",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/using_fifos/diamond.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/using_fifos/diamond_test.cpp",
+        "Task_level_Parallelism/Control_driven/Channels/using_fifos/result.golden.dat"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/using_fifos/diamond.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-control-driven-channels-using-stream-of-blocks",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks",
+      "top": "diamond",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks/diamond.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks/diamond_test.cpp",
+        "Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks/result.golden.dat"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks/diamond.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-data-driven-mixed-control-and-data-driven",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Data_driven/mixed_control_and_data_driven",
+      "top": "dut",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Data_driven/mixed_control_and_data_driven/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Data_driven/mixed_control_and_data_driven/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Data_driven/mixed_control_and_data_driven/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-data-driven-simple-data-driven",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Data_driven/simple_data_driven",
+      "top": "odds_and_evens",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Data_driven/simple_data_driven/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Data_driven/simple_data_driven/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Data_driven/simple_data_driven/test.h"
+      ]
+    },
+    {
+      "name": "task-level-parallelism-data-driven-unique-task-regions",
+      "source": "vitis-hls-examples",
+      "dir": "Task_level_Parallelism/Data_driven/unique_task_regions",
+      "top": "top",
+      "language": "c++",
+      "files": [
+        "Task_level_Parallelism/Data_driven/unique_task_regions/test.cpp"
+      ],
+      "tb": [
+        "Task_level_Parallelism/Data_driven/unique_task_regions/test_tb.cpp"
+      ],
+      "headers": [
+        "Task_level_Parallelism/Data_driven/unique_task_regions/test.h"
+      ]
+    }
+  ]
+}

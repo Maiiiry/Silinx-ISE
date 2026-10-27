@@ -217,6 +217,14 @@ function readPragma(rest) {
 }
 
 // ---------------------------------------------------------------- the preprocessor
+/** The header an #include names, as C finds it: beside the file including it, as named, else by its name alone. */
+function headerKey(headers, from, name) {
+  const norm = (p) => p.split('/').reduce((a, x) => (x === '..' ? a.slice(0, -1) : x === '.' || x === '' ? a : [...a, x]), []).join('/');
+  const dir = from.includes('/') ? from.replace(/\/[^/]*$/, '/') : '';
+  for (const k of [norm(dir + name), norm(name)]) if (k in headers) return k;
+  const base = name.split('/').pop();
+  return Object.keys(headers).find((k) => k.split('/').pop() === base) ?? null;
+}
 // (headers: the project's own, { 'name.h': text }, #include "name.h" reads them in place, #1597; their macros the
 // source's; #pragma once and include guards as C's)
 export function lex(source, file = 'input.c', { headers = null } = {}) {
@@ -264,10 +272,10 @@ export function lex(source, file = 'input.c', { headers = null } = {}) {
         const m = /^[<"]([^>"]+)[>"]/.exec(rest.trim());
         if (!m) { e('#include names a header: #include "ap_int.h" or #include <stdint.h>'); continue; }
         includes.push({ name: m[1], system: rest.trim()[0] === '<', line });
-        const own0 = headers && !KNOWN_HEADERS.has(m[1]) ? headers[m[1]] ?? headers[m[1].split('/').pop()] : undefined;
-        if (own0 !== undefined) {
+        const key = headers && !KNOWN_HEADERS.has(m[1]) ? headerKey(headers, fname, m[1]) : null;
+        if (key !== null) {
           if (depth > 16) e(`#include "${m[1]}": headers included too deep (a header including itself?)`);
-          else if (!once.has(m[1])) run(own0, m[1], depth + 1);
+          else if (!once.has(key)) run(headers[key], key, depth + 1);
           continue;
         }
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: streams are not supported yet'
