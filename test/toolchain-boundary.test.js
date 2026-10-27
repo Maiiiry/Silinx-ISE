@@ -21,8 +21,7 @@ const inToolchain = (f) => TOOLCHAIN.some((r) => r.test(f));
 
 // the IDE's modules the toolchain imports on 2026-10-27, `importer -> imported`; never add to it
 const ALLOWED = new Set([
-  'core/fpga/techview.js -> core/netlist-hier.js', // step 2, #1673: the view leaves core/fpga/
-  'core/fpga/techview.js -> core/schdoc.js',
+  'core/fpga/techview.js -> core/techview.js', // #1673: the old path of the view, until its importers switch (step 7)
   'core/open-flow-core.js -> core/compile.js', // step 4, #1675: the front end through io
   'core/open-flow-core.js -> core/unisim.js',
   'core/open-flow-models.js -> core/compile.js',

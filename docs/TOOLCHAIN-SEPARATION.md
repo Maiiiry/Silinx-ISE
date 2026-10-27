@@ -154,7 +154,7 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
    modules, and the modules of the IDE they may import today (the four above), listed in a test; a new import
    across fails, and the list only shrinks (as `test/code-size.test.js`). Done: `test/toolchain-boundary.test.js`.
 2. **The technology view out of `core/fpga/`** ([#1673](https://github.com/pmnmalo/Silinx-ISE/issues/1673)):
-   `core/fpga/techview.js` moves to `core/`, the old path re-exporting.
+   `core/fpga/techview.js` moves to `core/`, the old path re-exporting. Done: `core/techview.js`.
 3. **Synthesis from flat Verilog** ([#1674](https://github.com/pmnmalo/Silinx-ISE/issues/1674)):
    `synthesizeOpen(design)` becomes the front end (`toVerilog`, the gate count) followed by a synthesis of the
    flat Verilog; `synthesizeOpen` keeps its signature. The same netlists on the corpus.
