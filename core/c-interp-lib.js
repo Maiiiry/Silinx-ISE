@@ -50,7 +50,7 @@ export const libMethods = {
         const text = this.fileText(n.str);
         return handle(text === null ? null : { name: n.str, text, pos: 0, w: false });
       }
-      case 'fclose': { const [f] = A(); if (f.fh?.w) this.fs.set(f.fh.name, f.fh.text); return num(0); }
+      case 'fclose': { const [f] = A(); if (f.fh?.w) this.fs.set(f.fh.name, f.fh.text); if (f.fh) f.fh.closed = true; return num(0); }
       case 'feof': { const [f] = A(); return num(f.fh && f.fh.pos >= f.fh.text.length ? 1 : 0); }
       case 'fscanf': return this.scan(e);
       case 'fgets': {
@@ -96,6 +96,8 @@ export const libMethods = {
   },
   write(fh, s, e) {
     if (fh.std) { this.out.push(s); return; }
+    // (a file closed: its writes dropped, as a closed ofstream's (failed) <<, #1714)
+    if (fh.closed) return;
     if (!fh.w) this.fail(e, `the file '${fh.name}' is open for reading`);
     fh.text += s;
     this.fs.set(fh.name, fh.text);
