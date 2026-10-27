@@ -18,7 +18,7 @@ uiTest('Synthesize - Yosys (open): the blinky example synthesized in the browser
   // in the Processes, after Synthesize - XST
   const procs = await page.eval(() => [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent));
   // (the first row after Synthesize - XST's children; Generate Post-Synthesis Simulation Model the classic interface's only, #1265, #1276)
-  const kids = ['View RTL Schematic', 'View Technology Schematic', 'Check Syntax', 'Generate Post-Synthesis Simulation Model'];
+  const kids = ['View RTL Schematic', 'View Technology Schematic', 'Check Syntax', 'View C Model', 'Generate Post-Synthesis Simulation Model'];   // (View C Model: #1530)
   assert.equal(procs.slice(procs.indexOf('Synthesize - XST') + 1).find((l) => !kids.includes(l)), 'Synthesize - Yosys (open)', procs.join(' | '));
   await page.treeRow('#procs', 'Synthesize - Yosys (open)', { dbl: true, exact: true });
   // (Yosys in WebAssembly: in WebKit / Firefox on a slow CI machine it can take minutes; a run that

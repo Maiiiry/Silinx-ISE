@@ -92,8 +92,8 @@ function selectionProcesses(sel, view) {
       ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `sim-${step}`, label: `Simulate ${name} Model`, ico: 'wave', run: () => runSimulation(mod, step) })),
     ] },
     { id: 'rtl-sim', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
-    ...(cp.length ? [] : [{ id: 'cmodel-sim', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
     { id: 'tb-wiz', label: 'Create Test Bench (Wizard)…', ico: 'template', run: () => testBench(mod) },
+    ...(cp.length ? [] : [{ id: 'cmodel-sim', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
   ];
   // synthesis, implementation and emulation work on the project's top module (onTop: what they do to
   // it, said before running when another module is selected, #223)
@@ -109,12 +109,12 @@ function selectionProcesses(sel, view) {
     ] : []),
     ...(sel.wizard ? [{ id: 'wiz-open', label: wizardProcessOf(sel.file), ico: 'template', run: () => openWizardModule(sel.file) }] : []),
     SUMMARY_PROC,
-    ...(cp.length ? [] : [{ id: 'cmodel', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
     constraintsProcs(mod),
     { id: 'synth', label: 'Synthesize - XST', ico: 'process', onTop: 'synthesizes', run: () => runImpl(top, ['synth']), children: [
       { id: 'rtl', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
       { id: 'tech', label: 'View Technology Schematic', ico: 'schematic', onTop: 'synthesizes', run: () => openTechSchematic(top) },
       { id: 'check', label: 'Check Syntax', ico: 'process', run: () => checkSyntax(mod) },
+      ...(cp.length ? [] : [{ id: 'cmodel', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
       ...simModelProc({ id: 'postsynth', label: EXTRA_STEPS.postsynth, ico: 'process', onTop: 'synthesizes', run: () => generateSimModel(top, 'postsynth') }),
     ] },
     { id: 'synth-open', label: SYNTH_OPEN, ico: 'process', onTop: 'synthesizes', run: () => synthOpen(top) },
