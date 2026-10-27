@@ -29,6 +29,8 @@ function initType(init, before) {
     if (init[k].t !== 'id') continue;
     if (op(init[k + 1], '(')) { const r = returnType(before, init[k].v); if (r) return r; continue; }
     const ty = declType(before, init[k].v);
+    // (a pointer indexed: its element's, A *p; auto x = p[i]; an A, #1684)
+    if (ty && op(init[k + 1], '[') && op(ty.at(-1), '*')) return ty.slice(0, -1);
     if (ty) return ty;
   }
   return null;

@@ -159,7 +159,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
 
   // ---------------------------------------------------------------- each function: names, calls, constructs
   const loops = [];
-  pointerArithmetic(funcs, globals, synth, report);   // (*(p + e) is p[e]; a pointer argument indexed an array, #1599)
+  pointerArithmetic(funcs, globals, synth, report, ast.structArgs, top);   // (*(p + e) is p[e]; a pointer argument indexed an array, #1599)
   pointerVariables(funcs, globals, synth, report);   // (a local pointer: its target and offset)
   for (const f of funcs.values()) {
     if (!f.body) continue;

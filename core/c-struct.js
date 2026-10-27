@@ -333,6 +333,8 @@ function uses(toks, cx) {
         dst.push(t);
         continue;
       }
+      // a pragma naming a struct (port=, variable=): one per member, said once (core/c-pragma.js, #1684)
+      if (t.t === 'pragma' && !t.v.of && pragmaPerMember(t, look, dst)) continue;
       if (op(t, '}')) { if (scopes.length === fnDepth) { fnDepth = 0; retOf = null; } scopes.pop(); dst.push(t); continue; }
       // a function's header: its struct parameters their members', a struct result parameters added
       if (top && isId(t) && sigs.has(t.v) && op(ts[k + 1], '(') && scopes.length === 1 && !STMT_START(ts[k - 1]) && !op(ts[k - 1], '=')) {
@@ -368,7 +370,7 @@ function uses(toks, cx) {
         continue;
       }
       // a declaration of struct variables
-      if (STMT_START(dst.at(-1)) || (op(dst.at(-1), '(') && isId(dst.at(-2), 'for'))) {
+      if (STMT_START(dst.at(-1)) || (op(dst.at(-1), '(') && isId(dst.at(-2), 'for')) || afterHeader(dst)) {
         let j = k;
         while (isId(ts[j]) && QUALS.has(ts[j].v)) j++;
         // (S f(…): a function returning a struct, its header below)
@@ -494,12 +496,21 @@ function uses(toks, cx) {
     if (s?.bad) return;
     if (!s || s.leaf || s.end !== src.length) { report(src[0] || t, `a ${dstP.S.name} is copied from another (a variable, an element of an array, a member) or from a call`); return; }
     if (s.S !== dstP.S) { report(src[0], `a ${s.S.name} copied to a ${dstP.S.name}`); return; }
+    // (an index with a side effect, b[i++] = a[3]: computed once, before the members', #1685)
+    const once = (p) => ({ ...p, idx: p.idx.map((x) => {
+      if (!x.some((y) => op(y, '++') || op(y, '--') || (y.t === 'op' && /^([-+*/%&|^]|<<|>>)?=$/.test(y.v)))) return x;
+      const v = L(t, `ap_c${fresh++}`, 'id');
+      dst.push(L(t, 'int', 'id'), v, L(t, '='), L(t, '('), ...x, L(t, ')'), L(t, ';'));
+      return [{ ...v }];
+    }) });
+    dstP = once(dstP);
+    const s1 = once(s);
     for (const l of leaves(dstP.S)) {
-      if (!l.dims.length) { dst.push(...leafRef(dstP, l, t), L(t, '='), ...leafRef(s, l, t), L(t, ';')); continue; }
+      if (!l.dims.length) { dst.push(...leafRef(dstP, l, t), L(t, '='), ...leafRef(s1, l, t), L(t, ';')); continue; }
       // (a member array: element by element)
       const i = L(t, `ap_c${fresh++}`, 'id');
       dst.push(L(t, 'for', 'id'), L(t, '('), L(t, 'int', 'id'), i, L(t, '='), L(t, '0', 'num'), L(t, ';'), { ...i }, L(t, '<'), L(t, '('), ...product(l.dims), L(t, ')'), L(t, ';'), { ...i }, L(t, '++'), L(t, ')'),
-        ...leafRef(dstP, l, t, i), L(t, '='), ...leafRef(s, l, t, i), L(t, ';'));
+        ...leafRef(dstP, l, t, i), L(t, '='), ...leafRef(s1, l, t, i), L(t, ';'));
     }
   }
 
@@ -516,6 +527,8 @@ function uses(toks, cx) {
       const p = isId(src[0]) && look(src[0].v) ? path(src, 0) : null;
       if (p?.bad) { push([L(t, '0', 'num')]); return; }
       if (!p || p.leaf || p.end !== src.length || (p.S !== pa.S)) { report(a[0] || t, `the argument of '${pa.name ?? i + 1}': a ${pa.S.name} (a variable, an element of an array, a member)${pa.kind === 'ptr' ? ' by its address, &x' : ''}`); push([L(t, '0', 'num')]); return; }
+      // (an array of structs passed to a pointer to structs: its members' arrays, #1684)
+      if (pa.kind === 'ptr' && p.dims.length && !p.idx.length && !p.sub) { for (const l of leaves(pa.S)) push([L(t, `${p.prefix}${l.suffix}`, 'id')]); return; }
       if (pa.kind === 'arr') { if (p.idx.length || p.sub) report(a[0], `the argument of '${pa.name}': an array of structs, whole`); for (const l of leaves(pa.S)) push([L(t, `${p.prefix}${l.suffix}`, 'id')]); return; }
       for (const l of leaves(pa.S)) push(byRef(p, l, pa.kind === 'ptr' || (pa.kind === 'ref' && !cpp), t));
     });
@@ -541,7 +554,8 @@ function uses(toks, cx) {
     let S = b.S, sub = '', dims = b.dims.slice(), idx = [], j = k + 1, leaf = null, ldims = [];
     for (;;) {
       if (op(ts[j], '[')) {
-        if (b.kind === 'ptr' && !idx.length && !sub) { report(ts[j], `the pointer to a struct '${ts[k].v}' indexed: write the parameter as an array, ${ts[k].v}[N]`); return bad(ts, k); }
+        // (a pointer to structs indexed, #1684: its members' pointers indexed, core/c-pointer.js's arrays)
+        if (b.kind === 'ptr' && !idx.length && !sub && !dims.length) dims = [[]];
         const e = closing(ts, j);
         const inner = [];
         rewrite(ts.slice(j + 1, e), inner, false);
@@ -589,6 +603,32 @@ function uses(toks, cx) {
     if (p.kind === 'ptr' && !dims.length) return [L(t, '('), L(t, '*'), v, L(t, ')')];
     return [v];
   }
+}
+
+/** A pragma naming a struct (port=, variable=; look: its binding) pushed once per member, its name the member's (said
+ *  once: of, dup); false when it names none. */
+function pragmaPerMember(t, look, dst) {
+  const key = ['port', 'variable'].find((x) => typeof t.v.args?.[x] === 'string' && look(t.v.args[x]));
+  if (!key) return false;
+  const nm = t.v.args[key], b = look(nm);
+  leaves(b.S).forEach((l, i) => {
+    const text = t.v.text.replace(new RegExp(`(${key}\\s*=\\s*)${nm}\\b`, 'i'), `$1${b.prefix}${l.suffix}`);
+    dst.push({ ...t, v: { ...t.v, args: { ...t.v.args, [key]: `${b.prefix}${l.suffix}` }, text, of: nm, ...(i ? { dup: true } : {}) } });
+  });
+  return true;
+}
+
+/** Whether the tokens end with a control's header (if (…), for (…), while (…), else, do): a statement starts next (#1685). */
+function afterHeader(ts) {
+  const t = ts.at(-1);
+  if (isId(t, 'else') || isId(t, 'do')) return true;
+  if (!op(t, ')')) return false;
+  let d = 0;
+  for (let i = ts.length - 1; i >= 0; i--) {
+    if (op(ts[i], ')')) d++;
+    else if (op(ts[i], '(') && !--d) return isId(ts[i - 1], 'if') || isId(ts[i - 1], 'for') || isId(ts[i - 1], 'while');
+  }
+  return false;
 }
 
 /** Statements of a body: split at its ';' and after a '{ … }' that ends one. */
