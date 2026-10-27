@@ -2,7 +2,7 @@
 // those of its column's frames and its 64-bit band (from its base, db/<device>-lut.json), as (frame, bit) offsets
 // from its base; a variant's settings are the bits it sets and clears against the base slice's (the two bases
 // equal, checked).
-//   node research/s6/ana-slice6.mjs [--nets] <dir> [part …]   -> research/s6/db/<device>-slice[-nets].json
+//   node research/s6/ana-slice6.mjs [--nets | --full] <dir> [part …]   -> research/s6/db/<device>-slice[-nets|-full].json
 // { kinds: { X|L|M: { base: [[frame, bit]], variants: { name: { set: [[frame, bit]], clear: [[frame, bit]] } } } } }
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,9 +45,9 @@ export function sliceSettings(fdri, dev, manifest, bases) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2), nets = args[0] === '--nets', design = nets ? 'nets' : 'slice';
-  const [dir, ...parts] = nets ? args.slice(1) : args;
-  if (!dir) { console.error('usage: node research/s6/ana-slice6.mjs [--nets] <dir> [part …]'); process.exit(1); }
+  const args = process.argv.slice(2), mode = { '--nets': 'nets', '--full': 'full' }[args[0]], design = mode || 'slice';
+  const [dir, ...parts] = mode ? args.slice(1) : args;
+  if (!dir) { console.error('usage: node research/s6/ana-slice6.mjs [--nets | --full] <dir> [part …]'); process.exit(1); }
   for (const part of parts.length ? parts : ['xc6slx16csg324-3']) {
     const dev = bitFormat6(part), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2');
     const bases = JSON.parse(fs.readFileSync(new URL(`./db/${dev.device}-lut.json`, import.meta.url), 'utf8')).slices;
@@ -61,6 +61,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       kinds[kind] = { base, variants };
     }
     fs.mkdirSync(new URL('./db/', import.meta.url), { recursive: true });
-    fs.writeFileSync(new URL(`./db/${dev.device}-slice${nets ? '-nets' : ''}.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
+    fs.writeFileSync(new URL(`./db/${dev.device}-slice${mode ? `-${mode}` : ''}.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
   }
 }
