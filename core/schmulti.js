@@ -6,7 +6,7 @@
 //   applyProp(doc, ['port:P1', 'port:P2'], 'dir', 'out');      // doc changed in place
 //
 // A field is common when every object selected has it, with the same kind and choices: an I/O marker's direction,
-// width and HDL type, a wire's "Draw as bus", a symbol's parameters (the width of gates of any kind, the INIT of
+// width and HDL type, a symbol's parameters (the width of gates of any kind, the INIT of
 // flip-flops...). Its value is the objects' one, or mixed (null) when they differ. What must stay unique per object
 // (an instance name, a marker's name, a net name) and what changes a symbol's type (its inputs) is left out.
 import { symbolParams } from './schdoc.js';
@@ -22,7 +22,7 @@ function fieldsOf(kind, o) {
       set: (p, v) => { p.width = Math.max(1, Math.round(+v || 1)); if (p.type && !/\(|\[/.test(p.type) && p.width > 1) delete p.type; } },
     { key: 'type', label: 'HDL type', kind: 'text', get: p => p.type || '', set: (p, v) => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; } },
   ];
-  if (kind === 'wire') return [{ key: 'bus', label: 'Draw as bus', kind: 'bool', get: w => !!w.bus, set: (w, v) => { if (v) w.bus = true; else delete w.bus; } }];
+  if (kind === 'wire') return [];   // (no "Draw as bus": a wire drawn by its net's width, #1705)
   // (a COMP's comparisons, kind multi: its own tick boxes only, as they re-pin it, #1555)
   if (kind === 'sym') return symbolParams(o).filter(p => p.kind !== 'multi').map(p => ({
     key: `param:${p.name}`, label: p.label, kind: p.kind, options: p.options, min: p.min, max: p.max,

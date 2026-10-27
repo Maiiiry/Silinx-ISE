@@ -48,7 +48,7 @@ export function mountRender(ctx) {
     }
     for (const w of doc.wires) {
       const pts = w.points.map(p => `${p.x},${p.y}`).join(' ');
-      const bus = w.bus || (busW.get(w.id) || 1) > 1;
+      const bus = (busW.get(w.id) || 1) > 1;   // (by its net's width only, not a wire's own bus flag, #1705)
       const cls = `wire${bus ? ' bus' : ''}${sel.has(`wire:${w.id}`) ? ' sel' : ''}`;
       const d = cv.wireD(w);
       if (d) { parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><path class="whit" d="${d}"/><path class="wline curved" d="${curveHops?.has(w.id) ? cv.hopD(w, curveHops.get(w.id)) : d}"/></g>`); continue; }

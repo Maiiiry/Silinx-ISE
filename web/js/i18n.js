@@ -544,7 +544,7 @@ Object.assign(PT, {
   'Check Schematic': 'Verificar Esquemático',
   'Module name': 'Nome do módulo', 'Sheet size': 'Tamanho da folha', 'Declarations': 'Declarações', 'Architecture name': 'Nome da arquitetura',
   'Instance name': 'Nome da instância', 'Module': 'Módulo', 'Title': 'Título', 'Input pins': 'Pinos de entrada', 'Output pins': 'Pinos de saída',
-  'HDL type': 'Tipo HDL', 'Draw as bus': 'Desenhar como barramento', 'Rename net': 'Mudar o nome da rede',
+  'HDL type': 'Tipo HDL', 'Rename net': 'Mudar o nome da rede',
   // print dialog
   'Paper': 'Papel', 'Orientation': 'Orientação', 'Pages across': 'Páginas na horizontal', 'PNG resolution': 'Resolução PNG', 'Automatic': 'Automática',
   'Landscape': 'Horizontal', 'Portrait': 'Vertical', '1× (screen size)': '1× (tamanho do ecrã)', 'Save PNG': 'Guardar PNG', 'Save SVG': 'Guardar SVG',

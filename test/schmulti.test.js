@@ -95,15 +95,14 @@ test('the same parameter name with other choices: not common (a flip-flop\'s INI
   assert.deepEqual(brief(commonProps(d, ['sym:S4', 'sym:S6'])), ['param:width=(mixed)']);
 });
 
-test('wires: Draw as bus, set and cleared for all of them; mixed when some are buses', () => {
+test('#1705 wires: nothing in common (no "Draw as bus": a wire drawn by its net\'s width); applyProp of bus changes nothing', () => {
   const doc = extra();
   doc.wires[0].bus = true;
-  assert.deepEqual(brief(commonProps(doc, ['wire:W1', 'wire:W2'])), ['bus=(mixed)']);
-  applyProp(doc, ['wire:W1', 'wire:W2', 'wire:W3'], 'bus', true);
-  assert.deepEqual(doc.wires.map(w => w.bus), [true, true, true]);
-  assert.deepEqual(brief(commonProps(doc, ['wire:W1', 'wire:W3'])), ['bus=true']);
-  applyProp(doc, ['wire:W1', 'wire:W3'], 'bus', false);
-  assert.deepEqual(doc.wires.map(w => 'bus' in w), [false, true, false]);
+  assert.deepEqual(commonProps(doc, ['wire:W1', 'wire:W2']), []);
+  assert.deepEqual(commonProps(doc, ['wire:W2']), []);
+  const before = JSON.stringify(doc);
+  assert.equal(applyProp(doc, ['wire:W1', 'wire:W2', 'wire:W3'], 'bus', true), 0);
+  assert.equal(JSON.stringify(doc), before);
 });
 
 test('nothing in common: objects of different kinds, net names, nothing selected, ids not found', () => {
@@ -129,7 +128,6 @@ for (const lang of ['vhdl', 'verilog']) {
     const doc = chain(lang, 'wide');
     applyProp(doc, ['sym:S1', 'sym:S2'], 'param:width', 4);
     applyProp(doc, ['port:P1', 'port:P2'], 'width', 4);
-    applyProp(doc, ['wire:W1', 'wire:W2', 'wire:W3'], 'bus', true);
     const d = normalizeDoc(doc);
     assert.deepEqual(netlist(d).diagnostics.map(x => `${x.severity}: ${x.message}`), []);
     const g = generateHdl(d, { lang });
