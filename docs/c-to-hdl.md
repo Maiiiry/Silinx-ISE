@@ -126,6 +126,24 @@ A loop's pragma is its body's first statements; one elsewhere is ignored with a 
 too). The generation's report (`cToHdl(…).report`) gives a sequential module's states, register bits, memories
 and, for each loop, what its pragmas made: its II (states an iteration) and its cycles.
 
+## HDL to C (the other way)
+
+Any module of the project (VHDL, Verilog, or a drawing's generated HDL: a schematic, an ASM chart, a state diagram,
+a truth table) has a **C model** (Processes ▸ View C Model, #1530): C99 computing what Silinx's simulator computes,
+two-state (an unknown bit is 0): a struct of its signals (each of at most 64 bits, an array as an array of words)
+and
+
+```c
+void top_init(top_t *s);   /* the signals at their initial values */
+void top_eval(top_t *s);   /* the combinational logic settled, the inputs set first */
+void top_step(top_t *s);   /* a sequential design: a rising edge of its clock, then top_eval */
+```
+
+The processes are C functions run in delta cycles (a VHDL signal or a Verilog nonblocking assignment takes its value
+in the next one), the clocked ones once per `top_step`; the HDL functions are C functions. One clock and its rising
+edges only; a wait with a time, file I/O, real values, more than 64 bits are said, not modelled. A C test bench sets
+the inputs, calls `top_step` (or `top_eval`) and reads the outputs, as Silinx's tests do against the simulator.
+
 ## Checking it
 
 - **Against the C**: the tests compile the C with the host's C compiler (gcc or clang,

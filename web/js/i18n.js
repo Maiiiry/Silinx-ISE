@@ -377,6 +377,7 @@ const PT_PATTERNS = [
   [/^Invalid regular expression: (.*)$/, 'Expressão regular inválida: $1'],
   // Simulate's side panel: a test bench's row (#1378)
   [/^Simulate ([A-Za-z][A-Za-z0-9_]*)$/, 'Simular $1'],
+  [/^Read-only, the C model of (.+)$/, 'Só de leitura, o modelo C de $1'],
   // the Development menu (#707)
   [/^Features \((\d+)\)$/, 'Funcionalidades ($1)'], [/^Bug fixes \((\d+)\)$/, 'Correções ($1)'], [/^Other \((\d+)\)$/, 'Outras ($1)'],
   [/^All Changes since (\d+\.\d+\.\d+)…$/, 'Todas as Alterações desde a $1…'], [/^Changes since (\d+\.\d+\.\d+)$/, 'Alterações desde a $1'],
@@ -639,6 +640,7 @@ Object.assign(PT, {
   'Module (HDL)': 'Módulo (HDL)', 'C Function (HLS)': 'Função C (HLS)', 'Generated from the C': 'Gerado a partir do C',
   'View State Machine (ASM)': 'Ver Máquina de Estados (ASM)', 'Read-only, the state machine made from': 'Só de leitura, a máquina de estados feita de', 'The state machine made from the C (read-only)': 'A máquina de estados feita do C (só de leitura)',
   'Read-only · drag the background to pan · wheel to zoom · click a box to see it': 'Só de leitura · arrastar o fundo para deslocar · roda para ampliar · clicar numa caixa para a ver',
+  'View C Model': 'Ver Modelo C',
   'C Synthesis (HLS)': 'Síntese de C (HLS)', 'View/Edit C Source': 'Ver/Editar Fonte C', 'View C Synthesis Report': 'Ver Relatório da Síntese de C', 'View Generated HDL': 'Ver HDL Gerado',
   'C Simulation': 'Simulação de C', 'C/RTL Co-simulation': 'Co-simulação C/RTL', 'Run the test bench, main()': 'Correr o test bench, main()', "Replay main()'s calls of the top function on its HDL and compare": 'Repetir no seu HDL as chamadas que main() faz à função de topo, e comparar',
   // New Source's types (#975; Schematic and Petri Net: their own entries)
