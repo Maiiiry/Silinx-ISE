@@ -95,6 +95,19 @@ cycle, `ap_return` valid; a pointer output's `_ap_vld` is 1 for one cycle after 
 A function with a loop called by another, and a division by a value other than a constant power of 2, are not
 supported yet. The machine shown as an ASM chart: #1575.
 
+**Arrays and memories** (#1527). A local array of up to 64 elements is registers (one per element; an index that
+is not a constant a multiplexer). An array argument is a memory outside the module, `ap_memory`: one port, its
+address (`_address0`, enough bits for its size) and enable (`_ce0`), its write enable and data (`_we0`, `_d0`,
+when it is written) and the value read (`_q0`, the cycle after its address, as a block RAM gives it); the module
+is sequential. A local, `static` or global array of more than 64 elements, and a constant one in a sequential
+module, is a memory inside it with the same port, written so that ISE and Yosys make it a block RAM: its
+initial values its contents (a `const` array, or one never written, is a ROM); a `static` or global one keeps its
+values between calls; one initialized with `{ … }` and written must be `static` (or initialized with a loop).
+Each access takes a state: a statement reading a memory has a state per read (its address driven), then its own
+(the values read in registers); a write is a statement of its own (`a[i] = v;`, `a[i] += v;`, `a[i]++;`), with no
+other side effect in it; the index of a memory has no side effect; a memory is accessed in the top function only
+(not passed to a function, not in a `switch`). A combinational function's constant arrays are LUT ROMs.
+
 ## Pragmas (`#pragma HLS …`)
 
 | Pragma | In Silinx |

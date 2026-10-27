@@ -5,8 +5,9 @@
 //
 //   simulateC(source, { file, maxSteps, entry = 'main' }) ->
 //     { ok, output, exitCode, calls, error, steps, top, diagnostics }
-//     calls: [{ args: { name: BigInt }, ptrIn: { name: BigInt }, ptrOut: { name: BigInt }, ret: BigInt | null }]: each
-//            call of the top function: the scalar arguments, each pointer's value before (ptrIn) and after (ptrOut)
+//     calls: [{ args: { name: BigInt }, ptrIn: { name: BigInt }, ptrOut: { name: BigInt }, memIn: { name: [BigInt] },
+//              memOut: { name: [BigInt] }, ret: BigInt | null }]: each call of the top function: the scalar arguments,
+//              each pointer's value before (ptrIn) and after (ptrOut), each array's values before and after (#1527)
 //     error: { line, col, message } when the run stopped (a division by zero, an index outside an array, an endless loop)
 import { checkC, constValue } from './c-check.js';
 import { typeOf } from './c-types.js';
@@ -116,16 +117,17 @@ class Machine {
     const isTop = name === this.c.top && this.frames.length && this.frames.at(-1).fn.name !== name;
     let rec = null;
     if (isTop) {
-      rec = { args: {}, ptrIn: {}, ptrOut: {}, ret: null };
+      rec = { args: {}, ptrIn: {}, ptrOut: {}, memIn: {}, memOut: {}, ret: null };
       fn.params.forEach((pa, k) => {
         const a = args[k];
+        if (a.arr) rec.memIn[pa.name] = a.arr.map((c) => c.v);
         if (a.ptr) rec.ptrIn[pa.name] = a.ptr.get().v;
         else if (!a.arr) rec.args[pa.name] = convert(this.intOf(a, e), typeOf(pa.type));
       });
     }
     const r = this.invoke(fn, args, e);
     if (rec) {
-      fn.params.forEach((pa, k) => { if (args[k].ptr) rec.ptrOut[pa.name] = args[k].ptr.get().v; });
+      fn.params.forEach((pa, k) => { if (args[k].ptr) rec.ptrOut[pa.name] = args[k].ptr.get().v; if (args[k].arr) rec.memOut[pa.name] = args[k].arr.map((c) => c.v); });
       rec.ret = r?.v ?? null;
       this.calls.push(rec);
     }
