@@ -36,6 +36,7 @@ export const api = {
   projects: () => req('GET', '/api/projects'),
   workspace: () => req('GET', '/api/workspace'),
   templates: () => req('GET', '/api/templates'),
+  testDesigns: () => req('GET', '/api/test-designs'),
   createProject: p => req('POST', '/api/projects', p),
   project: name => req('GET', `/api/projects/${enc(name)}`),
   saveProject: (name, pj) => req('PUT', `/api/projects/${enc(name)}`, pj),

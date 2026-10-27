@@ -51,6 +51,14 @@ test('projects: create (empty + template), list, read with file tree, write, del
 
   const tpl = await call('GET', '/templates');
   assert.deepEqual(tpl.body, ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'vga']);   // the order the interface lists them
+  // the test designs, apart (#1746): a new project from one, a C design's top its function
+  const { TEST_DESIGN_ORDER } = await import('../core/test-designs.js');
+  assert.deepEqual((await call('GET', '/test-designs')).body, TEST_DESIGN_ORDER);
+  r = await call('POST', '/projects', { name: 'Gcd', template: 'gcd' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.top, r.body.board, r.body.simTop], ['gcd', null, '']);
+  assert.ok(fss.existsSync(path.join(P.projectDir('Gcd'), 'src', 'gcd.c')));
+  assert.equal((await call('DELETE', '/projects/Gcd')).status, 200);
   r = await call('POST', '/projects', { name: 'Blink', template: 'blinky', device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, board: null });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.top, 'top');

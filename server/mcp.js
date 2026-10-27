@@ -15,7 +15,8 @@ import path from 'node:path';
 import readline from 'node:readline';
 import * as P from './projects.js';
 import { VERSION } from '../core/version.js';
-import { EXAMPLE_ORDER, orderExamples } from '../core/examples.js';
+import { orderExamples } from '../core/examples.js';
+import { TEST_DESIGNS, orderTestDesigns } from '../core/test-designs.js';
 
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const SERVER_INFO = { name: 'silinx-ise', title: 'Silinx ISE', version: VERSION };
@@ -149,16 +150,27 @@ async function boardDevice(board, variant) {
 export const TOOLS = [
   {
     name: 'list_examples', title: 'List the example projects',
-    description: 'The example projects a new project can start from (new_project_from_example), in the order of the interface, with their top module, device and board.',
+    description: 'The example projects a new project can start from (new_project_from_example), in the order of the interface, with their top module, device and board; '
+      + 'then the test designs (the designs Silinx is tested with: schematics, state diagrams, C programs for Silinx HLS, each with its test), which a new project can start from too.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
     async run() {
-      const names = orderExamples(fs.readdirSync(P.EXAMPLES_DIR, { withFileTypes: true }).filter(d => d.isDirectory() && fs.existsSync(path.join(P.EXAMPLES_DIR, d.name, 'silinx.json'))).map(d => d.name));
-      const examples = names.map(n => {
-        const pj = JSON.parse(fs.readFileSync(path.join(P.EXAMPLES_DIR, n, 'silinx.json'), 'utf8'));
+      const about = (dir, n) => {
+        const pj = JSON.parse(fs.readFileSync(path.join(dir, n, 'silinx.json'), 'utf8'));
         return { name: n, top: pj.top, simTop: pj.simTop || null, board: pj.board || null, device: pj.device ? `${pj.device.part}${pj.device.package}${pj.device.speed}` : null, files: (pj.files || []).length };
+      };
+      const examples = orderExamples(P.templateNames(P.EXAMPLES_DIR)).map(n => about(P.EXAMPLES_DIR, n));
+      // the test designs (#1746): their kind and what each shows (core/test-designs.js); the sources of a drawing or a C
+      // program are not in the project's list of HDL files
+      const testDesigns = orderTestDesigns(P.templateNames(P.TEST_DESIGNS_DIR)).map(n => {
+        const { kind = null, about: shows = null } = TEST_DESIGNS.find(d => d.name === n) || {};
+        const { files, ...rest } = about(P.TEST_DESIGNS_DIR, n);
+        return { ...rest, kind, about: shows };
       });
-      return { text: examples.map(e => `${e.name}: top ${e.top}${e.simTop ? `, test bench ${e.simTop}` : ''}, ${e.board || 'no board'} (${e.device}), ${e.files} file(s)`).join('\n'), data: { examples } };
+      const text = [...examples.map(e => `${e.name}: top ${e.top}${e.simTop ? `, test bench ${e.simTop}` : ''}, ${e.board || 'no board'} (${e.device}), ${e.files} file(s)`),
+        '', 'Test designs (the designs Silinx is tested with; its own, with their test):',
+        ...testDesigns.map(d => `${d.name} (${d.kind}): ${d.about}; top ${d.top}${d.simTop ? `, test bench ${d.simTop}` : ', its test the C\'s main()'}`)];
+      return { text: text.join('\n'), data: { examples, testDesigns } };
     },
   },
   {
@@ -173,19 +185,21 @@ export const TOOLS = [
   },
   {
     name: 'new_project_from_example', title: 'New project from an example',
-    description: 'Make a new project in the workspace from an example (list_examples), optionally for another board (basys2, nexys2): its pins are then the board\'s.',
-    inputSchema: { type: 'object', properties: { name: STR('The new project\'s name (letters, digits, - and _).'), example: STR('The example (list_examples).'), board: STR('The board: basys2 or nexys2 (default: the example\'s).'), variant: STR('The board\'s variant: 100 or 250 for the Basys2, 500 or 1200 for the Nexys2.') }, required: ['name', 'example'], additionalProperties: false },
+    description: 'Make a new project in the workspace from an example or a test design (list_examples), optionally for another board (basys2, nexys2): its pins are then the board\'s.',
+    inputSchema: { type: 'object', properties: { name: STR('The new project\'s name (letters, digits, - and _).'), example: STR('The example, or test design (list_examples).'), board: STR('The board: basys2 or nexys2 (default: the example\'s).'), variant: STR('The board\'s variant: 100 or 250 for the Basys2, 500 or 1200 for the Nexys2.') }, required: ['name', 'example'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
     async run({ name, example, board, variant }) {
-      if (!EXAMPLE_ORDER.includes(example) && !fs.existsSync(path.join(P.EXAMPLES_DIR, String(example || ''), 'silinx.json'))) throw toolError(`unknown example '${example}' (list_examples)`);
+      // (an example, or a test design: #1746)
+      const dir = [P.EXAMPLES_DIR, P.TEST_DESIGNS_DIR].find(d => /^[a-z0-9_-]+$/i.test(String(example || '')) && fs.existsSync(path.join(d, example, 'silinx.json')));
+      if (!dir) throw toolError(`unknown example '${example}' (list_examples)`);
       let device;
       if (board || variant) {
-        const ex = JSON.parse(fs.readFileSync(path.join(P.EXAMPLES_DIR, example, 'silinx.json'), 'utf8'));
+        const ex = JSON.parse(fs.readFileSync(path.join(dir, example, 'silinx.json'), 'utf8'));
         ({ board, device } = await boardDevice(board || ex.board, variant));
       }
       try { await P.createProject({ name, template: example, device, board }); } catch (e) { throw toolError(e.message); }
       const pj = await P.readProject(name);
-      return { text: `Project '${name}' made from the example ${example}: top ${pj.top}, ${pj.board} (${pj.device.part}${pj.device.package}${pj.device.speed}).`, data: { project: name, top: pj.top, simTop: pj.simTop || null, board: pj.board, device: pj.device } };
+      return { text: `Project '${name}' made from the ${dir === P.EXAMPLES_DIR ? 'example' : 'test design'} ${example}: top ${pj.top}, ${pj.board || 'no board'} (${pj.device.part}${pj.device.package}${pj.device.speed}).`, data: { project: name, top: pj.top, simTop: pj.simTop || null, board: pj.board, device: pj.device } };
     },
   },
   {

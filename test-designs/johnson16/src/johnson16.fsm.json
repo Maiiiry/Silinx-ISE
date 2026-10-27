@@ -1,0 +1,577 @@
+{
+  "version": 1,
+  "kind": "fsm",
+  "name": "johnson16",
+  "lang": "vhdl",
+  "type": "mealy",
+  "clock": "clk",
+  "reset": {
+    "name": "rst",
+    "active": "high",
+    "sync": false
+  },
+  "encoding": "binary",
+  "style": "3process",
+  "inputs": [
+    {
+      "name": "x",
+      "width": 2
+    }
+  ],
+  "outputs": [
+    {
+      "name": "y",
+      "width": 4,
+      "default": "4'b0000"
+    }
+  ],
+  "states": [
+    {
+      "id": "s1",
+      "name": "J0",
+      "x": 120,
+      "y": 120,
+      "outputs": {}
+    },
+    {
+      "id": "s2",
+      "name": "J1",
+      "x": 310,
+      "y": 120,
+      "outputs": {}
+    },
+    {
+      "id": "s3",
+      "name": "J15",
+      "x": 500,
+      "y": 120,
+      "outputs": {}
+    },
+    {
+      "id": "s4",
+      "name": "J2",
+      "x": 690,
+      "y": 120,
+      "outputs": {}
+    },
+    {
+      "id": "s5",
+      "name": "J3",
+      "x": 310,
+      "y": 290,
+      "outputs": {}
+    },
+    {
+      "id": "s6",
+      "name": "J4",
+      "x": 690,
+      "y": 290,
+      "outputs": {}
+    },
+    {
+      "id": "s7",
+      "name": "J5",
+      "x": 310,
+      "y": 460,
+      "outputs": {}
+    },
+    {
+      "id": "s8",
+      "name": "J6",
+      "x": 690,
+      "y": 460,
+      "outputs": {}
+    },
+    {
+      "id": "s9",
+      "name": "J7",
+      "x": 310,
+      "y": 630,
+      "outputs": {}
+    },
+    {
+      "id": "s10",
+      "name": "J8",
+      "x": 690,
+      "y": 630,
+      "outputs": {}
+    },
+    {
+      "id": "s11",
+      "name": "J9",
+      "x": 500,
+      "y": 630,
+      "outputs": {}
+    },
+    {
+      "id": "s12",
+      "name": "J10",
+      "x": 120,
+      "y": 630,
+      "outputs": {}
+    },
+    {
+      "id": "s13",
+      "name": "J11",
+      "x": 500,
+      "y": 460,
+      "outputs": {}
+    },
+    {
+      "id": "s14",
+      "name": "J12",
+      "x": 120,
+      "y": 460,
+      "outputs": {}
+    },
+    {
+      "id": "s15",
+      "name": "J13",
+      "x": 500,
+      "y": 290,
+      "outputs": {}
+    },
+    {
+      "id": "s16",
+      "name": "J14",
+      "x": 120,
+      "y": 290,
+      "outputs": {}
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t1",
+      "from": "s1",
+      "to": "s1",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0000"
+      }
+    },
+    {
+      "id": "t2",
+      "from": "s1",
+      "to": "s2",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0000"
+      }
+    },
+    {
+      "id": "t3",
+      "from": "s1",
+      "to": "s3",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0000"
+      }
+    },
+    {
+      "id": "t4",
+      "from": "s2",
+      "to": "s2",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0001"
+      }
+    },
+    {
+      "id": "t5",
+      "from": "s2",
+      "to": "s4",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0001"
+      }
+    },
+    {
+      "id": "t6",
+      "from": "s2",
+      "to": "s1",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0001"
+      }
+    },
+    {
+      "id": "t7",
+      "from": "s4",
+      "to": "s4",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0010"
+      }
+    },
+    {
+      "id": "t8",
+      "from": "s4",
+      "to": "s5",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0010"
+      }
+    },
+    {
+      "id": "t9",
+      "from": "s4",
+      "to": "s2",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0010"
+      }
+    },
+    {
+      "id": "t10",
+      "from": "s5",
+      "to": "s5",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0011"
+      }
+    },
+    {
+      "id": "t11",
+      "from": "s5",
+      "to": "s6",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0011"
+      }
+    },
+    {
+      "id": "t12",
+      "from": "s5",
+      "to": "s4",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0011"
+      }
+    },
+    {
+      "id": "t13",
+      "from": "s6",
+      "to": "s6",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0100"
+      }
+    },
+    {
+      "id": "t14",
+      "from": "s6",
+      "to": "s7",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0100"
+      }
+    },
+    {
+      "id": "t15",
+      "from": "s6",
+      "to": "s5",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0100"
+      }
+    },
+    {
+      "id": "t16",
+      "from": "s7",
+      "to": "s7",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0101"
+      }
+    },
+    {
+      "id": "t17",
+      "from": "s7",
+      "to": "s8",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0101"
+      }
+    },
+    {
+      "id": "t18",
+      "from": "s7",
+      "to": "s6",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0101"
+      }
+    },
+    {
+      "id": "t19",
+      "from": "s8",
+      "to": "s8",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0110"
+      }
+    },
+    {
+      "id": "t20",
+      "from": "s8",
+      "to": "s9",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0110"
+      }
+    },
+    {
+      "id": "t21",
+      "from": "s8",
+      "to": "s7",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0110"
+      }
+    },
+    {
+      "id": "t22",
+      "from": "s9",
+      "to": "s9",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b0111"
+      }
+    },
+    {
+      "id": "t23",
+      "from": "s9",
+      "to": "s10",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b0111"
+      }
+    },
+    {
+      "id": "t24",
+      "from": "s9",
+      "to": "s8",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b0111"
+      }
+    },
+    {
+      "id": "t25",
+      "from": "s10",
+      "to": "s10",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1000"
+      }
+    },
+    {
+      "id": "t26",
+      "from": "s10",
+      "to": "s11",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1000"
+      }
+    },
+    {
+      "id": "t27",
+      "from": "s10",
+      "to": "s9",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1000"
+      }
+    },
+    {
+      "id": "t28",
+      "from": "s11",
+      "to": "s11",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1001"
+      }
+    },
+    {
+      "id": "t29",
+      "from": "s11",
+      "to": "s12",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1001"
+      }
+    },
+    {
+      "id": "t30",
+      "from": "s11",
+      "to": "s10",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1001"
+      }
+    },
+    {
+      "id": "t31",
+      "from": "s12",
+      "to": "s12",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1010"
+      }
+    },
+    {
+      "id": "t32",
+      "from": "s12",
+      "to": "s13",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1010"
+      }
+    },
+    {
+      "id": "t33",
+      "from": "s12",
+      "to": "s11",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1010"
+      }
+    },
+    {
+      "id": "t34",
+      "from": "s13",
+      "to": "s13",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1011"
+      }
+    },
+    {
+      "id": "t35",
+      "from": "s13",
+      "to": "s14",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1011"
+      }
+    },
+    {
+      "id": "t36",
+      "from": "s13",
+      "to": "s12",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1011"
+      }
+    },
+    {
+      "id": "t37",
+      "from": "s14",
+      "to": "s14",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1100"
+      }
+    },
+    {
+      "id": "t38",
+      "from": "s14",
+      "to": "s15",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1100"
+      }
+    },
+    {
+      "id": "t39",
+      "from": "s14",
+      "to": "s13",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1100"
+      }
+    },
+    {
+      "id": "t40",
+      "from": "s15",
+      "to": "s15",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1101"
+      }
+    },
+    {
+      "id": "t41",
+      "from": "s15",
+      "to": "s16",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1101"
+      }
+    },
+    {
+      "id": "t42",
+      "from": "s15",
+      "to": "s14",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1101"
+      }
+    },
+    {
+      "id": "t43",
+      "from": "s16",
+      "to": "s16",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1110"
+      }
+    },
+    {
+      "id": "t44",
+      "from": "s16",
+      "to": "s3",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1110"
+      }
+    },
+    {
+      "id": "t45",
+      "from": "s16",
+      "to": "s15",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1110"
+      }
+    },
+    {
+      "id": "t46",
+      "from": "s3",
+      "to": "s3",
+      "cond": "!x[1]",
+      "outputs": {
+        "y": "4'b1111"
+      }
+    },
+    {
+      "id": "t47",
+      "from": "s3",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "4'b1111"
+      }
+    },
+    {
+      "id": "t48",
+      "from": "s3",
+      "to": "s16",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "4'b1111"
+      }
+    }
+  ],
+  "initial": "s1"
+}
