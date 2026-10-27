@@ -24,11 +24,11 @@ export const C_HINTS = [
       fix: 'Retire a chamada da função sintetizada; se for precisa para testar, chame-a em main() (o test bench).' },
   },
   {
-    id: 'c-pointer-variable', re: /a pointer variable is not possible/,
-    en: { explain: 'In Silinx HLS (as in Vitis HLS) a pointer is only a way for an argument to give a result back: there is no memory with addresses inside the circuit for a pointer variable to point into.',
-      fix: 'Use an array and an index (a[i]) instead of a pointer that moves.' },
-    pt: { explain: 'No Silinx HLS (como no Vitis HLS) um apontador é só uma forma de um argumento devolver um resultado: dentro do circuito não há uma memória com endereços para onde uma variável apontador possa apontar.',
-      fix: 'Use um array e um índice (a[i]) em vez de um apontador que se move.' },
+    id: 'c-pointer-variable', re: /a pointer variable is not possible|^the pointer '\w+': /,
+    en: { explain: 'Inside the circuit there is no memory with addresses: Silinx HLS (as Vitis HLS) makes a local pointer into the arrays or variables it is set to (an array, &x, &a[i], a + i) and an offset in them, read as *p or p[i] and moved with p += n or p++.',
+      fix: 'Set the pointer only to arrays or variables of its own type, and use it only as *p, p[i], p = …, p += n or p++; or use an array and an index (a[i]) instead.' },
+    pt: { explain: 'Dentro do circuito não há uma memória com endereços: o Silinx HLS (como o Vitis HLS) faz de um apontador local os arrays ou variáveis para onde aponta (um array, &x, &a[i], a + i) e um deslocamento neles, lido como *p ou p[i] e movido com p += n ou p++.',
+      fix: 'Aponte o apontador só para arrays ou variáveis do seu tipo e use-o só como *p, p[i], p = …, p += n ou p++; ou use um array e um índice (a[i]).' },
   },
   {
     id: 'c-pointer-arithmetic', re: /^pointer arithmetic is not possible/,

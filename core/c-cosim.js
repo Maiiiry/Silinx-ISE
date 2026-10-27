@@ -114,7 +114,9 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
     for (const x of gen.memories || []) {
       if (!x.written) continue;
       const exp = c.memOut[x.name] || [];
-      for (let k = 0; k < x.n; k++) { const got = row[q++], e = (exp[k] ?? 0n) & mask(x.w); if (got !== e) say(`${x.name}[${k}]`, e, got); }
+      // (the elements the C's array has: a pointer argument's memory may be deeper than it, #1599)
+      const n = c.memOut[x.name] && exp.length < x.n ? exp.length : x.n;
+      for (let k = 0; k < x.n; k++) { const got = row[q++], e = (exp[k] ?? 0n) & mask(x.w); if (k < n && got !== e) say(`${x.name}[${k}]`, e, got); }
     }
     for (const f of gen.fifos || []) {
       if (f.dir === 'in') { const got = row[q++], e = BigInt(c.streamRead[f.name] ?? 0); if (got !== e) say(`${f.name} (values read)`, e, got); continue; }

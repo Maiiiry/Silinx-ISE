@@ -124,8 +124,12 @@ structs is an array per member; a member array of an array of structs is one arr
 3. Fixed or bounded sizes: no dynamic memory, no recursion (direct or through other functions),
    every loop with a bound Silinx can compute (a constant trip count, or `#pragma HLS
    LOOP_TRIPCOUNT max=` for a loop whose count depends on its inputs).
-4. Unambiguous: a pointer only to an argument or to an array, never cast between types, no pointer
-   arithmetic beyond indexing an array, no function pointers, no `goto`.
+4. Unambiguous: a pointer only to an argument, an array or a variable, never cast between types, no
+   function pointers, no `goto`. Pointer arithmetic (#1599) as Vitis HLS takes it: `*(p + e)` is `p[e]`; a
+   local pointer is set to an array, `&x`, `&a[i]` or `a + i` (`p = sel ? a : b` in an `if`), read as `*p` or
+   `p[i]` and moved with `p += n` or `p++`: Silinx makes it the target it points to (a multiplexer of their
+   elements when it has several; written only when it has one) and an offset. A pointer passed on, compared or
+   to a pointer is refused.
 5. No undefined behaviour Silinx can see.
 
 Each refused construct has its own message, at its line and column, saying what is not possible
@@ -146,6 +150,7 @@ Names and behaviour as Vitis HLS makes them (UG1399, "Interface synthesis"):
 | a pointer argument only written | output `p` and `p_ap_vld` (`ap_vld`) |
 | a pointer argument read and written | input `p_i`, output `p_o` and `p_o_ap_vld` (`ap_ovld`) |
 | an array argument | `ap_memory`: `a_address0`, `a_ce0`, `a_we0`, `a_d0`, `a_q0` |
+| a pointer argument indexed (`p[i]`, `*(p + i)`, #1599) | `ap_memory`, its depth the INTERFACE pragma's `depth=` (else 1024, a warning) |
 
 Ports are `std_logic_vector(W-1 downto 0)` (VHDL) or `[W-1:0]` (Verilog), a 1-bit type a
 `std_logic` / plain wire. The block protocol: `ap_start` starts a call; `ap_ready` says the inputs

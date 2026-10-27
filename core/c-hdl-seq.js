@@ -3,8 +3,9 @@
 // (core/c-hdl.js), Vitis HLS's ports (ap_clk, ap_rst, ap_start, ap_done, ap_idle, ap_ready, the arguments, ap_return).
 // Isomorphic ES module: no DOM and no Node APIs.
 import { bin, sig, vhdlNodes, verilogNodes } from './c-hdl.js';
+import { hdlName } from './c-graph.js';
 
-const rname = (r) => `ap_r_${r.name}`;
+const rname = (r) => `ap_r_${hdlName(r.name)}`;
 
 /** The nodes the machine needs: its updates, its next states, its latches. */
 function nodesOf(m) {
@@ -33,9 +34,9 @@ export function vhdlSeq(name, src, ports, m) {
   for (const r of regs) L.push(`  signal ${r.sig} : ${ty(r)};`);
   for (const n of nodes) L.push(`  signal ${sig(n)} : ${ty(n)};`);
   for (const x of m.mems || []) {
-    L.push(`  type ap_m_${x.name}_t is array (0 to ${depth(x) - 1}) of std_logic_vector(${x.t.w - 1} downto 0);`);
+    L.push(`  type ap_m_${hdlName(x.name)}_t is array (0 to ${depth(x) - 1}) of std_logic_vector(${x.t.w - 1} downto 0);`);
     const init = x.init ? ` := (${words(x).map((v, k) => `${k} => "${bin(v, x.t.w)}"`).join(', ')})` : '';
-    L.push(`  signal ap_m_${x.name} : ap_m_${x.name}_t${init};`, `  signal ap_m_${x.name}_q0 : ${ty(x.t)};`);
+    L.push(`  signal ap_m_${hdlName(x.name)} : ap_m_${hdlName(x.name)}_t${init};`, `  signal ap_m_${hdlName(x.name)}_q0 : ${ty(x.t)};`);
   }
   L.push('begin');
   vhdlNodes(nodes, g, L);
@@ -43,8 +44,8 @@ export function vhdlSeq(name, src, ports, m) {
     // (a block RAM's port: written when we, read the cycle after the address)
     const a = `to_integer(${sig(g.get(x.addr))})`;
     L.push('  process (ap_clk)', '  begin', '    if rising_edge(ap_clk) then', `      if ${sig(g.get(x.ce))} = "1" then`);
-    if (x.we != null) L.push(`        if ${sig(g.get(x.we))} = "1" then`, `          ap_m_${x.name}(${a}) <= std_logic_vector(${sig(g.get(x.d))});`, '        end if;');
-    L.push(`        ap_m_${x.name}_q0 <= ${x.t.s ? 'signed' : 'unsigned'}(ap_m_${x.name}(${a}));`, '      end if;', '    end if;', '  end process;');
+    if (x.we != null) L.push(`        if ${sig(g.get(x.we))} = "1" then`, `          ap_m_${hdlName(x.name)}(${a}) <= std_logic_vector(${sig(g.get(x.d))});`, '        end if;');
+    L.push(`        ap_m_${hdlName(x.name)}_q0 <= ${x.t.s ? 'signed' : 'unsigned'}(ap_m_${hdlName(x.name)}(${a}));`, '      end if;', '    end if;', '  end process;');
   }
   L.push('  process (ap_clk)', '  begin', '    if rising_edge(ap_clk) then', "      if ap_rst = '1' then", `        ap_CS_fsm <= ${S(m.idle)};`);
   for (const r of regs) L.push(`        ${r.sig} <= "${bin(r.reset, r.w)}";`);
@@ -79,15 +80,15 @@ export function verilogSeq(name, src, ports, m) {
   for (const r of regs) L.push(`  reg ${r.s ? 'signed ' : ''}[${r.w - 1}:0] ${r.sig};`);
   for (const n of nodes) L.push(`  wire ${n.s ? 'signed ' : ''}[${n.w - 1}:0] ${sig(n)};`);
   for (const x of m.mems || []) {
-    L.push(`  reg [${x.t.w - 1}:0] ap_m_${x.name} [0:${depth(x) - 1}];`, `  reg ${x.t.s ? 'signed ' : ''}[${x.t.w - 1}:0] ap_m_${x.name}_q0;`);
-    if (x.init) L.push('  initial begin', ...words(x).map((v, k) => `    ap_m_${x.name}[${k}] = ${x.t.w}'b${bin(v, x.t.w)};`), '  end');
+    L.push(`  reg [${x.t.w - 1}:0] ap_m_${hdlName(x.name)} [0:${depth(x) - 1}];`, `  reg ${x.t.s ? 'signed ' : ''}[${x.t.w - 1}:0] ap_m_${hdlName(x.name)}_q0;`);
+    if (x.init) L.push('  initial begin', ...words(x).map((v, k) => `    ap_m_${hdlName(x.name)}[${k}] = ${x.t.w}'b${bin(v, x.t.w)};`), '  end');
   }
   verilogNodes(nodes, g, L);
   for (const x of m.mems || []) {
     const a = sig(g.get(x.addr));
     L.push(`  always @(posedge ap_clk) if (${sig(g.get(x.ce))}) begin`);
-    if (x.we != null) L.push(`    if (${sig(g.get(x.we))}) ap_m_${x.name}[${a}] <= ${sig(g.get(x.d))};`);
-    L.push(`    ap_m_${x.name}_q0 <= ap_m_${x.name}[${a}];`, '  end');
+    if (x.we != null) L.push(`    if (${sig(g.get(x.we))}) ap_m_${hdlName(x.name)}[${a}] <= ${sig(g.get(x.d))};`);
+    L.push(`    ap_m_${hdlName(x.name)}_q0 <= ap_m_${hdlName(x.name)}[${a}];`, '  end');
   }
   L.push('  always @(posedge ap_clk) begin', '    if (ap_rst) begin', `      ap_CS_fsm <= ${S(m.idle)};`);
   for (const r of regs) L.push(`      ${r.sig} <= ${r.w}'b${bin(r.reset, r.w)};`);
