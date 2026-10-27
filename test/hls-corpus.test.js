@@ -41,7 +41,9 @@ test('#1597 a design through the stages; the differences from the expectations; 
   assert.deepEqual({ ...r, latency: !!r.latency }, { csim: 'pass', synth: 'pass', cosim: 'pass', latency: true, reason: null });
   const bad = runDesign(design, { ...texts, 'x/acc_test.c': texts['x/acc_test.c'].replace('r == 10', 'r == 11') });
   assert.deepEqual([bad.csim, bad.synth, bad.cosim, bad.reason], ['fail', 'pass', 'skip', 'C simulation: main() returned 1']);
-  assert.deepEqual(runDesign({ ...design, language: 'c++' }, texts), { csim: 'skip', synth: 'skip', cosim: 'skip', latency: null, reason: 'C++ (#1590)' });
+  // (a C++ design: its unit C++, a reference parameter)
+  const cpp = runDesign({ ...design, language: 'c++' }, { ...texts, 'x/acc.c': texts['x/acc.c'].replace('int acc(int v) {', 'int acc(int v) {\n  int &w = v; (void)w;') });
+  assert.equal(cpp.synth, 'fail');
   assert.deepEqual(compareExpectations({ acc: r, new1: r }, { acc: { ...r, cosim: 'fail' } }), [{ name: 'acc', stage: 'cosim', expected: 'fail', got: 'pass' }, { name: 'new1', stage: '*', expected: 'none', got: 'new design' }]);
   assert.match(table({ designs: [design] }, { acc: r }), /^\| acc \| C \| pass \| pass \| pass \| \d+ \|  \|$/m);
 });

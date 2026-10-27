@@ -3,7 +3,7 @@ import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, splitter, toast } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, typeText } from './editor.js';
-import { cRunButtons } from './c-source.js';
+import { cRunButtons, isC } from './c-source.js';
 import { compile, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import * as wiz from './wizards.js';
@@ -502,7 +502,7 @@ export async function openFile(path, line, col, { task } = {}) {
     try { text = await api.readFile(pj, path); }
     catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
     if (S.project?.name !== pj) return;   // another project opened during the read: not its file (#1231)
-    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : /\.c$/i.test(path) ? 'c' : 'text';   // (c: Silinx C, #1524)
+    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : isC(path) ? 'c' : 'text';   // (c: Silinx C, #1524; C++ too, #1590)
     doc = openDoc({
       id, path, task, title: path.split('/').pop(), tooltip: path, icon: lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'file',
       create(el, d) {
@@ -613,7 +613,7 @@ export async function openFile(path, line, col, { task } = {}) {
             if (d.editor.getValue() === text) d.editor.markClean();
             setDirty(d, false);
             const src = S.sources.find(s => s.path === path && !s.view);
-            if (/\.c$/i.test(path)) S.viewTexts[path] = text; else if (src) src.text = text;   // (a C source: its HDL made again, #1531)
+            if (isC(path)) S.viewTexts[path] = text; else if (src) src.text = text;   // (a C source: its HDL made again, #1531)
             else await reloadProject(false);
             compileProject(); renderHierarchy(); markStale();
             status(`Saved ${path}`);

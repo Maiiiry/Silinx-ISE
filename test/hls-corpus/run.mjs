@@ -28,7 +28,8 @@ for (const d of designs) {
   const dir = sourceDir(manifest.sources[d.source]);
   const texts = Object.fromEntries([...d.files, ...d.tb, ...d.headers].map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
   const t0 = Date.now();
-  results[d.name] = runDesign(d, texts);
+  // (an exception: the design's failure, its message the reason)
+  try { results[d.name] = runDesign(d, texts); } catch (e) { results[d.name] = { csim: 'fail', synth: 'fail', cosim: 'skip', latency: null, reason: `exception: ${e.message}` }; }
   const r = results[d.name];
   console.log(`${d.name.padEnd(48)} ${r.csim.padEnd(5)} ${r.synth.padEnd(5)} ${r.cosim.padEnd(5)} ${((Date.now() - t0) / 1000).toFixed(1)} s${r.reason ? `  ${r.reason}` : ''}`);
 }

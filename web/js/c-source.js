@@ -6,7 +6,9 @@ import { createEditor } from './editor.js';
 import { icons } from './icons.js';
 import { log, showConsolePage } from './console.js';
 
-export const isC = (p) => /\.c$/i.test(p || '');
+export const isC = (p) => /\.(c|cpp|cc|cxx)$/i.test(p || '');
+// (its badge: C or C++, #1590)
+export const cBadge = (p) => (/\.c$/i.test(p || '') ? 'C' : 'C++');
 
 /** The HDL made from a C source, read-only, in a document of its own (made again when it is opened again). */
 export function openCHdl(path) {
@@ -15,7 +17,7 @@ export function openCHdl(path) {
   const old = findDoc(id);
   if (old) closeDoc(old);
   const lang = src?.lang === 'verilog' ? 'verilog' : 'vhdl';
-  const name = `${src?.module || path.split('/').pop().replace(/\.c$/i, '')}.${lang === 'verilog' ? 'v' : 'vhd'}`;
+  const name = `${src?.module || path.split('/').pop().replace(/\.(c|cpp|cc|cxx)$/i, '')}.${lang === 'verilog' ? 'v' : 'vhd'}`;
   return openDoc({
     id, title: name, tooltip: `${name}, generated from ${path}`, icon: lang,
     create(el, d) {
@@ -59,7 +61,7 @@ export async function openCAsm(path) {
  *  it, read-only). */
 export function cBadges(file, lang, context) {
   return [
-    { text: 'C', base: true, title: 'Open', open: () => openFile(file), context },
+    { text: cBadge(file), base: true, title: 'Open', open: () => openFile(file), context },
     ...(cSequential(file) ? [{ text: 'ASM', base: false, title: 'The state machine made from the C (read-only)', open: () => openCAsm(file), context }] : []),
     { text: lang === 'verilog' ? 'Verilog' : 'VHDL', base: false, title: 'Generated from the C', open: () => openCHdl(file), context },
   ];

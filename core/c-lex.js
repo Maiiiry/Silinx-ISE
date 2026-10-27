@@ -13,9 +13,11 @@
 // defined()), #pragma; its macros are expanded in the tokens.
 
 // the headers Silinx C knows (docs/c-to-hdl.md); hls_stream.h and the others refused
+import { cppTokens, CPP_HEADERS, isCpp } from './cpp-lex.js';
+
 export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
 // the macros of the standard headers a test bench uses (#1598)
-const HEADER_MACROS = { 'stdio.h': { EOF: '(-1)', NULL: '0' }, 'stdlib.h': { NULL: '0', EXIT_SUCCESS: '0', EXIT_FAILURE: '1', RAND_MAX: '2147483647' }, 'stddef.h': { NULL: '0' },
+const HEADER_MACROS = { 'stdio.h': { EOF: '(-1)', NULL: '0' }, 'stdbool.h': { true: '1', false: '0' }, 'stdlib.h': { NULL: '0', EXIT_SUCCESS: '0', EXIT_FAILURE: '1', RAND_MAX: '2147483647' }, 'stddef.h': { NULL: '0' },
   'limits.h': { CHAR_BIT: '8', INT_MAX: '2147483647', INT_MIN: '(-2147483647 - 1)', UINT_MAX: '4294967295u', SHRT_MAX: '32767', UCHAR_MAX: '255' } };
 
 const PUNCT = ['<<=', '>>=', '...', '->', '++', '--', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=',
@@ -230,14 +232,18 @@ function headerKey(headers, from, name) {
 }
 // (headers: the project's own, { 'name.h': text }, #include "name.h" reads them in place, #1597; their macros the
 // source's; #pragma once and include guards as C's)
-export function lex(source, file = 'input.c', { headers = null } = {}) {
+export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file) } = {}) {
   const errors = [];
   const tokens = [], pragmas = [], includes = [];
   const macros = new Map();
+  // (C++, #1590: true and false its keywords)
+  if (cpp) for (const [k, v] of [['true', '1'], ['false', '0']]) macros.set(k, { params: null, body: [{ t: 'num', v, line: 1, col: 1 }] });
   const once = new Set();
   const lines = run(source, file, 0);
   const last = lines.at(-1);
   tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
+  const streams = new Map();
+  if (cpp) return { tokens: cppTokens(tokens, (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' }), streams), pragmas, includes, errors, streams };
   return { tokens, pragmas, includes, errors };
 
   function run(src, fname, depth) {
@@ -272,7 +278,9 @@ export function lex(source, file = 'input.c', { headers = null } = {}) {
       if (dir === 'endif') { if (!cond.pop()) e('#endif with no #if'); continue; }
       if (!live()) continue;
       if (dir === 'include') {
-        const m = /^[<"]([^>"]+)[>"]/.exec(rest.trim());
+        const m0 = /^[<"]([^>"]+)[>"]/.exec(rest.trim());
+        // (C++'s headers of C's: <cstdint> is <stdint.h>)
+        const m = m0 && cpp && CPP_HEADERS[m0[1]] ? [m0[0], CPP_HEADERS[m0[1]]] : m0;
         if (!m) { e('#include names a header: #include "ap_int.h" or #include <stdint.h>'); continue; }
         includes.push({ name: m[1], system: rest.trim()[0] === '<', line });
         const key = headers && !KNOWN_HEADERS.has(m[1]) ? headerKey(headers, fname, m[1]) : null;

@@ -16,7 +16,8 @@ import { cToHdl } from './c-hdl.js';
 export const VIEW_RE = /\.(sch|asm|fsm|tt|pn)\.json$/i;
 export const isView = path => VIEW_RE.test(String(path || ''));
 // a C source (Silinx C, #1531): its HDL made here from its top function (core/c-hdl.js), as a drawn source's
-export const isCSource = path => /\.c$/i.test(String(path || ''));
+// (C++ too, #1590: .cpp, .cc, .cxx)
+export const isCSource = path => /\.(c|cpp|cc|cxx)$/i.test(String(path || ''));
 /** A source whose HDL is made here: a drawing or a C source. */
 export const isGeneratedSource = path => isView(path) || isCSource(path);
 
