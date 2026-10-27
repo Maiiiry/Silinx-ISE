@@ -1,0 +1,1356 @@
+{
+ "arith": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 20,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_add4_ci_co, xl_sub4_bo, xl_cmp4_eq, xl_cmp4_lt, xl_cmp4_ge_s — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "bus_bitnames": {
+  "load": "pass",
+  "check": "fail: invalid net name 'a(0)'",
+  "hdl": "fail: vhdl: bus_bitnames.vhd:16: expected ':' but found '('",
+  "sim": "mismatch: vhdl: does not elaborate: bus_bitnames.vhd:16 expected ':' but found '('",
+  "ise": "mismatch: the reference does not elaborate: bus_bitnames.vhd:16 expected ':' but found '('",
+  "synth": "fail: bus_bitnames.vhd:16 expected ':' but found '('",
+  "flow": "xc3s100ecp132-4: fail: the design has errors",
+  "quality": null,
+  "parts": {
+   "xc3s100ecp132-4": "fail: the design has errors",
+   "xc3s250ecp132-4": "fail: the design has errors",
+   "xc3s500efg320-4": "fail: the design has errors",
+   "xc3s1200efg320-4": "fail: the design has errors"
+  },
+  "warnings": {
+   "ise": [
+    "export: schematic check: invalid net name 'a(0)'",
+    "export: schematic check: invalid net name 'a(3)'"
+   ]
+  }
+ },
+ "bus_join": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_join_2_1_3, xl_join_6_1, xl_slice7_5_3 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "bus_offset": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "mismatch: vhdl: simulation: the simulation stopped (error)",
+  "ise": "mismatch: the reference's simulation: the simulation stopped (error)",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "hdl": [
+    "verilog: bus_offset.v:12: index 7 out of range for 'd'",
+    "vhdl: bus_offset.vhd:18: index 7 out of range for 'd'"
+   ],
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_buf_w4, xl_slice4_7_7 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "bus_taps": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "fail: vhdl: bus_taps.vhd:27: Type error near a ; current type std_logic_vector; expected type std_logic",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 1,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_slice8_7_7, xl_slice8_5_2, xl_join_1_1_1_1, xl_slice8_4_4 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "bus_taps_turned": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_join_1_1_1_1_1 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "curved_hops": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "flipflops": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 1,
+   "ffs": 17
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_bufg, xl_reg4_ce_ar_h0, xl_cnt4_ce_ar, xl_cnt3_sr_dn — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "full_adder": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 2,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: 'half_adder': project module — ISE uses its HDL source and the half_adder.sym symbol (or regenerate it with Create Schematic Symbol)"
+   ]
+  }
+ },
+ "gates": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 1,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "gates_inverted": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 11,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_nand2_w3 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-epfl-adder": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-bar": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-cavlc": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-ctrl": {
+  "load": "fail: convert: The schematic of 'top' cannot make its HDL: I/O marker name 'opcode[0]' is not a valid VERILOG identifier; I/O marker name 'opcode[1]' is not a valid VERILOG identifier; I/O marker name 'opcode[2]' is"
+ },
+ "gen-epfl-dec": {
+  "load": "fail: convert: The schematic of 'dec' cannot make its HDL: I/O marker name 'count[0]' is not a valid VERILOG identifier; I/O marker name 'count[1]' is not a valid VERILOG identifier; I/O marker name 'count[2]' is no"
+ },
+ "gen-epfl-i2c": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-int2float": {
+  "load": "fail: convert: The schematic of 'top' cannot make its HDL: I/O marker name 'B[0]' is not a valid VERILOG identifier; I/O marker name 'B[1]' is not a valid VERILOG identifier; I/O marker name 'B[2]' is not a valid VE"
+ },
+ "gen-epfl-log2": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-max": {
+  "load": "skip: convert: too large: out of memory (4096 MB)"
+ },
+ "gen-epfl-multiplier": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-priority": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-epfl-router": {
+  "load": "fail: convert: The schematic of 'top' cannot make its HDL: I/O marker name 'dest_x[0]' is not a valid VERILOG identifier; I/O marker name 'dest_x[1]' is not a valid VERILOG identifier; I/O marker name 'dest_x[2]' is"
+ },
+ "gen-epfl-sin": {
+  "load": "skip: convert: too large: out of memory (4096 MB)"
+ },
+ "gen-epfl-voter": {
+  "load": "skip: convert: too large: not drawn in 120 s"
+ },
+ "gen-femtorv32-quark": {
+  "load": "fail: convert: The schematic of 'FemtoRV32' cannot make its HDL: net 'mem_wdata' has 4 drivers (LOGIC_32.mem_wdata, LOGIC_33.mem_wdata, LOGIC_34.mem_wdata, LOGIC_35.mem_wdata)"
+ },
+ "gen-fpu-adder": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:34 'get_a' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_buf_w32 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-fpu-multiplier": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:33 'get_a' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_buf_w32 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b01": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:26 'a' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b02": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:25 'a' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b03": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:34 'init' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b04": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "mismatch: vhdl: the reference's simulation: the simulation stopped (error)",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:31 'sa' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b05": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:18 unknown type 'memdim'",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process, xl_hdl_process_COMB_2, xl_hdl_process_REG_3 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b06": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:33 's_init' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b07": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:18 unknown type 'num8bit'",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b08": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:30 'start_st' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b09": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:33 'zero_9' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b10": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:37 'startup' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b11": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "mismatch: vhdl: the reference's simulation: the simulation stopped (error)",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:26 's_reset' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b12": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:17 'cod_sound' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process, xl_hdl_process_REG_2, xl_hdl_process_REG_3, xl_hdl_process_REG_4 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b13": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process_REG_2.vhd:21 expected identifier but found 'signal'",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process, xl_hdl_process_REG_2, xl_hdl_process_REG_3, xl_hdl_process_REG_4, xl_hdl_process_REG_5 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b14": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b15": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_P0.vhd:45 'stateinit' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_P0, xl_hdl_P1, xl_hdl_P2 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b17": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'b15': project module — ISE uses its HDL source and the b15.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process, xl_hdl_process_REG_2, xl_hdl_process_COMB_3, xl_hdl_process_COMB_4, xl_hdl_process_COMB_5, xl_hdl_process_COMB_6 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b20": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'b14': project module — ISE uses its HDL source and the b14.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'b14rev': project module — ISE uses its HDL source and the b14rev.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b21": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'b14': project module — ISE uses its HDL source and the b14.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'b14_1': project module — ISE uses its HDL source and the b14_1.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-itc99-b22": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'b14': project module — ISE uses its HDL source and the b14.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'b14_1': project module — ISE uses its HDL source and the b14_1.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'b14rev': project module — ISE uses its HDL source and the b14rev.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-iwls05-i2c": {
+  "load": "fail: convert: The schematic of 'i2c_master_top' cannot make its HDL: net 'sr' has 6 drivers (LOGIC_8.sr, LOGIC_9.sr, LOGIC_10.sr, LOGIC_11.sr, LOGIC_12.sr, LOGIC_13.sr)"
+ },
+ "gen-iwls05-sasc": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always_REG_4.v:19 'STOP_BIT' is not declared",
+  "warnings": {
+   "ise": [
+    "export: 'sasc_fifo4': project module — ISE uses its HDL source and the sasc_fifo4.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_REG_2, xl_hdl_always_REG_3, xl_hdl_always_REG_4, xl_hdl_always_REG_5, xl_hdl_always_REG_6, xl_hdl_always_REG_7, xl_hdl_always_REG_8, xl_hdl_always_REG_9, xl_hdl_always_REG_10, xl_hdl_assign, xl_hdl_always_REG_12, xl_hdl_always_REG_13, xl_hdl_always_REG_14, xl_hdl_always_REG_15, xl_hdl_assign_LOGIC_16, xl_hdl_always_REG_17, xl_hdl_always_REG_18, xl_hdl_always_REG_19, xl_hdl_always_REG_20, xl_hdl_always_REG_21, xl_hdl_always_REG_22, xl_hdl_always_COMB_23, xl_hdl_always_REG_24, xl_hdl_always_REG_25, xl_hdl_always_REG_26 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-iwls05-simple-spi": {
+  "load": "fail: convert: The schematic of 'simple_spi_top' cannot make its HDL: net 'spsr' has 7 drivers (LOGIC_9.spsr, LOGIC_10.spsr, LOGIC_11.spsr, LOGIC_12.spsr, LOGIC_13.spsr, LOGIC_14.spsr, LOGIC_15.spsr)"
+ },
+ "gen-iwls05-spi": {
+  "load": "fail: convert: The schematic of 'spi_top' cannot make its HDL: net 'spi_tx_sel' has 4 drivers (LOGIC_3.spi_tx_sel, LOGIC_4.spi_tx_sel, LOGIC_5.spi_tx_sel, LOGIC_6.spi_tx_sel)"
+ },
+ "gen-iwls05-ss-pcm": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_REG_2, xl_hdl_always_REG_3, xl_hdl_assign, xl_hdl_assign_LOGIC_5, xl_hdl_always_REG_6, xl_hdl_always_REG_7, xl_hdl_always_REG_8, xl_hdl_always_REG_9, xl_hdl_always_REG_10, xl_hdl_always_REG_11, xl_hdl_always_REG_12, xl_hdl_always_REG_13, xl_hdl_always_REG_14, xl_slice16_15_15, xl_hdl_always_REG_15, xl_hdl_assign_LOGIC_16, xl_hdl_always_REG_17, xl_hdl_always_REG_18, xl_hdl_always_REG_19, xl_hdl_always_REG_20, xl_hdl_always_REG_21, xl_hdl_always_REG_22, xl_mux2_w8 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-iwls05-usb-phy": {
+  "load": "fail: convert: Not converted: the HDL generated from the schematic of 'usb_phy' would not compile as the module does (error: `else without `ifdef; error: `endif without `ifdef; error: expected identifier but found '"
+ },
+ "gen-light8080": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: src/vhdl/rtl/mcu/mcu80.vhdl:88 generic 'obj_code' has no value",
+  "warnings": {
+   "ise": [
+    "export: 'mcu80': project module — ISE uses its HDL source and the mcu80.sym symbol (or regenerate it with Create Schematic Symbol)"
+   ]
+  }
+ },
+ "gen-nandland-spi-verilog": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_assign.v:13 'SPI_MODE' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_assign, xl_hdl_assign_LOGIC_2, xl_hdl_always, xl_hdl_always_REG_4, xl_hdl_always_REG_5, xl_hdl_always_REG_6, xl_hdl_always_REG_7 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-nandland-spi-vhdl": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_assign.vhd:19 'spi_mode' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_assign, xl_hdl_assign_LOGIC_2, xl_hdl_Edge_Indicator, xl_hdl_Byte_Reg, xl_hdl_MOSI_Data, xl_hdl_MISO_Data, xl_hdl_SPI_Clock — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-neorv32": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: neorv32_test_setup_approm.vhd:47 unknown type 'trace_port_t'",
+  "warnings": {
+   "load": [
+    "convert: Signal <net_13> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "convert: Signal <net_2> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "convert: Signal <net_30> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "convert: Signal <net_31> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_32> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_33> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_34> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_35> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_36> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_37> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_38> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_39> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_40> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_41> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_42> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_43> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_44> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_45> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_46> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_47> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_48> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_49> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_50> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_51> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_52> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_53> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_54> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_55> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_56> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_57> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_58> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_59> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_60> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_61> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_62> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_63> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_64> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_65> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_66> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_67> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_68> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_69> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: input pin cfs_in_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin gpio_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin irq_mei_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin irq_msi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin irq_mti_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin jtag_tck_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin jtag_tdi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin jtag_tms_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin onewire_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin sdi_clk_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin sdi_csn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin sdi_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin slink_rx_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin slink_rx_lst_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin slink_rx_src_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin slink_rx_val_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin slink_tx_rdy_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin smc_sdi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin spi_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin twd_scl_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin twd_sda_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin twi_scl_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin twi_sda_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin uart0_ctsn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin uart0_rxd_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin uart1_ctsn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin uart1_rxd_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin xbus_ack_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin xbus_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "convert: input pin xbus_err_i of neorv32_top_inst (neorv32_top) is not connected"
+   ],
+   "check": [
+    "input pin cfs_in_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin gpio_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin irq_mei_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin irq_msi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin irq_mti_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin jtag_tck_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin jtag_tdi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin jtag_tms_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin onewire_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin sdi_clk_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin sdi_csn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin sdi_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin slink_rx_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin slink_rx_lst_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin slink_rx_src_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin slink_rx_val_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin slink_tx_rdy_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin smc_sdi_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin spi_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin twd_scl_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin twd_sda_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin twi_scl_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin twi_sda_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin uart0_ctsn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin uart0_rxd_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin uart1_ctsn_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin uart1_rxd_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin xbus_ack_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin xbus_dat_i of neorv32_top_inst (neorv32_top) is not connected",
+    "input pin xbus_err_i of neorv32_top_inst (neorv32_top) is not connected"
+   ],
+   "hdl": [
+    "vhdl: neorv32_test_setup_approm.vhd:24: Signal <net_2> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "vhdl: neorv32_test_setup_approm.vhd:35: Signal <net_13> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "vhdl: neorv32_test_setup_approm.vhd:52: Signal <net_30> is used but never assigned. This sourceless signal will be automatically connected to value GND.",
+    "vhdl: neorv32_test_setup_approm.vhd:53: Signal <net_31> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:54: Signal <net_32> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:55: Signal <net_33> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:56: Signal <net_34> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:57: Signal <net_35> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:58: Signal <net_36> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:59: Signal <net_37> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:60: Signal <net_38> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:61: Signal <net_39> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:62: Signal <net_40> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:63: Signal <net_41> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:64: Signal <net_42> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:65: Signal <net_43> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:66: Signal <net_44> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:67: Signal <net_45> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:68: Signal <net_46> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:69: Signal <net_47> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:70: Signal <net_48> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:71: Signal <net_49> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:72: Signal <net_50> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:73: Signal <net_51> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:74: Signal <net_52> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:75: Signal <net_53> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:76: Signal <net_54> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:77: Signal <net_55> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:78: Signal <net_56> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:79: Signal <net_57> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:80: Signal <net_58> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:81: Signal <net_59> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:82: Signal <net_60> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:83: Signal <net_61> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:84: Signal <net_62> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:85: Signal <net_63> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:86: Signal <net_64> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:87: Signal <net_65> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:88: Signal <net_66> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:89: Signal <net_67> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:90: Signal <net_68> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: neorv32_test_setup_approm.vhd:91: Signal <net_69> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "ise": [
+    "export: 'neorv32_top': project module — ISE uses its HDL source and the neorv32_top.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_slice32_7_0 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-secworks-aes": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:41 'CTRL_IDLE' is not declared",
+  "warnings": {
+   "load": [
+    "convert: 'block' is a reserved word of VHDL: rename it",
+    "convert: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "check": [
+    "verilog: 'block' is a reserved word of VHDL: rename it",
+    "verilog: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "ise": [
+    "export: 'aes_decipher_block': project module — ISE uses its HDL source and the aes_decipher_block.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'aes_encipher_block': project module — ISE uses its HDL source and the aes_encipher_block.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'aes_key_mem': project module — ISE uses its HDL source and the aes_key_mem.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'aes_sbox': project module — ISE uses its HDL source and the aes_sbox.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_buf_w128, xl_hdl_always, xl_hdl_always_COMB_2, xl_hdl_always_COMB_3, xl_hdl_always_COMB_4 — add the returned HDL (.v) and .sym files to the ISE project",
+    "import: I/O marker 'block(127:0)' renamed 'block_1' (not a valid HDL identifier or name clash)",
+    "import: I/O marker 'next' renamed 'next_1' (not a valid HDL identifier or name clash)"
+   ]
+  }
+ },
+ "gen-secworks-sha1": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:94 'CTRL_IDLE' is not declared",
+  "warnings": {
+   "load": [
+    "convert: 'block' is a reserved word of VHDL: rename it",
+    "convert: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "check": [
+    "verilog: 'block' is a reserved word of VHDL: rename it",
+    "verilog: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "ise": [
+    "export: 'sha1_w_mem': project module — ISE uses its HDL source and the sha1_w_mem.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_COMB_2, xl_hdl_always_COMB_3, xl_hdl_always_COMB_4, xl_hdl_always_COMB_5 — add the returned HDL (.v) and .sym files to the ISE project",
+    "import: I/O marker 'block(511:0)' renamed 'block_1' (not a valid HDL identifier or name clash)",
+    "import: I/O marker 'next' renamed 'next_1' (not a valid HDL identifier or name clash)"
+   ]
+  }
+ },
+ "gen-secworks-sha256": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:124 'CTRL_IDLE' is not declared",
+  "warnings": {
+   "load": [
+    "convert: 'block' is a reserved word of VHDL: rename it",
+    "convert: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "check": [
+    "verilog: 'block' is a reserved word of VHDL: rename it",
+    "verilog: 'next' is a reserved word of VHDL: rename it"
+   ],
+   "ise": [
+    "export: 'sha256_k_constants': project module — ISE uses its HDL source and the sha256_k_constants.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'sha256_w_mem': project module — ISE uses its HDL source and the sha256_w_mem.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_COMB_2, xl_hdl_always_COMB_3, xl_hdl_always_COMB_4, xl_hdl_always_COMB_5, xl_hdl_always_COMB_6, xl_hdl_always_COMB_7 — add the returned HDL (.v) and .sym files to the ISE project",
+    "import: I/O marker 'block(511:0)' renamed 'block_1' (not a valid HDL identifier or name clash)",
+    "import: I/O marker 'next' renamed 'next_1' (not a valid HDL identifier or name clash)"
+   ]
+  }
+ },
+ "gen-secworks-siphash": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:94 'CTRL_IDLE' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_COMB_2, xl_hdl_always_COMB_3, xl_hdl_always_COMB_4 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-serv": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'serv_rf_ram': project module — ISE uses its HDL source and the serv_rf_ram.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'serv_rf_ram_if': project module — ISE uses its HDL source and the serv_rf_ram_if.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'serv_top': project module — ISE uses its HDL source and the serv_top.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "import: schematic check: width mismatch on net 'raddr': 10 vs 8 vs 2 bits",
+    "import: schematic check: width mismatch on net 'rdata': 2 vs 8 bits",
+    "import: schematic check: width mismatch on net 'waddr': 10 vs 8 vs 2 bits",
+    "import: schematic check: width mismatch on net 'wdata': 2 vs 8 bits"
+   ]
+  }
+ },
+ "gen-spi-fpga-master": {
+  "load": "fail: not saved as it was read (.ports.7.width)",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: SPI_MASTER.vhd:46 expected expression but found ')'",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_assert, xl_hdl_assign, xl_hdl_sys_clk_cnt_reg_p, xl_hdl_spi_clk_gen_p, xl_hdl_assign_LOGIC_3, xl_hdl_bit_cnt_p, xl_hdl_addr_reg_p, xl_hdl_one_slave_g, xl_hdl_more_slaves_g, xl_hdl_din_last_reg_n_p, xl_hdl_miso_reg_p, xl_hdl_shreg_p, xl_buf_w8, xl_hdl_assign_LOGIC_4, xl_hdl_dout_vld_reg_p, xl_hdl_fsm_present_state_p, xl_hdl_fsm_next_state_p, xl_hdl_fsm_outputs_p — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-spi-fpga-slave": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_bit_cnt_p.vhd:20 'bit_cnt_width' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_sync_ffs_p, xl_hdl_spi_clk_reg_p, xl_hdl_bit_cnt_p, xl_hdl_assign, xl_hdl_last_bit_en_p, xl_hdl_shreg_busy_p, xl_hdl_data_shreg_p, xl_hdl_miso_p, xl_buf_w8 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-t80": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_process.vhd:64 't2write' is not declared",
+  "warnings": {
+   "load": [
+    "convert: Signal <net_1> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "convert: Signal <net_2> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "hdl": [
+    "vhdl: T80s.vhd:43: Signal <net_1> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "vhdl: T80s.vhd:44: Signal <net_2> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "ise": [
+    "export: 't80': project module — ISE uses its HDL source and the t80.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_process — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-uart-for-fpga": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: UART.vhd:57 expected expression but found ')'",
+  "warnings": {
+   "ise": [
+    "export: 'uart_clk_div': project module — ISE uses its HDL source and the uart_clk_div.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'uart_rx': project module — ISE uses its HDL source and the uart_rx.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'uart_tx': project module — ISE uses its HDL source and the uart_tx.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_uart_rxd_cdc_reg_p, xl_hdl_use_debouncer_g, xl_hdl_not_use_debouncer_g — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-verilog-i2c-master": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:55 'STATE_IDLE' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_buf_w8, xl_hdl_always, xl_hdl_always_COMB_2, xl_hdl_always_REG_3 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-verilog-lfsr-crc": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:12 'LFSR_INIT' is not declared",
+  "warnings": {
+   "load": [
+    "convert: Signal <net_1> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "hdl": [
+    "verilog: lfsr_crc.v:23: Signal <net_1> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "ise": [
+    "export: 'lfsr': project module — ISE uses its HDL source and the lfsr.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_buf_w32, xl_hdl_always — add the returned HDL (.v) and .sym files to the ISE project",
+    "import: schematic check: width mismatch on net 'lfsr_state': 32 vs 31 bits",
+    "import: schematic check: width mismatch on net 'state_reg': 32 vs 31 bits"
+   ]
+  }
+ },
+ "gen-verilog-lfsr-prbs": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_lfsr_inst_lfsr.v:9 'LFSR_INIT' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_buf_w8, xl_hdl_lfsr_inst_lfsr, xl_hdl_always, xl_hdl_always_REG_2 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-verilog-uart": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: 'uart_rx': project module — ISE uses its HDL source and the uart_rx.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'uart_tx': project module — ISE uses its HDL source and the uart_tx.sym symbol (or regenerate it with Create Schematic Symbol)"
+   ]
+  }
+ },
+ "gen-vtr-ch-intrinsics": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:22 undefined macro `MEMORY_CONTROLLER_ADDR_SIZE",
+  "warnings": {
+   "ise": [
+    "export: 'memory_controller': project module — ISE uses its HDL source and the memory_controller.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_COMB_2 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-vtr-diffeq1": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:26 'x_var' is not declared",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_assign, xl_hdl_always — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-vtr-diffeq2": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_assign, xl_hdl_always — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-vtr-mkPktMerge": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_assign.v:15 expected identifier but found 'wire'",
+  "warnings": {
+   "ise": [
+    "export: 'arSRLFIFO_a': project module — ISE uses its HDL source and the arSRLFIFO_a.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'arSRLFIFO_b': project module — ISE uses its HDL source and the arSRLFIFO_b.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: 'arSRLFIFO_c': project module — ISE uses its HDL source and the arSRLFIFO_c.sym symbol (or regenerate it with Create Schematic Symbol)",
+    "export: ISE symbols not in the Xilinx library: xl_buf_w153, xl_hdl_assign, xl_hdl_assign_LOGIC_2, xl_hdl_assign_LOGIC_3, xl_hdl_assign_LOGIC_4, xl_hdl_assign_LOGIC_5, xl_hdl_assign_LOGIC_6, xl_hdl_assign_LOGIC_7, xl_hdl_assign_LOGIC_8, xl_mux2_w153, xl_hdl_assign_LOGIC_9, xl_hdl_assign_LOGIC_10, xl_hdl_always, xl_hdl_assign_LOGIC_12, xl_hdl_assign_LOGIC_13, xl_hdl_assign_LOGIC_14, xl_hdl_assign_LOGIC_15, xl_hdl_assign_LOGIC_16, xl_hdl_always_COMB_17, xl_hdl_assign_LOGIC_18, xl_hdl_assign_LOGIC_19, xl_hdl_always_REG_20 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-vtr-sha": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always_REG_5.v:93 undefined macro `SHA1_H0",
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_buf_w4, xl_hdl_always, xl_xor2_w32, xl_and2_w32, xl_and2b1_w32, xl_xor3_w32, xl_hdl_assign, xl_xor4_w32, xl_join_31_1, xl_hdl_assign_LOGIC_3, xl_join_2_30, xl_join_32_32_32_32_32, xl_hdl_assign_LOGIC_4, xl_hdl_always_REG_5, xl_hdl_always_REG_6, xl_hdl_always_REG_7 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "gen-vtr-stereovision3": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "mismatch: does not elaborate: xl_hdl_always.v:21 'horiz' is not declared",
+  "warnings": {
+   "load": [
+    "convert: I/O marker 'tm3_vidin_llc' is not connected"
+   ],
+   "check": [
+    "I/O marker 'tm3_vidin_llc' is not connected"
+   ],
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_hdl_always, xl_hdl_always_REG_2, xl_hdl_always_REG_3, xl_hdl_always_COMB_4, xl_hdl_always_REG_5 — add the returned HDL (.v) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "half_adder": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 2,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "ise-Counter_2b": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "skip: no reference",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 1,
+   "ffs": 2
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "ise-list1": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "skip: no reference",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 1,
+   "ffs": 4
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "ise-Mux4to1b4": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 8,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "ise-MyAND2b4": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 4,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  }
+ },
+ "mux_dec": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 16,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_mux2_w2, xl_mux4s_w1, xl_mux8e_w1, xl_penc2, xl_demux1_w1 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "net_names": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 6,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_xor2_w4, xl_and2_w4 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "tap_range": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "skip: no reference",
+  "ise": "mismatch: the reference's simulation: the simulation stopped (error)",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "hdl": [
+    "verilog: tap_range.v:10: index 5 out of range for 'a'",
+    "verilog: tap_range.v:6: Input <a<3:0>> is never used.",
+    "vhdl: tap_range.vhd:16: index 5 out of range for 'a'",
+    "vhdl: tap_range.vhd:9: Input <a<3:0>> is never used."
+   ],
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_slice4_5_5 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "tap_reversed": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "skip: no reference",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "hdl": [
+    "verilog: tap_reversed.v:6: Input <a<0>> is never used.",
+    "verilog: tap_reversed.v:6: Input <a<3>> is never used.",
+    "vhdl: tap_reversed.vhd:9: Input <a<0>> is never used.",
+    "vhdl: tap_reversed.vhd:9: Input <a<3>> is never used."
+   ],
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_slice4_1_2 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ },
+ "tristate": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 2,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_tbufe_w1, xl_tbuft_w1, xl_tbufe_w2 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ],
+   "synth": [
+    "Warning: multiple conflicting drivers for tristate.$…"
+   ]
+  }
+ },
+ "vcc_gnd": {
+  "load": "pass",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
+  "synth": "pass",
+  "flow": "complete",
+  "quality": {
+   "luts": 0,
+   "ffs": 0
+  },
+  "parts": {
+   "xc3s100ecp132-4": "complete",
+   "xc3s250ecp132-4": "complete",
+   "xc3s500efg320-4": "complete",
+   "xc3s1200efg320-4": "complete"
+  },
+  "warnings": {
+   "ise": [
+    "export: ISE symbols not in the Xilinx library: xl_const4_hf, xl_const4_ha, xl_const4_h3, xl_add4, xl_const2_h0, xl_join_2_2 — add the returned HDL (.vhd) and .sym files to the ISE project"
+   ]
+  }
+ }
+}

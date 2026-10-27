@@ -1,0 +1,194 @@
+{
+  "about": "The schematic corpus (#1687): the hand-made schematics (hand/, Silinx own, AGPL-3.0-only, drawn by make-hand.mjs), the ISE fixtures (test/fixtures/ise-sch/) and the gates example, each with its reference (an HDL design of the same behaviour); run by run.mjs and test/schematic-corpus.test.js. The schematics generated from the design corpus (test/designs-corpus/manifest.json) are made at run time, never committed.",
+  "schematics": [
+    {
+      "name": "bus_taps",
+      "source": "hand",
+      "file": "hand/bus_taps.sch.json",
+      "ref": [
+        "hand/bus_taps.ref.vhd"
+      ],
+      "covers": "Bus taps: one bit, several bits, bits in the other order through a bus join, a tap of an internal bus, taps into a gate."
+    },
+    {
+      "name": "bus_taps_turned",
+      "source": "hand",
+      "file": "hand/bus_taps_turned.sch.json",
+      "ref": [
+        "hand/bus_taps_turned.ref.vhd"
+      ],
+      "covers": "Bus taps turned (90, 180, 270), mirrored, the markers on their four sides: y is a, bit by bit."
+    },
+    {
+      "name": "bus_join",
+      "source": "hand",
+      "file": "hand/bus_join.sch.json",
+      "ref": [
+        "hand/bus_join.ref.vhd"
+      ],
+      "covers": "Bus joins of parts of several widths, a join of joins, a bus split again by taps."
+    },
+    {
+      "name": "net_names",
+      "source": "hand",
+      "file": "hand/net_names.sch.json",
+      "ref": [
+        "hand/net_names.ref.vhd"
+      ],
+      "covers": "Nets joined by name only: a bus named d(3:0), names used in several places, a marker's net named after it."
+    },
+    {
+      "name": "gates_inverted",
+      "source": "hand",
+      "file": "hand/gates_inverted.sch.json",
+      "ref": [
+        "hand/gates_inverted.ref.vhd"
+      ],
+      "covers": "Gates of 2 to 5 inputs, with inverted inputs (AND2B1, OR3B2, NAND3B1, AND4B2), NOR, XOR, XNOR, and bitwise gates of a width."
+    },
+    {
+      "name": "vcc_gnd",
+      "source": "hand",
+      "file": "hand/vcc_gnd.sch.json",
+      "ref": [
+        "hand/vcc_gnd.ref.vhd"
+      ],
+      "covers": "VCC and GND, of one bit and of a width, constants, a constant into an adder."
+    },
+    {
+      "name": "arith",
+      "source": "hand",
+      "file": "hand/arith.sch.json",
+      "ref": [
+        "hand/arith.ref.vhd"
+      ],
+      "covers": "An adder with carry in and out, a subtractor with borrow out, comparators (unsigned and signed)."
+    },
+    {
+      "name": "mux_dec",
+      "source": "hand",
+      "file": "hand/mux_dec.sch.json",
+      "ref": [
+        "hand/mux_dec.ref.vhd"
+      ],
+      "covers": "Multiplexers (M2_1 of a width, M4_1, M8_1 with its select as a bus), a decoder with enable, a priority encoder, a demultiplexer."
+    },
+    {
+      "name": "flipflops",
+      "source": "hand",
+      "file": "hand/flipflops.sch.json",
+      "ref": [
+        "hand/flipflops.ref.vhd"
+      ],
+      "covers": "Flip-flops (FD, FDC, FDCE, FDRE, FDPE, FTCE), a register and up / down counters, the clock through a BUFG."
+    },
+    {
+      "name": "tristate",
+      "source": "hand",
+      "file": "hand/tristate.sch.json",
+      "ref": [
+        "hand/tristate.ref.vhd"
+      ],
+      "covers": "Tri-state buffers (BUFE, BUFT) sharing one net, a bus of them."
+    },
+    {
+      "name": "half_adder",
+      "source": "hand",
+      "file": "hand/half_adder.sch.json",
+      "ref": [
+        "hand/half_adder.ref.vhd"
+      ],
+      "covers": "A half adder (the module the full adder instantiates)."
+    },
+    {
+      "name": "full_adder",
+      "source": "hand",
+      "file": "hand/full_adder.sch.json",
+      "ref": [
+        "hand/full_adder.ref.vhd"
+      ],
+      "uses": [
+        "half_adder"
+      ],
+      "covers": "A full adder of two half adders: module symbols of another schematic of the project."
+    },
+    {
+      "name": "curved_hops",
+      "source": "hand",
+      "file": "hand/curved_hops.sch.json",
+      "ref": [
+        "hand/curved_hops.ref.vhd"
+      ],
+      "covers": "Wires drawn as curves, crossing without connecting (hops), a wire with a bend on another's segment."
+    },
+    {
+      "name": "bus_bitnames",
+      "source": "hand",
+      "file": "hand/bus_bitnames.sch.json",
+      "ref": [
+        "hand/bus_bitnames.ref.vhd"
+      ],
+      "covers": "ISE's way of tapping a bus: the tap's wire named a(0), the bit it takes (#1688)."
+    },
+    {
+      "name": "bus_offset",
+      "source": "hand",
+      "file": "hand/bus_offset.sch.json",
+      "ref": [
+        "hand/bus_offset.ref.vhd"
+      ],
+      "covers": "A bus named d(7:4) and a tap of its bit 7 (#1689)."
+    },
+    {
+      "name": "tap_range",
+      "source": "hand",
+      "file": "hand/tap_range.sch.json",
+      "covers": "A tap of bit 5 of a 4-bit bus (#1690)."
+    },
+    {
+      "name": "tap_reversed",
+      "source": "hand",
+      "file": "hand/tap_reversed.sch.json",
+      "covers": "A tap with its MSB below its LSB, MSB 1 and LSB 2 (#1691)."
+    },
+    {
+      "name": "ise-MyAND2b4",
+      "source": "ise",
+      "file": "../fixtures/ise-sch/MyAND2b4.sch",
+      "ref": [
+        "ise/MyAND2b4.ref.vhd"
+      ],
+      "covers": "an ISE schematic (test/fixtures/ise-sch/README.md): imported, saved, exported and imported again"
+    },
+    {
+      "name": "ise-Mux4to1b4",
+      "source": "ise",
+      "file": "../fixtures/ise-sch/Mux4to1b4.sch",
+      "ref": [
+        "ise/Mux4to1b4.ref.vhd"
+      ],
+      "covers": "an ISE schematic (test/fixtures/ise-sch/README.md): imported, saved, exported and imported again"
+    },
+    {
+      "name": "ise-list1",
+      "source": "ise",
+      "file": "../fixtures/ise-sch/list1.sch",
+      "covers": "an ISE schematic (test/fixtures/ise-sch/README.md): imported, saved, exported and imported again"
+    },
+    {
+      "name": "ise-Counter_2b",
+      "source": "ise",
+      "file": "../fixtures/ise-sch/Counter_2b.sch",
+      "covers": "an ISE schematic (test/fixtures/ise-sch/README.md): imported, saved, exported and imported again"
+    },
+    {
+      "name": "gates",
+      "source": "example",
+      "file": "../../examples/gates/src/gates.sch.json",
+      "ref": [
+        "example/gates.ref.vhd"
+      ],
+      "covers": "the gates example: bus taps, a bus join, NOT / AND / OR / NAND gates"
+    }
+  ]
+}

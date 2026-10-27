@@ -21,6 +21,7 @@
     "test:designs": "node test/designs-corpus/run.mjs",
     "fetch:designs": "node scripts/fetch-design-corpus.mjs",
     "test:hls": "node test/hls-corpus/run.mjs",
+    "test:schematics": "node test/schematic-corpus/run.mjs",
     "test:diagrams": "node --test test/diagram-corpus/*.test.js",
     "fetch:diagrams": "node scripts/fetch-diagram-corpus.mjs",
     "fetch:yosys-tests": "node scripts/fetch-yosys-tests.mjs",

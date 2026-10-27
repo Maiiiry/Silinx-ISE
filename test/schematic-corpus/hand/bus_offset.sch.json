@@ -1,0 +1,165 @@
+{
+ "version": 4,
+ "name": "bus_offset",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "buf",
+   "x": 360,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_1",
+   "params": {
+    "width": 4
+   }
+  },
+  {
+   "id": "S2",
+   "type": "slice",
+   "x": 620,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_2",
+   "params": {
+    "msb": 7,
+    "lsb": 7
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 120,
+     "y": 80
+    },
+    {
+     "x": 140,
+     "y": 80
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 1560,
+     "y": 80
+    },
+    {
+     "x": 1540,
+     "y": 80
+    }
+   ]
+  },
+  {
+   "id": "W5",
+   "points": [
+    {
+     "x": 360,
+     "y": 90
+    },
+    {
+     "x": 340,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 420,
+     "y": 90
+    },
+    {
+     "x": 440,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W9",
+   "points": [
+    {
+     "x": 620,
+     "y": 90
+    },
+    {
+     "x": 600,
+     "y": 90
+    }
+   ]
+  },
+  {
+   "id": "W11",
+   "points": [
+    {
+     "x": 660,
+     "y": 90
+    },
+    {
+     "x": 680,
+     "y": 90
+    }
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "id": "L6",
+   "x": 340,
+   "y": 90,
+   "net": "a"
+  },
+  {
+   "id": "L8",
+   "x": 440,
+   "y": 90,
+   "net": "d(7:4)"
+  },
+  {
+   "id": "L10",
+   "x": 600,
+   "y": 90,
+   "net": "d"
+  },
+  {
+   "id": "L12",
+   "x": 680,
+   "y": 90,
+   "net": "y"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 4,
+   "x": 120,
+   "y": 80
+  },
+  {
+   "id": "P3",
+   "name": "y",
+   "dir": "out",
+   "width": 1,
+   "x": 1560,
+   "y": 80
+  }
+ ],
+ "description": "A bus named d(7:4) and a tap of its bit 7 (#1689).",
+ "generatedFile": "bus_offset.vhd"
+}

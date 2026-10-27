@@ -1,0 +1,453 @@
+{
+ "version": 4,
+ "name": "vcc_gnd",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "vcc",
+   "x": 80,
+   "y": 60,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_1",
+   "params": {
+    "width": 1
+   }
+  },
+  {
+   "id": "S2",
+   "type": "gnd",
+   "x": 80,
+   "y": 320,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_2",
+   "params": {
+    "width": 1
+   }
+  },
+  {
+   "id": "S3",
+   "type": "vcc",
+   "x": 80,
+   "y": 130,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_3",
+   "params": {
+    "width": 4
+   }
+  },
+  {
+   "id": "S4",
+   "type": "constant",
+   "x": 80,
+   "y": 230,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_4",
+   "params": {
+    "value": "10",
+    "width": 4
+   }
+  },
+  {
+   "id": "S5",
+   "type": "constant",
+   "x": 80,
+   "y": 480,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_5",
+   "params": {
+    "value": "3",
+    "width": 4
+   }
+  },
+  {
+   "id": "S6",
+   "type": "add",
+   "x": 190,
+   "y": 460,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_6",
+   "params": {
+    "width": 4,
+    "cin": false,
+    "cout": false,
+    "bits": false
+   }
+  },
+  {
+   "id": "S7",
+   "type": "gnd",
+   "x": 220,
+   "y": 390,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_7",
+   "params": {
+    "width": 2
+   }
+  },
+  {
+   "id": "S8",
+   "type": "slice",
+   "x": 210,
+   "y": 330,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_8",
+   "params": {
+    "msb": 3,
+    "lsb": 2
+   }
+  },
+  {
+   "id": "S9",
+   "type": "busjoin",
+   "x": 340,
+   "y": 340,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_9",
+   "params": {
+    "widths": "2,2"
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W1",
+   "points": [
+    {
+     "x": 450,
+     "y": 110
+    },
+    {
+     "x": 90,
+     "y": 110
+    },
+    {
+     "x": 90,
+     "y": 90
+    }
+   ]
+  },
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 450,
+     "y": 300
+    },
+    {
+     "x": 90,
+     "y": 300
+    },
+    {
+     "x": 90,
+     "y": 320
+    }
+   ]
+  },
+  {
+   "id": "W3",
+   "points": [
+    {
+     "x": 450,
+     "y": 180
+    },
+    {
+     "x": 90,
+     "y": 180
+    },
+    {
+     "x": 90,
+     "y": 160
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 120,
+     "y": 240
+    },
+    {
+     "x": 450,
+     "y": 240
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W5",
+   "points": [
+    {
+     "x": 120,
+     "y": 490
+    },
+    {
+     "x": 190,
+     "y": 490
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W6",
+   "points": [
+    {
+     "x": 120,
+     "y": 430
+    },
+    {
+     "x": 140,
+     "y": 430
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 140,
+     "y": 430
+    },
+    {
+     "x": 140,
+     "y": 340
+    },
+    {
+     "x": 210,
+     "y": 340
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W8",
+   "points": [
+    {
+     "x": 140,
+     "y": 430
+    },
+    {
+     "x": 140,
+     "y": 470
+    },
+    {
+     "x": 190,
+     "y": 470
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W9",
+   "points": [
+    {
+     "x": 270,
+     "y": 490
+    },
+    {
+     "x": 450,
+     "y": 490
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W10",
+   "points": [
+    {
+     "x": 340,
+     "y": 370
+    },
+    {
+     "x": 230,
+     "y": 370
+    },
+    {
+     "x": 230,
+     "y": 390
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W11",
+   "points": [
+    {
+     "x": 250,
+     "y": 340
+    },
+    {
+     "x": 290,
+     "y": 340
+    },
+    {
+     "x": 290,
+     "y": 350
+    },
+    {
+     "x": 340,
+     "y": 350
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W12",
+   "points": [
+    {
+     "x": 380,
+     "y": 360
+    },
+    {
+     "x": 450,
+     "y": 360
+    }
+   ],
+   "bus": true
+  }
+ ],
+ "labels": [
+  {
+   "id": "L1",
+   "x": 140,
+   "y": 490,
+   "net": "three"
+  },
+  {
+   "id": "L2",
+   "x": 230,
+   "y": 370,
+   "net": "g2"
+  },
+  {
+   "id": "L3",
+   "x": 270,
+   "y": 340,
+   "net": "ahi"
+  },
+  {
+   "id": "L4",
+   "x": 430,
+   "y": 110,
+   "net": "one"
+  },
+  {
+   "id": "L5",
+   "x": 430,
+   "y": 300,
+   "net": "zero"
+  },
+  {
+   "id": "L6",
+   "x": 430,
+   "y": 180,
+   "net": "ones"
+  },
+  {
+   "id": "L7",
+   "x": 140,
+   "y": 240,
+   "net": "k"
+  },
+  {
+   "id": "L8",
+   "x": 140,
+   "y": 410,
+   "net": "a"
+  },
+  {
+   "id": "L9",
+   "x": 290,
+   "y": 490,
+   "net": "s"
+  },
+  {
+   "id": "L10",
+   "x": 140,
+   "y": 400,
+   "net": "a"
+  },
+  {
+   "id": "L11",
+   "x": 400,
+   "y": 360,
+   "net": "y"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 4,
+   "x": 120,
+   "y": 430
+  },
+  {
+   "id": "P3",
+   "name": "one",
+   "dir": "out",
+   "width": 1,
+   "x": 450,
+   "y": 110
+  },
+  {
+   "id": "P5",
+   "name": "zero",
+   "dir": "out",
+   "width": 1,
+   "x": 450,
+   "y": 300
+  },
+  {
+   "id": "P7",
+   "name": "ones",
+   "dir": "out",
+   "width": 4,
+   "x": 450,
+   "y": 180
+  },
+  {
+   "id": "P9",
+   "name": "k",
+   "dir": "out",
+   "width": 4,
+   "x": 450,
+   "y": 240
+  },
+  {
+   "id": "P11",
+   "name": "s",
+   "dir": "out",
+   "width": 4,
+   "x": 450,
+   "y": 490
+  },
+  {
+   "id": "P13",
+   "name": "y",
+   "dir": "out",
+   "width": 4,
+   "x": 450,
+   "y": 360
+  }
+ ],
+ "description": "VCC and GND, of one bit and of a width, constants, a constant into an adder.",
+ "generatedFile": "vcc_gnd.vhd"
+}
