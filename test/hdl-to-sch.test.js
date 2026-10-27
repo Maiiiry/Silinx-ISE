@@ -220,6 +220,84 @@ test('a file with other design units keeps them; the module goes to a file of it
   assert.equal(r4.hdlPath, 'sim/tb_proc.v');
 });
 
+test('#1715 a vector driven part by part in separate statements: one HDL block holding them, in Verilog and in VHDL', async () => {
+  const V = {
+    'src/pp.v': `module pp(input clk, input [7:0] a, input s, output [7:0] y, output z);
+  reg [7:0] r = 0;
+  assign y[3:0] = a[3:0];
+  // the high half
+  assign y[7:4] = s ? a[3:0] : a[7:4];
+  always @(posedge clk) r[3:0] <= y[3:0] + 1;
+  always @(posedge clk) r[7:4] <= r[3:0] ^ y[7:4];
+  assign z = ^r;
+endmodule
+`,
+    'sim/tb_pp.v': `\`timescale 1ns / 1ps
+module tb_pp;
+  reg clk = 0, s = 0;
+  reg [7:0] a = 8'h35;
+  wire [7:0] y;
+  wire z;
+  pp uut (.clk(clk), .a(a), .s(s), .y(y), .z(z));
+  always #5 clk = ~clk;
+  initial begin
+    repeat (16) begin #7 a = a * 3 + 1; s = ~s; end
+    $finish;
+  end
+endmodule
+`,
+  };
+  const H = {
+    'src/pp.vhd': `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity pp is port (clk : in std_logic; a : in std_logic_vector(7 downto 0); s : in std_logic; y : out std_logic_vector(7 downto 0); z : out std_logic); end pp;
+architecture rtl of pp is
+  signal r, t : std_logic_vector(7 downto 0) := (others => '0');
+begin
+  t(3 downto 0) <= a(3 downto 0);
+  -- the high half
+  t(7 downto 4) <= a(3 downto 0) when s = '1' else a(7 downto 4);
+  y <= t;
+  process (clk) begin if rising_edge(clk) then r(3 downto 0) <= std_logic_vector(unsigned(t(3 downto 0)) + 1); end if; end process;
+  process (clk) begin if rising_edge(clk) then r(7 downto 4) <= r(3 downto 0) xor t(7 downto 4); end if; end process;
+  z <= r(0) xor r(1) xor r(2) xor r(3) xor r(4) xor r(5) xor r(6) xor r(7);
+end rtl;
+`,
+    'sim/tb_pp.vhd': `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity tb_pp is end tb_pp;
+architecture sim of tb_pp is
+  signal clk, s, z : std_logic := '0';
+  signal a, y : std_logic_vector(7 downto 0) := x"35";
+begin
+  uut : entity work.pp port map (clk => clk, a => a, s => s, y => y, z => z);
+  clk <= not clk after 5 ns;
+  process begin
+    for i in 0 to 15 loop wait for 7 ns; a <= std_logic_vector(unsigned(a) * 3 + 1)(7 downto 0); s <= not s; end loop;
+    wait;
+  end process;
+end sim;
+`,
+  };
+  for (const [files, blocks] of [
+    [V, ['assign y[3:0] = a[3:0];\n// the high half\nassign y[7:4] = s ? a[3:0] : a[7:4];', 'always @(posedge clk) r[3:0] <= y[3:0] + 1;\nalways @(posedge clk) r[7:4] <= r[3:0] ^ y[7:4];', 'assign z = ^r;']],
+    [H, ["t(3 downto 0) <= a(3 downto 0);\n-- the high half\nt(7 downto 4) <= a(3 downto 0) when s = '1' else a(7 downto 4);",
+      'process (clk) begin if rising_edge(clk) then r(3 downto 0) <= std_logic_vector(unsigned(t(3 downto 0)) + 1); end if; end process;\nprocess (clk) begin if rising_edge(clk) then r(7 downto 4) <= r(3 downto 0) xor t(7 downto 4); end if; end process;']],
+  ]) {
+    const sources = srcList(files);
+    const r = await convertModuleToSchematic({ sources, module: 'pp', layout });
+    assert.deepEqual(r.warnings, []);
+    const hb = r.doc.symbols.filter(s => s.type === 'hdlblock');
+    assert.deepEqual(hb.map(s => s.hdl), blocks);
+    // each block one net's driver: its outputs and inputs
+    const t = files === V ? 'y' : 't';
+    assert.deepEqual(hb.slice(0, 2).map(s => [s.params.inputs.map(q => q.name), s.params.outputs.map(q => q.name)]), [[['a', 's'], [t]], [['clk', t], ['r']]]);
+    const after = applied(sources, r);
+    assert.deepEqual(messages(after, 'tb_pp'), messages(sources, 'tb_pp'));
+    const a = waves(sources, 'tb_pp', 200e3), b = waves(after, 'tb_pp', 200e3);
+    assert.ok(a.waves.z.split(' ').length > 4, 'the testbench makes activity');
+    assert.deepEqual(b.waves, a.waves);
+  }
+});
+
 test('the HDL that is not drawn is kept: comments, attributes, compiler directives, port modes and defaults, initial values', async () => {
   const conv = async name => { const c = CASES.find(x => x.name === name); const r = await convertModuleToSchematic({ sources: srcList(c.files), module: c.module, layout }); return r.writes[r.hdlPath]; };
   // VHDL: a buffer port, the ports' default values, comments above and after the statements
