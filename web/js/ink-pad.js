@@ -5,10 +5,11 @@
 // characters recognized can be shown under their ink.
 //
 //   const pad = mountInkPad(host, { onStroke(strokes) });
-//   pad.strokes(), pad.undo(), pad.redo(), pad.canUndo(), pad.canRedo(), pad.clear(), pad.setLabels([{ ch, box }]),
-//   pad.view(), pad.fit(), pad.onChange(f), pad.canvas, pad.destroy()
+//   pad.strokes(), pad.devices(), pad.load(strokes), pad.undo(), pad.redo(), pad.canUndo(), pad.canRedo(), pad.clear(),
+//   pad.setLabels([{ ch, box }]), pad.view(), pad.fit(), pad.onChange(f), pad.canvas, pad.destroy()
 //   padButtons(pad) -> the row of its Undo, Redo and Clear buttons (and their keys: Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z)
-// Undo takes back the last stroke or the last Clear, Redo does it again; a new stroke ends what can be redone (#1092).
+// Undo takes back the last stroke, Clear or drawing loaded (#1749), Redo does it again; a new stroke ends what can be
+// redone (#1092). devices(): what drew the strokes (pen, touch, mouse), for a drawing kept (#1749).
 // Styles: web/css/ink.css.
 import { h, twoFingerView } from './ui.js';
 
@@ -20,7 +21,8 @@ export function mountInkPad(host, { onStroke } = {}) {
   const fitBtn = h('button', { type: 'button', class: 'btn ink-fit', title: 'Show the whole drawing', onclick: () => fit() }, 'Fit');
   host.append(fitBtn);
   let strokes = [], cur = null, penSeen = false, labels = [];
-  // what was done ({ add: stroke } | { clear: the strokes before }) and what was undone, to redo
+  // what was done ({ add: stroke } | { was: the strokes before, now: after }, a Clear or a drawing loaded) and what was
+  // undone, to redo
   const done = [], undone = [], listeners = new Set();
   // (the strokes changed: the dialog's recognizer, the buttons' states)
   const changed = () => { onStroke?.(strokes); listeners.forEach(f => f()); };
@@ -80,7 +82,7 @@ export function mountInkPad(host, { onStroke } = {}) {
     if (e.pointerType === 'pen') penSeen = true;
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch { /* not an active pointer */ }
-    cur = { id: e.pointerId, pts: [point(e)] };
+    cur = { id: e.pointerId, pts: Object.assign([point(e)], { device: e.pointerType }) };
     strokes.push(cur.pts);
     labels = [];
     draw();
@@ -117,6 +119,12 @@ export function mountInkPad(host, { onStroke } = {}) {
   const still = e => { if (e.cancelable) e.preventDefault(); };
   canvas.addEventListener('touchstart', still, { passive: false });
   canvas.addEventListener('touchmove', still, { passive: false });
+  // the strokes replaced (a Clear: by none), one step of Undo
+  const replace = next => {
+    if (cur) { strokes.splice(strokes.indexOf(cur.pts), 1); cur = null; }
+    if (strokes.length || next.length) { done.push({ was: strokes, now: next }); undone.length = 0; }
+    strokes = next; labels = []; draw(); changed();
+  };
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => draw()) : null;
   ro?.observe(canvas);
   requestAnimationFrame(draw);
@@ -127,25 +135,24 @@ export function mountInkPad(host, { onStroke } = {}) {
     undo() {
       const a = !cur && done.pop();
       if (!a) return;
-      if (a.add) strokes.splice(strokes.lastIndexOf(a.add), 1); else strokes = a.clear;
+      if (a.add) strokes.splice(strokes.lastIndexOf(a.add), 1); else strokes = a.was;
       undone.push(a);
       labels = []; draw(); changed();
     },
     redo() {
       const a = !cur && undone.pop();
       if (!a) return;
-      if (a.add) strokes.push(a.add); else strokes = [];
+      if (a.add) strokes.push(a.add); else strokes = a.now;
       done.push(a);
       labels = []; draw(); changed();
     },
     onChange: f => listeners.add(f),
     canUndo: () => done.length > 0,
     canRedo: () => undone.length > 0,
-    clear() {
-      if (cur) { strokes.splice(strokes.indexOf(cur.pts), 1); cur = null; }
-      if (strokes.length) { done.push({ clear: strokes }); undone.length = 0; }
-      strokes = []; labels = []; draw(); changed();
-    },
+    clear() { replace([]); },
+    // a drawing kept (#1749): its strokes instead of the pad's, the whole of it in view
+    load(list) { replace(list.map(s => Object.assign(s.map(p => ({ x: p.x, y: p.y })), { device: s.device }))); fit(); },
+    devices: () => [...new Set(strokes.map(s => s.device).filter(Boolean))],
     setLabels(list) { labels = list || []; draw(); },
     view: () => ({ ...v }),
     fit,

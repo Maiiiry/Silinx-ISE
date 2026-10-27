@@ -184,7 +184,7 @@ uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in 
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), summary, label, .hint')].map((e) => e.textContent.trim()).filter(Boolean), D);
     assert.deepEqual(labels, [
       "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
-      'Ajustar', 'Anular', 'Refazer', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
+      'Ajustar', 'Anular', 'Refazer', 'Limpar', 'Copiar Desenho', 'Colar Desenho', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
       'Escreva um símbolo na área de escrita, escreva-o aqui e guarde-o: o Silinx passa a ler também a sua maneira de o escrever. As amostras ficam só neste navegador.',
       'Símbolo:', 'Guardar Amostra', 'Esquecer as Minhas Amostras', 'Inserir', 'Cancelar',
     ]);
@@ -273,6 +273,59 @@ uiTest('Handwritten expressions: the pad zoomed and moved with two fingers and t
   const [s4] = await view(page);
   assert.ok(s4 > s3, `${s4} ${s3}`);
   assert.equal(await recognized(page), 'F = A + B');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  assert.deepEqual(warnings(page), []);
+}, { skip: chromeOnly });
+
+// #1749: Copy Drawing (the pad's drawing as text, its kind, devices, what was read) and Paste Drawing (loaded back,
+// read again, one step of Undo; a drawing of another kind refused); a browser that does not let the page copy: the text
+// shown to copy by hand
+uiTest('Handwritten expressions: Copy Drawing and Paste Drawing; a drawing of another kind refused', E, async (page) => {
+  await page.eval(() => { window.__copied = []; navigator.clipboard.writeText = async (t) => { window.__copied.push(t); }; navigator.clipboard.readText = async () => window.__copied.at(-1) ?? ''; });
+  void page.eval(async () => { window.__ink = (await import('/js/ink-dialog.js')).handwrittenExpression({ vars: ['A', 'B'] }); });
+  await page.waitDialog('Handwritten Expression');
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-copy`).disabled, D), true);
+  await write(page, 'F=A+B', { seed: 2, kind: () => 'pen' });
+  await waitText(page, 'F = A + B');
+  await page.click(`${D} .ink-copy`);
+  const copied = await page.waitFor(() => window.__copied.at(-1), [], { what: 'the drawing copied' });
+  const d = JSON.parse(copied);
+  assert.deepEqual([d.silinx, d.version, d.kind, d.devices, d.vars, d.read], ['ink-drawing', 1, 'expression', ['pen'], ['A', 'B'], 'F = A + B']);
+  assert.ok(d.strokes.length >= 7 && d.strokes.every((s) => s.length >= 4), String(d.strokes.length));
+  await page.waitFor(() => /^Drawing copied/.test(document.querySelector('.toast')?.textContent || ''), [], { what: 'the toast' });
+  // pasted back after a Clear: read again; Undo: the pad empty again
+  await page.click(`${D} .ink-clear`);
+  await waitText(page, '');
+  await page.click(`${D} .ink-paste`);
+  await page.waitDialog('Paste Drawing');
+  await page.waitFor(() => document.querySelector('.dlg-overlay:last-child .ink-drawing-text')?.value.startsWith('{"silinx"'), [], { what: 'the clipboard read' });
+  await page.dialogButton('Load');
+  await page.waitDialog('Handwritten Expression');
+  await waitText(page, 'F = A + B');
+  await page.click(`${D} .ink-undo`);
+  await waitText(page, '');
+  // a schematic's drawing: refused, with its message; not a drawing at all, too
+  await page.click(`${D} .ink-paste`);
+  await page.waitDialog('Paste Drawing');
+  await page.fill('.dlg-overlay:last-child .ink-drawing-text', JSON.stringify({ ...d, kind: 'schematic' }));
+  await page.dialogButton('Load');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay:last-child .ink-msg').textContent), 'This is a drawing of a schematic, not of an expression.');
+  await page.fill('.dlg-overlay:last-child .ink-drawing-text', 'hello');
+  await page.dialogButton('Load');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay:last-child .ink-msg').textContent), 'Not a Silinx drawing: the text is not one copied with Copy Drawing.');
+  await page.dialogButton('Cancel');
+  await page.waitDialog('Handwritten Expression');
+  // the page not allowed to copy: the drawing's text shown, selected
+  await page.click(`${D} .ink-redo`);
+  await waitText(page, 'F = A + B');
+  await page.eval(() => { navigator.clipboard.writeText = async () => { throw new Error('not allowed'); }; });
+  await page.click(`${D} .ink-copy`);
+  await page.waitDialog('Copy Drawing');
+  const shown = await page.waitFor(() => { const a = document.querySelector('.dlg-overlay:last-child .ink-drawing-text'); return a && a.value && a.selectionStart === 0 && a.selectionEnd === a.value.length ? a.value : null; }, [], { what: 'the drawing\'s text selected' });
+  assert.equal(JSON.parse(shown).read, 'F = A + B');
+  await page.dialogButton('Close');
+  await page.waitDialog('Handwritten Expression');
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
   assert.deepEqual(warnings(page), []);

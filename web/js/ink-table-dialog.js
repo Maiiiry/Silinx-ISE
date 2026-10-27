@@ -8,6 +8,7 @@
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
 import { mountInkPad, padButtons } from './ink-pad.js';
+import { drawingButtons } from './ink-drawing.js';
 import { inkTemplates } from './ink-dialog.js';
 import { readTable, tableFromText } from '/core/ink/table.js';
 import { InkError } from '/core/ink/segment.js';
@@ -44,10 +45,13 @@ export function handwrittenTable({ check = () => null, title = 'Handwritten Trut
     }
   }
   text.addEventListener('input', () => verdict());
+  // Undo, Redo, Clear; Copy Drawing and Paste Drawing (#1749)
+  const padRow = padButtons(pad);
+  padRow.append(...drawingButtons(pad, { kind: 'table', read: () => text.value }));
   const body = h('div', { class: 'ink-dialog' },
     h('div', { class: 'hint' }, "Draw the truth table with a pen, a finger or the mouse: the names in a header, a line under it, a line between the inputs and the outputs, then a row of 0, 1 or X (don't care) for each combination."),
     padHost,
-    padButtons(pad),
+    padRow,
     h('label', {}, 'Recognized:'), text, msg);
   return dialog({
     title, width: 'min(860px, 96vw)', body, className: 'ink-dlg',

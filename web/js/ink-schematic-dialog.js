@@ -9,6 +9,8 @@
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
 import { mountInkPad, padButtons } from './ink-pad.js';
+import { drawingButtons } from './ink-drawing.js';
+import { circuitText } from '/core/ink/corpus.js';
 import { inkTemplates } from './ink-dialog.js';
 import { readSchematic, circuitErrors, gateName } from '/core/ink/schematic.js';
 import { schematicFromCircuit } from '/core/ink/schematic-doc.js';
@@ -67,6 +69,9 @@ export function handwrittenSchematic({ name = 'schematic', lang = 'vhdl', replac
       pad.setLabels([]); renderList(); showMsg([e.message]);
     }
   }
+  // Undo, Redo, Clear; Copy Drawing and Paste Drawing (#1749)
+  const padRow = padButtons(pad);
+  padRow.append(...drawingButtons(pad, { kind: 'schematic', read: () => (circuit ? circuitText(circuit) : '') }));
   // the whole page (#1088): the pad, its hints over it; beside it its buttons, the circuit read, the messages
   const body = h('div', { class: 'ink-dialog ink-full-body' },
     h('div', { class: 'ink-main' },
@@ -75,7 +80,7 @@ export function handwrittenSchematic({ name = 'schematic', lang = 'vhdl', replac
       ...(replaces ? [h('div', { class: 'hint ink-replaces' }, 'The schematic drawn replaces the one in the editor (Undo brings it back).')] : []),
       padHost),
     h('div', { class: 'ink-side' },
-      padButtons(pad),
+      padRow,
       h('label', {}, 'Recognized:'), list, msg));
   return dialog({
     title, width: '100vw', body, className: 'ink-dlg ink-full',

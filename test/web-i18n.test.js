@@ -166,7 +166,7 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
   // the literals of the dialog and the pad: texts of elements, messages, titles (besides the labels checked above)
   const missing = [];
   let n = 0;
-  for (const f of ['ink-dialog.js', 'ink-pad.js', 'ink-table-dialog.js', 'ink-schematic-dialog.js', 'sch-ink.js']) {
+  for (const f of ['ink-dialog.js', 'ink-pad.js', 'ink-table-dialog.js', 'ink-schematic-dialog.js', 'sch-ink.js', 'ink-drawing.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');
     for (const m of src.matchAll(/(?:\}, |textContent = |showMsg\(\[|return )(['"])((?:(?!\1).)*[a-z]{2}(?:(?!\1).)*)\1/g)) { n++; if (t(m[2]) === m[2]) missing.push(`${f}: ${m[2]}`); }
   }
@@ -200,6 +200,10 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
     "The name Q is at no wire's end.": 'O nome Q não está na ponta de nenhum fio.', '3 wire ends touch nothing.': '3 pontas de fios não tocam em nada.',
     'A wire of F could not be routed clear of the others: check it.': 'Um fio de F não pôde ser traçado livre dos outros: verifique-o.',
     "A wire of U2's output could not be routed clear of the others: check it.": 'Um fio da saída de U2 não pôde ser traçado livre dos outros: verifique-o.',
+    // a drawing kept (#1749)
+    'This is a drawing of a schematic, not of an expression.': 'É um desenho de um esquemático, não de uma expressão.',
+    'A Silinx drawing of version 2: this Silinx reads version 1.': 'Um desenho do Silinx da versão 2: este Silinx lê a versão 1.',
+    "A Silinx drawing of an unknown kind: 'fsm'.": "Um desenho do Silinx de um tipo desconhecido: 'fsm'.",
     // the flip-flops drawn by hand (#1083)
     "U1 (flip-flop): 'X' is not one of its pins (D, T, J, K, C, CE, CLR, PRE, R, S; Q, Q̄).": "U1 (flip-flop): 'X' não é um dos seus pinos (D, T, J, K, C, CE, CLR, PRE, R, S; Q, Q̄).",
     'U1 (flip-flop): two wires to D.': 'U1 (flip-flop): dois fios para D.', 'U2 (flip-flop): no wire to C.': 'U2 (flip-flop): nenhum fio para C.',
