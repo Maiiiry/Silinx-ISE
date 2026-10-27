@@ -1076,6 +1076,10 @@ The XC3S100E's join tests, ISE 14.7 on the Mac mini, every verdict scored agains
 | 2 | 1986 (12) | 1254 joins, 732 islands | **all** |
 | 3 | 200 (11) | 116 joins, 84 islands | **all** |
 | 4, from IOB / block-RAM sources | 2279 (25, 208 s) | 1154 joins, 1125 islands | **all** |
+| 5, across round 4's | 64 (9) | 28 joins, 36 islands | **all** |
+| 6, the probed I/O PIPs (`PROBED`) | 1014 (20, 113 s) | 543 joins, 471 islands | **all** |
+| 7, across round 6's | 8 (3, 12 s) | 4 joins, 4 islands | **all** |
+| 8, unbonded sources (`UNBONDED=1`) | 433 (12, 52 s) | 221 joins, 212 islands | **all** |
 
 Round 4 is the XC3S250E's rounds 4-6 in one (`SOURCES=1 DBPIPS=1 SOURCEXDL=bram,ramwide,ramnarrow MAXJOINS=3
 MAXDEPTH=5`): the observation designs already use every block RAM, multiplier and pad. By kinds: block RAM-block RAM
@@ -1083,3 +1087,10 @@ MAXDEPTH=5`): the observation designs already use every block RAM, multiplier an
 untestable, of the I/O tiles. For them the I/O arc probe, as round 7: `candidates.mjs io obs.json io.json t5/tests.json`
 asks only the PIPs into the joins' I/O ends and one step back (`leftCandidates`: 6514 of the 126 097 candidates), then
 `probe-run.mjs io.json probe.json` and the rounds with `PROBED=probe.json`.
+
+The I/O arc probe took 8 rounds of 8 designs (a few minutes): 5387 PIPs exist, 1127 not, every answer as the shipped
+graph has it. Rounds 6-8 then reach all but **29 joins**: hexes that begin in an I/O tile with no pad in the CP132 and
+whose start no source reaches (`BIOIS_X14Y0/N6BEG5`, `RIOIS_X17Y6/W6BEG0`, `TIOIS_X6Y23/W6BEG5`, …) and three joins into
+the terminations (`BTERM2`, `LTERM`, `TTERM`), as the XC3S250E's 11; a deeper search (`MAXJOINS=6 MAXDEPTH=8`) adds
+none. Rounds 1-8: **50 641 tests, no disagreement with the shipped graph**. Next: the clock and edge tests, then
+`chip.mjs` and the comparison.
