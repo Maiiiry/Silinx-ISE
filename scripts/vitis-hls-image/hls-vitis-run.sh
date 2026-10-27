@@ -3,7 +3,7 @@
 # line) through Vitis HLS from its silinx_vitis.cfg: the C simulation, the C synthesis, the C/RTL co-simulation (when
 # the synthesis passed), each step's exit code in results/<name>/status.txt; the reports parsed by hls-vitis.mjs
 # (csynth.xml, the co-simulation's .rpt, the C simulation's log) copied to results/<name>/. Vitis's work folder is
-# deleted after each design.
+# deleted after each design. At the end, <work>/done.
 #   bash hls-vitis-run.sh <work>
 set -u
 W=${1:?usage: hls-vitis-run.sh <work folder>}
@@ -28,3 +28,5 @@ while read -r name dir; do
   rm -rf w
   echo "$name: $(tr '\n' ' ' <"$R/status.txt")"
 done <"$W/designs.txt"
+# (the run's end, for hls-vitis.mjs --collect)
+touch "$W/done"
