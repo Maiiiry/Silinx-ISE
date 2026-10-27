@@ -185,30 +185,36 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
     ([#1681](https://github.com/pmnmalo/Silinx-ISE/issues/1681)): as decided (section 4): the package's NOTICE
     and THIRD-PARTY-NOTICES, the IDE's NOTICE naming it, its changelog fragments and 0.x version, a publishing
     workflow from its own tag in this repository.
-11. **Its own repository** ([#1651](https://github.com/pmnmalo/Silinx-ISE/issues/1651)): when decided.
+11. **Its own repository** ([#1651](https://github.com/pmnmalo/Silinx-ISE/issues/1651)): `silinx-fpga` moves
+    to a GitHub repository of its own (decided, section 4), once steps 1 to 10 are done: `git filter-repo` keeps
+    the moved files' history; there, its CI, the ISE oracle (the self-hosted runner registered for it too), CodeQL,
+    Dependabot and the Yosys update, its releases and npm publishing; here, the IDE depends on the published
+    version (updated by Dependabot) and the package's folder goes.
 
 ## 4. Decided
 
 Pedro's decisions (27 October 2026):
 
 - **The name**: `silinx-fpga`, for the package (unscoped: no npm organisation needed; the name was free on
-  npm) and for a later repository; its command line is `silinx-fpga`.
+  npm) and for its repository; its command line is `silinx-fpga`.
+- **Its own GitHub repository**: yes, after the workspace stage: steps 1 to 10 here, then the move (step 11).
 - **The licence**: Apache-2.0, for the code and the data alike (the bit database, the device graphs): one
   LICENSE for the whole package. Pedro, the only author, relicenses the moved code; the IDE stays
   AGPL-3.0-only with the elkjs permission, and Apache-2.0 code may be part of an AGPL-3.0 work. The IDE's
   NOTICE then names `silinx-fpga` (Apache-2.0) among its components, and the package has its own NOTICE
   (Apache-2.0's) and THIRD-PARTY-NOTICES (Yosys / YoWASP, ISC).
-- **npm publishing**: from this repository, from a tag of its own (for example `silinx-fpga-v0.1.0`), with
+- **npm publishing**: from this repository while the package lives here, then from its own; from a tag of its own (for example `silinx-fpga-v0.1.0`), with
   provenance, once its tests have passed on that commit; the package carries the graphs and the bit database
   (17 MB) and depends on `@yowasp/yosys`.
 - **Versioning**: its own semver, 0.x until the API is stable, with its own changelog (its own fragments).
 - **The front end**: the package takes flat Verilog or a Yosys netlist (JSON); VHDL stays the IDE's, whose
-  front end gives the package flat Verilog (section 5). A front-end package of its own may come later.
+  front end gives the package flat Verilog. The front end becomes a package of its own, `silinx-hdl`, which
+  stays in this repository (section 5).
 
 So step 6 no longer waits, and step 10 can follow it at once: the package's LICENSE comes with its folder,
 its publishing when the API (step 7) is in place.
 
-## 5. VHDL: the IDE's front end in front of the package
+## 5. VHDL: the front end in front of the package
 
 Yosys in WebAssembly reads Verilog only (YoWASP has no GHDL plugin), so VHDL is read by Silinx's own front end,
 as today, and the package never sees it:
@@ -228,11 +234,31 @@ VHDL / Verilog ─▶ Silinx front end (the IDE) ─▶ flat Verilog ─▶ sili
   the front end as a hook of `io`. The IDE's wrapper gives Silinx's front end, in Node and in the browser;
   `silinx-fpga` alone reads Verilog or a Yosys netlist. The gate count and the shift arrays become optional
   hints of the input, so plain Verilog from another tool synthesises too.
-- **The command line** (step 8) takes Verilog. A VHDL design built from the command line goes through the IDE's
-  front end first: a command of the IDE's (`silinx-ise`, for example `silinx-ise synth top.vhd`) writes the flat
-  Verilog and calls `silinx-fpga`, or `silinx-fpga` accepts a front end given to it (`--frontend <module>`,
-  a module that exports the hook).
-- **Later, if wanted, a front-end package** (`silinx-hdl`, a name to decide): the same 39 modules moved out of
-  the IDE as steps 1 to 7 move the toolchain (a boundary test, then a workspace package, then its API), with a
-  licence of its own (the IDE's AGPL-3.0-only, or the toolchain's Apache-2.0). Its parsers and elaborator are
-  also the simulator's and the editors', so it would serve more than synthesis.
+- **The command line** (step 8) takes Verilog, and VHDL through `silinx-hdl` when it is installed (below).
+
+### silinx-hdl: the front end as a package of this repository
+
+Decided (27 October 2026): the front end becomes **`silinx-hdl`**, a package of this repository (an npm
+workspace) that stays here when `silinx-fpga` leaves; Apache-2.0, as `silinx-fpga`; published to npm from this
+repository with its own semver (the name was free on npm). The IDE (Silinx ISE) is then the editors, the
+drawings, the simulation, HLS, ISE and the board around the two packages, and `silinx-fpga` never depends on
+`silinx-hdl` (an optional peer dependency of its command line):
+
+```
+silinx-hdl (this repository)      silinx-fpga (its own repository)
+VHDL / Verilog ─▶ flat Verilog ─▶ Yosys, pack, place, route, bitgen ─▶ .bit, reports
+        ▲                                     ▲
+        └──── Silinx ISE (the IDE) uses both ─┘
+```
+
+The front end imports nothing else of the IDE today (its 39 modules include the interpreter and the event
+simulator that `compile` uses), so its steps are the toolchain's, shorter:
+
+1. **A boundary test** ([#1709](https://github.com/pmnmalo/Silinx-ISE/issues/1709)): its modules listed, no
+   import from them into the rest of the IDE.
+2. **The workspace package** ([#1710](https://github.com/pmnmalo/Silinx-ISE/issues/1710)):
+   `packages/silinx-hdl/`, the modules moved as they are, the old paths re-exporting; after the toolchain's
+   workspace (step 6, #1677), which sets the workspaces up.
+3. **Its API and publishing** ([#1711](https://github.com/pmnmalo/Silinx-ISE/issues/1711)): `compile`,
+   `elaborate`, the flat Verilog with its hints, the UNISIM sources; the IDE's importers switch to it; its
+   publishing from its own tag; VHDL in `silinx-fpga`'s command line through it.
