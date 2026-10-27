@@ -8,6 +8,7 @@
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
 import { mountInkPad, padButtons } from './ink-pad.js';
+import { drawingButtons } from './ink-drawing.js';
 import { recognizeExpression, splitEquation, expressionInputs, InkError } from '/core/ink/expression.js';
 import { builtinTemplates, userTemplates, encodeSample, validSamples } from '/core/ink/templates.js';
 import { boxOf } from '/core/ink/segment.js';
@@ -97,10 +98,13 @@ export function handwrittenExpression({ vars = null, title = 'Handwritten Expres
       h('button', { type: 'button', class: 'btn ink-forget', onclick: forget }, 'Forget My Samples'), count),
     teachMsg);
 
+  // Undo, Redo, Clear; Copy Drawing and Paste Drawing (#1749)
+  const padRow = padButtons(pad);
+  padRow.append(...drawingButtons(pad, { kind: 'expression', read: () => text.value, vars }));
   const body = h('div', { class: 'ink-dialog' },
     h('div', { class: 'hint' }, "Write the expression with a pen, a finger or the mouse, e.g. F = A·B' + C. A bar over letters is NOT; a dot or a * is AND."),
     padHost,
-    padButtons(pad),
+    padRow,
     h('div', { class: 'ink-row' }, h('label', {}, 'Recognized:'), text),
     msg,
     teach);
