@@ -62,6 +62,8 @@ const ICON = {
   msgs: L('<path d="M4 4h16v12H9l-5 4z"/>'),
   close: L('<path d="M6 6l12 12M18 6L6 18"/>'),
 };
+/** The Design task's icon, a pen (its page's, the split view's empty side, #1720): an SVG's markup. */
+export const DESIGN_ICON = ICON.edit;
 
 // the side panel and the messages of a task the first time (the task in front gets the space)
 const DEFAULTS = {

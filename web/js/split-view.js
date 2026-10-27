@@ -9,7 +9,7 @@
 import { h, toast } from './ui.js';
 import { S, activateDoc, openFile, saveViewState } from './app.js';
 import { openCHdl, isC } from './c-source.js';
-import { taskOfDoc } from './tasks.js';
+import { DESIGN_ICON, taskOfDoc } from './tasks.js';
 import { prefKey } from './prefs.js';
 
 const RATIO_KEY = 'silinx.split.ratio';
@@ -221,7 +221,9 @@ function showEmpty(ws, side, beside) {
   // (the other side's documents, one click to bring here)
   const docs = S.docs.filter(d => d !== beside && ofTask(d)).slice(-6);
   empty.replaceChildren(
-    h('p', {}, 'Open a source on this side: from the Design panel, or drag a tab here'),
+    // (how to bring a document here, under a large pen as the Design task's page, #1720)
+    h('span', { class: 'split-ico', html: DESIGN_ICON }),
+    h('p', {}, 'Drag a tab here, or right-click an open tab and choose Move to the Other Side'),
     docs.length ? h('div', { class: 'split-picks' }, ...docs.map(d => h('button', { class: 'btn', type: 'button', title: d.tooltip || d.title, 'data-no-i18n': true, onclick: () => moveToSide(d, side) }, d.title))) : '');
   empty.dataset.side = side;
   empty.className = `pane-${side}`;

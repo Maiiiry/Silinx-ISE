@@ -250,6 +250,7 @@ html[data-ui="modern"] #doc-tabs.split > .tab-group[data-side="b"] { border-left
 html[data-ui="modern"] #doc-tabs.split-v > .tab-group[data-side="b"] { background-color: var(--m-surface-2); border-bottom: 1px solid var(--m-border); }
 html[data-ui="modern"] #doc-tabs > .tab-group.drop { outline-color: var(--m-accent); }
 html[data-ui="modern"] #split-empty { color: var(--m-muted); background: var(--m-surface); }
+html[data-ui="modern"] #split-empty .split-ico { color: var(--m-accent); }
 html[data-ui="modern"] #split-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
 html[data-ui="modern"] #doc-tabs .tab .tclose { width: 20px; height: 20px; border-radius: 5px; color: var(--m-muted); }
 html[data-ui="modern"] #doc-tabs .tab .tclose:hover { background: var(--m-hover); color: var(--m-fg); }
