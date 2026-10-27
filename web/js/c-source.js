@@ -78,6 +78,46 @@ export async function runCosimulation(path) {
   return true;
 }
 
+/** View C Synthesis Report (#1531): what the C was made into (core/c-hdl.js's report): the module, its ports, its
+ *  states and registers, its memories, each loop's pragmas, II and cycles. */
+export async function runCReport(path) {
+  const { cToHdl } = await import('/core/c-hdl.js');
+  const lang = hdlLang();
+  log(`\nStarted : "View C Synthesis Report" of ${path}.\n`, 'hdr');
+  showConsolePage('console');
+  const r = cToHdl(await text(path), { file: path, lang });
+  for (const d of r.diagnostics) log(`${d.severity === 'error' ? 'ERROR' : 'WARNING'}:SilinxC - "${path}" line ${d.line}: ${d.message}`, d.severity === 'error' ? 'err' : 'warn');
+  if (!r.ok) { log('\nProcess "View C Synthesis Report" failed', 'err', { diag: false }); return false; }
+  const rep = r.report;
+  const L = [`C Synthesis Report of '${r.top}' (${path}, ${lang === 'vhdl' ? 'VHDL' : 'Verilog'})`, ''];
+  L.push(rep.sequential ? `Module: sequential, ap_ctrl_hs (ap_clk, ap_rst, ap_start / ap_done / ap_idle / ap_ready), ${rep.states} states, ${rep.registerBits} register bits` : 'Module: combinational');
+  L.push('', 'Ports:');
+  for (const p of r.ports) L.push(`  ${p.name.padEnd(16)} ${p.dir === 'in' ? 'in ' : 'out'} ${String(p.w).padStart(3)} bit${p.w > 1 ? 's' : ''}`);
+  if (rep.memories?.length) { L.push('', 'Memories:'); for (const m of rep.memories) L.push(`  ${m.name.padEnd(16)} ${m.words} x ${m.bits} bits, ${m.kind === 'ap_memory' ? 'ap_memory (outside the module)' : m.kind === 'ROM' ? 'a ROM (block RAM)' : 'a RAM (block RAM)'}`); }
+  if (rep.loops?.length) {
+    L.push('', 'Loops:');
+    for (const l of rep.loops) {
+      const made = [l.unroll === 'whole' ? 'unrolled' : l.unroll ? `unrolled by ${l.unroll}` : null, l.pipeline ? `pipelined, II=${l.pipeline} asked` : null].filter(Boolean).join(', ');
+      const count = l.trip !== null ? `${l.trip} iterations` : l.max !== null ? `up to ${l.max} iterations` : 'iterations unknown';
+      L.push(`  line ${String(l.line).padEnd(4)} ${count}; ${l.unroll === 'whole' ? 'in the state it is in' : `II=${l.ii}`}${l.cycles !== null ? `, ${l.cycles} cycles` : ''}${made ? `; ${made}` : ''}`);
+    }
+  }
+  for (const l of L) log(l);
+  log('\nProcess "View C Synthesis Report" completed successfully', 'ok');
+  return true;
+}
+
+/** The processes of a C module (#1531): the Processes panel's group, in both views. */
+export function cProcesses(path) {
+  return [{ id: 'c-hls', label: 'C Synthesis (HLS)', ico: 'procGroup', children: [
+    { id: 'c-open', label: 'View/Edit C Source', ico: 'template', run: () => openFile(path) },
+    { id: 'c-sim', label: 'C Simulation', ico: 'wave', run: () => runCSimulation(path) },
+    { id: 'c-cosim', label: 'C/RTL Co-simulation', ico: 'wave', run: () => runCosimulation(path) },
+    { id: 'c-report', label: 'View C Synthesis Report', ico: 'summary', run: () => runCReport(path) },
+    { id: 'c-hdl', label: 'View Generated HDL', ico: 'process', run: () => openCHdl(path) },
+  ] }];
+}
+
 /** The C editor's buttons: C Simulation, C/RTL Co-simulation. */
 export function cRunButtons(path) {
   const b = (label, title, fn) => h('button', { class: 'btn', style: { minWidth: '0' }, title, onclick: () => fn(path) }, h('span', { class: 'ico-inline', html: icons.wave }), ` ${label}`);
