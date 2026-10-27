@@ -4,56 +4,56 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "array-array-partition-complete": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fft-interface-array": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fft_top.h:17: the header 'ap_fixed.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fft-interface-array-float-ssr2": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fft-interface-stream": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fft_top.h:17: the header 'ap_fixed.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fft-interface-stream-float-ssr2": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fft-logicore-fft-float-ssr": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "dsp-fir-decimator": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fir_top.h:18: the header 'ap_fixed.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: fir_top.h:19: the header 'hls_fir.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-aggregation-disaggregation-aggregation-of-m-axi-ports": {
     "csim": "fail",
@@ -114,14 +114,14 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-memory-coefficient-filter": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 30: the function 'round' is not declared"
+    "reason": "C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>"
   },
   "interface-memory-ecc-flags": {
     "csim": "pass",
@@ -135,7 +135,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure": {
     "csim": "fail",
@@ -149,14 +149,14 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-memory-manual-burst-manual-burst-with-conditionals": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-memory-max-widen-port-width": {
     "csim": "pass",
@@ -206,14 +206,14 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-streaming-axi-stream-to-master": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:18: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:18: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-streaming-axis-array-stream-no-side-channel-data": {
     "csim": "pass",
@@ -231,21 +231,21 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 23: '.write' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
+    "reason": "C simulation: 23: '.write' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
   },
   "interface-streaming-using-axi-stream-with-side-channel-data": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "interface-streaming-using-axi-stream-with-struct": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:1: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:1: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "migration-python-scripts": {
     "csim": "pass",
@@ -332,7 +332,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'out_data_t'"
+    "reason": "C simulation: 20: the result of 'fxp_sqrt_top': out_data_t is not synthesized yet (#1643): the C simulation runs it"
   },
   "modeling-free-running-kernel-remerge-ii4to1": {
     "csim": "fail",
@@ -409,7 +409,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "modeling-using-cpp-templates": {
     "csim": "pass",
@@ -423,7 +423,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'dout_t'"
+    "reason": "C simulation: 20: the result of 'cpp_ap_fixed': dout_t is not synthesized yet (#1643): the C simulation runs it"
   },
   "modeling-using-float-and-double": {
     "csim": "fail",
@@ -437,7 +437,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "modeling-variable-bound-loops": {
     "csim": "fail",
@@ -479,42 +479,42 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: free_pipe_mult.h:18: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: free_pipe_mult.h:18: the header 'ap_axi_sdata.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-autorestart": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond_test.cpp:22: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: diamond_test.cpp:22: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-merge-load-balance": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-merge-round-robin": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-split-load-balance": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-split-round-robin": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-simple-fifos": {
     "csim": "fail",
@@ -528,34 +528,34 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-using-stream-of-blocks": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-data-driven-mixed-control-and-data-driven": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-data-driven-simple-data-driven": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-data-driven-unique-task-regions": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
+    "reason": "C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   }
 }

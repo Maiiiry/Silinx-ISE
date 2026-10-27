@@ -72,7 +72,7 @@ function exprParser(T, typedefs, cpp = false) {
   const startsType = () => {
     const t = toks[S.p];
     if (t.t !== 'id') return false;
-    return BASE.has(t.v) || QUAL.has(t.v) || typedefs.has(t.v) || t.v === 'ap_int' || t.v === 'ap_uint' || t.v === 'struct' || t.v === 'union' || t.v === 'enum'
+    return BASE.has(t.v) || QUAL.has(t.v) || typedefs.has(t.v) || t.v === 'ap_int' || t.v === 'ap_uint' || t.v === 'ap_fixed' || t.v === 'ap_ufixed' || t.v === 'struct' || t.v === 'union' || t.v === 'enum'
       || (cpp && t.v === 'stream' && toks[S.p + 1]?.v === '<');
   };
   // (a template's '>': a '>>' closing two of them gives its first half, C++11)
@@ -96,6 +96,21 @@ function exprParser(T, typedefs, cpp = false) {
       if (t.v === 'volatile') { isVolatile = true; S.p++; continue; }
       if (QUAL.has(t.v)) { S.p++; continue; }
       if (BASE.has(t.v)) { words.push(t.v); S.p++; continue; }
+      // ap_fixed<W, I, Q, O, N> / ap_ufixed (core/c-fixed.js)
+      if (!type && !words.length && (t.v === 'ap_fixed' || t.v === 'ap_ufixed')) {
+        S.p++;
+        expect('<', `after ${t.v}`);
+        const w = ternary(true);
+        expect(',', `after the width of ${t.v}`);
+        const i = ternary(true);
+        const mode = () => { if (at(',')) { S.p++; return toks[S.p].t === 'id' ? toks[S.p++].v : null; } return undefined; };
+        const q = mode(), o = q === undefined ? undefined : mode();
+        let n = null;
+        if (o !== undefined && at(',')) { S.p++; n = ternary(true); }
+        closeAngle(`after the parameters of ${t.v}`);
+        type = { kind: 'int', name: t.v, signed: t.v === 'ap_fixed', bits: null, widthExpr: w, intExpr: i, q: q ?? 'AP_TRN', o: o ?? 'AP_WRAP', nExpr: n, ap: true, fixed: true };
+        continue;
+      }
       if (!type && !words.length && (t.v === 'ap_int' || t.v === 'ap_uint')) {
         S.p++;
         expect('<', `after ${t.v}`);
@@ -198,13 +213,20 @@ function exprParser(T, typedefs, cpp = false) {
     if (t.t === 'id' && !KEYWORDS.has(t.v)) {
       S.p++;
       // ap_int<W>(x) / ap_uint<W>(x): a conversion, as a cast
-      if ((t.v === 'ap_int' || t.v === 'ap_uint') && at('<')) {
+      if ((t.v === 'ap_int' || t.v === 'ap_uint' || t.v === 'ap_fixed' || t.v === 'ap_ufixed') && at('<')) {
         S.p--;
         const s = specifiers();
         expect('(', `after ${t.v}<…>`);
         const e = assignment();
         expect(')');
         return { kind: 'cast', type: s.type, e, loc: loc(t) };
+      }
+      // (C++: T(x) of a type's name, a cast)
+      if (cpp && typedefs.has(t.v) && at('(')) {
+        S.p++;
+        const e = assignment();
+        expect(')');
+        return { kind: 'cast', type: { ...typedefs.get(t.v) }, e, loc: loc(t) };
       }
       return { kind: 'id', name: t.v, loc: loc(t) };
     }

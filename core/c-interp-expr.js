@@ -3,6 +3,7 @@
 // Isomorphic ES module: no DOM and no Node APIs.
 import { INT, BOOL, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType, wrap } from './c-types.js';
 import { F64, F32, fmtFloat } from './c-float.js';
+import { fixedType, toFixed, fixedOp, fixedCompare, fixedToInt, fixedToDouble, fixedText } from './c-fixed.js';
 
 const CMP = { '==': (a, b) => a === b, '!=': (a, b) => a !== b, '<': (a, b) => a < b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '>=': (a, b) => a >= b };
 
@@ -64,7 +65,7 @@ export const exprMethods = {
         const t = typeOf(e.type);
         const x = this.eval(e.e);
         if (!t) return x;
-        return num(x.v ?? this.intOf(x, e), t);
+        return { v: this.as(x, t, e), t };
       }
       case 'call': return this.call(e);
       case 'index': {
@@ -91,19 +92,29 @@ export const exprMethods = {
   },
   intOf(x, e) {
     if (typeof x.v === 'number') return Number.isFinite(x.v) ? BigInt(Math.trunc(x.v)) : 0n;
+    if (x.t?.fx) return fixedToInt(x);   // (toward zero, as C++ converts it)
     if (x.v !== undefined) return x.v;
     this.fail(e, 'an integer expected here (not a pointer or an array)');
     return 0n;
   },
   truth(x) { return x.ptr ? true : typeof x.v === 'number' ? x.v !== 0 : this.intOf(x) !== 0n; },
-  /** x as a value of type t (C's conversion; a float's kept as a number). */
-  as(x, t, e) { return convert(x.v ?? this.intOf(x, e), t); },
+  /** x as a value of type t (C's conversion; a float's kept as a number; an ap_fixed's quantized and its overflow
+   *  handled, core/c-fixed.js). */
+  as(x, t, e) {
+    if (t.fx) { if (x.v === undefined) this.intOf(x, e); return toFixed(x, t).v; }
+    if (x.t?.fx) return t.fl ? convert(fixedToDouble(x), t) : convert(fixedToInt(x), t);
+    return convert(x.v ?? this.intOf(x, e), t);
+  },
+  /** x's value as a number (a double's, a fixed's, an integer's). */
+  numOf(x, e) { return typeof x.v === 'number' ? x.v : x.t?.fx ? fixedToDouble(x) : Number(this.intOf(x, e)); },
   unary(e) {
     switch (e.op) {
       case '!': return num(this.truth(this.eval(e.e)) ? 0n : 1n, INT);
       case '-': case '+': case '~': {
         const x = this.eval(e.e);
         if (x.t?.fl) { if (e.op === '~') this.fail(e, "'~' of a floating-point value"); return num(e.op === '-' ? -x.v : x.v, x.t); }
+        // (ap_fixed: -x one bit wider, ~x its own type)
+        if (x.t?.fx) return e.op === '-' ? num(-x.v, fixedType(x.t.w + 1, x.t.w - x.t.f + 1, true)) : num(e.op === '~' ? ~x.v : x.v, x.t);
         const t = unaryType(e.op, x.t);
         const v = this.as(x, t, e);
         return num(e.op === '-' ? -v : e.op === '~' ? ~v : v, t);
@@ -123,7 +134,8 @@ export const exprMethods = {
     if (e.op === '&&') return num(this.truth(this.eval(e.l)) && this.truth(this.eval(e.r)) ? 1n : 0n, INT);
     if (e.op === '||') return num(this.truth(this.eval(e.l)) || this.truth(this.eval(e.r)) ? 1n : 0n, INT);
     const l = this.eval(e.l), r = this.eval(e.r);
-    if (CMP[e.op] && (l.t?.fl || r.t?.fl)) return num(CMP[e.op](Number(l.v ?? this.intOf(l, e)), Number(r.v ?? this.intOf(r, e))) ? 1n : 0n, INT);
+    if (CMP[e.op] && (l.t?.fl || r.t?.fl)) return num(CMP[e.op](this.numOf(l, e), this.numOf(r, e)) ? 1n : 0n, INT);
+    if (CMP[e.op] && (l.t?.fx || r.t?.fx)) return num(fixedCompare(e.op, l, r) ? 1n : 0n, INT);
     if (CMP[e.op]) {
       const t = compareType(l.t, r.t);
       return num(CMP[e.op](this.as(l, t, e), this.as(r, t, e)) ? 1n : 0n, INT);
@@ -135,10 +147,22 @@ export const exprMethods = {
     if (l.t?.fl || r.t?.fl) {
       // (floating point: in double, or float when neither is a double)
       const t = floatOf(l.t.fl ? l.t : {}, r.t.fl ? r.t : {});
-      const a = Number(l.v ?? this.intOf(l, e)), b = Number(r.v ?? this.intOf(r, e));
+      const a = this.numOf(l, e), b = this.numOf(r, e);
       const F = { '+': a + b, '-': a - b, '*': a * b, '/': a / b };
       if (!(op in F)) this.fail(e, `the operator '${op}' of a floating-point value`);
       return num(F[op], t);
+    }
+    if (l.t?.fx || r.t?.fx) {
+      // (ap_fixed: full precision, core/c-fixed.js; a shift keeps its type)
+      if (op === '<<' || op === '>>') {
+        if (!l.t.fx) this.fail(e, 'a shift by an ap_fixed');
+        const n = this.intOf(r, e);
+        return num(op === '<<' ? l.v << n : l.v >> n, l.t);
+      }
+      if (op === '%') this.fail(e, "'%' of an ap_fixed");
+      const x = fixedOp(op, l, r);
+      if (!x) this.fail(e, 'division by zero');
+      return x;
     }
     const a0 = this.intOf(l, e), b0 = this.intOf(r, e);
     if (op === '<<' || op === '>>') {
@@ -311,6 +335,7 @@ export const exprMethods = {
   streamText(a, st, e) {
     if (a.str !== undefined) return a.str;
     if (a.t?.fl) return fmtFloat(st.float, a.v, st.prec, '');
+    if (a.t?.fx) return fixedText(a, st.prec ?? 6);   // (AMD's: its precision only)
     const v = this.intOf(a, e);
     if (a.t && a.t.w === 8 && !a.t.ap && !a.t.bool) return String.fromCharCode(Number(v & 255n));
     const base = st.base === 'x' ? 16 : st.base === 'o' ? 8 : 10;
@@ -330,12 +355,12 @@ export const exprMethods = {
         if (lo < 0 || hi >= x.t.w || hi < lo) this.fail(e, `.range(${hi}, ${lo}) is outside the ${x.t.w} bits of this value`);
         return num((u() >> BigInt(lo)) & ((1n << BigInt(hi - lo + 1)) - 1n), { w: hi - lo + 1, s: false, ap: true });
       }
-      case 'to_double': return num(x.v, F64);
-      case 'to_float': return num(x.v, F32);
-      case 'to_int': return num(x.v, INT);
-      case 'to_uint': return num(x.v, { w: 32, s: false, ap: false });
-      case 'to_long': case 'to_int64': return num(x.v, { w: 64, s: true, ap: false });
-      case 'to_ulong': case 'to_uint64': return num(x.v, { w: 64, s: false, ap: false });
+      case 'to_double': return num(x.t.fx ? fixedToDouble(x) : x.v, F64);
+      case 'to_float': return num(x.t.fx ? fixedToDouble(x) : x.v, F32);
+      case 'to_int': return num(this.intOf(x, e), INT);
+      case 'to_uint': return num(this.intOf(x, e), { w: 32, s: false, ap: false });
+      case 'to_long': case 'to_int64': return num(this.intOf(x, e), { w: 64, s: true, ap: false });
+      case 'to_ulong': case 'to_uint64': return num(this.intOf(x, e), { w: 64, s: false, ap: false });
       case 'length': return num(BigInt(x.t.w), INT);
       case 'or_reduce': return num(u() ? 1n : 0n, BOOL);
       case 'and_reduce': return num(u() === (1n << BigInt(x.t.w)) - 1n ? 1n : 0n, BOOL);

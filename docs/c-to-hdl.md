@@ -34,7 +34,11 @@ Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* bel
 | `int8_t` … `int64_t`, `uint8_t` … `uint64_t` | as named | |
 | `ap_int<W>` / `ap_uint<W>` | W | yes / no |
 
-No floating point in hardware, no `ap_fixed` (refused with a message; a later phase). The test bench may use
+No floating point in hardware. `ap_fixed<W, I, Q, O>` / `ap_ufixed` (`#include "ap_fixed.h"`, #1643) run in the C
+simulation as AMD's `ap_fixed.h` computes them: full-precision results, the quantization modes (`AP_TRN`,
+`AP_TRN_ZERO`, `AP_RND`, `AP_RND_ZERO`, `AP_RND_MIN_INF`, `AP_RND_INF`, `AP_RND_CONV`) and overflow modes (`AP_WRAP`,
+`AP_SAT`, `AP_SAT_ZERO`, `AP_SAT_SYM`) of a conversion, `to_double()`, `to_int()` (toward zero), `cout` of a value;
+they are not synthesized yet. The test bench may use
 `float` and `double` (#1641): C's arithmetic and conversions, `math.h`, `printf`'s `%f` `%e` `%g` printed exactly as C's
 library prints them, C++'s `cout` of a double (6 significant digits, or as `fixed`, `scientific`, `setprecision` set
 the stream), `ap_int`'s `to_double()`. `const` is kept; `volatile`

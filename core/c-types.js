@@ -4,6 +4,7 @@
 //
 // A type is { w, s, ap }: its width in bits, signed or not, an ap_int / ap_uint or a C type. bool is { w: 1, s: false }.
 import { floatType } from './c-float.js';
+import { fixedType } from './c-fixed.js';
 
 export const INT = Object.freeze({ w: 32, s: true, ap: false });
 export const UINT = Object.freeze({ w: 32, s: false, ap: false });
@@ -13,6 +14,7 @@ export const BOOL = Object.freeze({ w: 1, s: false, ap: false, bool: true });
 export function typeOf(t) {
   if (t?.kind === 'float') return floatType(t);   // (the C simulation's: core/c-float.js; refused in hardware)
   if (!t || t.kind !== 'int' || !t.bits) return null;
+  if (t.fixed) return fixedType(t.bits, t.ibits, !!t.signed, t.q, t.o, t.n || 0);   // (core/c-fixed.js)
   return t.name === 'bool' ? BOOL : { w: t.bits, s: !!t.signed, ap: !!t.ap };
 }
 
@@ -96,6 +98,7 @@ export function wrap(v, t) {
 /** The type name of t, for the messages: int, unsigned, ap_uint<9>… */
 export function typeName(t) {
   if (t.bool) return 'bool';
+  if (t.fx) return `${t.s ? 'ap_fixed' : 'ap_ufixed'}<${t.w}, ${t.w - t.f}>`;
   if (t.ap) return `${t.s ? 'ap_int' : 'ap_uint'}<${t.w}>`;
   return `${t.s ? '' : 'unsigned '}${{ 8: 'char', 16: 'short', 32: 'int', 64: 'long' }[t.w] || `int${t.w}`}`.trim();
 }
