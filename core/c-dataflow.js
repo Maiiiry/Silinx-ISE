@@ -49,10 +49,12 @@ export class Flow {
   v(id, t) { return { id, t }; }
   // (to bool: 0 or 1, as C converts: any value other than 0 is 1, #1528)
   conv(x, t) {
+    if (t.fl || x.t?.fl === 32 || (x.fconst !== undefined && !t.fx)) return this.flConv(x, t);   // (float, core/c-dataflow-float.js, #1768)
     if (t.fx || x.t?.fx || x.fconst !== undefined) return this.fxConv(x, t);   // (ap_fixed, core/c-dataflow-fixed.js)
     return t.bool ? this.v(this.bool(x), t) : this.v(this.g.add('ext', [x.id], t), t);
   }
   bool(x) {
+    if (x.t.fl) return this.flBool(x);   // (a float: not 0, #1768)
     if (x.t.w === 1 && !x.t.s) return x.id;
     return this.g.add('ne', [x.id, this.g.const(0, x.t)], BOOL);
   }
@@ -284,8 +286,9 @@ export class Flow {
 // the expressions are in a module of their own (core/c-dataflow-expr.js), mixed into Flow
 import { exprMethods } from './c-dataflow-expr.js';
 import { fixedMethods } from './c-dataflow-fixed.js';
+import { floatMethods } from './c-dataflow-float.js';
 import { divMethods } from './c-dataflow-div.js';
-Object.assign(Flow.prototype, exprMethods, fixedMethods, divMethods);
+Object.assign(Flow.prototype, exprMethods, fixedMethods, divMethods, floatMethods);
 
 // ---------------------------------------------------------------------- the ports
 Flow.prototype.finish = function finish(fn) {

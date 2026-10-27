@@ -35,15 +35,21 @@ static unsigned ap_f32_pack(unsigned s, int e, unsigned m) {
   if (e >= 255) return (s << 31) | 0x7f800000u;
   return (s << 31) | ((m & 0x800000u) ? ((unsigned)e << 23) : 0u) | (m & 0x7fffffu);
 }
+/* (a function with a loop: one return, at its end; its special cases a flag, its loop always run) */
 static unsigned ap_f32_add(unsigned a, unsigned b) {
   unsigned sa = a >> 31, sb = b >> 31;
   int ea = (int)((a >> 23) & 255u), eb = (int)((b >> 23) & 255u);
   unsigned ma = a & 0x7fffffu, mb = b & 0x7fffffu;
-  if (ap_f32_unord(a, b)) return 0x7fc00000u;
-  if (ea == 255) { if (eb == 255 && sa != sb) return 0x7fc00000u; return a; }
-  if (eb == 255) return b;
-  if ((a & 0x7fffffffu) == 0u) { if ((b & 0x7fffffffu) == 0u) return (sa & sb) << 31; return b; }
-  if ((b & 0x7fffffffu) == 0u) return a;
+  int za = (a & 0x7fffffffu) == 0u, zb = (b & 0x7fffffffu) == 0u;
+  int special = 1;
+  unsigned res = 0u;
+  int nan = ap_f32_unord(a, b);
+  if (nan) res = 0x7fc00000u;
+  else if (ea == 255) res = eb == 255 && sa != sb ? 0x7fc00000u : a;
+  else if (eb == 255) res = b;
+  else if (za) res = zb ? (sa & sb) << 31 : b;
+  else if (zb) res = a;
+  else special = 0;
   if (ea) ma = ma | 0x800000u; else ea = 1;
   if (eb) mb = mb | 0x800000u; else eb = 1;
   /* |a| >= |b| */
@@ -58,12 +64,13 @@ static unsigned ap_f32_add(unsigned a, unsigned b) {
   if (d > 26) mb = 1u;
   else if (d > 0) mb = (mb >> d) | ((mb & ((1u << d) - 1u)) != 0u);
   unsigned m = sa == sb ? ma + mb : ma - mb;
-  if (m == 0u) return 0u;
   if (m & 0x8000000u) { m = (m >> 1) | (m & 1u); ea = ea + 1; }
   for (int i = 0; i < 26; i++) {
     if (!(m & 0x4000000u) && ea > 1) { m = m << 1; ea = ea - 1; }
   }
-  return ap_f32_pack(sa, ea, m);
+  unsigned r = ap_f32_pack(sa, ea, m);
+  if (!special && m == 0u) r = 0u;
+  return special ? res : r;
 }
 static unsigned ap_f32_sub(unsigned a, unsigned b) { return ap_f32_add(a, b ^ 0x80000000u); }
 static unsigned ap_f32_mul(unsigned a, unsigned b) {
@@ -71,9 +78,13 @@ static unsigned ap_f32_mul(unsigned a, unsigned b) {
   int ea = (int)((a >> 23) & 255u), eb = (int)((b >> 23) & 255u);
   unsigned ma = a & 0x7fffffu, mb = b & 0x7fffffu;
   int za = (a & 0x7fffffffu) == 0u, zb = (b & 0x7fffffffu) == 0u;
-  if (ap_f32_unord(a, b)) return 0x7fc00000u;
-  if (ea == 255 || eb == 255) { if (za || zb) return 0x7fc00000u; return (s << 31) | 0x7f800000u; }
-  if (za || zb) return s << 31;
+  int special = 1;
+  unsigned res = 0u;
+  int nan = ap_f32_unord(a, b);
+  if (nan) res = 0x7fc00000u;
+  else if (ea == 255 || eb == 255) res = za || zb ? 0x7fc00000u : (s << 31) | 0x7f800000u;
+  else if (za || zb) res = s << 31;
+  else special = 0;
   if (ea) ma = ma | 0x800000u; else ea = 1;
   if (eb) mb = mb | 0x800000u; else eb = 1;
   for (int i = 0; i < 23; i++) {
@@ -84,7 +95,8 @@ static unsigned ap_f32_mul(unsigned a, unsigned b) {
   int e = ea + eb - 127;
   if (p & 0x800000000000ull) e = e + 1; else p = p << 1;
   unsigned m = (unsigned)(p >> 21) | ((p & 0x1fffffull) != 0ull);
-  return ap_f32_pack(s, e, m);
+  unsigned r = ap_f32_pack(s, e, m);
+  return special ? res : r;
 }
 static int ap_f32_eq(unsigned a, unsigned b) {
   if (ap_f32_unord(a, b)) return 0;
@@ -104,12 +116,13 @@ static int ap_f32_le(unsigned a, unsigned b) {
   return l | e;
 }
 static unsigned ap_f32_from_mag(unsigned s, unsigned u) {
-  if (u == 0u) return 0u;
+  int zero = u == 0u;
   int e = 158;
   for (int i = 0; i < 31; i++) {
     if (!(u & 0x80000000u)) { u = u << 1; e = e - 1; }
   }
-  return ap_f32_pack(s, e, (u >> 5) | ((u & 31u) != 0u));
+  unsigned r = ap_f32_pack(s, e, (u >> 5) | ((u & 31u) != 0u));
+  return zero ? 0u : r;
 }
 static unsigned ap_f32_from_i32(int x) {
   unsigned s = x < 0 ? 1u : 0u;

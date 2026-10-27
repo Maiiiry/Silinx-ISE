@@ -194,7 +194,8 @@ function checkFunction(f, ctx) {
   const lookup = (name) => { for (let k = scopes.length - 1; k >= 0; k--) if (scopes[k].has(name)) return scopes[k].get(name); return globals.has(name) ? { kind: 'global', type: globals.get(name).type } : null; };
   function typeHw(t, loc, what) {
     if (!t) return;
-    if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx HLS yet: use integers or ap_int<W>`);
+    // (float: its operations the soft-float library's, core/c-dataflow-float.js, #1768; double not yet)
+    if (t.kind === 'float' && t.name !== 'float') report(loc, `${what}: double is not supported in Silinx HLS yet: use float (#1761)`);
     else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx HLS yet`);
     else if (t.kind === 'array') typeHw(t.of, loc, what);
     else if (t.kind === 'ptr') {

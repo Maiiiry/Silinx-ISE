@@ -90,9 +90,9 @@ test('C++\'s cout of doubles (6 significant digits), fixed / scientific / defaul
   assert.equal(sim.output, runWithApInt(COUT, AP.dir));
 });
 
-test('floating point in hardware: still refused (the test bench only)', () => {
+test('floating point in hardware: math.h, double, a double constant in an integer expression refused (float made: test/c-float-hw.test.js, #1768)', () => {
   assert.deepEqual(errs('#include <math.h>\nint f(int x) {\n  return (int)sqrt(x);\n}\n'), ['3 sqrt: floating point is not supported in Silinx HLS yet (the test bench only)']);
-  assert.deepEqual(errs('int f(int x) {\n  double d = x * 0.5;\n  return d;\n}\n'), ["2 'd': floating point (double) is not supported in Silinx HLS yet: use integers or ap_int<W>"]);
+  assert.deepEqual(errs('int f(int x) {\n  double d = x * 0.5;\n  return d;\n}\n'), ["2 'd': double is not supported in Silinx HLS yet: use float (#1761)"]);
   // (a double constant: only as an ap_fixed's value, #1643)
   assert.deepEqual(errs('int f(int x) {\n  return x * 0.5;\n}\n'), ["2 floating point is not supported in Silinx HLS yet: a double constant only as an ap_fixed's value"]);
   const run = (src) => simulateC(src, { file: 't.c' }).error?.message;

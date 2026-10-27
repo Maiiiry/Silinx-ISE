@@ -163,7 +163,7 @@ out:
 }`), [
     "2:9 warning: the pointer argument 'p' is indexed: a memory (ap_memory) of 1024 elements, its depth not given (#pragma HLS INTERFACE port=p depth=N)",
     "3:12 error: the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet",
-    "4:9 error: 'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>",
+    // (float x = 1.5: made, the soft-float library's, #1768)
     "6:3 warning: the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)",
     '7:3 warning: printf is ignored by synthesis (it only prints in C simulation)',
     "8:12 error: the pointer 'm': set to something other than an array, &x, &a[i] or a + i: not supported yet",
@@ -215,7 +215,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ["'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)", 'c-pointer-variable'],
     ["the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet", 'c-pointer-variable'],
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
-    ["'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>", 'c-float'],
+    ["'x': double is not supported in Silinx HLS yet: use float (#1761)", 'c-float'],
     ["the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)", 'c-loop-bound'],
     ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
@@ -252,6 +252,6 @@ test('the flow is named Silinx HLS: its messages, help, interface and docs (#161
     }
   }
   assert.deepEqual(old, []);
-  assert.ok(msgs('float f(float x) { return x; }').some((m) => /not supported in Silinx HLS yet/.test(m)));
-  assert.match(hintFor({ message: 'floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>' }).pt.explain, /o Silinx HLS trabalha com inteiros/);
+  assert.ok(msgs('double f(double x) { return x; }').some((m) => /not supported in Silinx HLS yet/.test(m)));
+  assert.match(hintFor({ message: "'x': double is not supported in Silinx HLS yet: use float (#1761)" }).pt.explain, /O Silinx HLS faz float em hardware/);
 });
