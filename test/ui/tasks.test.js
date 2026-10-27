@@ -78,7 +78,8 @@ uiTest('View ▸ Interface ▸ Modern: the task switcher in the header, the task
   assert.deepEqual(L, {
     ui: 'modern', stored: 'modern', tasks: ['Design', 'Simulate', 'Emulate', 'Implement'],   // (no Program: Implement's, #1172)
     bar: ['Close'],   // (Close: a single document's, #854; Simulate's choices on its page, #1291; no action button, #1292)
-    view: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)'],   // (in the header, #1218)
+    // (in the header, #1218; the Split button first, #1652)
+    view: ['Split the editor: two documents side by side, each side with its tabs', 'Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)'],
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -1623,11 +1624,11 @@ uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button
     const v = document.getElementById('task-view'), th = document.getElementById('settings-btn'), top = document.getElementById('topbar');
     const btns = [...v.querySelectorAll('.tb-btn')], r = btns.map((b) => b.getBoundingClientRect()), t = th.getBoundingClientRect();
     return {
-      acts: btns.map((b) => b.dataset.act), inHeader: top.contains(v), afterSettings: th.nextElementSibling === v && r.every((x) => x.left >= t.right && Math.abs((x.top + x.bottom) / 2 - (t.top + t.bottom) / 2) < 2),
+      acts: btns.map((b) => b.dataset.act || b.dataset.cmd), inHeader: top.contains(v), afterSettings: th.nextElementSibling === v && r.every((x) => x.left >= t.right && Math.abs((x.top + x.bottom) / 2 - (t.top + t.bottom) / 2) < 2),
       rightEnd: top.getBoundingClientRect().right - r.at(-1).right < 24, inBar: document.querySelectorAll('#task-bar [data-act=side], #task-bar [data-act=console], #task-bar [data-act=max]').length,
     };
   });
-  assert.deepEqual(await where(), { acts: ['side', 'console', 'max'], inHeader: true, afterSettings: true, rightEnd: true, inBar: 0 });
+  assert.deepEqual(await where(), { acts: ['split', 'side', 'console', 'max'], inHeader: true, afterSettings: true, rightEnd: true, inBar: 0 });
   // they still act
   await page.click('#task-view [data-act="side"]');
   assert.equal((await state(page)).side, 'folded');
@@ -1640,6 +1641,8 @@ uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button
   await page.eval(async () => (await import('/js/modern.js')).setInterface('classic'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.equal(await page.eval(() => document.getElementById('task-view')), null);
+  // (the Split button: at the classic toolbar's right end, #1652)
+  assert.equal(await page.eval(() => document.getElementById('split-btn').parentNode.id), 'toolbar');
   await noWarnings(page);
 }, { build: DEV });
 

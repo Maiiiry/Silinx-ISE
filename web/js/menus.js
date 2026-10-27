@@ -21,7 +21,7 @@ import { checkSyntax, runProcess, saveAll, topConfirmed } from './processes.js';
 import { setTop, unsetTop } from './design.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { printActive, printable } from './print-doc.js';
-import { closeSplit, generatedOpener, openTabBeside, showGeneratedBeside, splitPair } from './split-view.js';
+import { generatedOpener, showGeneratedBeside, splitState, toggleSplit } from './split-view.js';
 // (Print: the document in front, whichever it is, #1509)
 export { printActive, printable };
 
@@ -112,10 +112,9 @@ export function setupMenus() {
       '-',
       { label: 'Design Summary', icon: icon('summary'), action: () => openSummary(), disabled: hasPj },
       '-',
-      // (two documents side by side, #1619)
-      { label: 'Split Editor', action: () => S.active && openTabBeside(S.active), disabled: () => S.docs.length < 2 },
+      // (two documents side by side, each side with its tabs, #1619, #1652)
+      { label: 'Split Editor', checked: splitState().on, action: () => toggleSplit() },
       { label: 'Show Generated HDL Beside', action: () => showGeneratedBeside(), disabled: () => !generatedOpener(S.active) },
-      { label: 'Close Split', action: () => closeSplit(), disabled: () => !splitPair() },
       '-',
       languageMenu(), interfaceMenu(), themeMenu(),
       '-',
