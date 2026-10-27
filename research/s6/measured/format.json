@@ -1,0 +1,241 @@
+{
+ "note": "ISE 14.7 bitgen outputs (research/s6/ise-format.sh, ise-s6.sh): size, SHA-256 and CRCs; the files stay outside the repository",
+ "bits": [
+  {
+   "file": "empty/xc6slx16-csg324-3.Cclk.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "xc6slx16-csg324-3.Cclk.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/27",
+    "d": "12:12:14"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 464304,
+   "sha256": "39f77f3cad09cc2e4df0eb4ad9aab122974e1d84ad362c0c60ff1f57247ecce7",
+   "crcs": [
+    "00a98b",
+    "2fd308"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx45-csg324-3.Cclk.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "xc6slx45-csg324-3.Cclk.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/27",
+    "d": "12:13:15"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 1484512,
+   "sha256": "098c267513105644e6d8d1e21d2fd1361a3ea9a25ccb9db0530dcf988a7ca352",
+   "crcs": [
+    "190b77",
+    "0a7091"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx16-csg324-3.JtagClk.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "xc6slx16-csg324-3.JtagClk.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/27",
+    "d": "12:12:29"
+   },
+   "crc": true,
+   "startupClk": "JtagClk",
+   "bytes": 464307,
+   "sha256": "14f6e706826ce1af3bdfddea5a1d9e99f8e0c0dfec54d731847ebc8cea2698f4",
+   "crcs": [
+    "06c74d",
+    "37018e"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx45-csg324-3.JtagClk.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "xc6slx45-csg324-3.JtagClk.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/27",
+    "d": "12:13:33"
+   },
+   "crc": true,
+   "startupClk": "JtagClk",
+   "bytes": 1484515,
+   "sha256": "6ca932d0cde83d4079aa8e07474628ebe55dfc7b6eda96d26a0ba31ca0df6001",
+   "crcs": [
+    "006275",
+    "1d2c88"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx16-csg324-3.nocrc.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "xc6slx16-csg324-3.nocrc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/27",
+    "d": "12:12:39"
+   },
+   "crc": false,
+   "startupClk": "JtagClk",
+   "bytes": 464305,
+   "sha256": "a7865453251fc64a975c9f3742f2ccca64beef860dc6be201bf4d0d62168c82f",
+   "crcs": [
+    "9876defc"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx45-csg324-3.nocrc.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "xc6slx45-csg324-3.nocrc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/27",
+    "d": "12:13:45"
+   },
+   "crc": false,
+   "startupClk": "JtagClk",
+   "bytes": 1484513,
+   "sha256": "131526b97c06c0a739ab5e193e46b3bdd76c7867b726dfc71adae695d167252c",
+   "crcs": [
+    "9876defc"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx16-csg324-3.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "xc6slx16-csg324-3.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/21",
+    "d": "08:33:57"
+   },
+   "crc": false,
+   "startupClk": "Cclk",
+   "bytes": 464299,
+   "sha256": "a92547bdc0250da5a78d9b856fe0b4ceb37e97a18888f7bc36fe44c0c0f03329",
+   "crcs": [
+    "9876defc"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx16-csg324-3.crc.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "xc6slx16-csg324-3.crc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/21",
+    "d": "08:34:04"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 464303,
+   "sha256": "437068fd9db2ff98035bf6541c3477bfb1e1f4df2ea7adb6e1315c5ae6785692",
+   "crcs": [
+    "00a98b",
+    "2fd308"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx45-csg324-3.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "xc6slx45-csg324-3.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/21",
+    "d": "08:34:14"
+   },
+   "crc": false,
+   "startupClk": "Cclk",
+   "bytes": 1484507,
+   "sha256": "fceee157e0e2a711d7c31cda2817d383e4c663e8b0e2ccb0ff13d46751c9ab9e",
+   "crcs": [
+    "9876defc"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "empty/xc6slx45-csg324-3.crc.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "xc6slx45-csg324-3.crc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/21",
+    "d": "08:34:23"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 1484511,
+   "sha256": "60a963aae706eabf7705c19702c2f52c5b341a6c83951fe21f7a9ffb65b68f68",
+   "crcs": [
+    "190b77",
+    "0a7091"
+   ],
+   "rewrites": []
+  },
+  {
+   "file": "stopwatch/top.crc.bit",
+   "device": "xc6slx45",
+   "header": {
+    "a": "top.crc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx45csg324",
+    "c": "2026/10/21",
+    "d": "08:42:12"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 1484777,
+   "sha256": "95cae056801b9f02bff996d9460db1049f1d6df835cd41b477d5d7f194ca4c99",
+   "crcs": [
+    "3c297c",
+    "0fd53e",
+    "3789c7"
+   ],
+   "rewrites": [
+    [
+     538,
+     23
+    ]
+   ]
+  },
+  {
+   "file": "stopwatch/top.crc.bit",
+   "device": "xc6slx16",
+   "header": {
+    "a": "top.crc.ncd;UserID=0xFFFFFFFF",
+    "b": "6slx16csg324",
+    "c": "2026/10/21",
+    "d": "08:37:43"
+   },
+   "crc": true,
+   "startupClk": "Cclk",
+   "bytes": 464569,
+   "sha256": "e400da19601e12a37922913a61948a5c9cf0a7bfe843431f6ba51faeb2e1d917",
+   "crcs": [
+    "14c4ab",
+    "2598be",
+    "335ced"
+   ],
+   "rewrites": [
+    [
+     278,
+     23
+    ]
+   ]
+  }
+ ]
+}

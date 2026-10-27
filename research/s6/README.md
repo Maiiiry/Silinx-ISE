@@ -185,6 +185,40 @@ routed XDL on both boards and its DRC finds no error and no warning but stopwatc
 (`measured/ise-check.json`). The first round found a route through the net's own slice by a LUT in use (D4 -> D,
 PhysDesignRules:2066): out of its own slice a net takes only COUT -> DMUX.
 
+### The bitstream format (#724, 2026-10-27)
+
+Stage S6-A on the Mac mini (`ise-format.sh`, 2 minutes): the two empty designs through bitgen with the options of
+Silinx's `.ut` for the Spartan-6 (`server/ise.js`: the CRC on, StartUpClk Cclk / JtagClk; UserClk is refused by
+bitgen without a STARTUP_SPARTAN6 in the design), with `-g CRC:Disable`, and with `-g Compress`. The compressed
+files write one frame and copy it everywhere with MFWR, one FAR per frame: they gave the frame order, and auto CRCs
+a few words apart, from which the CRC was found. `core/fpga/s6/bitstream.js` has the reader and the writer;
+`check-writer6.mjs` reads an ISE `.bit` and writes it again from its frame data and options.
+
+- **The CRC** is 22 bits and takes one step per word written to a register (not one per bit):
+  `c = (c << 1) ^ (c[21] ? 0x9081 : 0)`, then `c ^= register << 16 | word`. RCRC (CMD 7) sets it to 0; bitgen writes
+  it as two words (6 + 16 bits) after each Type 2 write of FDRI (the auto CRC, which does not reset it) and to the CRC
+  register at the end; with `-g CRC:Disable` both are `9876 DEFC`. (The steps per word were found first: segments of
+  identical writes in the XC6SLX16's and XC6SLX45's compressed files differ only in their starting CRC, so the
+  difference of their ending CRCs is the starting one's through the step alone.)
+- **COR1** `3d00`, StartUpClk in bits 1:0 (Cclk 0, UserClk 1, JtagClk 2), the CRC off in bit 4 (`3d10`).
+- **FAR_MAJ** is block type [15:12] (0 the logic, 1 the block RAM), row [11:8], column [7:0]; **FAR_MIN** the minor.
+  A two-word write to FAR_MAJ sets both.
+- **FDRI**: for each row, its columns in order, each its frames of 65 words (minors), then 2 frames of pad (all ones);
+  the XC6SLX16 has 4 rows of 26 columns (742 frames + 2), the XC6SLX45 8 of 39 (1134 + 2); the columns' frames:
+  4 (the first), 30, 31, 25, 24. Then the block RAM's frames (576 on the XC6SLX16, 2304 on the XC6SLX45: 72 per block
+  RAM column and row), the I/O words (as many as **FLR** says: `0430`, `0628`; FLR is not the frame length) and one
+  word: 231 953 and 742 057 words.
+- **The empty design** sets three words besides the pad frames: frame 3 word 4 (`0020`) of the even rows, frame 27
+  word 64 (`3100`) of row 0.
+- **A design with a block RAM** (stopwatch) has one frame of its block RAM column written again after the others
+  (FAR, WCFG, a Type 2 FDRI of that frame and a pad frame, its auto CRC), equal to the frame in the main data but for
+  two bits: the bit database's matter (#728).
+
+All 42 files of ISE (the empty designs of night 1 and S6-A, the seven examples implemented on both boards with the
+CRC on and off) are written again byte-identical, every CRC computed as bitgen wrote it. `measured/format.json` keeps
+the empty designs' and stopwatch's size, SHA-256 and CRCs, which `test/s6-bitstream.test.js` checks the writer
+against without ISE.
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -256,3 +290,5 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `compare-route.mjs` | The router against ISE's routing of the same netlists (night 1): `measured/route-compare.json` |
 | `ise-place-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `par -k` and `drc` of the placed XDL, `drc` of the routed one |
 | `summarize-ise-check.mjs` | That check's logs as `measured/ise-check.json` (the messages by id and count) |
+| `ise-format.sh` | Inside the ISE container: the empty designs through bitgen with Silinx's options and their variants (#724) |
+| `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
