@@ -120,7 +120,8 @@ test('#1527 what memories do not support yet: said where it is', () => {
   const msgs = (src) => cToHdl(src).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`);
   assert.deepEqual(msgs('void f(int a[8], int x) {\n  for (int i = 0; i < 8; i++) a[i] = x++;\n}'), ["2 a write of the memory 'a' with another side effect in it (++, --, an assignment, a call): write them as statements of their own"]);
   assert.deepEqual(msgs('int f(int a[8], int i) {\n  return a[i++];\n}'), ['2 a return reading a memory with another side effect in it (++, --, an assignment, a call): write them as statements of their own']);
-  assert.deepEqual(msgs('int g(int b[8]) { return b[0]; }\nint f(int a[8]) {\n  return g(a);\n}'), ["3 the memory 'a' can only be indexed here (a[i]): it cannot be passed to a function"]);
+  // (a memory passed to a function: the call inlined, #1632)
+  assert.deepEqual(msgs('int g(int b[8]) { return b[0]; }\nint f(int a[8]) {\n  return g(a);\n}'), []);
   assert.deepEqual(msgs('int f(int a[8], int k) {\n  switch (k) { case 0: return a[0]; default: return 0; }\n}'), ["2 a 'switch' that accesses a memory is not supported yet in a sequential module (write the access as a statement of its own before it)"]);
   assert.deepEqual(msgs('int f(int n) {\n  int t[100] = {1, 2, 3};\n  for (int k = 0; k < n; k++) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    t[k] = 5;\n  }\n  return t[n];\n}'), ["2 't': a memory initialized with { … } and written: make it static (its values kept between calls) or const, or initialize it with a loop"]);
   assert.deepEqual(msgs('const int T[100] = {1};\nint f(int i) {\n  for (int k = 0; k < i; k++) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    T[k] = 0;\n  }\n  return 0;\n}'), ["5 'T' is constant: it cannot be written"]);

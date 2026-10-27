@@ -146,8 +146,12 @@ run in one clock cycle; its variables are registers (a `static` or a global keep
 initial value set at the reset); its loops, `break`, `continue` and `return` choose the next state. The arguments
 are read when `ap_start` is 1 in the idle state; the call's last state has `ap_done` and `ap_ready` at 1 for one
 cycle, `ap_return` valid; a pointer output's `_ap_vld` is 1 for one cycle after each write, its value then valid.
-A function with a loop called by another, and a division by a value other than a constant power of 2, are not
-supported yet. The machine shown as an ASM chart: #1575.
+A function with a loop called by the top, or given an array, is **inlined** into it (#1632): its loops are the
+top's (each call its own), its array parameters the arguments (a memory too), its pointer and reference parameters
+the variables passed, its by-value parameters local variables, its `static` variables one register per function
+shared by every call; an early `return` ends it through a flag. Such a call in an expression is made before it;
+in a loop's condition, or after `&&`, `||` or `?:`, it is refused. A division by a value other than a constant
+power of 2 is not supported yet. The machine shown as an ASM chart: #1575.
 
 **Arrays and memories** (#1527). A local array of up to 64 elements is registers (one per element; an index that
 is not a constant a multiplexer). An array argument is a memory outside the module, `ap_memory`: one port, its
