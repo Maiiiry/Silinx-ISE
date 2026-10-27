@@ -73,7 +73,8 @@ int main(void) {
   if (n > 1 || (z = 2)) printf("yes z=%d\\n", z);
   bump(&n, 5); bump(&t[2], -8);
   int *p = &t[1]; p[1] = 77;
-  printf("n=%d t2=%d count=%d %d %d %d\\n", n, t[2], count, next_id(), next_id(), n > 10 ? n : -n);
+  int id1 = next_id(), id2 = next_id();   // (the order of a call's arguments is not C's: not in one printf)
+  printf("n=%d t2=%d count=%d %d %d %d\\n", n, t[2], count, id1, id2, n > 10 ? n : -n);
   int m[2][3] = {{1, 2, 3}, {4, 5, 6}};
   m[1][0] += m[0][2] * 10;
   for (int r = 0; r < 2; r++) for (int q = 0; q < 3; q++) printf("%d ", m[r][q]);
