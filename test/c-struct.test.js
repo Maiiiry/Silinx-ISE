@@ -130,22 +130,18 @@ test('#1590 structs in C++: co-simulated in VHDL and Verilog; an array of struct
     const r = cosimulate(CPP, { file: 'acc.cpp', lang });
     assert.deepEqual(r.errors, []);
     assert.equal(r.pass, true, JSON.stringify(r.mismatches, big));
-    assert.deepEqual(r.gen.diagnostics.map((d) => d.message), ["the struct argument 'arr': its members are ports of their own (arr_foo, arr_bar); Vitis HLS makes one port of them (not yet, #1628)"]);
+    assert.deepEqual(r.gen.diagnostics.map((d) => d.message), ["the struct argument 'arr': its members are memories of their own (arr_foo, arr_bar); Vitis HLS makes one memory of them (not yet, #1668)"]);
     assert.deepEqual(r.gen.ports.filter((p) => /^arr_/.test(p.name)).map((p) => p.name), ['arr_foo_address0', 'arr_foo_ce0', 'arr_foo_we0', 'arr_foo_d0', 'arr_foo_q0', 'arr_bar_address0', 'arr_bar_ce0', 'arr_bar_q0']);
   }
 });
 
-test('#1590 a struct argument or result of the top function: a port per member, said (Vitis HLS aggregates them, #1628)', () => {
+test('#1590 a struct argument or result of the top function: one port each (#1628, core/c-aggregate.js), no warning', () => {
   const src = 'struct P { short x, y; };\nP add(P a, const P &b) {\n  P r;\n  r.x = a.x + b.x;\n  r.y = a.y + b.y;\n  return r;\n}\nint main() { P a = {1, 2}, b = {3, 4}; P c = add(a, b); return c.x == 4 && c.y == 6 ? 0 : 1; }\n';
   for (const lang of ['vhdl', 'verilog']) {
     const r = cosimulate(src, { file: 'p.cpp', lang });
     assert.deepEqual([r.errors, r.pass], [[], true]);
-    assert.deepEqual(r.gen.ports.map((p) => p.name), ['ap_start', 'ap_done', 'ap_idle', 'ap_ready', 'a_x', 'a_y', 'b_x', 'b_y', 'ap_ret_x', 'ap_ret_x_ap_vld', 'ap_ret_y', 'ap_ret_y_ap_vld']);
-    assert.deepEqual(r.gen.diagnostics.map((d) => `${d.line} ${d.message}`), [
-      "2 the struct returned by 'add': its members are outputs of their own (ap_ret_x, ap_ret_y); Vitis HLS makes one port of them (not yet, #1628)",
-      "2 the struct argument 'a': its members are ports of their own (a_x, a_y); Vitis HLS makes one port of them (not yet, #1628)",
-      "2 the struct argument 'b': its members are ports of their own (b_x, b_y); Vitis HLS makes one port of them (not yet, #1628)",
-    ]);
+    assert.deepEqual(r.gen.ports.map((p) => `${p.name}:${p.w}`), ['ap_start:1', 'ap_done:1', 'ap_idle:1', 'ap_ready:1', 'a:32', 'b:32', 'ap_return:32']);
+    assert.deepEqual(r.gen.diagnostics, []);
   }
 });
 

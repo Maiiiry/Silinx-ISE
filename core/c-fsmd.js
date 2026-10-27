@@ -444,6 +444,12 @@ class SeqFlow extends Flow {
   }
   result() {
     const ports = [], outputs = new Map();
+    // a struct argument written (#1628): one port of its members (core/c-aggregate.js), each read at the start of a
+    // call and given back, its value the call's whenever one of them is written
+    for (const a of this.c.ast.structArgs?.get(this.fn.name) || []) {
+      const os = a.stream || a.name === 'return' ? [] : a.members.map((m) => this.outs.get(m)).filter(Boolean);
+      if (os.some((o) => o.written)) for (const o of os) { this.readOut(o); o.written = true; }
+    }
     for (const pa of this.fn.params) {
       const o = this.outs.get(pa.name);
       const fifo = this.fifos?.find((x) => x.name === pa.name);

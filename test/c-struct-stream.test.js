@@ -119,8 +119,8 @@ test('#1662 a stream of ap_axiu co-simulated in VHDL and Verilog: one ap_fifo pe
     assert.equal(r.pass, true, JSON.stringify(r.mismatches, big));
     assert.deepEqual(r.gen.diagnostics.map((d) => `${d.line} ${d.message}`), [
       '5 #pragma HLS INTERFACE axis port=in is not made yet: ignored (its default interface made)',
-      "4 the stream of a struct 'in': its members are streams of their own (in_data, in_keep, in_strb, in_last); Vitis HLS makes one stream of them (not yet, #1628)",
-      "4 the stream of a struct 'out': its members are streams of their own (out_data, out_keep, out_strb, out_last); Vitis HLS makes one stream of them (not yet, #1628)",
+      "4 the stream of a struct 'in': its members are streams of their own (in_data, in_keep, in_strb, in_last); Vitis HLS makes one stream of them (not yet, #1668)",
+      "4 the stream of a struct 'out': its members are streams of their own (out_data, out_keep, out_strb, out_last); Vitis HLS makes one stream of them (not yet, #1668)",
     ].sort((a, b) => a.localeCompare(b)).sort((a, b) => parseInt(a) - parseInt(b)));
     assert.deepEqual(r.gen.ports.filter((p) => /^(in|out)_/.test(p.name)).map((p) => `${p.name}:${p.w}`), [
       'in_data_dout:12', 'in_data_empty_n:1', 'in_data_read:1', 'in_keep_dout:2', 'in_keep_empty_n:1', 'in_keep_read:1',

@@ -2,7 +2,7 @@
 // its state (ap_CS_fsm, as Vitis HLS names it) in one clocked process, the operations of its states one signal each
 // (core/c-hdl.js), Vitis HLS's ports (ap_clk, ap_rst, ap_start, ap_done, ap_idle, ap_ready, the arguments, ap_return).
 // Isomorphic ES module: no DOM and no Node APIs.
-import { bin, sig, vhdlNodes, verilogNodes } from './c-hdl.js';
+import { bin, sig, vhdlNodes, verilogNodes, innerSignals } from './c-hdl.js';
 import { hdlName } from './c-graph.js';
 
 const rname = (r) => `ap_r_${hdlName(r.name)}`;
@@ -20,7 +20,7 @@ function nodesOf(m) {
 const depth = (x) => 2 ** x.aw;
 const words = (x) => Array.from({ length: depth(x) }, (_, k) => x.init?.[k] ?? 0n);
 
-export function vhdlSeq(name, src, ports, m) {
+export function vhdlSeq(name, src, ports, m, agg) {
   const g = m.graph, nodes = nodesOf(m), SW = m.stateT.w;
   const S = (k) => `"${bin(k, SW)}"`;
   const regs = m.regs.map((r) => ({ ...r, sig: rname(r) }));
@@ -38,8 +38,10 @@ export function vhdlSeq(name, src, ports, m) {
     const init = x.init ? ` := (${words(x).map((v, k) => `${k} => "${bin(v, x.t.w)}"`).join(', ')})` : '';
     L.push(`  signal ap_m_${hdlName(x.name)} : ap_m_${hdlName(x.name)}_t${init};`, `  signal ap_m_${hdlName(x.name)}_q0 : ${ty(x.t)};`);
   }
+  innerSignals(agg, 'vhdl', L);
   L.push('begin');
   vhdlNodes(nodes, g, L);
+  L.push(...(agg?.vhdl || []));
   for (const x of m.mems || []) {
     // (a block RAM's port: written when we, read the cycle after the address)
     const a = `to_integer(${sig(g.get(x.addr))})`;
@@ -62,14 +64,14 @@ export function vhdlSeq(name, src, ports, m) {
   L.push('        else', `          ap_CS_fsm <= ${S(m.idle)};`, '        end if;', '      end if;', '    end if;', '  end process;');
   L.push(`  ap_done <= '1' when ap_CS_fsm = ${S(m.done)} else '0';`, `  ap_ready <= '1' when ap_CS_fsm = ${S(m.done)} else '0';`, `  ap_idle <= '1' when ap_CS_fsm = ${S(m.idle)} else '0';`);
   for (const [p, o] of m.outputs) {
-    const v = o.node != null ? sig(g.get(o.node)) : byName.get(o.reg).sig, port = ports.find((x) => x.name === p);
+    const v = o.node != null ? sig(g.get(o.node)) : byName.get(o.reg).sig, port = [...ports, ...(agg?.inner || [])].find((x) => x.name === p);
     L.push(`  ${p} <= ${port.w === 1 ? `${v}(0)` : `std_logic_vector(${v})`};`);
   }
   L.push('end behav;', '');
   return L.join('\n');
 }
 
-export function verilogSeq(name, src, ports, m) {
+export function verilogSeq(name, src, ports, m, agg) {
   const g = m.graph, nodes = nodesOf(m), SW = m.stateT.w;
   const S = (k) => `${SW}'b${bin(k, SW)}`;
   const regs = m.regs.map((r) => ({ ...r, sig: rname(r) }));
@@ -79,11 +81,13 @@ export function verilogSeq(name, src, ports, m) {
   L.push(');', `  reg [${SW - 1}:0] ap_CS_fsm;`);
   for (const r of regs) L.push(`  reg ${r.s ? 'signed ' : ''}[${r.w - 1}:0] ${r.sig};`);
   for (const n of nodes) L.push(`  wire ${n.s ? 'signed ' : ''}[${n.w - 1}:0] ${sig(n)};`);
+  innerSignals(agg, 'verilog', L);
   for (const x of m.mems || []) {
     L.push(`  reg [${x.t.w - 1}:0] ap_m_${hdlName(x.name)} [0:${depth(x) - 1}];`, `  reg ${x.t.s ? 'signed ' : ''}[${x.t.w - 1}:0] ap_m_${hdlName(x.name)}_q0;`);
     if (x.init) L.push('  initial begin', ...words(x).map((v, k) => `    ap_m_${hdlName(x.name)}[${k}] = ${x.t.w}'b${bin(v, x.t.w)};`), '  end');
   }
   verilogNodes(nodes, g, L);
+  L.push(...(agg?.verilog || []));
   for (const x of m.mems || []) {
     const a = sig(g.get(x.addr));
     L.push(`  always @(posedge ap_clk) if (${sig(g.get(x.ce))}) begin`);

@@ -89,7 +89,7 @@ so its hardware is the C's:
   `_write`), each access a state of its own that waits while the FIFO is empty or full. A **stream of a struct**
   (`hls::stream<S>`, #1662) is a stream per member of `S` (`A_data`, `A_last`…), all written or read together:
   `write`, `<<`, `read()` in a declaration, an assignment or a `return`, `read(v)`, `>>`, `empty`, `full`, passed to a
-  function, named by a pragma. Vitis HLS makes one stream of them (a warning says so: not yet, #1628).
+  function, named by a pragma. Vitis HLS makes one stream of them (a warning says so: not yet, #1668).
 - Test benches: `std::cout` / `cerr` (with `<iomanip>`'s `setw`, `left` / `right`, `setfill('0')`, `hex` /
   `oct` / `dec`), `ofstream` / `ifstream` (files in memory), `>>` and `<<` on streams.
 - Macros are expanded in pragmas (`#define F 4` … `#pragma HLS UNROLL factor=F`), as Vitis HLS does.
@@ -111,8 +111,12 @@ structs is an array per member; a member array of an array of structs is one arr
   (`S *`), arrays of structs passed whole, returned by a function (its call a statement: `x = f(…);` or
   `S x = f(…);`).
 - `enum` and `enum class`: their constants are constants, the type an `int`.
-- The top function's struct arguments and result: **one port per member** for now, with a warning. Vitis HLS
-  aggregates them into one port (#1628).
+- The top function's struct arguments and result: **one port each** (#1628), as Vitis HLS aggregates them (UG1399,
+  the Vivado IP flow): the members in their order, the first at the LSB, each its C size (`bool` and `char` 8 bits,
+  `short` 16, an `ap_int<W>` 8, 16, 32, 64… bits), the padding bits 0 (`struct { short x; bool z; ap_int<5> w; }`
+  is 32 bits: `x` bits 15–0, `z` bit 16, `w` bits 28–24). A struct read is an input `s`; written (by reference or
+  address), `s_i`, `s_o` and `s_o_ap_vld`, its members not written given back as they were; returned, `ap_return`.
+  A stream or an array of structs is still a stream or a memory per member, with a warning (#1668).
 - Not possible: unions, pointers in a struct, a pointer to a struct as a variable, bit fields (`ap_uint<W>`
   instead). Not yet: base classes; a static object or an array of objects whose constructor is not of constants.
 
@@ -149,6 +153,7 @@ Names and behaviour as Vitis HLS makes them (UG1399, "Interface synthesis"):
 | a pointer argument only read | input `p` (`ap_none`) |
 | a pointer argument only written | output `p` and `p_ap_vld` (`ap_vld`) |
 | a pointer argument read and written | input `p_i`, output `p_o` and `p_o_ap_vld` (`ap_ovld`) |
+| a struct argument (#1628) | one port of its members (above): read, input `s`; written, `s_i`, `s_o`, `s_o_ap_vld`; returned, `ap_return` |
 | an array argument | `ap_memory`: `a_address0`, `a_ce0`, `a_we0`, `a_d0`, `a_q0` |
 | a pointer argument indexed (`p[i]`, `*(p + i)`, #1599) | `ap_memory`, its depth the INTERFACE pragma's `depth=` (else 1024, a warning) |
 
