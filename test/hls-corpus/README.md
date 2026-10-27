@@ -34,12 +34,12 @@ Not part of `npm test` (it needs the network once).
 | dsp-fft-interface-stream-float-ssr2 | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fft-logicore-fft-float-ssr | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fir-decimator | C++ | fail | fail | skip | - | C simulation: fir_top.h:19: the header 'hls_fir.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | fail | fail | skip | - | C simulation: 26: 'A' is not declared |
+| interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-aggregation-of-nested-structs | C++ | pass | pass | pass | 83 |  |
 | interface-aggregation-disaggregation-aggregation-of-struct | C++ | pass | pass | pass | 183 |  |
 | interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 22: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
-| interface-aggregation-disaggregation-struct-ii-issue | C++ | fail | fail | skip | - | C simulation: example.cpp:23: the pointer to a struct 'a_in' indexed: write the parameter as an array, a_in[N] |
+| interface-aggregation-disaggregation-struct-ii-issue | C++ | pass | pass | pass | 2708 |  |
 | interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | interface-memory-ecc-flags | C++ | pass | pass | pass | 118 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 
-73 designs: 28 through co-simulation.
+73 designs: 30 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

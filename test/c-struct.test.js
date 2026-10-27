@@ -152,7 +152,7 @@ test('#1590 structs: what is not supported said', () => {
   assert.deepEqual(errs('struct b { int x; };\nstruct s : b { int a; };\nint f() { return 0; }\n', 'e.cpp'), ["2 the struct 's': a base class is not supported yet"]);
   assert.deepEqual(errs('struct s { int a; };\nint f(void) { struct s v, *p; v.a = 1; return v.a; }\n'), ['2 a pointer or a reference to a struct (s) as a variable is not possible in Silinx HLS: use the struct or an index']);
   assert.deepEqual(errs('struct s { int a; };\nint g(int x) { return x; }\nint f(void) { struct s v; v.a = 1; return g(v); }\n'), ["3 the struct 'v' used as a value here: copy it (x = v;), pass it to a function or read its members"]);
-  assert.deepEqual(errs('struct s { int a; };\nint f(struct s *p, int i) { return p[i].a; }\n'), ["2 the pointer to a struct 'p' indexed: write the parameter as an array, p[N]"]);
+  assert.deepEqual(errs('struct s { int a; };\nint f(struct s *p, int i) { return p[i].a; }\n'), []);   // (#1684: an array of structs)
   assert.deepEqual(errs('struct s { int a; };\nint f(struct s v) { return v.b; }\n'), ["2 'b' is not a member of s"]);
   assert.deepEqual(errs('struct s { int a; };\nstruct t { int a; };\nint f(struct s v) { struct t w; w = v; return w.a; }\n'), ['3 a s copied to a t']);
   assert.deepEqual(errs('struct s { int a; };\nstruct s mk(int x) { struct s r; r.a = x; return r; }\nint f(int x) { return mk(x).a; }\n'), ["3 'mk' returns a struct: call it as a statement, x = mk(…); or S x = mk(…);"]);

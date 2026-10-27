@@ -56,11 +56,15 @@
     "reason": "C simulation: fir_top.h:19: the header 'hls_fir.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
   },
   "interface-aggregation-disaggregation-aggregation-of-m-axi-ports": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 26: 'A' is not declared"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 53,
+      "max": 53,
+      "avg": 53
+    },
+    "reason": null
   },
   "interface-aggregation-disaggregation-aggregation-of-nested-structs": {
     "csim": "pass",
@@ -103,11 +107,15 @@
     "reason": null
   },
   "interface-aggregation-disaggregation-struct-ii-issue": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: example.cpp:23: the pointer to a struct 'a_in' indexed: write the parameter as an array, a_in[N]"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 2708,
+      "max": 2708,
+      "avg": 2708
+    },
+    "reason": null
   },
   "interface-memory-burst-rw": {
     "csim": "fail",

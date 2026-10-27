@@ -4,7 +4,9 @@
 // the INTERFACE pragma's depth= (else DEFAULT_DEPTH, said). Before core/c-check.js's checks of each function.
 // Isomorphic ES module: no DOM and no Node APIs.
 //
-//   pointerArithmetic(funcs, globals, synth, report)   (funcs: Map name -> Func; synth: the synthesized functions)
+//   pointerArithmetic(funcs, globals, synth, report, structArgs, top)   (funcs: Map name -> Func; synth: the
+//   synthesized functions; structArgs: core/c-struct.js's, a pointer to structs' members said once by its name; top:
+//   the one whose depths are said, #1684)
 
 export const DEFAULT_DEPTH = 1024;
 
@@ -32,7 +34,7 @@ function sum(ts, loc) {
   return e;
 }
 
-export function pointerArithmetic(funcs, globals, synth, report) {
+export function pointerArithmetic(funcs, globals, synth, report, structArgs = new Map(), top = null) {
   for (const f of funcs.values()) {
     if (!f.body) continue;
     // (the names of its pointers and arrays: its parameters', its variables', the globals')
@@ -50,20 +52,43 @@ export function pointerArithmetic(funcs, globals, synth, report) {
       for (const k of Object.keys(n)) if (k !== 'loc') delete n[k];
       Object.assign(n, { kind: 'index', e: base, i, fromDeref: true });
     });
-    if (!synth.has(f.name)) continue;
-    // a pointer argument indexed: an array (ap_memory)
+  }
+  // a pointer argument indexed, or passed to a function whose parameter is one (its array, #1684): an array (ap_memory)
+  const isArg = (pa) => pa.name && pa.type.kind === 'ptr' && pa.type.to.kind !== 'ptr' && pa.type.to.kind !== 'stream' && pa.type.to.kind !== 'struct';
+  const arrays = new Set();
+  for (let more = true; more;) {
+    more = false;
+    for (const f of funcs.values()) {
+      if (!f.body || !synth.has(f.name)) continue;
+      for (const pa of f.params) {
+        if (!isArg(pa) || arrays.has(pa)) continue;
+        let indexed = false;
+        walk(f.body, (n) => {
+          if (n.kind === 'index' && n.e.kind === 'id' && n.e.name === pa.name && !(n.i.kind === 'num' && n.i.value === 0n && !n.fromDeref)) indexed = true;
+          if (n.kind === 'call' && n.callee.kind === 'id') {
+            const g = funcs.get(n.callee.name);
+            n.args.forEach((x, i) => { if (x.kind === 'id' && x.name === pa.name && g?.params[i] && arrays.has(g.params[i])) indexed = true; });
+          }
+        });
+        if (indexed) { arrays.add(pa); more = true; }
+      }
+    }
+  }
+  for (const f of funcs.values()) {
+    if (!f.body || !synth.has(f.name)) continue;
     for (const pa of f.params) {
-      if (!pa.name || pa.type.kind !== 'ptr' || pa.type.to.kind === 'ptr' || pa.type.to.kind === 'stream' || pa.type.to.kind === 'struct') continue;
-      let indexed = false;
-      walk(f.body, (n) => {
-        if (n.kind === 'index' && n.e.kind === 'id' && n.e.name === pa.name && !(n.i.kind === 'num' && n.i.value === 0n && !n.fromDeref)) indexed = true;
-      });
-      if (!indexed) continue;
+      if (!arrays.has(pa)) continue;
       let depth = null;
       walk(f.body, (n) => { if (n.kind === 'pragma' && n.pragma.name === 'INTERFACE' && n.pragma.args.port === pa.name && n.pragma.args.depth !== undefined) depth = Number(n.pragma.args.depth); });
       if (!(depth >= 1)) {
         depth = DEFAULT_DEPTH;
-        report(pa.loc, `the pointer argument '${pa.name}' is indexed: a memory (ap_memory) of ${DEFAULT_DEPTH} elements, its depth not given (#pragma HLS INTERFACE port=${pa.name} depth=N)`, 'warning');
+        // (said of the top function's: the others are inlined, their arrays the caller's)
+        const S = structArgs.get(f.name)?.find((a) => a.members.includes(pa.name));
+        if (f.name === top && !S) report(pa.loc, `the pointer argument '${pa.name}' is indexed: a memory (ap_memory) of ${DEFAULT_DEPTH} elements, its depth not given (#pragma HLS INTERFACE port=${pa.name} depth=N)`, 'warning');
+        else if (f.name === top && !S.said) {
+          S.said = true;
+          report(S.loc, `the pointer to structs '${S.name}' is indexed: a memory (ap_memory) of ${DEFAULT_DEPTH} elements per member, its depth not given (#pragma HLS INTERFACE port=${S.name} depth=N)`, 'warning');
+        }
       }
       pa.type = { kind: 'array', of: pa.type.to, size: null, length: depth, fromPtr: true };
       // (*p of it: p[0])

@@ -108,7 +108,7 @@ structs is an array per member; a member array of an array of structs is one arr
   arrays, members' default values (`int n = 0;`).
 - Uses: members (`.`, `->`), whole structs copied (`a = b;`, `S c = d;`), initializer lists (`{ … }`, nested or
   not, the missing members zero), passed to functions by value, by reference (`S &`, `const S &`) or by address
-  (`S *`), arrays of structs passed whole, returned by a function (its call a statement: `x = f(…);` or
+  (`S *`; indexed, `p[i].x`, `auto t = p[i];`, an array of structs, #1684), arrays of structs passed whole, returned by a function (its call a statement: `x = f(…);` or
   `S x = f(…);`).
 - `enum` and `enum class`: their constants are constants, the type an `int`.
 - The top function's struct arguments and result: **one port each** (#1628), as Vitis HLS aggregates them (UG1399,
@@ -155,7 +155,7 @@ Names and behaviour as Vitis HLS makes them (UG1399, "Interface synthesis"):
 | a pointer argument read and written | input `p_i`, output `p_o` and `p_o_ap_vld` (`ap_ovld`) |
 | a struct argument (#1628) | one port of its members (above): read, input `s`; written, `s_i`, `s_o`, `s_o_ap_vld`; returned, `ap_return` |
 | an array argument | `ap_memory`: `a_address0`, `a_ce0`, `a_we0`, `a_d0`, `a_q0` |
-| a pointer argument indexed (`p[i]`, `*(p + i)`, #1599) | `ap_memory`, its depth the INTERFACE pragma's `depth=` (else 1024, a warning) |
+| a pointer argument indexed (`p[i]`, `*(p + i)`, #1599), or passed to a function that indexes it (#1684) | `ap_memory`, its depth the INTERFACE pragma's `depth=` (else 1024, a warning); a pointer to structs a memory per member, a pragma naming the struct applying to each |
 
 Ports are `std_logic_vector(W-1 downto 0)` (VHDL) or `[W-1:0]` (Verilog), a 1-bit type a
 `std_logic` / plain wire. The block protocol: `ap_start` starts a call; `ap_ready` says the inputs
