@@ -151,6 +151,8 @@ export function normalizeDoc(d, { modules } = {}) {
 
 // ISE style bus names: "data(7:0)" / "data[7:0]" -> { base: 'data', width: 8 }
 export function parseNetName(s) {
+  // (an escaped identifier, \opcode[0], #1697: a name, its brackets not a range)
+  if (/^\s*\\[!-~]+\s*$/.test(String(s ?? ''))) return { base: String(s).trim(), width: null };
   const m = /^\s*([A-Za-z_][\w$]*)\s*(?:[([]\s*(\d+)\s*(?::|downto|to)\s*(\d+)\s*[)\]])?\s*$/i.exec(String(s ?? ''));
   if (!m) return { base: String(s ?? '').trim(), width: null, bad: true };
   return { base: m[1], width: m[2] != null ? Math.abs(+m[2] - +m[3]) + 1 : null };

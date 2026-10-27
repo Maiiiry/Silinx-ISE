@@ -166,6 +166,60 @@ test('moduleUnitRanges: what a file keeps when a module is taken out of it', () 
   assert.ok(Object.values(r4).every(x => !x.others));
 });
 
+test('#1697 a Verilog module with escaped names (\\opcode[0] ): kept escaped, its instances by name the same; its gates in VHDL as extended identifiers', async () => {
+  const files = {
+    'src/esc.v': `module esc (\\a[0] , \\a[1] , clk, \\y[0] , \\q[1] );
+  input \\a[0] , \\a[1] , clk;
+  output \\y[0] ;
+  output reg \\q[1] ;
+  wire \\t+n ;
+  assign \\t+n  = \\a[0]  ^ \\a[1] ;
+  assign \\y[0]  = \\t+n  & \\a[0] ;
+  always @(posedge clk) \\q[1]  <= \\t+n ;
+endmodule
+`,
+    'sim/tb_esc.v': `\`timescale 1ns / 1ps
+module tb_esc;
+  reg clk = 0;
+  reg [1:0] a = 0;
+  wire y, q;
+  esc uut (.\\a[0] (a[0]), .\\a[1] (a[1]), .clk(clk), .\\y[0] (y), .\\q[1] (q));
+  always #5 clk = ~clk;
+  initial begin
+    repeat (12) #7 a = a + 1;
+    $finish;
+  end
+endmodule
+`,
+  };
+  const sources = srcList(files);
+  const r = await convertModuleToSchematic({ sources, module: 'esc', layout });
+  assert.deepEqual(r.warnings, []);
+  assert.deepEqual(r.doc.ports.map(p => p.name), ['\\a[0]', '\\a[1]', 'clk', '\\y[0]', '\\q[1]']);
+  assert.deepEqual(kinds(r.doc), { xor2: 1, and2: 1, hdlblock: 1 });
+  const code = r.writes['src/esc.v'];
+  assert.match(code, /^ {2}input wire \\a\[0\] ,$/m);
+  assert.match(code, /^ {2}output reg \\q\[1\] $/m);
+  assert.match(code, /^ {2}assign \\y\[0\] {2}= /m);
+  const after = applied(sources, r);
+  assert.deepEqual(messages(after, 'tb_esc'), messages(sources, 'tb_esc'));
+  const a = waves(sources, 'tb_esc', 200e3), b = waves(after, 'tb_esc', 200e3);
+  assert.ok(a.waves.q.split(' ').length > 4, 'the testbench makes activity');
+  assert.deepEqual(b.waves, a.waves);
+  // gates only (no HDL block): generated in VHDL too, the names as extended identifiers
+  const g = await convertModuleToSchematic({ sources: srcList({ 'src/g.v': 'module g(\\a[0] , \\a[1] , \\y[0] );\n  input \\a[0] , \\a[1] ;\n  output \\y[0] ;\n  assign \\y[0]  = \\a[0]  & ~\\a[1] ;\nendmodule\n' }), module: 'g', layout });
+  assert.deepEqual(kinds(g.doc), { and2b1: 1 });
+  const vhd = generateHdl(g.doc, { lang: 'vhdl' });
+  assert.deepEqual(vhd.diagnostics, []);
+  assert.match(vhd.code, /^ {4}\\a\[0\]\\ : in std_logic;$/m);
+  const lib = compile([{ path: 'g.vhd', text: vhd.code }]);
+  assert.deepEqual(lib.errors, []);
+  assert.deepEqual(elaborate(lib, 'g').top.ports.map(p => p.name), ['\\a[0]\\', '\\a[1]\\', '\\y[0]\\']);
+  // a name that is not an identifier, without its backslash: still refused
+  const bad = generateHdl({ ...g.doc, ports: [{ ...g.doc.ports[0], name: 'a[0]' }, ...g.doc.ports.slice(1)] }, { lang: 'verilog' });
+  assert.deepEqual(bad.diagnostics.filter(d => d.severity === 'error').map(d => d.message), ["I/O marker name 'a[0]' is not a valid VERILOG identifier"]);
+});
+
 // ------------------------------------------------------------------ every module of every example
 for (const name of EXAMPLES) {
   test(`every module of the example ${name} (its testbench too) converts to a schematic that behaves the same`, async () => {
