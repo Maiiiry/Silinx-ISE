@@ -1,0 +1,129 @@
+// AMD's Vitis HLS as the HLS corpus's oracle (#1624, scripts/hls-vitis.mjs): the config a design runs with, the parsing
+// of Vitis's reports (hand-written snippets in their format, not Vitis's files), the comparison of the ports with
+// Silinx's and the README's table. No Vitis: the comparison itself runs on the ISE runner's machine.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { vitisConfig, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, PART } from '../scripts/hls-vitis.mjs';
+import { cToHdl } from '../core/c-hdl.js';
+
+test('#1624 the config: the part fixed, the Vivado flow, no packaging nor Vivado run; the rest kept', () => {
+  const cfg = 'part=xcvu9p-flga2104-2-i\n\n[hls]\nflow_target=vitis\npackage.output.format=ip_catalog\npackage.output.syn=false\nsyn.file=a.c\ntb.file=a_test.c\nsyn.top=f\nclock=4\nvivado.flow=impl\ncosim.trace_level=all\n';
+  const out = vitisConfig(cfg);
+  assert.equal(out, `part=${PART}\n\n[hls]\nflow_target=vivado\nsyn.file=a.c\ntb.file=a_test.c\nsyn.top=f\nclock=4\n`);
+  assert.equal(vitisConfig('syn.top=f\nsyn.file=a.c', { part: 'xc7s25csga324-1' }), 'part=xc7s25csga324-1\nflow_target=vivado\nsyn.top=f\nsyn.file=a.c\n');
+  assert.equal(vitisConfig(''), `part=${PART}\nflow_target=vivado\n`);
+});
+
+const CSYNTH = `<?xml version="1.0" encoding="UTF-8"?>
+<profile>
+  <UserAssignments><Part>xc7a35t-cpg236-1</Part><TopModelName>f</TopModelName></UserAssignments>
+  <PerformanceEstimates>
+    <SummaryOfOverallLatency>
+      <Best-caseLatency>12</Best-caseLatency>
+      <Average-caseLatency>20</Average-caseLatency>
+      <Worst-caseLatency>34</Worst-caseLatency>
+      <Interval-min>13</Interval-min>
+      <Interval-max>35</Interval-max>
+    </SummaryOfOverallLatency>
+    <SummaryOfLoopLatency>
+      <outer>
+        <Name>outer</Name>
+        <TripCount>4</TripCount>
+        <Latency><range><min>8</min><max>32</max></range></Latency>
+        <IterationLatency><range><min>2</min><max>8</max></range></IterationLatency>
+        <PipelineDepth>-</PipelineDepth>
+        <VITIS_LOOP_12_1>
+          <Name>VITIS_LOOP_12_1</Name>
+          <TripCount><range><min>0</min><max>6</max></range></TripCount>
+          <Latency><range><min>0</min><max>6</max></range></Latency>
+          <PipelineII>1</PipelineII>
+          <PipelineDepth>2</PipelineDepth>
+        </VITIS_LOOP_12_1>
+      </outer>
+    </SummaryOfLoopLatency>
+  </PerformanceEstimates>
+  <InterfaceSummary>
+    <RtlPorts><name>ap_clk</name><Object>f</Object><Type>return value</Type><Scope/><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Direction>in</Direction></RtlPorts>
+    <RtlPorts><name>ap_start</name><Object>f</Object><Type>return value</Type><Scope/><IOProtocol>ap_ctrl_hs</IOProtocol><Bits>1</Bits><Direction>in</Direction></RtlPorts>
+    <RtlPorts><name>x</name><Object>x</Object><Type>scalar</Type><Scope/><IOProtocol>ap_none</IOProtocol><Bits>32</Bits><Direction>in</Direction></RtlPorts>
+    <RtlPorts><name>y</name><Object>y</Object><Type>pointer</Type><Scope/><IOProtocol>ap_vld</IOProtocol><Bits>16</Bits><Direction>out</Direction></RtlPorts>
+    <RtlPorts><name>y_ap_vld</name><Object>y</Object><Type>pointer</Type><Scope/><IOProtocol>ap_vld</IOProtocol><Bits>1</Bits><Direction>out</Direction></RtlPorts>
+  </InterfaceSummary>
+</profile>
+`;
+
+test('#1624 csynth.xml: the latency and interval, the loops (nested, a range, a pipelined one\'s II), the ports', () => {
+  const r = parseCsynth(CSYNTH);
+  assert.deepEqual(r.latency, { min: 12, max: 34 });
+  assert.deepEqual(r.interval, { min: 13, max: 35 });
+  assert.deepEqual(r.loops, [
+    { name: 'outer', line: null, trip: { min: 4, max: 4 }, latency: { min: 8, max: 32 }, ii: null, iterationLatency: { min: 2, max: 8 } },
+    { name: 'VITIS_LOOP_12_1', line: 12, trip: { min: 0, max: 6 }, latency: { min: 0, max: 6 }, ii: 1, iterationLatency: null },
+  ]);
+  assert.deepEqual(r.ports.map((p) => [p.name, p.dir, p.w, p.protocol, p.object]), [
+    ['ap_clk', 'in', 1, 'ap_ctrl_hs', 'f'], ['ap_start', 'in', 1, 'ap_ctrl_hs', 'f'], ['x', 'in', 32, 'ap_none', 'x'],
+    ['y', 'out', 16, 'ap_vld', 'y'], ['y_ap_vld', 'out', 1, 'ap_vld', 'y'],
+  ]);
+});
+
+test('#1624 csynth.xml: an undefined latency (a loop of unknown trip count), no loops, no ports; an empty report', () => {
+  const r = parseCsynth('<profile><SummaryOfOverallLatency><Best-caseLatency>3</Best-caseLatency><Worst-caseLatency>undef</Worst-caseLatency><Interval-min>4</Interval-min><Interval-max>undef</Interval-max></SummaryOfOverallLatency></profile>');
+  assert.deepEqual(r, { latency: { min: 3, max: null }, interval: { min: 4, max: null }, loops: [], ports: [] });
+  assert.deepEqual(parseCsynth(''), { latency: null, interval: null, loops: [], ports: [] });
+});
+
+const COSIM = `
+===============================================================
+--------------------------------------------------------------
++----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+
+|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |
++   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +
+|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |
++----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+
+|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|
+|   Verilog|      Pass|             10|           12.5|             15|             11|             13|             16|                    55|
++----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+
+`;
+
+test('#1624 the co-simulation report: the Verilog row\'s status and latency; a failure; the VHDL row; none run', () => {
+  assert.deepEqual(parseCosim(COSIM), { status: 'pass', latency: { min: 10, avg: 12.5, max: 15 } });
+  assert.deepEqual(parseCosim(COSIM.replace('|      Pass|', '|      Fail|')), { status: 'fail', latency: { min: 10, avg: 12.5, max: 15 } });
+  const vhdl = COSIM.replace(/\|\s+VHDL\|\s+NA\|.*\n/, '|      VHDL|      Pass|              3|              3|              3|              4|              4|              4|                    12|\n').replace(/\|\s+Verilog\|.*\n/, '|   Verilog|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n');
+  assert.deepEqual(parseCosim(vhdl), { status: 'pass', latency: { min: 3, avg: 3, max: 3 } });
+  assert.deepEqual(parseCosim(COSIM.replace('|      Pass|             10|           12.5|             15|', '|      Pass|             NA|             NA|             NA|')), { status: 'pass', latency: null });
+  assert.deepEqual(parseCosim(''), { status: null, latency: null });
+});
+
+test('#1624 the status: each step\'s exit code; the C simulation failed by its log\'s errors; steps not run skipped', () => {
+  assert.deepEqual(parseStatus('csim 0\nsynth 0\ncosim 0\n', 'INFO: [SIM 1] CSim done with 0 errors.\n'), { csim: 'pass', synth: 'pass', cosim: 'pass' });
+  assert.deepEqual(parseStatus('csim 1\nsynth 2\n'), { csim: 'fail', synth: 'fail', cosim: 'skip' });
+  assert.deepEqual(parseStatus('csim 0\nsynth 0\ncosim 124\n', 'INFO: [SIM 1] CSim done with 2 errors.\n'), { csim: 'fail', synth: 'pass', cosim: 'fail' });
+  assert.deepEqual(parseStatus('csim 0\n', 'ERROR: [SIM 211-100] \'csim_design\' failed: nonzero return value.\n'), { csim: 'fail', synth: 'skip', cosim: 'skip' });
+  assert.deepEqual(parseStatus(''), { csim: 'skip', synth: 'skip', cosim: 'skip' });
+});
+
+test('#1624 the ports compared by name: the same; missing, extra, a direction or a width that differs', () => {
+  const v = parseCsynth(CSYNTH).ports;
+  const s = v.map(({ name, dir, w }) => ({ name, dir, w }));
+  assert.deepEqual(comparePorts(s, v), { same: true, missing: [], extra: [], differ: [] });
+  const s2 = [...s.filter((p) => p.name !== 'y_ap_vld').map((p) => (p.name === 'x' ? { ...p, w: 16 } : p.name === 'y' ? { ...p, dir: 'in' } : p)), { name: 'ap_rst', dir: 'in', w: 1 }];
+  assert.deepEqual(comparePorts(s2, v), { same: false, missing: ['y_ap_vld'], extra: ['ap_rst'], differ: [{ name: 'x', vitis: 'in 32', silinx: 'in 16' }, { name: 'y', vitis: 'out 16', silinx: 'in 16' }] });
+});
+
+test('#1624 a design compared: Silinx\'s ports (cToHdl) against a Vitis report written from them; the README\'s table', () => {
+  const g = cToHdl('void f(int x, short *y) { *y = x + 1; }', { file: 'f.c', top: 'f' });
+  assert.ok(g.ok, JSON.stringify(g.diagnostics));
+  const xml = `<profile>${g.ports.map((p) => `<RtlPorts><name>${p.name}</name><Bits>${p.w}</Bits><Direction>${p.dir}</Direction></RtlPorts>`).join('')}</profile>`;
+  const vitis = { ...parseStatus('csim 0\nsynth 0\ncosim 0\n'), ...parseCsynth(xml), latency: { min: 0, max: 0 }, loops: [{ name: 'VITIS_LOOP_3_1', line: 3, ii: 1 }] };
+  const silinx = { csim: 'pass', synth: 'pass', cosim: 'pass', latency: { min: 1, max: 2 }, loops: [{ name: null, line: 3, ii: 2, cycles: 9 }], ports: g.ports.map(({ name, dir, w }) => ({ name, dir, w })) };
+  const r = compareDesign(vitis, silinx);
+  assert.equal(r.ports.same, true);
+  assert.equal(compareDesign({ ...vitis, ports: [] }, silinx).ports, null);
+  const t = vitisTable({ designs: [{ name: 'f' }, { name: 'not-run' }] }, { f: r, g: { ...r, vitis: { ...vitis, csim: 'fail', loops: [] }, ports: comparePorts(silinx.ports.slice(1), vitis.ports) } }, { image: 'xilinx/vitis-hls:2025.1' });
+  const lines = t.split('\n');
+  assert.equal(lines[0], `Vitis HLS (xilinx/vitis-hls:2025.1, ${PART}) against Silinx HLS: the C simulation, the ports, the latency (cycles) and the loops' II (Vitis's pipelined loops).`);
+  assert.deepEqual(lines.filter((l) => l.startsWith('| f ')), ['| f | pass / pass | pass / pass | same | 0 / 1-2 | VITIS_LOOP_3_1 1 / 2 |']);
+  assert.ok(!t.includes('not-run'));
+  assert.equal(lines.at(-1), '2 designs: 1 through Vitis\'s C simulation, 1 with Silinx\'s ports the same as Vitis\'s.');
+});
