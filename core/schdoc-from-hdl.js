@@ -9,7 +9,7 @@ import { elaborate } from './elaborate.js';
 import { placeAndRoute } from './schdoc-place.js';
 import {
   constBits, defaultParams, findMod, lineStarts, newDoc, normModules, offsetOf, prVhdl, prVlog,
-  rangeTextVlog, skipParen, squash, stripComments, tokAt, tokenize, typeTextVhdl, unparen,
+  rangeTextVlog, skipParen, squash, stripComments, tokAt, tokenize, typeTextVhdl, unparen, validIdent,
 } from './schdoc.js';
 import { mountGateConversion } from './schdoc-gates.js';
 import { activeVerilog, includeOf, mountSourcePieces } from './schdoc-source.js';
@@ -201,13 +201,14 @@ export async function schematicFromHdl(inst, opts = {}) {
       idSpelling(toks, archTok, e, spell);
     }
   }
-  const sp = name => spell.get(String(name).toLowerCase()) ?? name;
+  // (Verilog: an escaped identifier, \opcode[0] , named with its backslash, #1697: generateHdl writes it escaped)
+  const sp = name => (ci ? spell.get(String(name).toLowerCase()) ?? name : validIdent(name, 'verilog') || /^\\/.test(name) ? name : `\\${name}`);
   if (!opts.name) doc.name = sp(doc.name);
   const modsN = normModules(opts.modules);
 
   // ---- connectivity being built: net name -> { width, drivers: [ep], sinks: [ep] } ; ep = { sym, pin } | { port }
   const nets = new Map();
-  const netOf = (name, width) => { let n = nets.get(nk(name)); if (!n) nets.set(nk(name), n = { name, width, eps: [], drivers: [] }); return n; };
+  const netOf = (name, width) => { let n = nets.get(nk(sp(name))); if (!n) nets.set(nk(sp(name)), n = { name, width, eps: [], drivers: [] }); return n; };
   let autoK = 0;
   const anonNet = width => netOf(`__n${++autoK}`, width);
   const symbols = [];
@@ -375,7 +376,7 @@ export async function schematicFromHdl(inst, opts = {}) {
     if (!ci && procedural) {
       // outputs written by always/initial blocks are Verilog regs (unless driven by an instance in a generate)
       const drivenByInst = new Set(rw.children.flatMap(c => (c.connInfo || []).flatMap(x => [...(x.writes || [])])));
-      s.params.outputs = outs.map(x => ({ name: x.name, width: W(x), ...(!drivenByInst.has(x) && rw.procs.some(p => p.kind === 'process' && p.writes.has(x)) ? { reg: true } : {}) }));
+      s.params.outputs = outs.map(x => ({ name: sp(x.name), width: W(x), ...(!drivenByInst.has(x) && rw.procs.some(p => p.kind === 'process' && p.writes.has(x)) ? { reg: true } : {}) }));
     }
     for (const x of [...clocks, ...others]) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) });
     for (const x of outs) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) }, true);

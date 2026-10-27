@@ -3,7 +3,7 @@
 // HDL blocks; an unknown kind skipped with a warning. Isomorphic ES module: no DOM and no Node APIs.
 import { arithIo, constBits, findMod, int, vhdlBits, vlogBits } from './schdoc.js';
 import { compareOps, comparePin, constWidth } from './schdoc-symbols.js';
-import { vhdlClass } from './schdoc-hdl.js';
+import { hdlName, vhdlClass } from './schdoc-hdl.js';
 
 /** { symbolCasesMore } of generateHdl. */
 export function mountSymbolCasesMore(ctx) {
@@ -220,16 +220,16 @@ export function mountSymbolCasesMore(ctx) {
             diags.push({ severity: 'warning', message: `${s.name}: input ${q.name} unconnected, ${one ? 'tied to 1 (always enabled)' : 'tied to 0'}`, ref: { kind: 'symbol', id: s.id, pin: q.name } });
             const k = ci ? (w > 1 ? `(others => '${one ? 1 : 0}')` : `'${one ? 1 : 0}'`) : `{${w}{1'b${one ? 1 : 0}}}`;
             if (!declared.has(nk(q.name))) { used.add(nk(q.name)); extra.push({ name: q.name, width: w, type: ci ? vtype(w) : null }); }
-            pre.push(ci ? `${q.name} <= ${k};` : `assign ${q.name} = ${k};`);
+            pre.push(ci ? `${hdlName(q.name, lang)} <= ${k};` : `assign ${hdlName(q.name, lang)} = ${k};`);
             continue;
           }
           const nn = q.dir !== 'out' && outRead.has(n) ? outRead.get(n) : netName(n);
-          if (nk(nn) === nk(q.name)) continue;
+          if (nk(nn) === nk(hdlName(q.name, lang))) continue;
           if (!used.has(nk(q.name)) || declared.has(nk(q.name))) {
             if (!declared.has(nk(q.name))) { used.add(nk(q.name)); extra.push({ name: q.name, width: q.width, type: ci ? vtype(q.width) : null, reg: q.reg }); }
           } else diags.push({ severity: 'warning', message: `${s.name}: pin ${q.name} is wired to net '${nn}' but '${q.name}' is also another net`, ref: { kind: 'symbol', id: s.id, pin: q.name } });
-          if (q.dir === 'out') post.push(ci ? `${nn} <= ${q.name};` : `assign ${nn} = ${q.name};`);
-          else pre.push(ci ? `${q.name} <= ${nn};` : `assign ${q.name} = ${nn};`);
+          if (q.dir === 'out') post.push(ci ? `${nn} <= ${hdlName(q.name, lang)};` : `assign ${nn} = ${hdlName(q.name, lang)};`);
+          else pre.push(ci ? `${hdlName(q.name, lang)} <= ${nn};` : `assign ${hdlName(q.name, lang)} = ${nn};`);
         }
         if (!code.trim()) { diags.push({ severity: 'warning', message: `${s.name}: HDL block is empty`, ref: { kind: 'symbol', id: s.id } }); }
         const title = p.title ? ` (${p.title})` : '';

@@ -21,6 +21,14 @@ export function vhdlClass(type) {
   return 'other';
 }
 
+// An escaped identifier (#1697): a name written with a backslash first (\opcode[0]), as the schematic of a module whose
+// ports are Verilog escaped identifiers keeps them; in the HDL \opcode[0]  in Verilog (the space ends it), the extended
+// identifier \opcode[0]\ in VHDL. Other names as they are.
+export const escapedName = n => /^\\[!-~]+$/.test(String(n ?? ''));
+export const hdlName = (n, lang) => (!escapedName(n) ? n : lang === 'vhdl' ? `\\${n.slice(1).replace(/\\/g, '\\\\')}\\` : `${n} `);
+// a name declared in HDL as the schematic names it: an escaped one with its backslash
+const schName = (n, lang) => (validIdent(n, lang) || !/^[!-~]+$/.test(n) ? n : `\\${n}`);
+
 // declarations found in a verbatim declaration text: Map(name(lower for VHDL) -> { type, kind, reg })
 export function declaredIn(decls, lang) {
   const out = new Map();
@@ -36,7 +44,7 @@ export function declaredIn(decls, lang) {
       for (const nm of m[2].split(',')) types.set(nm.trim().toLowerCase(), { type, kind: m[1].toLowerCase() });
     }
     const u = r?.units?.find(x => x.kind === 'module');
-    for (const d of u?.decls || []) out.set(d.name.toLowerCase(), { kind: d.kind, type: types.get(d.name.toLowerCase())?.type || null });
+    for (const d of u?.decls || []) out.set(schName(d.name, lang).toLowerCase(), { kind: d.kind, type: types.get(d.name.toLowerCase())?.type || null });
     for (const [k, v] of types) if (!out.has(k)) out.set(k, v);
     for (const m of body.matchAll(/\b(type|subtype|component|function|procedure|alias|attribute)\s+([A-Za-z]\w*)/gi)) if (!out.has(m[2].toLowerCase())) out.set(m[2].toLowerCase(), { kind: m[1].toLowerCase() });
     return out;
@@ -44,7 +52,7 @@ export function declaredIn(decls, lang) {
   let r;
   try { r = parseVerilog(`module silinx_decl_probe;\n${decls}\nendmodule\n`, 'decls'); } catch { r = null; }
   const u = r?.units?.find(x => x.kind === 'module');
-  for (const d of u?.decls || []) out.set(d.name, { kind: d.kind, reg: d.net === 'reg' || d.net === 'variable', type: null });
+  for (const d of u?.decls || []) out.set(schName(d.name, lang), { kind: d.kind, reg: d.net === 'reg' || d.net === 'variable', type: null });
   for (const p of u?.params || []) out.set(p.name, { kind: 'const' });
   for (const m of stripComments(String(decls), 'verilog').matchAll(/\b(genvar|reg|integer|wire|logic)\b\s*(?:signed\s*)?(?:\[[^\]]*\]\s*)?([A-Za-z_][\w$]*)/g)) if (!out.has(m[2])) out.set(m[2], { kind: m[1], reg: m[1] === 'reg' || m[1] === 'integer' });
   return out;
@@ -101,13 +109,13 @@ export function generateHdl(docIn, opts = {}) {
   const ports = [];
   for (const p of doc.ports) {
     const net = nl.portNet.get(p.id);
-    if (!validIdent(p.name, lang)) diags.push({ severity: 'error', message: `I/O marker name '${p.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
+    if (!validIdent(p.name, lang) && !escapedName(p.name)) diags.push({ severity: 'error', message: `I/O marker name '${p.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
     else if (rsvd(p.name)) diags.push({ severity: 'warning', message: `${rsvd(p.name)}: rename it`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
-    ports.push({ ...p, net });
+    ports.push({ ...p, name: hdlName(p.name, lang), net });
     if (net && !portOf.has(net)) portOf.set(net, p);
   }
   // net names & types
-  const netName = net => (net ? (portOf.get(net)?.name ?? net.name) : null);
+  const netName = net => (net ? hdlName(portOf.get(net)?.name ?? net.name, lang) : null);
   // netlist() gives every pin a net: a net made of that pin alone (maybe with a dangling wire,
   // but no other pin, I/O marker or label) is an unconnected pin
   const isolated = n => n.endpoints.length === 1 && !n.labels.length && !n.ports.length && !portOf.has(n);
@@ -116,7 +124,7 @@ export function generateHdl(docIn, opts = {}) {
   const P = (sym, pin) => { const n = inNet(sym, pin); return n ? netName(n) : null; };
   const PW = (sym, pin) => nl.pinNet.get(`${sym.id}/${pin}`)?.width ?? defs.get(sym.id).pins.find(p => p.name === pin)?.width ?? 1;
   for (const net of nl.nets) {
-    if (!portOf.has(net) && !net.auto && !validIdent(net.name, lang)) diags.push({ severity: 'error', message: `net name '${net.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
+    if (!portOf.has(net) && !net.auto && !validIdent(net.name, lang) && !escapedName(net.name)) diags.push({ severity: 'error', message: `net name '${net.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
     else if (!portOf.has(net) && !net.auto && rsvd(net.name)) diags.push({ severity: 'warning', message: `${rsvd(net.name)}: rename it`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
   }
   // module pin types (VHDL) used to type nets that only connect to module pins
@@ -213,7 +221,7 @@ export function generateHdl(docIn, opts = {}) {
     if (!p.net) continue;
     const owner = portOf.get(p.net);
     if (owner && owner.id !== p.id) {
-      if (p.dir === 'out') assign(p.name, outRead.get(p.net) || owner.name);
+      if (p.dir === 'out') assign(p.name, outRead.get(p.net) || hdlName(owner.name, lang));
       else diags.push({ severity: 'error', message: `I/O markers '${owner.name}' and '${p.name}' are on the same net`, ref: { kind: 'port', id: p.id } });
     }
   }
@@ -224,8 +232,8 @@ export function generateHdl(docIn, opts = {}) {
   const sigDecls = [];
   for (const net of nl.nets) {
     if (portOf.has(net)) continue;
-    const nm = net.name;
-    if (declared.has(nk(nm))) continue;
+    const nm = hdlName(net.name, lang);
+    if (declared.has(nk(net.name))) continue;
     if (!net.endpoints.length) continue;
     if (isolated(net) && net.auto && net.endpoints[0].kind === 'pin' && net.endpoints[0].dir !== 'out'
       && !['module', 'hdlblock'].includes(doc.symbols.find(x => x.id === net.endpoints[0].sym)?.type)) continue;
@@ -239,8 +247,8 @@ export function generateHdl(docIn, opts = {}) {
     }
   }
   for (const x of extra) {
-    if (ci) sigDecls.push(`  signal ${x.name} : ${x.type || vtype(x.width || 1)}${x.init ? ` := ${(x.type || '').startsWith('std_logic') && !(x.type || '').includes('vector') ? vhdlBits(x.init, true) : vhdlBits(x.init, false)}` : ''};`);
-    else sigDecls.push(`  ${x.reg ? 'reg ' : 'wire'}${(x.width || 1) > 1 ? ` [${x.width - 1}:0]` : ''} ${x.name};`);
+    if (ci) sigDecls.push(`  signal ${hdlName(x.name, lang)} : ${x.type || vtype(x.width || 1)}${x.init ? ` := ${(x.type || '').startsWith('std_logic') && !(x.type || '').includes('vector') ? vhdlBits(x.init, true) : vhdlBits(x.init, false)}` : ''};`);
+    else sigDecls.push(`  ${x.reg ? 'reg ' : 'wire'}${(x.width || 1) > 1 ? ` [${x.width - 1}:0]` : ''} ${hdlName(x.name, lang)};`);
   }
   const vdecls = verbatimOK && (hdl.decls || '').trim() ? indent(dedentBlock(hdl.decls), '  ') : '';
   // one-line statements one after the other; a blank line around a statement of several lines (an
