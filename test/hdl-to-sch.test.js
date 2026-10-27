@@ -86,6 +86,65 @@ configuration c of e is for rtl end for; end configuration;
   assert.equal(v.slice(w[1].start, w[1].end), 'module top(input [7:0] a, output [7:0] y); add u(a, y); endmodule : top\n');
 });
 
+test('#1716 a Verilog module with `ifdef / `else inside it (around an always block\'s header, an assign): its statements as the compiler reads them', async () => {
+  const files = {
+    'src/cfg.vh': '`define ASYNC\n',
+    'src/cd.v': `\`include "cfg.vh"
+module cd(input clk, input rst, input a, output reg [1:0] q, output y, output z);
+\`ifdef ASYNC
+always @(posedge clk or negedge rst)
+\`else
+always @(posedge clk)
+\`endif
+  if (!rst) q <= 0;   // reset
+  else q <= q + a;
+\`ifdef FAST
+  assign y = a;
+\`elsif ASYNC
+  assign y = ~a;
+\`else
+  assign y = a ^ q[0];
+\`endif
+/* \`ifdef NOT_A_DIRECTIVE */
+  assign z = q[1] &
+\`ifndef ASYNC
+    a &
+\`endif
+    q[0];
+endmodule
+`,
+    'sim/tb_cd.v': `\`timescale 1ns / 1ps
+module tb_cd;
+  reg clk = 0, rst = 1, a = 0;
+  wire [1:0] q;
+  wire y, z;
+  cd uut (.clk(clk), .rst(rst), .a(a), .q(q), .y(y), .z(z));
+  always #5 clk = ~clk;
+  initial begin
+    #3 rst = 0; #4 rst = 1;
+    repeat (12) #7 a = ~a;
+    #2 rst = 0; #10 rst = 1; #20;
+    $finish;
+  end
+endmodule
+`,
+  };
+  const sources = srcList(files);
+  const r = await convertModuleToSchematic({ sources, module: 'cd', layout });
+  assert.deepEqual(r.warnings, []);
+  // (y = ~a, the branch taken; z = q[1] & q[0] drawn)
+  assert.deepEqual(kinds(r.doc), { hdlblock: 1, inv: 1, and2: 1, slice: 2 });
+  assert.deepEqual(r.doc.symbols.filter(s => s.type === 'hdlblock').map(s => s.hdl), [
+    'always @(posedge clk or negedge rst)\n  if (!rst) q <= 0;   // reset\n  else q <= q + a;',
+  ]);
+  assert.doesNotMatch(r.writes['src/cd.v'], /`(ifdef|ifndef|elsif|else|endif)/);
+  const after = applied(sources, r);
+  assert.deepEqual(messages(after, 'tb_cd'), messages(sources, 'tb_cd'));
+  const a = waves(sources, 'tb_cd', 200e3), b = waves(after, 'tb_cd', 200e3);
+  assert.ok(a.waves.q.split(' ').length > 4, 'the testbench makes activity');
+  assert.deepEqual(b.waves, a.waves);
+});
+
 test('moduleUnitRanges: what a file keeps when a module is taken out of it', () => {
   const c = CASES.find(x => x.name === 'verilog-multi');
   const lib = compile(srcList(c.files));
