@@ -46,6 +46,18 @@
 #workspace { flex: 1; position: relative; background: #fff; border: 1px solid var(--border); border-bottom: none; min-height: 0; overflow: hidden; }
 #workspace > .doc { position: absolute; inset: 0; display: flex; flex-direction: column; }
 #workspace > .doc[hidden] { display: none; }
+/* two documents side by side (#1619, web/js/split-view.js): the divider at --split, stacked in a narrow workspace */
+#workspace.split > .doc.pane-a { right: calc(100% - var(--split, 50%) + 3px); }
+#workspace.split > .doc.pane-b { left: calc(var(--split, 50%) + 3px); }
+#workspace.split.split-v > .doc.pane-a { right: 0; bottom: calc(100% - var(--split, 50%) + 3px); }
+#workspace.split.split-v > .doc.pane-b { left: 0; top: calc(var(--split, 50%) + 3px); }
+#workspace.split > .doc.pane-front { box-shadow: inset 0 2px 0 var(--accent); }
+#split-divider { position: absolute; top: 0; bottom: 0; left: calc(var(--split, 50%) - 3px); width: 6px; z-index: 3; cursor: col-resize; touch-action: none;
+  background: var(--border-light); border-left: 1px solid var(--border); border-right: 1px solid var(--border); box-sizing: border-box; }
+#workspace.split-v > #split-divider { left: 0; right: 0; width: auto; top: calc(var(--split, 50%) - 3px); bottom: auto; height: 6px; cursor: row-resize;
+  border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+#split-divider[hidden] { display: none; }
+#doc-tabs .tab.beside { background: var(--tab-active); border-color: var(--border); }
 
 /* bottom tab strips (ISE style) */
 .bottom-tabs { display: flex; align-items: flex-end; height: 24px; background: var(--bg); border-top: 1px solid var(--border); padding-left: 2px; gap: 1px; overflow: hidden; flex: none; user-select: none; }
