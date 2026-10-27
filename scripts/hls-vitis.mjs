@@ -9,6 +9,9 @@
 //
 //   node scripts/hls-vitis.mjs [--filter pointer] [--update]
 //     --update: the results written to test/hls-corpus/vitis.json and the table of test/hls-corpus/README.md
+//   node scripts/hls-vitis.mjs --detach [--filter …]   Vitis started on the host in the background (a run of the whole
+//     corpus takes hours: it does not depend on this machine staying awake); it prints the run's name
+//   node scripts/hls-vitis.mjs --collect <run> [--update]   its results fetched once it is done (else its progress)
 //   SILINX_ISE_HOST=user@host (else ~/.silinx/config.json's ssh user and host, read here, never written in a file),
 //   SILINX_ISE_HOST=local: the image on this machine; SILINX_VITIS_IMAGE (default xilinx/vitis-hls:2025.2),
 //   SILINX_VITIS_PART (default xc7a35tcpg236-1); SILINX_ISE_REMOTE_DIR as scripts/check-open-flow.mjs.
@@ -171,39 +174,65 @@ async function main() {
   if (!HOST) try { const s = JSON.parse(fs.readFileSync(configPath(), 'utf8')).ssh; if (s?.host) HOST = s.user ? `${s.user}@${s.host}` : s.host; } catch { /* no config */ }
   if (!HOST) { console.error('set SILINX_ISE_HOST=user@host (the machine with the Vitis HLS image, reached by ssh with a key), or SILINX_ISE_HOST=local'); process.exit(2); }
   const manifest = JSON.parse(fs.readFileSync(path.join(HLS, 'manifest.json'), 'utf8'));
-  const designs = manifest.designs.filter((d) => !filter || d.name.includes(filter));
+  const collect = a.includes('--collect') ? a[a.indexOf('--collect') + 1] : null;
+  if (collect && !/^silinx-vitis-[\w]+$/.test(collect)) { console.error(`--collect: not a run's name: ${collect}`); process.exit(2); }
   const filesOf = (d) => [...d.files, ...d.tb, ...d.headers];
-  const fetchable = { ...manifest, designs: designs.map((d) => ({ ...d, files: [...filesOf(d), `${d.dir}/hls_config.cfg`] })) };
-  await fetchDesignCorpus({ manifest: fetchable, log: () => {} });
-
-  // the work folder: each design's sources at their repository paths, its config beside its hls_config.cfg
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-vitis-'));
   const run = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 64 << 20 });
-  const list = [];
-  for (const d of designs) {
-    const dir = sourceDir(manifest.sources[d.source]);
-    for (const f of [...filesOf(d), `${d.dir}/hls_config.cfg`]) {
-      fs.mkdirSync(path.join(work, 'src', path.dirname(f)), { recursive: true });
-      fs.copyFileSync(path.join(dir, f), path.join(work, 'src', f));
-    }
-    fs.writeFileSync(path.join(work, 'src', d.dir, 'silinx_vitis.cfg'), vitisConfig(fs.readFileSync(path.join(dir, d.dir, 'hls_config.cfg'), 'utf8'), { part }));
-    list.push(`${d.name} ${d.dir}`);
-  }
-  fs.writeFileSync(path.join(work, 'designs.txt'), `${list.join('\n')}\n`);
-  fs.copyFileSync(path.join(ROOT, 'scripts', 'vitis-hls-image', 'hls-vitis-run.sh'), path.join(work, 'hls-vitis-run.sh'));
+  const ssh = (cmd) => run('ssh', ['-o', 'BatchMode=yes', '--', HOST, `export PATH="$PATH:/usr/local/bin"; ${cmd}`]);
+  const remoteOf = (name) => `${iseWorkBase('silinx-vitis')}/${name}`;
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-vitis-'));
+  let designs;
   try {
-    const docker = ['run', '--rm', ...DOCKER_ISOLATION, '--platform', 'linux/amd64'];
-    if (HOST === 'local') run('docker', [...docker, '-v', `${work}:/w`, IMAGE, 'bash', '/w/hls-vitis-run.sh', '/w']);
-    else {
-      const ssh = (cmd) => run('ssh', ['-o', 'BatchMode=yes', '--', HOST, `export PATH="$PATH:/usr/local/bin"; ${cmd}`]);
-      const remote = `${iseWorkBase('silinx-vitis')}/${path.basename(work)}`;
-      const mount = remote.startsWith('/') ? remote : `$HOME/${remote}`;
-      ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
-      run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
-      try {
-        process.stdout.write(ssh(`docker run ${docker.slice(1).join(' ')} -v "${mount}":/w ${IMAGE} bash /w/hls-vitis-run.sh /w`));
-        run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${HOST}:${remote}/results/`, `${work}/results/`]);
-      } finally { ssh(`rm -rf ${remote}`); }
+    if (collect) {
+      // a detached run: its progress, or its results once its last design is done
+      const remote = remoteOf(collect);
+      const state = ssh(`cd ${remote} && wc -l < designs.txt && (ls results 2>/dev/null | wc -l) && (ls done 2>/dev/null || docker ps -q -f name=${collect} | sed 's/.*/running/')`).trim().split(/\s+/);
+      if (state[2] !== 'done') {
+        console.log(`${collect}: ${state[1]} of ${state[0]} designs started, ${state[2] === 'running' ? 'still running' : 'STOPPED before its end (its container is gone): run it again'}`);
+        process.exitCode = 3;
+        return;
+      }
+      run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${HOST}:${remote}/designs.txt`, `${HOST}:${remote}/results`, `${work}/`]);
+      ssh(`rm -rf ${remote}`);
+      const names = new Set(fs.readFileSync(path.join(work, 'designs.txt'), 'utf8').split('\n').map((l) => l.split(' ')[0]).filter(Boolean));
+      designs = manifest.designs.filter((d) => names.has(d.name));
+    } else {
+      designs = manifest.designs.filter((d) => !filter || d.name.includes(filter));
+    }
+    const fetchable = { ...manifest, designs: designs.map((d) => ({ ...d, files: [...filesOf(d), `${d.dir}/hls_config.cfg`] })) };
+    await fetchDesignCorpus({ manifest: fetchable, log: () => {} });
+
+    if (!collect) {
+      // the work folder: each design's sources at their repository paths, its config beside its hls_config.cfg
+      const list = [];
+      for (const d of designs) {
+        const dir = sourceDir(manifest.sources[d.source]);
+        for (const f of [...filesOf(d), `${d.dir}/hls_config.cfg`]) {
+          fs.mkdirSync(path.join(work, 'src', path.dirname(f)), { recursive: true });
+          fs.copyFileSync(path.join(dir, f), path.join(work, 'src', f));
+        }
+        fs.writeFileSync(path.join(work, 'src', d.dir, 'silinx_vitis.cfg'), vitisConfig(fs.readFileSync(path.join(dir, d.dir, 'hls_config.cfg'), 'utf8'), { part }));
+        list.push(`${d.name} ${d.dir}`);
+      }
+      fs.writeFileSync(path.join(work, 'designs.txt'), `${list.join('\n')}\n`);
+      fs.copyFileSync(path.join(ROOT, 'scripts', 'vitis-hls-image', 'hls-vitis-run.sh'), path.join(work, 'hls-vitis-run.sh'));
+      const docker = ['run', '--rm', ...DOCKER_ISOLATION, '--platform', 'linux/amd64'];
+      if (HOST === 'local') run('docker', [...docker, '-v', `${work}:/w`, IMAGE, 'bash', '/w/hls-vitis-run.sh', '/w']);
+      else {
+        const name = path.basename(work), remote = remoteOf(name);
+        const mount = remote.startsWith('/') ? remote : `$HOME/${remote}`;
+        ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
+        run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
+        if (a.includes('--detach')) {
+          ssh(`docker run -d --name ${name} ${docker.slice(1).join(' ')} -v "${mount}":/w ${IMAGE} bash /w/hls-vitis-run.sh /w`);
+          console.log(`${name}: ${designs.length} designs started on the host; collect with: node scripts/hls-vitis.mjs --collect ${name} --update`);
+          return;
+        }
+        try {
+          process.stdout.write(ssh(`docker run ${docker.slice(1).join(' ')} -v "${mount}":/w ${IMAGE} bash /w/hls-vitis-run.sh /w`));
+          run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${HOST}:${remote}/results/`, `${work}/results/`]);
+        } finally { ssh(`rm -rf ${remote}`); }
+      }
     }
 
     // Vitis's results against Silinx's
