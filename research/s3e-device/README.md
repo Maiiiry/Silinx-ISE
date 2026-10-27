@@ -1043,3 +1043,12 @@ XC3S100E); `measure.mjs observe` observes the ones ISE implemented and names the
 is now sized to the part (`padDefaults`: every bonded pad but two, enough plain inputs that the inout ones fit the
 bidirectional pads): 81 pads on the XC3S100E-CP132 (83 bonded), 230 and 248 on the XC3S500E / XC3S1200E-FG320; the
 XC3S250E-CP132 keeps its 90.
+
+On the XC3S100E-CP132, 33 of the 38 designs passed ISE the first time. `muxes` needed 600 SLICEMs of the part's 480:
+`gen-obsmux.mjs` now makes 300 multiplexers, or a quarter of the part's SLICEMs where it has fewer (`muxCount`, 120
+there). The three `iobclk2` designs failed placement (Place:1012: the clock pad and its DCM must be in one quadrant).
+The XC3S100E has only two DCMs, in the centre column right of the clock tile, and B8 is left of it. The DCM designs'
+clock pad is now the first bonded pad of the top I/O tile in the column of the top edge's first DCM
+(`gen-obspins.mjs dcmClockPad`): B9 on the XC3S100E, still B8 on the XC3S250E, XC3S500E and XC3S1200E. iobddr has no DCM
+and keeps B8. With these and the 81-pad `pads` design, all 38 pass, and `observe` explains every join (0 unexplained).
+The XC3S250E's designs are unchanged, byte for byte.

@@ -11,14 +11,14 @@ import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, inters
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from '../research/s3e-device/model.mjs';
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
 import { pinCensus, renamePads } from '../research/s3e-device/pins.mjs';
-import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads } from '../research/s3e-device/gen-obspins.mjs';
+import { ram, multCascade, dcmPins, iobDdr, iobClk2, devicePads, observedPads, dcmClockPad } from '../research/s3e-device/gen-obspins.mjs';
 import { clockDesign } from '../research/s3e-device/gen-obsclk.mjs';
 import { clockNets, clockTestDesigns, clockTile, rowTile } from '../research/s3e-device/clocktests.mjs';
 import { edgeHypotheses, edgeTile } from '../research/s3e-device/edgejoins.mjs';
 import { chipMeasurements } from '../research/s3e-device/chip.mjs';
 import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
-import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
+import { muxDesign, muxCount } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
 import { observationDesigns, implemented, GENERATORS, tileLists } from '../research/s3e-device/measure.mjs';
 import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
@@ -474,6 +474,31 @@ test('gen-obshdl: the pads design sized to each part, its inout pads within the 
     const lib = compile([...primitiveSources(srcs), ...srcs]);
     assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []], part);
   }
+});
+
+test('gen-obsmux, gen-obspins: the multiplexers and the DCM designs\' clock pad sized to each part (#3, the XC3S100E: 600 SLICEMs of 480, Place:1012)', () => {
+  const want = {
+    'xc3s100ecp132-4': { muxes: 120, clk: 'B9' },
+    'xc3s250ecp132-4': { muxes: 300, clk: 'B8' },
+    'xc3s500efg320-4': { muxes: 300, clk: 'B8' },
+    'xc3s1200efg320-4': { muxes: 300, clk: 'B8' },
+  };
+  for (const [part, w] of Object.entries(want)) {
+    const dev = loadDeviceCache(part);
+    assert.deepEqual({ muxes: muxCount(dev), clk: dcmClockPad(dev) }, w, part);
+    // (two SLICEMs a multiplexer: within the part's)
+    assert.ok(2 * muxCount(dev) <= dev.sites('SLICEM').length, part);
+  }
+  // the XC3S100E's top DCM is right of the centre: its pad is in its column, B8 left of the centre is not
+  const dev = loadDeviceCache('xc3s100ecp132-4');
+  const dcm = dev.sites('DCM').find(s => s.name === 'DCM_X0Y1');
+  const padTile = p => dev.tileNames.findIndex((_, t) => (dev.tileSites[t] || []).some(([s]) => s === p));
+  assert.equal(dev.tileCol[padTile('B9')], dev.tileCol[dcm.tile]);
+  assert.ok(dev.tileCol[padTile('B8')] < dev.tileCol[dcm.tile]);
+  const clk2 = iobClk2(dev, 0, dcmClockPad(dev), 'xc3s100ecp132-4');
+  assert.match(clk2.ucf, /^NET "clk" LOC = "B9" ;$/m);
+  assert.doesNotMatch(clk2.ucf, /LOC = "B9" ;[\s\S]*LOC = "B9" ;/, 'the clock pad not also a data pad');
+  assert.match(muxDesign(muxCount(dev), 60, 'xc3s100ecp132-4').v, /^\/\/ xc3s100ecp132-4: 120 16:1 multiplexers/);
 });
 
 test('gen-obshdl: every pad an input (round 8: the FT256), read by Silinx\'s front end (#3)', () => {

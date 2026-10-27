@@ -12,7 +12,7 @@
 //   iobclk2-k: the pads at position k of their I/O tile (k = 0, 1, 2) an IDDR2 on a DCM's CLK0 and CLK180 (and an ODDR2
 //              on CLK0 and CLK90 where they can drive): ICLK2 and OTCLK2 each its net's one sink in the tile (iobddr's second
 //              clock, the first inverted, is the same net as ICLK1's)
-//   PART=xc3s250ecp132-4 node gen-obspins.mjs outdir [--clk B8]      (folders ramwide, ramnarrow, multcasc, dcmpins, iobddr,
+//   PART=xc3s250ecp132-4 node gen-obspins.mjs outdir [--clk pad]     (folders ramwide, ramnarrow, multcasc, dcmpins, iobddr,
 //                                                                     iobclk2-0, -1, -2)
 //   PART=xc3s250eft256-4 node gen-obspins.mjs outdir --pads obs.json   the I/O designs on the pads of another package's
 //                                                                     observation (the FT256: the I/O sites the CP132
@@ -24,6 +24,22 @@ import { deviceSites } from '../../core/fpga/place.js';
 const PART = process.env.PART || 'xc3s250ecp132-4';
 const sitesOf = (dev, type) => dev.sites(type).map(s => s.name).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 const xy = s => s.match(/X(\d+)Y(\d+)$/).slice(1).map(Number);
+
+/** The clock pad of a DCM design: the first bonded pad of the top I/O tile in the column of the top edge's first DCM, so
+ *  that pad and DCM are in one quadrant (ISE refuses another pair: Place:1012). B8 on the XC3S250E; the XC3S100E's top DCM
+ *  is right of the centre, B9. */
+export function dcmClockPad(dev) {
+  const dcms = dev.sites('DCM').map(s => ({ s, at: xy(s.name) }));
+  const top = Math.max(...dcms.map(d => d.at[1]));
+  const { s } = dcms.filter(d => d.at[1] === top).sort((a, b) => a.at[0] - b.at[0])[0];
+  const col = dev.tileCol[s.tile];
+  for (let t = 0; t < dev.tileCount; t++)
+    if (dev.tileRow[t] === 1 && dev.tileCol[t] === col) {
+      const pad = (dev.tileSites[t] || []).find(([, b]) => b === 1);
+      if (pad) return pad[0];
+    }
+  throw new Error(`gen-obspins: no bonded pad above ${s.name} (column ${col})`);
+}
 
 /** The device's pads: [{ name, tile, inputOnly, pos }], pos the pad's place among its tile's I/O sites. */
 export function devicePads(dev) {
@@ -181,13 +197,15 @@ ${iddr}`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const args = process.argv.slice(2), ci = args.indexOf('--clk'), clkPin = ci >= 0 ? args.splice(ci, 2)[1] : 'B8';
+  const args = process.argv.slice(2), ci = args.indexOf('--clk'), clkArg = ci >= 0 ? args.splice(ci, 2)[1] : null;
   const pi = args.indexOf('--pads'), padsObs = pi >= 0 ? JSON.parse(fs.readFileSync(args.splice(pi, 2)[1], 'utf8')) : null;
   const [out] = args;
   const dev = padsObs ? null : loadDeviceCache(PART);
   // (--pads obs.json: only the I/O designs, on that observation's pads: another package, PART naming it)
   const pads = padsObs ? observedPads(padsObs) : devicePads(dev);
-  const io = [['iobddr', () => iobDdr(dev, clkPin, PART, pads)], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, clkPin, PART, pads)])];
+  // (iobddr has no DCM: B8; iobclk2's clock goes through one: the pad above it)
+  const clkPin = clkArg || 'B8', dcmClk = clkArg || (dev ? dcmClockPad(dev) : 'B8');
+  const io = [['iobddr', () => iobDdr(dev, clkPin, PART, pads)], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, dcmClk, PART, pads)])];
   const done = [];
   for (const [name, f] of padsObs ? io : [['ramwide', () => ram(dev, true)], ['ramnarrow', () => ram(dev, false)], ['multcasc', () => multCascade(dev)], ['dcmpins', () => dcmPins(dev)], ...io]) {
     const { v, ucf } = f();
