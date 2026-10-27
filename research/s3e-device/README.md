@@ -1027,3 +1027,10 @@ gzipped: the observation, the other packages' observations, the arc probes, the 
 switch tiles), and the description itself (`measured.json.gz`, 0.75 MB). `build-measured.mjs` rebuilds it from them
 alone in a few seconds; `test/s3e-device.test.js` checks the rebuild is byte for byte the committed file. The shipped
 graph is unchanged.
+
+### One data folder per die (2026-10-27)
+
+The plan for the other three devices (issue #3, 2026-10-27): `build-measured.mjs --part <part>` rebuilds the measured
+description of any die of `PARTS` (the XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320, XC3S1200E-FG320) from
+`data/<die>/`, with the die's layout; the test rebuilds every die that has a folder. The XC3S250E's is the only one so
+far.

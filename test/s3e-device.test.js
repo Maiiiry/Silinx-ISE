@@ -20,7 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
-import { buildMeasured, DATA_DIR } from '../research/s3e-device/build-measured.mjs';
+import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
@@ -988,12 +988,31 @@ test('gen-obspins2 dcmpads: every DCM on the clock pad ISE gives it (DCM_PAD), r
   assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []]);
 });
 
-test('build-measured: the measured XC3S250E description rebuilt from its measurements alone is the committed one (#3)', () => {
-  const g = loadDeviceCache('xc3s250ecp132-4');
-  const packed = buildMeasured(g);
-  const committed = zlib.gunzipSync(fs.readFileSync(path.join(DATA_DIR, 'measured.json.gz'))).toString();
-  assert.equal(JSON.stringify(packed), committed);
-  // (loads, and on the device's grid)
-  const m = loadDevice(packed);
-  assert.deepEqual([m.rows, m.cols, m.tileCount], [g.rows, g.cols, 1057]);
+test('build-measured: every measured die rebuilt from its measurements alone is the committed description (#3)', () => {
+  assert.deepEqual(measuredDies(), ['xc3s250e']);
+  assert.equal(dataDir('xc3s250e'), DATA_DIR);
+  for (const die of measuredDies()) {
+    const g = loadDeviceCache(PARTS[die]);
+    const packed = buildMeasured(g);
+    const committed = zlib.gunzipSync(fs.readFileSync(path.join(dataDir(die), 'measured.json.gz'))).toString();
+    assert.equal(JSON.stringify(packed), committed, die);
+    // (loads, on the device's grid, named as the part)
+    const m = loadDevice(packed);
+    assert.equal(m.part, PARTS[die]);
+    assert.deepEqual([m.rows, m.cols], [g.rows, g.cols], die);
+  }
+  // (the XC3S250E's tiles with a PIP or a site: 1057 of the grid's 1419)
+  assert.equal(loadDevice(buildMeasured(loadDeviceCache('xc3s250ecp132-4'))).tileCount, 1057);
+});
+
+test('build-measured: the die of a part; a part with no die or no measurements refused (#3)', () => {
+  assert.deepEqual(Object.values(PARTS).map(dieOf), ['xc3s100e', 'xc3s250e', 'xc3s500e', 'xc3s1200e']);
+  assert.equal(dieOf('XC3S250EFT256-4'), 'xc3s250e');
+  assert.equal(dieOf('xc3s250evq100-4'), 'xc3s250e');
+  for (const p of ['xc3s1600efg320-4', 'xc6slx16csg324-3', 'xc3s250e', '', undefined]) assert.equal(dieOf(p), null, String(p));
+  assert.throws(() => buildMeasured({ part: 'xc6slx16csg324-3' }), /xc6slx16csg324-3 is not a Spartan-3E part of xc3s100ecp132-4, xc3s250ecp132-4, xc3s500efg320-4, xc3s1200efg320-4/);
+  // a die with no data folder yet: its missing file named
+  assert.throws(() => buildMeasured({ part: 'xc3s100ecp132-4' }), /build-measured: xc3s100e has no obs\.json\.gz in .*data[\/\\]xc3s100e$/);
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-measured-'));
+  try { assert.deepEqual(measuredDies(empty), []); } finally { fs.rmSync(empty, { recursive: true }); }
 });
