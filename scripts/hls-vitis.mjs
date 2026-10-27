@@ -45,26 +45,47 @@ function range(s) {
   return n === null ? null : { min: n, max: n };
 }
 
+/** An XML fragment's element tree: { tag, text, children } (text: the element's inner XML, trimmed). */
+export function elements(xml) {
+  const root = { tag: null, text: String(xml).trim(), children: [] }, stack = [root];
+  const re = /<(\/?)([\w.:-]+)[^>]*?(\/?)>/g;
+  let m;
+  while ((m = re.exec(xml))) {
+    const [, close, name, empty] = m;
+    if (close) {
+      const el = stack.pop();
+      el.text = xml.slice(el.start, m.index).trim();
+      delete el.start;
+    } else {
+      const el = { tag: name, text: '', children: [], start: re.lastIndex };
+      stack.at(-1).children.push(el);
+      if (empty) delete el.start; else stack.push(el);
+    }
+  }
+  return root;
+}
+
 /** csynth.xml (the top's synthesis report): { latency: {min,max}, interval: {min,max}, loops: [{ name, line, trip,
  *  latency, ii, iterationLatency }], ports: [{ name, dir, w, protocol, object }] } (null: unknown). */
 export function parseCsynth(xml) {
   const overall = tag(xml, 'SummaryOfOverallLatency') || '';
   const lat = (a, b) => { const x = num(tag(overall, a)), y = num(tag(overall, b)); return x === null && y === null ? null : { min: x, max: y }; };
+  // (the loops: the summary's elements, each named as its loop, an inner loop an element of its outer loop's)
   const loops = [];
-  const summary = tag(xml, 'SummaryOfLoopLatency') || '';
-  // (a loop's fields follow its <Name> up to the next loop's: an inner loop's element comes after its outer loop's fields)
-  const parts = summary.split(/<Name>/).slice(1);
-  for (const p of parts) {
-    const name = p.slice(0, p.indexOf('</Name>')).trim();
-    const body = p.slice(p.indexOf('</Name>'));
-    const ii = num(tag(body, 'PipelineII'));
-    const line = /^VITIS_LOOP_(\d+)_\d+$/.exec(name);
-    loops.push({ name, line: line ? Number(line[1]) : null, trip: range(tag(body, 'TripCount')), latency: range(tag(body, 'Latency')), ii, iterationLatency: range(tag(body, 'IterationLatency')) });
-  }
+  const walk = (el) => {
+    for (const c of el.children) {
+      if (!c.children.some((x) => x.tag === 'TripCount' || x.tag === 'Latency')) continue;
+      const f = (t) => { const x = c.children.find((y) => y.tag === t); return x ? x.text : null; };
+      const line = /^VITIS_LOOP_(\d+)_\d+$/.exec(c.tag);
+      loops.push({ name: c.tag, line: line ? Number(line[1]) : null, trip: range(f('TripCount')), latency: range(f('Latency')), ii: num(f('PipelineII')), iterationLatency: range(f('IterationLatency')) });
+      walk(c);
+    }
+  };
+  walk(elements(tag(xml, 'SummaryOfLoopLatency') || ''));
   const ports = [];
   for (const m of String(xml).matchAll(/<RtlPorts>([\s\S]*?)<\/RtlPorts>/g)) {
     const p = m[1];
-    ports.push({ name: tag(p, 'name'), dir: tag(p, 'Direction'), w: num(tag(p, 'Bits')), protocol: tag(p, 'IOProtocol') || null, object: tag(p, 'Object') || null });
+    ports.push({ name: tag(p, 'name'), dir: tag(p, 'Dir'), w: num(tag(p, 'Bits')), protocol: tag(p, 'IOProtocol') || null, object: tag(p, 'Object') || null });
   }
   return { latency: lat('Best-caseLatency', 'Worst-caseLatency'), interval: lat('Interval-min', 'Interval-max'), loops, ports };
 }
