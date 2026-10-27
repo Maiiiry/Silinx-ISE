@@ -1035,6 +1035,23 @@ What is left of the gap with ISE's routing is the placement floor of a single an
 design above 500 slices: the T80) and the nets of many critical loads, which only a different netlist (#652) or a
 replication of their driver (a carry chain's output cannot be copied today) removes.
 
+## A LUT input's delay by its pin (#1359, 2026-10-27)
+
+ISE's delay into a LUT depends on the input pin. On `reportgen -delay` of 9 routed designs (31 748 connections), the
+model's error by pin (model − ISE, mean) was pin 1 −0.025, pin 2 +0.036, pin 3 +0.095, pin 4 +0.084 ns, the same in
+every design; trce's critical paths show it too (F1 −0.030, G1 −0.050, F3 +0.091, F4 +0.102). Earlier fits grouped F1–F4
+and missed it. `SPEED_4.lutPin` adds [0.06, 0, −0.06, −0.05] ns at the pin (the shape fitted, the common offset set on
+trce's periods): rms per connection 0.119 → 0.093 ns (cross-validated by design), the period against trce on 114
+routings mean −0.37 % → +0.09 %, σ 3.21 → 3.00 %. `nodeDelays` carries it, so the timing-driven router, which already
+permutes a LUT's inputs, puts the critical loads on pins 3 and 4.
+
+Routing the corpus again (122 builds, seed 1), 99 routings changed. trce: the period **0.96 % shorter** in geometric
+mean, 59 faster (spi-fpga-slave −11.1 %, spi-fpga-master −6.6 %, vtr-mkPktMerge (High) −6.5 %, pong −5.3 %), 38 slower
+(light8080 (High) +6.3 %, iwls05-ss-pcm +5.6 %, vtr-mkPktMerge +5.3 %), 2 the same; slices −8 in all, the place & route
+time the same. Every DRC 0 errors with the warnings of the base, xdl2ncd the same, every `.bit` byte-identical to ISE's
+bitgen. The router's own estimate before the change (flat pins) judged the same routings 0.71 % slower: only trce can
+judge a change of the model.
+
 ## The XC3S1200E's long-line splitters (#23, 2026-10-21)
 
 The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:

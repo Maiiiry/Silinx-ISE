@@ -16,3 +16,8 @@ test/fpga-timing.test.js (#457). They are Silinx's own XDL files, not ISE's outp
 `dcm-trce.json`: trce's numbers for each with the same constraints (research/s3e-route/dcm-timing.mjs): the worst setup
 path of each pair of clocks (from, launch edge, to, capture edge, requirement, data path, slack), the data sheet's
 setup / hold of each input and clock to pad of each output, by clock.
+
+`vtr-ch-intrinsics.xdl.gz` (#1359): Silinx's routing of the design corpus's vtr-ch-intrinsics in its I/O wrapper
+(XC3S1200E-FG320, seed 1), and `vtr-ch-intrinsics-delay.json`: ISE 14.7's delay of each of its 531 connections to a LUT
+input, as `reportgen -delay` gives it for that routing ([net, load pin, ns]); the timing model's delay by LUT input is
+checked against it.

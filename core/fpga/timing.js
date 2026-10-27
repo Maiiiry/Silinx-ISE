@@ -57,6 +57,10 @@ export const SPEED_4 = {
   // mult arcs below, rms error 0.167 and 0.095 ns; out of a block, ISE's delay is that of the wires after it)
   wire: [0, 0, 0.345, 0.269, 0.350, 0.445, 0.208, 0.414, 0.162, 0.3, 0.240, 0],
   branch: [0, 0, 0.027, 0.013, 0.018, 0, 0.213, 0.033, 0, 0, 0, 0],
+  // added at a LUT's input pin 1..4 (F1 / G1 … F4 / G4): ISE's delay differs by the pin (#1359: fitted on the residuals
+  // of 31 748 connections of 9 designs, reportgen -delay; the same in every design, inputs 3 and 4 the fastest; the
+  // common offset set on trce's periods of 114 routings: mean −0.37 % → +0.09 %)
+  lutPin: [0.06, 0, -0.06, -0.05],
   dist: { base: 0.55, perTile: 0.1, knee: 12, far: 0.03 },
   // logic: [SLICEL, SLICEM]
   slice: {
@@ -195,13 +199,29 @@ export function nodeClasses(device) {
   return (device._wireClass = cls);
 }
 
+/** The LUT input of every node that is a slice's F1-F4 / G1-G4 pin: 1..4, 0 for any other node (cached on the
+ *  device): Uint8Array. */
+export function lutPinIndex(device) {
+  if (device._lutPin) return device._lutPin;
+  const idx = new Uint8Array(device.nodeCount);
+  for (let k = 0; k < device.tileCount; k++) {
+    const tp = device.templates[device.tileTemplate[k]];
+    for (const s of tp.sites) {
+      if (!/^SLICE/.test(s.type)) continue;
+      for (const [name, p] of s.pins) if (p.dir !== 'o' && /^[FG][1-4]$/.test(name)) idx[device.nodeOf[device.tileWireBase[k] + p.wire]] = +name[1];
+    }
+  }
+  return (device._lutPin = idx);
+}
+
 /** The delay of each node of the device for a model (ns): Float32Array (cached per model). */
 export function nodeDelays(device, model = SPEED_4) {
   device._nodeDelay ||= new Map();
   if (device._nodeDelay.has(model)) return device._nodeDelay.get(model);
   const cls = nodeClasses(device);
+  const lut = lutPinIndex(device), lp = model.lutPin || [0, 0, 0, 0];
   const d = new Float32Array(cls.length);
-  for (let n = 0; n < cls.length; n++) d[n] = model.wire[cls[n]];
+  for (let n = 0; n < cls.length; n++) d[n] = model.wire[cls[n]] + (lut[n] ? lp[lut[n] - 1] : 0);
   device._nodeDelay.set(model, d);
   return d;
 }
@@ -251,7 +271,8 @@ export function pathDelay(path, tree, device, model = SPEED_4) {
     if (c > WIRE.OUT) routed = true;
     d += model.wire[c] + model.branch[c] * Math.max(0, (tree.children.get(n) || 0) - 1);
   }
-  return routed ? d : 0;
+  const lut = model.lutPin && lutPinIndex(device)[path[path.length - 1]];
+  return routed ? d + (lut ? model.lutPin[lut - 1] : 0) : 0;
 }
 
 /** The estimated delay of an unrouted connection between two nodes (Manhattan distance in tiles). */
