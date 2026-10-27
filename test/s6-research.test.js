@@ -143,7 +143,7 @@ test('summarize-night1: a work folder as night1-remote.sh leaves it: the example
 });
 
 test('ise-s6.sh and night1-remote.sh: their syntax, the usage, the host asked for and never written in them', () => {
-  for (const f of ['ise-s6.sh', 'night1-remote.sh', 'ise-format.sh', 'ise-place-check.sh']) assert.equal(spawnSync('bash', ['-n', path.join(S6, f)]).status, 0, f);
+  for (const f of ['ise-s6.sh', 'night1-remote.sh', 'ise-format.sh', 'ise-place-check.sh', 'ise-xdl-bits.sh']) assert.equal(spawnSync('bash', ['-n', path.join(S6, f)]).status, 0, f);
   const u = spawnSync('bash', [path.join(S6, 'ise-s6.sh'), 'nothing'], { encoding: 'utf8' });
   assert.equal(u.status, 2);
   assert.match(u.stdout, /^usage: ise-s6\.sh report <part> <dir> \| empty <dir> \| impl <part> <dir>… \| edif <part> <dir>…$/m);
