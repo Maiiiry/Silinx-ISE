@@ -93,6 +93,7 @@ export class Flow {
   }
   topParam(pa) {
     const t = pa.type;
+    if (t.kind === 'stream') this.error(pa.loc, `the stream '${pa.name}' is a FIFO outside the module (ap_fifo): its accesses take clock cycles (#1526)`);
     if (t.kind === 'array' || (t.kind === 'ptr' && t.to.kind === 'array')) this.error(pa.loc, `the array argument '${pa.name}' is a memory outside the module (ap_memory): its accesses take clock cycles (#1526)`);
     if (t.kind === 'ptr') {
       const et = typeOf(t.to);

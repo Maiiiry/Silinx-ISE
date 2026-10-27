@@ -23,6 +23,7 @@ export const exprMethods = {
       case 'id': {
         const c = this.lookup(e.name, e);
         if (c.isFile) return { fh: c.fh, v: c.fh ? 1n : 0n, t: c.t };   // (a FILE *: 0 when NULL, #1598)
+        if (c.fifo) return { fifo: c.fifo, t: c.t };   // (an hls::stream, #1590)
         if (c.arr) return { arr: c.arr, t: c.t, dims: c.dims };
         if (c.ref) return { ptr: c.ref, t: c.t };
         return { v: c.v, t: c.t };
@@ -141,6 +142,32 @@ export const exprMethods = {
     }
     return num(convert(v, opnd), res);
   },
+  /** An hls::stream's member function (#1590): read() / read(x), write(v), empty(), full(), size(), read_nb(x),
+   *  write_nb(v); a read of an empty stream stops the run (it would wait for ever in hardware). */
+  streamOp(f, name, e) {
+    const B = (b) => num(b ? 1n : 0n, INT);
+    const take = () => { const v = f.q.shift(); if (f.log) f.log.reads++; return num(v, f.t); };
+    const put = (x) => { const v = convert(this.intOf(x, e), f.t); f.q.push(v); f.log?.writes.push(v); };
+    switch (name) {
+      case 'read': {
+        if (!f.q.length) this.fail(e, `the stream '${f.name}' is read while empty`);
+        const v = take();
+        if (e.args[0]) this.lvalue(e.args[0]).set(v);
+        return v;
+      }
+      case 'read_nb': {
+        if (!f.q.length) return B(false);
+        this.lvalue(e.args[0]).set(take());
+        return B(true);
+      }
+      case 'write': case 'write_nb': put(this.eval(e.args[0])); return name === 'write' ? num(0n, INT) : B(true);
+      case 'empty': return B(!f.q.length);
+      case 'full': return B(false);
+      case 'size': return num(BigInt(f.q.length), INT);
+      default: this.fail(e, `'.${name}' of a stream cannot be simulated`);
+    }
+    return null;
+  },
   /** The place an lvalue names: { get(), set(value), t }. */
   lvalue(e) {
     if (e.kind === 'id') {
@@ -236,6 +263,7 @@ export const exprMethods = {
   member(e) {
     const m = e.callee;
     const x = this.eval(m.e);
+    if (x.fifo) return this.streamOp(x.fifo, m.name, e);
     const args = e.args.map((a) => Number(this.intOf(this.eval(a), a)));
     const u = () => convert(x.v, { ...x.t, s: false });
     switch (m.name) {

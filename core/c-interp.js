@@ -76,6 +76,7 @@ class Machine {
       if (v.init?.kind === 'str') [...v.init.value].forEach((ch, k) => { if (k < n) arr[k].v = BigInt(ch.charCodeAt(0)); });
       return { t: et, arr, dims };
     }
+    if (t.kind === 'stream') { const et = typeOf(t.of); if (!et) this.fail(v, `'${v.name}': a stream of integers`); return { t: et, fifo: { q: [], name: v.name, t: et, log: null } }; }
     if (t.kind === 'ptr' && t.to.kind === 'struct' && t.to.name === 'FILE') return { isFile: true, fh: v.init ? this.eval(v.init).fh ?? null : null, t: { w: 32, s: true } };
     if (t.kind === 'ptr') {
       const c = { t: typeOf(t.to), ref: null };
@@ -115,6 +116,7 @@ class Machine {
     const args = e.args.map((a, k) => {
       const pt = fn.params[k]?.type;
       const x = this.eval(a);
+      if (pt?.kind === 'stream') { if (!x.fifo) this.fail(a, `the argument of '${fn.params[k].name}' must be a stream`); return x; }
       if (pt?.kind === 'ptr' || pt?.kind === 'array') {
         if (x.arr) return { arr: x.arr, t: x.t };
         if (x.ptr) return { ptr: x.ptr, t: x.t };
@@ -125,9 +127,11 @@ class Machine {
     const isTop = name === this.c.top && this.frames.length && this.frames.at(-1).fn.name !== name;
     let rec = null;
     if (isTop) {
-      rec = { args: {}, ptrIn: {}, ptrOut: {}, memIn: {}, memOut: {}, ret: null };
+      rec = { args: {}, ptrIn: {}, ptrOut: {}, memIn: {}, memOut: {}, streamIn: {}, streamOut: {}, streamRead: {}, ret: null };
       fn.params.forEach((pa, k) => {
         const a = args[k];
+        // (a stream: its values before the call, those the call reads and writes, #1590)
+        if (a.fifo) { rec.streamIn[pa.name] = a.fifo.q.map((c) => c); a.fifo.log = { reads: 0, writes: [] }; return; }
         if (a.arr) rec.memIn[pa.name] = a.arr.map((c) => c.v);
         if (a.ptr) rec.ptrIn[pa.name] = a.ptr.get().v;
         else if (!a.arr) rec.args[pa.name] = convert(this.intOf(a, e), typeOf(pa.type));
@@ -135,7 +139,11 @@ class Machine {
     }
     const r = this.invoke(fn, args, e);
     if (rec) {
-      fn.params.forEach((pa, k) => { if (args[k].ptr) rec.ptrOut[pa.name] = args[k].ptr.get().v; if (args[k].arr) rec.memOut[pa.name] = args[k].arr.map((c) => c.v); });
+      fn.params.forEach((pa, k) => {
+        if (args[k].ptr) rec.ptrOut[pa.name] = args[k].ptr.get().v;
+        if (args[k].arr) rec.memOut[pa.name] = args[k].arr.map((c) => c.v);
+        if (args[k].fifo) { rec.streamRead[pa.name] = args[k].fifo.log.reads; rec.streamOut[pa.name] = args[k].fifo.log.writes; args[k].fifo.log = null; }
+      });
       rec.ret = r?.v ?? null;
       this.calls.push(rec);
     }
@@ -147,7 +155,8 @@ class Machine {
     fn.params.forEach((pa, k) => {
       const a = args[k];
       if (!a) return;
-      if (a.arr) scope.set(pa.name, { t: a.t, arr: a.arr });
+      if (a.fifo) scope.set(pa.name, { t: a.t, fifo: a.fifo });
+      else if (a.arr) scope.set(pa.name, { t: a.t, arr: a.arr });
       else if (a.ptr) scope.set(pa.name, { t: a.t, ref: a.ptr });
       else { const t = typeOf(pa.type); scope.set(pa.name, { t, v: convert(this.intOf(a, at), t) }); }
     });

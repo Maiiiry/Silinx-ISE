@@ -15,6 +15,8 @@ const walkExpr = (x, f) => {
 
 export function cppTree(ast, report, streams = new Map()) {
   const funcs = new Map(ast.items.filter((it) => it.kind === 'func').map((f) => [f.name, f]));
+  // (a stream passed by reference is the stream: no pointer, hls::stream<T> &s is s)
+  for (const f of funcs.values()) for (const p of f.params || []) if (p.type?.ref && p.type.to?.kind === 'stream') p.type = p.type.to;
   const refs = (f) => new Set((f?.params || []).filter((p) => p.type?.ref).map((p) => p.name));
   for (const f of ast.items) {
     if (f.kind !== 'func' || !f.body) continue;
@@ -52,6 +54,21 @@ export function cppTree(ast, report, streams = new Map()) {
         default: report(x, `the stream's '${x.callee.name}' is not supported`); return undefined;
       }
     });
+    // a stream's s >> x and s << v: x = s.read(), s.write(v)
+    const fifos = new Set((f.params || []).filter((p) => p.type?.kind === 'stream').map((p) => p.name));
+    walkExpr(f.body, (x) => { if (x.kind === 'decl') for (const v of x.vars) if (v.type?.kind === 'stream') fifos.add(v.name); return undefined; });
+    const member = (s, name, args, L) => ({ kind: 'call', callee: { kind: 'member', e: s, name, arrow: false, loc: L }, args, loc: L });
+    if (fifos.size) {
+      f.body = walkExpr(f.body, (x) => {
+        if (x.kind !== 'expr' || x.e?.kind !== 'binary' || (x.e.op !== '>>' && x.e.op !== '<<')) return undefined;
+        const chain = [];
+        let e = x.e;
+        while (e?.kind === 'binary' && e.op === x.e.op) { chain.unshift(e.r); e = e.l; }
+        if (!(e?.kind === 'id' && fifos.has(e.name))) return undefined;
+        const items = chain.map((p) => ({ kind: 'expr', e: x.e.op === '>>' ? { kind: 'assign', op: '=', l: p, r: member(e, 'read', [], p.loc), loc: p.loc } : member(e, 'write', [p], p.loc), loc: p.loc }));
+        return items.length === 1 ? items[0] : { kind: 'block', items, loc: x.loc };
+      });
+    }
     // cout << … << endl: printf("%…", …); a file stream's: fprintf; f >> a >> b: fscanf
     f.body = walkExpr(f.body, (x) => {
       if (x.kind !== 'expr') return undefined;

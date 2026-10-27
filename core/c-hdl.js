@@ -37,7 +37,6 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
     if (isReservedWord(n)) diagnostics.push({ file, line: fn.loc.line, col: fn.loc.col, message: `'${n}' is a reserved word of VHDL or Verilog: it is named ${n}_r in the module`, severity: 'warning' });
   }
   for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = node.port.param ? rn(node.port.param) + node.port.suffix : rn(node.port.name);
-  df.outputs = new Map([...df.outputs].map(([k, v]) => [rn(k.replace(/(_o)?(_ap_vld)?$/, '')) + k.slice(k.replace(/(_o)?(_ap_vld)?$/, '').length), v]));
   const ctrl = df.seq
     ? [{ name: 'ap_clk', dir: 'in', w: 1 }, { name: 'ap_rst', dir: 'in', w: 1 }, { name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
     : df.ctrl === 'ap_ctrl_hs'
@@ -45,6 +44,9 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
     : [];
   const portName = (p) => (p.param ? rn(p.param) + p.name.slice(p.param.length) : p.name);
   const ports = [...ctrl, ...df.ports.map((p) => ({ name: portName(p), dir: p.dir, w: p.w, role: p.role, ...(p.param ? { param: p.param } : {}) }))];
+  // (each output by its port's name: an argument named as a reserved word, in, its ports in_r_…: a memory's, a stream's too, #1590)
+  const renamed = new Map(df.ports.map((p) => [p.name, portName(p)]));
+  df.outputs = new Map([...df.outputs].map(([k, v]) => [renamed.get(k) ?? rn(k), v]));
   const name = rn(checked.top);
   const src = file.split('/').pop();
   const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
@@ -54,7 +56,7 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
       memories: [...df.mems.map((x) => ({ name: x.name, words: x.n, bits: x.t.w, kind: x.rom || (!x.written && x.init) ? 'ROM' : 'RAM' })), ...df.extMems.map((x) => ({ name: x.name, words: x.n, bits: x.w, kind: 'ap_memory' }))],
       loops: df.loops }
     : { sequential: false };
-  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0, memories: df.seq ? df.extMems : [], report };
+  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0, memories: df.seq ? df.extMems.map((x) => ({ ...x, port: rn(x.name) })) : [], fifos: df.seq ? df.fifos.map((x) => ({ ...x, port: rn(x.name) })) : [], report };
 }
 
 /** The nodes to write: those the outputs need. */

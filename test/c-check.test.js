@@ -56,7 +56,7 @@ test('lex: pragmas (HLS parsed, others dropped with a warning); headers known an
   assert.deepEqual(r.pragmas.map((p) => [p.name, p.args]), [['PIPELINE', { ii: '2', rewind: true }], ['INTERFACE', { mode: 'ap_vld', port: 'y' }]]);
   assert.deepEqual(r.errors.map((e) => `${e.line} ${e.severity}: ${e.message}`), [
     "2 error: the header 'unistd.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)",
-    '3 error: hls_stream.h: streams are not supported yet',
+    '3 error: hls_stream.h: hls::stream is C++: write the source as a .cpp file',
     '5 warning: #pragma GCC optimize is ignored (only #pragma HLS)',
     '11 error: #endif with no #if',
     '12 error: #foo is not supported',
