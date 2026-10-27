@@ -65,7 +65,8 @@ class Machine {
       // (an array of arrays: its cells in one list, its dimensions kept; a[i] of one is a view of its row)
       const dims = [];
       let at = t;
-      for (; at.kind === 'array'; at = at.of) dims.push(at.length ?? (at === t && v.init?.kind === 'init' ? v.init.items.length : 0));
+      // (a size known when it runs: a test bench's, #1734)
+      for (; at.kind === 'array'; at = at.of) dims.push(at.length ?? (at.size ? Number(this.intOf(this.eval(at.size), v)) : at === t && v.init?.kind === 'init' ? v.init.items.length : 0));
       const et = typeOf(at);
       if (!et) this.fail(v, `'${v.name}': only arrays of numbers can be simulated`);
       const n = dims.reduce((a, b) => a * b, 1);

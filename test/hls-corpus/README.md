@@ -26,8 +26,8 @@ Not part of `npm test` (it needs the network once).
 <!-- results -->
 | Design | Language | C simulation | C synthesis | Co-simulation | Latency | Why not |
 |---|---|---|---|---|---|---|
-| array-array-partition-block-cyclic | C++ | fail | fail | skip | - | C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| array-array-partition-complete | C++ | fail | fail | skip | - | C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
+| array-array-partition-block-cyclic | C++ | pass | pass | fail | - | co-simulation: a call did not end in 100000 cycles |
+| array-array-partition-complete | C++ | pass | fail | skip | - | C synthesis: 30: 'A': only arrays of integers (one dimension) are supported yet |
 | dsp-fft-interface-array | C++ | fail | fail | skip | - | C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fft-interface-array-float-ssr2 | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fft-interface-stream | C++ | fail | fail | skip | - | C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
@@ -40,11 +40,11 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 22: '.empty' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | pass | pass | pass | 2715 |  |
-| interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
+| interface-memory-burst-rw | C++ | pass | pass | pass | 20531 |  |
 | interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | interface-memory-ecc-flags | C++ | pass | pass | pass | 118 |  |
-| interface-memory-lmem-2rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | fail | fail | skip | - | C simulation: 25: the size of an array must be a constant (Silinx HLS: fixed sizes) |
+| interface-memory-lmem-2rw | C++ | pass | pass | pass | 67627 |  |
+| interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | pass | pass | pass | 22573 |  |
 | interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success | C++ | fail | fail | skip | - | C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-manual-burst-manual-burst-with-conditionals | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-max-widen-port-width | C++ | pass | pass | pass | 259 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 33 through co-simulation.
+73 designs: 36 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

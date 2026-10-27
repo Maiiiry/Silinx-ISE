@@ -1,6 +1,7 @@
 // Silinx HLS (#1598): the C library of the C simulation's test bench (core/c-interp.js's Machine): printf and its kin, the
 // files of stdio.h in memory (fopen / fprintf / fscanf / fgets / feof / fclose: the design's data files readable, those
-// written kept), system("diff [--brief] [-w | -b] a b") comparing two of them as diff does, exit, abs. What AMD's Vitis
+// written kept), system("diff [--brief] [-w | -b] a b") comparing two of them as diff does, exit, abs, <random>'s
+// uniform_int_distribution (#1734). What AMD's Vitis
 // HLS examples' test benches use: they write their results to a file and compare it with a golden one. Isomorphic.
 import { convert } from './c-interp-expr.js';
 import { MATH, F64, F32 } from './c-float.js';
@@ -69,6 +70,22 @@ export const libMethods = {
         return num(this.system(c.str ?? '', e));
       }
       case 'exit': { const [c] = A(); throw new Exit(Number(this.as(c, INT, e))); }
+      case 'ap_uniform_int': {
+        // (<random>'s uniform_int_distribution<T> d(a, b); d(e), with e a default_random_engine (core/cpp-lex.js): as
+        // libstdc++ makes them, the engine minstd_rand0 (x = x * 16807 % 2^31 - 1, from 1), the draws below a multiple
+        // of the range kept, #1734)
+        const [d, e2] = A();
+        const lo = d.arr[0].v, hi = d.arr[1].v, st = e2.ptr;
+        const next = () => { const x = (BigInt(st.get().v) || 1n) * 16807n % 2147483647n; st.set({ v: x, t: { w: 64, s: false } }); return x - 1n; };
+        const urange = hi - lo, urng = 2147483645n;
+        if (urange < 0n) this.fail(e, 'uniform_int_distribution: its bounds a <= b');
+        if (urange > urng) this.fail(e, 'uniform_int_distribution: a range wider than the engine\'s is not simulated');
+        if (urange === urng) return { v: next() + lo, t: d.t };
+        const scale = urng / (urange + 1n), past = (urange + 1n) * scale;
+        let r;
+        do r = next(); while (r >= past);
+        return { v: r / scale + lo, t: d.t };
+      }
       case 'abs': case 'labs': case 'llabs': {
         const [x] = A();
         if (x.t?.fl) return { v: Math.abs(x.v), t: x.t };   // (C++'s std::abs of a double)

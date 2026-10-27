@@ -112,7 +112,8 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
   const tb = cosimBench(gen, sim.calls, { maxCycles });
   const r = simulate([{ path: `${gen.top}.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: gen.hdl }, { path: 'silinx_cosim_tb.v', text: tb.text }], 'silinx_cosim_tb', { until: 1e15 });
   if (r.errors.length) return { ...base, errors: r.errors.map((d) => `${d.file || ''}: ${d.message}`) };
-  const lines = r.sim.log.map((e) => String(e.text).trim()).filter((s) => s && !/finished/.test(s));
+  // (the test bench's lines only: the simulator's own, as its waveform recording's limit, left out, #1734)
+  const lines = r.sim.log.map((e) => String(e.text).trim()).filter((s) => /^(bad \d+|[0-9a-fxz]+( [0-9a-fxz]+)*)$/i.test(s));
   const bad = Number(/^bad (\d+)/.exec(lines.at(-1) || '')?.[1] ?? 0);
   const rows = lines.filter((s) => !/^bad /.test(s)).map((s) => s.split(/\s+/).map((x) => (/[xz]/i.test(x) ? null : BigInt(`0x${x}`))));
   const port = (n) => gen.ports.find((p) => p.name === n);

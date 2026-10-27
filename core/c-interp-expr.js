@@ -363,6 +363,9 @@ export const exprMethods = {
     const m = e.callee;
     const x = this.eval(m.e);
     if (x.fifo) return this.streamOp(x.fifo, m.name, e);
+    // (a test bench's std::vector, an array: its size, its data, #1734)
+    if (x.arr && m.name === 'size') return num(BigInt(x.arr.length), { w: 64, s: false, ap: false });
+    if (x.arr && m.name === 'data') return x;
     const args = e.args.map((a) => Number(this.intOf(this.eval(a), a)));
     const u = () => convert(x.v, { ...x.t, s: false });
     switch (m.name) {

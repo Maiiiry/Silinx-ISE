@@ -1,17 +1,17 @@
 {
   "array-array-partition-block-cyclic": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "fail",
     "latency": null,
-    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "reason": "co-simulation: a call did not end in 100000 cycles"
   },
   "array-array-partition-complete": {
-    "csim": "fail",
+    "csim": "pass",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: matmul_partition_test.cpp:19: the header 'algorithm' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "reason": "C synthesis: 30: 'A': only arrays of integers (one dimension) are supported yet"
   },
   "dsp-fft-interface-array": {
     "csim": "fail",
@@ -118,11 +118,15 @@
     "reason": null
   },
   "interface-memory-burst-rw": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 20531,
+      "max": 20531,
+      "avg": 20531
+    },
+    "reason": null
   },
   "interface-memory-coefficient-filter": {
     "csim": "fail",
@@ -143,18 +147,26 @@
     "reason": null
   },
   "interface-memory-lmem-2rw": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 67627,
+      "max": 67627,
+      "avg": 67627
+    },
+    "reason": null
   },
   "interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 25: the size of an array must be a constant (Silinx HLS: fixed sizes)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 22573,
+      "max": 22573,
+      "avg": 22573
+    },
+    "reason": null
   },
   "interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success": {
     "csim": "fail",

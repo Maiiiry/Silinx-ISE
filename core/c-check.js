@@ -23,7 +23,7 @@ const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort',
   'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy']);
 const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
 const STREAMS = new Set(['stdout', 'stderr', 'stdin']);
-const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush']);
+const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush', 'ap_uniform_int']);   // (ap_uniform_int: <random>'s, core/cpp-lex.js, #1734)
 // the member functions of ap_int / ap_uint Silinx HLS knows
 // the member functions of hls::stream Silinx HLS knows (#1590)
 const STREAM_MEMBERS = new Set(['read', 'write', 'empty', 'full', 'read_nb', 'write_nb', 'size']);
@@ -85,7 +85,8 @@ export function checkC(source, file = 'input.c', opts = {}) {
     }
   }
   // the widths of the ap_int / ap_uint types and the sizes of the arrays: constants
-  const typeOk = (t, loc) => {
+  // (vla: a test bench's array of a size known when it runs, #1734)
+  const typeOk = (t, loc, vla = false) => {
     if (!t) return;
     if (t.kind === 'int' && t.ap && t.bits === null) {
       const w = constValue(t.widthExpr, consts);
@@ -108,7 +109,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
       typeOk(t.of, loc);
       if (t.size) {
         const n = constValue(t.size, consts);
-        if (n === null) report(loc, 'the size of an array must be a constant (Silinx HLS: fixed sizes)');
+        if (n === null) { if (!vla) report(loc, 'the size of an array must be a constant (Silinx HLS: fixed sizes)'); }
         else if (n < 1n) report(loc, 'the size of an array must be 1 or more');
         else t.length = Number(n);
       }
@@ -204,13 +205,13 @@ function checkFunction(f, ctx) {
   const declare = (v) => {
     if (scopes.at(-1).has(v.name)) report(v.loc, `'${v.name}' is declared twice in the same block`);
     scopes.at(-1).set(v.name, { kind: v.static ? 'static' : 'local', type: v.type });
-    typeOk(v.type, v.loc);
+    typeOk(v.type, v.loc, !hw);
     if (hw) {
       typeHw(v.type, v.loc, `'${v.name}'`);
       // (a DATAFLOW region's: a FIFO between its processes, #1707)
       if (v.type.kind === 'stream' && !dataflow) report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
       if (v.type.kind === 'ptr' && !v.said) report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)`);
-      if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
+      if (v.type.kind === 'array' && !v.type.length && !v.type.size && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
     }
     if (v.init) expr(v.init);
     if (v.const && v.type.kind === 'int' && v.init && v.init.kind !== 'init') { const c = constValue(v.init, consts); if (c !== null) consts.set(v.name, c); }
@@ -267,6 +268,8 @@ function checkFunction(f, ctx) {
       case 'sizeof': if (e.e) expr(e.e); return;
       case 'member':
         if (e.arrow) report(e.loc, `'->' : structures are not supported in Silinx HLS yet`);
+        // (a test bench's std::vector, an array: its size and its data, #1734)
+        else if (!hw && isPtr(e.e) && (e.name === 'size' || e.name === 'data')) { /* the C simulation's */ }
         else if (isStream(e.e)) { if (!STREAM_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function of hls::stream Silinx HLS knows (${[...STREAM_MEMBERS].join(', ')})`); }
         else if (e.name !== 'range' && !AP_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function Silinx HLS knows (ap_int / ap_uint: ${[...AP_MEMBERS].join(', ')})`);
         expr(e.e); return;
