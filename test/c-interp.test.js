@@ -211,3 +211,9 @@ test('#1601 a labelled loop: synthesized and simulated as without its label, nam
   // a combinational function's labelled loop: unrolled as any other
   assert.deepEqual(cToHdl('int g(int a) {\n  int s = 0;\n  acc: for (int i = 0; i < 4; i++) s += a;\n  return s;\n}\n').diagnostics, []);
 });
+
+test('#1714 an ofstream closed in a loop (AMD\'s simple_fifos test bench): its writes after close() dropped, as C++ runs it; a file opened again written', () => {
+  const cpp = '#include <iostream>\n#include <fstream>\n#include <stdlib.h>\nusing namespace std;\nint twice(int x) { return 2 * x; }\nint main() {\n  ofstream F;\n  F.open("r.dat");\n  for (int i = 0; i < 3; i++) { F << twice(i + 1) << endl; F.close(); }\n  F.open("g.dat");\n  F << 2 << endl;\n  F.close();\n  int r = system("diff --brief -w r.dat g.dat");\n  cout << r << endl;\n  return r;\n}\n';
+  const sim = simulateC(cpp, { file: 'f.cpp' });
+  assert.deepEqual([sim.error, sim.diagnostics, sim.exitCode, sim.output], [null, [], 0, '0\n']);
+});
