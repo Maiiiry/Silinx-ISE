@@ -41,9 +41,12 @@ export function mountStimuli(ctx) {
     const m = st.stim.m;
     if (!m) return;
     const end = stimulusPlan(m).endPs;
+    // the view where the user clicked (#1616): the restart puts it at 0, the run used to follow it to the end
+    const { t0, scale, fit, cursor } = st;
     api().restart(true);
+    Object.assign(st, { t0, scale, fit, cursor });
     echo(`run ${fmtTime(end)}`);
-    await enqueue(`run ${fmtTime(end)}`, () => runTo(end, 'Run'));
+    await enqueue(`run ${fmtTime(end)}`, () => runTo(end, 'Run', { keepView: true }));
     checkStim(true);
   }
   function checkStim(log) {

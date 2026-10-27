@@ -3,7 +3,8 @@
 // simulation runs again at once), a bus value typed in, an expected output wrong (the mismatch in red, in the
 // bar and the console) then filled in from the simulation, saved in the project and run again when ISim opens,
 // Save as Test Bench (a simulation source that passes), and the texts in Portuguese; a bus expanded and its bits
-// clicked one at a time (#919), in the modern and classic interfaces and in the Tasks interface's Simulate.
+// clicked one at a time (#919), in the modern and classic interfaces and in the Tasks interface's Simulate; the view
+// kept where it was after an edit (#1616).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs, writeWs, tick } from './harness.js';
@@ -335,6 +336,81 @@ uiTest('#919 ISim stimuli: a bus expanded, its bits clicked one at a time (an in
 });
 
 // the Tasks interface (a development build's, #838): its Simulate hosts the same ISim, the bits edited there too
+// #1616: an edit of the stimuli runs the simulation again; the view stays where the user clicked (its time scroll,
+// its zoom, the cursor): it used to jump to the end of the simulation
+const view = (page) => page.eval(() => { const s = window.Silinx.active.view.state; return { t0: s.t0, scale: s.scale, fit: s.fit, cursor: s.cursor }; });
+// the time at the right edge of the waves
+const viewEnd = (page) => page.eval((d) => { const s = window.Silinx.active.view.state; return s.t0 + document.querySelector(`${d} .isim-waves`).getBoundingClientRect().width * s.scale; }, DOC);
+// an edit, then the stimuli changed and the simulation (run again, or not) at `ps`
+const edited = async (page, edit, ps) => {
+  const before = JSON.stringify(await stim(page));
+  await edit();
+  await page.waitFor((b) => JSON.stringify(window.Silinx.active.view.state.stim.m) !== b, [before], { what: 'stimuli edited' });
+  await simTime(page, ps);
+};
+// the console's warnings and errors
+const consoleBad = (page) => page.eval((d) => Array.from(document.querySelectorAll(`${d} .isim-console .k-warning, ${d} .isim-console .k-error`), (e) => e.textContent), DOC);
+
+uiTest('#1616 ISim stimuli: an edit (a bit, a bus value, a bit of a bus, an expected output, the timing) keeps the view where it was, its zoom and the cursor', E, async (page) => {
+  await makeProject(env, { name: 'StimView', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
+  await page.openProject('StimView');
+  await page.setView('sim');
+  await simulate(page, 'ctr');
+  await simTime(page, '1,000,000');
+  await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`);
+  await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=cycles]`), [DOC], { what: 'Stimulus Timing' });
+  await page.fill(`${DOC} .isim-stim-dlg [name=cycles]`, '32');
+  await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  await simTime(page, '640,000');
+  const P = 20000;
+  // zoomed in (a few cycles in view), the time scrolled to the middle of the simulation (from cycle 14), the cursor
+  // put in cycle k = 15 (a click on the ruler)
+  for (let n = 0; n < 3; n++) await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Zoom In"]`);
+  await page.eval((d) => { const h = document.querySelector(`${d} .isim-hscroll`); h.scrollLeft = h.scrollWidth * 14 / 32; h.dispatchEvent(new Event('scroll')); }, DOC);
+  await page.waitFor(() => window.Silinx.active.view.state.t0 > 250000, [], { what: 'the time scrolled' });
+  const k = 15;
+  await page.click({ x: (await waveAt(page, k * P + P / 2, 0)).x, y: await page.eval((d) => document.querySelector(`${d} .isim-waves`).getBoundingClientRect().top + 10, DOC) });
+  const v0 = await view(page);
+  assert.ok(!v0.fit && v0.t0 > 250000 && v0.t0 < k * P && await viewEnd(page) > (k + 1) * P && await viewEnd(page) < 600000 && Math.floor(v0.cursor / P) === k, `zoomed in the middle: ${JSON.stringify(v0)}`);
+  // a 1-bit input, a bus's value, a bit of the bus expanded: the simulation run again, the view kept
+  await edited(page, () => clickCycle(page, 'en', k, P), '640,000');
+  assert.deepEqual(await view(page), v0, 'a bit');
+  await edited(page, async () => {
+    await clickCycle(page, 'd', k, P);
+    await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=value]`), [DOC], { what: 'Input Value' });
+    await page.fill(`${DOC} .isim-stim-dlg [name=value]`, 'h5');
+    await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  }, '640,000');
+  assert.deepEqual(await view(page), v0, 'a bus value');
+  await expand(page, 'd');
+  await edited(page, async () => clickLine(page, await lineOf(page, 'd', 1), k, P), '640,000');
+  assert.deepEqual(await view(page), v0, 'a bit of a bus');
+  // an expected output (no run again)
+  await edited(page, async () => clickLine(page, await lineOf(page, 'tc'), k, P), '640,000');
+  assert.deepEqual(await view(page), v0, 'an expected output');
+  // the timing: more cycles, a longer simulation; the view still where it was
+  await edited(page, async () => {
+    await page.click(`${DOC} .isim-stimbar [data-stim=timing]`);
+    await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=cycles]`), [DOC], { what: 'Stimulus Timing' });
+    await page.fill(`${DOC} .isim-stim-dlg [name=cycles]`, '40');
+    await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  }, '800,000');
+  assert.deepEqual(await view(page), v0, 'the timing');
+  // Zoom to Full View: an edit keeps the whole simulation in view
+  await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Zoom to Full View"]`);
+  const v1 = await view(page);
+  assert.equal(v1.fit, true);
+  await edited(page, async () => clickLine(page, await lineOf(page, 'en'), 3, P), '800,000');
+  assert.deepEqual(await view(page), v1, 'a bit in the full view');
+  // the warnings: tc expected 0 from cycle 15, the counter at 15 in cycle 29 (en from 15), then in cycles 17 and 33
+  // (en from 3)
+  assert.deepEqual(await consoleBad(page), [
+    'Stimuli: 1 mismatch(es) of the expected outputs', '  tc at cycle 29 (580 ns): expected 0, got 1',
+    'Stimuli: 2 mismatch(es) of the expected outputs', '  tc at cycle 17 (340 ns): expected 0, got 1', '  tc at cycle 33 (660 ns): expected 0, got 1',
+  ]);
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('#919 ISim stimuli in Tasks ▸ Simulate: a bus expanded, its bits clicked one at a time', E, async (page) => {
   await makeProject(env, { name: 'StimBitsTasks', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
   await page.eval(() => localStorage.setItem('silinx.ui', 'tasks'));
