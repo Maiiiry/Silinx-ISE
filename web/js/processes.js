@@ -18,6 +18,7 @@ import { inView, setTop, testBench } from './design.js';
 import { openWizardModule, wizardProcessOf } from './wizard-modules.js';
 import { openEmulator, openSchematic, openTechSchematic, runSimulation } from './viewers.js';
 import { cProcesses, isC } from './c-source.js';
+import { openCModel } from './c-model.js';
 
 const $ = id => document.getElementById(id);
 
@@ -91,6 +92,7 @@ function selectionProcesses(sel, view) {
       ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `sim-${step}`, label: `Simulate ${name} Model`, ico: 'wave', run: () => runSimulation(mod, step) })),
     ] },
     { id: 'rtl-sim', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
+    ...(cp.length ? [] : [{ id: 'cmodel-sim', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
     { id: 'tb-wiz', label: 'Create Test Bench (Wizard)…', ico: 'template', run: () => testBench(mod) },
   ];
   // synthesis, implementation and emulation work on the project's top module (onTop: what they do to
@@ -107,6 +109,7 @@ function selectionProcesses(sel, view) {
     ] : []),
     ...(sel.wizard ? [{ id: 'wiz-open', label: wizardProcessOf(sel.file), ico: 'template', run: () => openWizardModule(sel.file) }] : []),
     SUMMARY_PROC,
+    ...(cp.length ? [] : [{ id: 'cmodel', label: 'View C Model', ico: 'process', run: () => openCModel(mod) }]),   // (#1530)
     constraintsProcs(mod),
     { id: 'synth', label: 'Synthesize - XST', ico: 'process', onTop: 'synthesizes', run: () => runImpl(top, ['synth']), children: [
       { id: 'rtl', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
