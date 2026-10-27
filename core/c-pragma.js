@@ -9,7 +9,7 @@
 //   unrollBy(loop, n) -> the loop with n copies of its body (a 'for'), each after the first if its condition holds
 
 // what Silinx makes of the pragmas it knows
-export const MADE = new Set(['TOP', 'INTERFACE', 'LOOP_TRIPCOUNT', 'INLINE', 'UNROLL', 'PIPELINE', 'ARRAY_PARTITION']);
+export const MADE = new Set(['TOP', 'INTERFACE', 'LOOP_TRIPCOUNT', 'INLINE', 'UNROLL', 'PIPELINE', 'ARRAY_PARTITION', 'TASK']);   // (TASK: an hls::task's, core/cpp-lex.js, #1721)
 // Vitis HLS's others: accepted, ignored with a warning
 export const IGNORED = new Set(['DATAFLOW', 'STREAM', 'LATENCY', 'BIND_OP', 'BIND_STORAGE', 'RESOURCE', 'ALLOCATION', 'DEPENDENCE',
   'LOOP_FLATTEN', 'LOOP_MERGE', 'OCCURRENCE', 'PROTOCOL', 'EXPRESSION_BALANCE', 'FUNCTION_INSTANTIATE', 'AGGREGATE', 'DISAGGREGATE',

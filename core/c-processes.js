@@ -52,8 +52,11 @@ export function region(fn) {
 export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
   const fn = checked.funcs.get(checked.top);
   const rg = region(fn);
-  const loc = fn.body.items.find((s) => s.kind === 'pragma' && s.pragma.name === 'DATAFLOW').loc;
+  const loc = fn.body.items.find((s) => s.kind === 'pragma' && (s.pragma.name === 'DATAFLOW' || s.pragma.name === 'TASK')).loc;
   const diag = (l, message, severity = 'error') => ({ file, line: l.line, col: l.col, message, severity });
+  // (hls::task: its C simulation, #1721; its hardware not yet, #1719)
+  const task = fn.body.items.find((s) => s.kind === 'pragma' && s.pragma.name === 'TASK');
+  if (task) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics: [...checked.diagnostics, diag(task.loc, `hls::task '${task.pragma.args.name}': its hardware (a process running by itself) is not made yet (#1719): its C simulation is`)] };
   if (rg.fallback) return { fallback: diag(loc, `#pragma HLS DATAFLOW: the region has ${rg.fallback}: made sequential (not as processes)`, 'warning') };
   const rn = (n) => (isReservedWord(n) ? `${n}_r` : n);
   const params = new Map(fn.params.map((p) => [p.name, p]));

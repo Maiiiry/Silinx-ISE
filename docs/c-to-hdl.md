@@ -213,7 +213,14 @@ The top's `ap_ctrl_hs` starts every process once a call and is done when every o
 calls in order; the co-simulation drives the top's ports as for any module, and when a call does not end it names
 the streams that may be too shallow (a stream to a process that waits for its writer to be done, through a buffer,
 must hold all a call writes). Not yet: a process giving back a value (a pointer output or a result), an argument of
-the top shared by two processes, a channel with two writers or readers, `hls::task` (#1706).
+the top shared by two processes, a channel with two writers or readers.
+
+**`hls::task`** (`hls_task.h`, #1721): `hls_thread_local hls::task t(f, a…);` starts, once, a task running `f` again
+and again while its inputs have values (`hls_thread_local` streams and tasks live across calls). The C simulation runs
+the tasks whenever the test bench or the top would wait (a read of an empty stream, the end of a call of the top),
+as Vitis HLS's threads would: an invocation of `f` that would read an empty stream is undone and run again later; an
+`f` of the form `init; while (1) body` keeps its init's variables across its iterations. Its hardware (a process
+running by itself) is not made yet (#1719).
 
 ## Pragmas (`#pragma HLS …`)
 

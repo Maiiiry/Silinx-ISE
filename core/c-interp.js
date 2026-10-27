@@ -13,6 +13,7 @@ import { checkC, constValue } from './c-check.js';
 import { typeOf } from './c-types.js';
 import { exprMethods, convert } from './c-interp-expr.js';
 import { libMethods, Exit } from './c-interp-lib.js';
+import { taskMethods } from './c-interp-task.js';
 
 export const MAX_STEPS = 20_000_000;
 
@@ -76,7 +77,13 @@ class Machine {
       if (v.init?.kind === 'str') [...v.init.value].forEach((ch, k) => { if (k < n) arr[k].v = BigInt(ch.charCodeAt(0)); });
       return { t: et, arr, dims };
     }
-    if (t.kind === 'stream') { const et = typeOf(t.of); if (!et) this.fail(v, `'${v.name}': a stream of integers`); return { t: et, fifo: { q: [], name: v.name, t: et, log: null } }; }
+    if (t.kind === 'stream') {
+      const et = typeOf(t.of);
+      if (!et) this.fail(v, `'${v.name}': a stream of integers`);
+      const fifo = { q: [], name: v.name, t: et, log: null };
+      (this.fifos ||= []).push(fifo);   // (each one: a task's invocation undoes its reads and writes, #1721)
+      return { t: et, fifo };
+    }
     if (t.kind === 'ptr' && t.to.kind === 'struct' && t.to.name === 'FILE') return { isFile: true, fh: v.init ? this.eval(v.init).fh ?? null : null, t: { w: 32, s: true } };
     if (t.kind === 'ptr') {
       const c = { t: typeOf(t.to), ref: null };
@@ -113,17 +120,7 @@ class Machine {
     const fn = this.c.funcs.get(name);
     if (!fn) return this.library(name, e);
     if (!fn.body) this.fail(e, `'${name}' is declared but not defined`);
-    const args = e.args.map((a, k) => {
-      const pt = fn.params[k]?.type;
-      const x = this.eval(a);
-      if (pt?.kind === 'stream') { if (!x.fifo) this.fail(a, `the argument of '${fn.params[k].name}' must be a stream`); return x; }
-      if (pt?.kind === 'ptr' || pt?.kind === 'array') {
-        if (x.arr) return { arr: x.arr, t: x.t };
-        if (x.ptr) return { ptr: x.ptr, t: x.t };
-        this.fail(a, `the argument of '${fn.params[k].name}' must be a pointer or an array`);
-      }
-      return x;
-    });
+    const args = this.callArgs(fn, e);
     const isTop = name === this.c.top && this.frames.length && this.frames.at(-1).fn.name !== name;
     let rec = null;
     if (isTop) {
@@ -138,6 +135,8 @@ class Machine {
       });
     }
     const r = this.invoke(fn, args, e);
+    // (the top's tasks run with it: what they read and write in its call, #1721)
+    if (isTop) this.runTasks();
     if (rec) {
       fn.params.forEach((pa, k) => {
         if (args[k].ptr) rec.ptrOut[pa.name] = args[k].ptr.get().v;
@@ -149,9 +148,34 @@ class Machine {
     }
     return r ?? { v: 0n, t: { w: 32, s: true } };
   }
+  /** A call's arguments: values; pointers, arrays and streams by reference. */
+  callArgs(fn, e) {
+    return e.args.map((a, k) => {
+      const pt = fn.params[k]?.type;
+      const x = this.eval(a);
+      // (a stream, or a reference to one: a function declared before its definition, #1721)
+      if (pt?.kind === 'stream' || (pt?.kind === 'ptr' && pt.to.kind === 'stream')) { if (!x.fifo) this.fail(a, `the argument of '${fn.params[k].name}' must be a stream`); return x; }
+      if (pt?.kind === 'ptr' || pt?.kind === 'array') {
+        if (x.arr) return { arr: x.arr, t: x.t };
+        if (x.ptr) return { ptr: x.ptr, t: x.t };
+        this.fail(a, `the argument of '${fn.params[k].name}' must be a pointer or an array`);
+      }
+      return x;
+    });
+  }
   invoke(fn, args, at) {
     if (this.frames.length > 200) this.fail(at, 'the calls go too deep (recursion?)');
     const scope = new Map();
+    this.bind(scope, fn, args, at);
+    this.frames.push({ fn, scopes: [scope] });
+    try {
+      const r = this.items(fn.body.items);
+      if (r instanceof Return) return r.value && fn.ret.kind !== 'void' ? { v: this.as(r.value, typeOf(fn.ret), r.at), t: typeOf(fn.ret) } : null;
+      return null;
+    } finally { this.frames.pop(); }
+  }
+  /** A function's parameters in its scope. */
+  bind(scope, fn, args, at) {
     fn.params.forEach((pa, k) => {
       const a = args[k];
       if (!a) return;
@@ -160,14 +184,16 @@ class Machine {
       else if (a.ptr) scope.set(pa.name, { t: a.t, ref: a.ptr });
       else { const t = typeOf(pa.type); scope.set(pa.name, { t, v: this.as(a, t, at) }); }
     });
-    this.frames.push({ fn, scopes: [scope] });
-    try {
-      for (const s of fn.body.items) {
-        const r = this.stmt(s);
-        if (r instanceof Return) return r.value && fn.ret.kind !== 'void' ? { v: this.as(r.value, typeOf(fn.ret), s), t: typeOf(fn.ret) } : null;
-      }
-      return null;
-    } finally { this.frames.pop(); }
+  }
+  /** A list of statements run (an hls::task's call started as a task, #1721): undefined, or a Return, BREAK, CONTINUE. */
+  items(list) {
+    for (let k = 0; k < list.length; k++) {
+      const x = list[k];
+      if (x.kind === 'pragma' && x.pragma.name === 'TASK' && list[k + 1]?.kind === 'expr') { this.spawn(list[++k]); continue; }
+      const r = this.stmt(x);
+      if (r !== undefined) return r;
+    }
+    return undefined;
   }
   // ------------------------------------------------------------------ statements: undefined, a Return, BREAK, CONTINUE
   stmt(s) {
@@ -177,7 +203,7 @@ class Machine {
     switch (s.kind) {
       case 'block': {
         f.scopes.push(new Map());
-        try { for (const x of s.items) { const r = this.stmt(x); if (r !== undefined) return r; } } finally { f.scopes.pop(); }
+        try { return this.items(s.items); } finally { f.scopes.pop(); }
         return undefined;
       }
       case 'decl':
@@ -192,7 +218,7 @@ class Machine {
         return undefined;
       case 'expr': this.eval(s.e); return undefined;
       case 'if': return this.truth(this.eval(s.cond)) ? this.stmt(s.then) : this.stmt(s.else);
-      case 'return': return new Return(s.e ? this.eval(s.e) : null);
+      case 'return': { const r = new Return(s.e ? this.eval(s.e) : null); r.at = s; return r; }
       case 'break': return BREAK;
       case 'continue': return CONTINUE;
       case 'for': case 'while': case 'do': return this.loop(s);
@@ -239,4 +265,5 @@ class Machine {
     return undefined;
   }
 }
-Object.assign(Machine.prototype, exprMethods, libMethods);
+Object.assign(Machine.prototype, exprMethods, libMethods, taskMethods);
+Machine.prototype.CONTINUE = CONTINUE;   // (a task's loop body continued: an iteration done, core/c-interp-task.js)

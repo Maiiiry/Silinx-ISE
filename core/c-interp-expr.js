@@ -1,6 +1,7 @@
 // Silinx HLS (#1528): the expressions of the C simulation (core/c-interp.js's methods, mixed into its Machine): C's and
 // ap_int's arithmetic on BigInt values (core/c-types.js), pointers to variables and array elements, printf.
 // Isomorphic ES module: no DOM and no Node APIs.
+import { Block } from './c-interp-task.js';
 import { INT, BOOL, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType, wrap } from './c-types.js';
 import { F64, F32, fmtFloat } from './c-float.js';
 import { fixedType, toFixed, fixedOp, fixedCompare, fixedToInt, fixedToDouble, fixedText } from './c-fixed.js';
@@ -119,7 +120,8 @@ export const exprMethods = {
         const v = this.as(x, t, e);
         return num(e.op === '-' ? -v : e.op === '~' ? ~v : v, t);
       }
-      case '*': { const p = this.eval(e.e); if (!p.ptr) this.fail(e, "'*' of something that is not a pointer"); return p.ptr.get(); }
+      // (*s of a reference to a stream: the stream, #1721)
+      case '*': { const p = this.eval(e.e); if (p.fifo) return p; if (!p.ptr) this.fail(e, "'*' of something that is not a pointer"); return p.ptr.get(); }
       case '&': return { ptr: this.lvalue(e.e), t: this.lvalue(e.e).t };
       case '++': case '--': {
         const ref = this.lvalue(e.e);
@@ -191,10 +193,14 @@ export const exprMethods = {
    *  write_nb(v); a read of an empty stream stops the run (it would wait for ever in hardware). */
   streamOp(f, name, e) {
     const B = (b) => num(b ? 1n : 0n, INT);
-    const take = () => { const v = f.q.shift(); if (f.log) f.log.reads++; return num(v, f.t); };
-    const put = (x) => { const v = this.as(x, f.t, e); f.q.push(v); f.log?.writes.push(v); };
+    // (this.io: the streams' reads and writes, a task's invocation that did some, core/c-interp-task.js, #1721)
+    const take = () => { const v = f.q.shift(); if (f.log) f.log.reads++; this.io = (this.io || 0) + 1; return num(v, f.t); };
+    const put = (x) => { const v = this.as(x, f.t, e); f.q.push(v); f.log?.writes.push(v); this.io = (this.io || 0) + 1; };
     switch (name) {
       case 'read': {
+        // (empty: a task's invocation waits, undone; the test bench's or the top's, the tasks run first)
+        if (!f.q.length && this.inTasks) throw new Block();
+        if (!f.q.length) this.runTasks();
         if (!f.q.length) this.fail(e, `the stream '${f.name}' is read while empty`);
         const v = take();
         if (e.args[0]) this.lvalue(e.args[0]).set(v);
