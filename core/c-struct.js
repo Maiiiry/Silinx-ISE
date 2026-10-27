@@ -9,6 +9,7 @@
 //
 //   cStructs(tokens, report, cpp) -> { tokens, structArgs: Map(function -> [{ name, members: [names] }]) }
 import { closing, splitTop, constTokens } from './cpp-template.js';
+import { parseMethod, methodFunctions, foldDefaultCtor } from './cpp-method.js';
 
 const op = (t, v) => t && t.t === 'op' && t.v === v;
 const isId = (t, v) => t && t.t === 'id' && (v === undefined || t.v === v);
@@ -78,7 +79,9 @@ function definitions(input, cx) {
         let e = end + 1;
         const alias = td && isId(input[e]) ? input[e++].v : null;
         const name = tag || alias;
-        const def = { name, members: members(input.slice(j + 1, end), name) };
+        const def = { name, members: [], methods: new Map(), ctors: [] };
+        members(input.slice(j + 1, end), def);
+        def.at = toks.length;
         structs.set(name, def);
         if (alias && alias !== name) structs.set(alias, def);
         // (struct S { … } a, b;: its variables declared after it)
@@ -89,18 +92,47 @@ function definitions(input, cx) {
       // struct S; (declared alone): dropped
       if (tag && op(input[j], ';') && !td) { k = j; continue; }
     }
+    // a method defined outside its struct: int S::get() const { … }, S::S(int v) : a(v) { … }
+    if (isId(t) && structs.has(t.v) && op(input[k + 1], '::') && (isId(input[k + 2]) || op(input[k + 2], '~')) && !op(input[k - 1], '::')) {
+      const def = structs.get(t.v);
+      let r = toks.length;
+      while (r > 0 && !STMT_START(toks[r - 1])) r--;
+      const head = toks.splice(r);
+      let e = k + 2;
+      while (input[e] && !op(input[e], '{') && !op(input[e], ';')) e = op(input[e], '(') ? closing(input, e) + 1 : e + 1;
+      // (a constructor's initializer list: its parentheses skipped above, its braces a body's only after them)
+      const end = op(input[e], '{') ? closing(input, e) : e;
+      const m = parseMethod([...head, ...input.slice(k + 2, end + 1)], def.name, report);
+      if (m?.ctor) {
+        const n = splitTop(m.params).length;
+        const c = def.ctors.find((x) => !x.body && splitTop(x.params).length === n);
+        if (c) Object.assign(c, { params: m.params, inits: m.inits, body: m.body }); else def.ctors.push({ ...m, fn: `${def.name}_ctor${def.ctors.length}` });
+      } else if (m) {
+        const d = def.methods.get(m.name);
+        if (d) Object.assign(d, { params: m.params, body: m.body, isConst: m.isConst }); else def.methods.set(m.name, m);
+      }
+      k = end;
+      continue;
+    }
     // (C: struct S x; the tag a type's name)
     if ((isId(t, 'struct') || isId(t, 'enum') || isId(t, 'class')) && isId(input[k + 1]) && (structs.has(input[k + 1].v) || enums.has(input[k + 1].v))) continue;
     if (t.t === 'id' && enums.has(t.v)) { toks.push(L(t, 'int', 'id')); continue; }
     toks.push(t);
   }
-  /** The data members of a struct's body: [{ name, type, dims, struct, init }]. */
-  function members(body, sname) {
-    const out = [];
+  /** A struct's body: its data members [{ name, type, dims, struct, init }], its methods and constructors
+   *  (core/cpp-method.js). */
+  function members(body, def) {
+    const sname = def.name, out = def.members;
     for (const decl of splitStatements(body)) {
       if (!decl.length) continue;
       if ((isId(decl[0], 'public') || isId(decl[0], 'private') || isId(decl[0], 'protected')) && op(decl[1], ':')) { decl.splice(0, 2); if (!decl.length) continue; }
-      if (decl.some((x) => op(x, '(')) || op(decl.at(-1), '}')) { report(decl[0], `the struct '${sname}': a member function or a constructor is not supported yet (#1590)`); continue; }
+      if (decl.some((x) => op(x, '(')) || op(decl.at(-1), '}')) {
+        if (!cx.cpp) { report(decl[0], `the struct '${sname}': a member function is C++ (a .cpp source)`); continue; }
+        const m = parseMethod(decl, sname, report);
+        if (m?.ctor) def.ctors.push({ ...m, fn: `${sname}_ctor${def.ctors.length}` });
+        else if (m) def.methods.set(m.name, m);
+        continue;
+      }
       if (decl.some((x) => isId(x, 'static'))) { report(decl[0], `the struct '${sname}': a static member is supported in a class of static members only`); continue; }
       if (isId(decl[0], 'typedef')) { report(decl[0], `the struct '${sname}': a typedef inside it is not supported (write it before the struct)`); continue; }
       const parts = splitTop(decl.filter((x) => !op(x, ';')));
@@ -118,9 +150,12 @@ function definitions(input, cx) {
         out.push({ name: name.v, type: type.filter((x) => !(x.t === 'id' && (x.v === 'struct' || x.v === 'class'))), dims, struct: st ? structs.get(st.v) : null, init, loc: name });
       }
     }
-    return out;
   }
-
+  // the methods' and constructors' functions where their struct is (the top function stays the file's last)
+  for (const def of [...new Set(structs.values())].sort((a, b) => b.at - a.at)) {
+    foldDefaultCtor(def);
+    toks.splice(def.at, 0, ...methodFunctions(def, report));
+  }
   return toks;
 }
 
@@ -346,6 +381,15 @@ function uses(toks, cx) {
       if (isId(t) && look(t.v) && !op(ts[k - 1], '.') && !op(ts[k - 1], '->')) {
         const p = path(ts, k);
         if (p.bad) { dst.push(L(t, '0', 'num')); k = p.end - 1; continue; }
+        // v.m(…), v(…) (operator()): the method's function, v its last argument
+        const call = p.method ? { m: p.method, open: p.end + 2 } : !p.leaf && op(ts[p.end], '(') && p.S.methods?.has('operator()') ? { m: p.S.methods.get('operator()'), open: p.end } : null;
+        if (call) {
+          const e = closing(ts, call.open);
+          const args = ts.slice(call.open + 1, e);
+          rewrite([L(t, call.m.fn, 'id'), L(t, '('), ...args, ...(args.length ? [L(t, ',')] : []), ...ts.slice(k, p.end), L(t, ')')], dst, false);
+          k = e;
+          continue;
+        }
         if (!p.leaf) { report(t, `the struct '${t.v}' used as a value here: copy it (x = ${t.v};), pass it to a function or read its members`); dst.push(L(t, '0', 'num')); k = p.end - 1; continue; }
         dst.push(...leafRef(p, null, t));
         k = p.end - 1;
@@ -362,7 +406,11 @@ function uses(toks, cx) {
       if (op(d[0], '*') || op(d[0], '&')) { report(d[0], `a pointer or a reference to a struct (${S.name}) as a variable is not possible in Silinx HLS: use the struct or an index`); continue; }
       const { name, dims, init, ctor } = declarator(d);
       if (!name) continue;
-      if (ctor) report(name, `'${name.v}': a struct built by a constructor is not supported yet (#1590)`);
+      // (a constructor: called after the members are declared)
+      const open = d.indexOf(name) + 1;
+      const args = ctor ? splitTop(d.slice(open + 1, closing(d, open))) : [];
+      const c = ctor || !init ? S.ctors?.find((x) => splitTop(x.params).length === args.length) : null;
+      if (ctor && !c) report(name, `'${name.v}': ${S.name} has no constructor of ${args.length} argument(s)`);
       const b = { S, prefix: name.v, dims, kind: 'val' };
       const isStatic = quals.some((x) => isId(x, 'static')) || scopes.length === 1;
       // the initial values: a list, or a struct copied
@@ -380,6 +428,10 @@ function uses(toks, cx) {
         dst.push(L(name, ';'));
       }
       bind(name.v, b);
+      if (c) {
+        if (dims.length || isStatic) report(name, `'${name.v}': ${dims.length ? 'an array' : 'a static or global'} of a struct with a constructor is not supported yet (give its members their values in the struct)`);
+        else rewrite([L(name, c.fn, 'id'), L(name, '('), ...args.flatMap((a, i) => [...(i ? [L(name, ',')] : []), ...a]), ...(args.length ? [L(name, ',')] : []), { ...name }, L(name, ')'), L(name, ';')], dst, false);
+      }
       if (init && !list) {
         if (dims.length) report(name, `the array of structs '${name.v}': initialize it with { … }`);
         else assignFrom({ ...b, sub: '', idx: [] }, init, dst, t);
@@ -462,6 +514,7 @@ function uses(toks, cx) {
         if (op(ts[j], '->') !== (b.kind === 'ptr' && !sub && !idx.length)) { if (op(ts[j], '->')) report(ts[j], `'->' on '${ts[k].v}', which is not a pointer to a struct: write '.'`); }
         if (idx.length < dims.length) { report(ts[j], `'${ts[k].v}' is an array of structs: index it before its member`); return bad(ts, k); }
         const m = S.members.find((x) => x.name === ts[j + 1].v);
+        if (!m && S.methods?.has(ts[j + 1].v) && op(ts[j + 2], '(')) return { S, leaf: false, prefix: b.prefix, sub, idx, dims, kind: b.kind, end: j, method: S.methods.get(ts[j + 1].v) };
         if (!m) { report(ts[j + 1], `'${ts[j + 1].v}' is not a member of ${S.name}`); return bad(ts, k); }
         sub += `_${m.name}`;
         if (m.struct) { S = m.struct; dims = [...dims, ...m.dims]; }

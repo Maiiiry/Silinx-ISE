@@ -149,7 +149,7 @@ test('#1590 C++ templates, auto and the range for: what is not supported said', 
   assert.deepEqual(errs('template <int N> int f();\nint g() { return f<2>(); }\n'), ["2 'f_2' is declared but not defined"]);
   assert.deepEqual(errs('template <int N> struct R { static int v() { return R<N + 1>::v(); } };\nint g() { return R<0>::v(); }\n').slice(0, 1), ['1 templates instantiated too deep (a template using itself with no end?)']);
   assert.deepEqual(errs('template <> struct Q<1> { static int v() { return 1; } };\nint g() { return 0; }\n'), ["1 a specialization of 'Q', which is not a template"]);
-  assert.deepEqual(errs('template <int N> struct C { int x; static int v() { return N; } };\nint g() { return C<1>::v(); }\n').slice(0, 1), ["1 the class 'C': only static members are supported yet (a data member or a method: a struct, #1590)"]);
+  assert.deepEqual(errs('template <int N> struct C { int x; static int v() { return N; } };\nint g() { return C<1>::v(); }\n').slice(0, 1), ["1 the struct 'C_1': a static member function is supported in a class of static members only"]);
   assert.deepEqual(errs('int g(int a[4]) {\n  int s = 0;\n  for (int x : a) s += x;\n  return s;\n}\n'), ["3 the range for: 'a' is a parameter, a pointer in C++ (index it: for (int i = 0; i < N; i++))"]);
   assert.deepEqual(errs('int g() {\n  int b[4] = {0};\n  for (int x : b) if (x) return x;\n  return 0;\n}\n'), ["3 the range for's body: write it in braces { … }"]);
   assert.deepEqual(errs('int g() {\n  auto y = q;\n  return 0;\n}\n').slice(0, 1), ["2 'auto y': its type is not known from its value (write the type)"]);
