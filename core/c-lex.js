@@ -289,7 +289,8 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
           else if (!once.has(key)) run(headers[key], key, depth + 1);
           continue;
         }
-        if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: streams are not supported yet'
+        if (cpp && m[1] === 'hls_stream.h') continue;   // (hls::stream: C++'s, #1590)
+        if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: hls::stream is C++: write the source as a .cpp file'
           : `the header '${m[1]}' is not one of Silinx C's (${[...KNOWN_HEADERS].join(', ')})`);
         for (const [k, v] of Object.entries(HEADER_MACROS[m[1]] || {})) if (!macros.has(k)) macros.set(k, { params: null, body: scan(v, line, bad).map((t) => ({ ...t, line })) });
         continue;

@@ -22,6 +22,8 @@ const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
 const STREAMS = new Set(['stdout', 'stderr', 'stdin']);
 const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush']);
 // the member functions of ap_int / ap_uint Silinx C knows
+// the member functions of hls::stream Silinx C++ knows (#1590)
+const STREAM_MEMBERS = new Set(['read', 'write', 'empty', 'full', 'read_nb', 'write_nb', 'size']);
 const AP_MEMBERS = new Set(['range', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
 export const MAX_AP_WIDTH = 1024;
 
@@ -84,6 +86,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
       else if (w < 1n || w > BigInt(MAX_AP_WIDTH)) report(loc, `the width of ${t.name}<${w}> must be from 1 to ${MAX_AP_WIDTH}`);
       else t.bits = Number(w);
     }
+    if (t.kind === 'stream') typeOk(t.of, loc);   // (#1590)
     if (t.kind === 'array') {
       typeOk(t.of, loc);
       if (t.size) {
@@ -181,11 +184,17 @@ function checkFunction(f, ctx) {
     typeOk(v.type, v.loc);
     if (hw) {
       typeHw(v.type, v.loc, `'${v.name}'`);
+      if (v.type.kind === 'stream') report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
       if (v.type.kind === 'ptr') report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)`);
       if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
     }
     if (v.init) expr(v.init);
     if (v.const && v.type.kind === 'int' && v.init && v.init.kind !== 'init') { const c = constValue(v.init, consts); if (c !== null) consts.set(v.name, c); }
+  };
+  const isStream = (e) => {
+    if (e.kind !== 'id') return false;
+    const t = lookup(e.name)?.type;
+    return t?.kind === 'stream' || (t?.kind === 'ptr' && t.to.kind === 'stream');
   };
   const isPtr = (e) => {
     if (e.kind !== 'id') return false;
@@ -233,6 +242,7 @@ function checkFunction(f, ctx) {
       case 'sizeof': if (e.e) expr(e.e); return;
       case 'member':
         if (e.arrow) report(e.loc, `'->' : structures are not supported in Silinx C yet`);
+        else if (isStream(e.e)) { if (!STREAM_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function of hls::stream Silinx C++ knows (${[...STREAM_MEMBERS].join(', ')})`); }
         else if (e.name !== 'range' && !AP_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function Silinx C knows (ap_int / ap_uint: ${[...AP_MEMBERS].join(', ')})`);
         expr(e.e); return;
       case 'call': return call(e);

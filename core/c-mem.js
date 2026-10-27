@@ -37,7 +37,7 @@ export const memMethods = {
     const w = (n) => {
       if (!n || typeof n !== 'object' || hit) return;
       if (Array.isArray(n)) { n.forEach(w); return; }
-      if (this.isMem(n) || (n.kind === 'id' && this.slots.get(n.name)?.kind === 'mem')) { hit = true; return; }
+      if (this.isMem(n) || (n.kind === 'id' && this.slots.get(n.name)?.kind === 'mem') || this.fifoOp?.(n) != null) { hit = true; return; }
       for (const [k, v] of Object.entries(n)) if (k !== 'loc' && k !== 'type') w(v);
     };
     w(x);
@@ -48,7 +48,8 @@ export const memMethods = {
     const w = (n) => {
       if (!n || typeof n !== 'object' || hit) return;
       if (Array.isArray(n)) { n.forEach(w); return; }
-      if (SIDE.has(n.kind) || (n.kind === 'unary' && (n.op === '++' || n.op === '--'))) { hit = true; return; }
+      // (a stream's access is the access itself, not a side effect beside it)
+      if ((SIDE.has(n.kind) && this.fifoOp?.(n) == null) || (n.kind === 'unary' && (n.op === '++' || n.op === '--'))) { hit = true; return; }
       for (const [k, v] of Object.entries(n)) if (k !== 'loc' && k !== 'type') w(v);
     };
     w(x);
@@ -60,6 +61,10 @@ export const memMethods = {
   hoist(e, at) {
     if (!e || typeof e !== 'object') return e;
     if (Array.isArray(e)) return e.map((x) => this.hoist(x, at));
+    // (a stream's read: a state of its own, core/c-fifo.js; its empty() / full(): as they are)
+    const fop = this.fifoOp?.(e);
+    if (fop === 'read') return this.hoistFifoRead(e, at);
+    if (fop === 'empty' || fop === 'full') return e;
     if (this.isMem(e)) {
       const mem = this.slots.get(e.e.name);
       const i = this.hoist(e.i, at);
@@ -92,7 +97,10 @@ export const memMethods = {
     this.bareMem(s);
     const at = { cur, next: () => { const nb = mk(lp); at.cur.term = { goto: nb }; at.cur = nb; } };
     if (s.kind === 'expr') {
-      const e = s.e;
+      let e = s.e;
+      // (a stream: s.write(v); s.read(x); is x = s.read();)
+      if (this.fifoOp?.(e) === 'write') return this.lowerFifoWrite(e, at);
+      if (this.fifoOp?.(e) === 'read' && e.args.length === 1) e = { kind: 'assign', op: '=', l: e.args[0], r: { ...e, args: [] }, loc: e.loc };
       const target = e.kind === 'assign' ? e.l : (e.kind === 'postfix' || (e.kind === 'unary' && (e.op === '++' || e.op === '--'))) ? e.e : null;
       if (target && this.isMem(target)) {
         const mem = this.slots.get(target.e.name);

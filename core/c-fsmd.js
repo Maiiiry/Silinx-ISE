@@ -15,6 +15,7 @@ import { Flow, Stop } from './c-dataflow.js';
 import { BOOL, typeOf } from './c-types.js';
 import { constValue } from './c-check.js';
 import { memMethods, MEM_MIN } from './c-mem.js';
+import { fifoMethods } from './c-fifo.js';
 import { loopPragma, unrollBy } from './c-pragma.js';
 
 export function fsmd(checked) {
@@ -240,6 +241,7 @@ class SeqFlow extends Flow {
       const t = pa.type;
       if (t.kind === 'ptr' && t.to.kind === 'array') this.error(pa.loc, `the argument '${pa.name}': a pointer to an array is not supported: write it as an array, ${pa.name}[N]`);
       if (t.kind === 'array') { this.slots.set(pa.name, this.memSlot({ ...pa, const: !!t.of.const }, { ext: true })); continue; }
+      if (t.kind === 'stream') { this.slots.set(pa.name, this.fifoSlot(pa)); continue; }   // (ap_fifo, #1590)
       if (t.kind === 'ptr') {
         const et = typeOf(t.to);
         if (!et) this.error(pa.loc, `the argument '${pa.name}' is not an integer pointer`);
@@ -336,7 +338,7 @@ class SeqFlow extends Flow {
       return { line: l.line, ...(l.name ? { name: l.name } : {}), trip: l.trip, max: l.max, unroll: l.unroll, pipeline: l.pipeline, ii, cycles: n === null ? null : l.unroll === 'whole' ? 0 : Math.ceil(n / (typeof l.unroll === 'number' ? l.unroll : 1)) * ii + 1 };
     });
   }
-  stmt(s, base) { return s && /^mem(read|write|latch)$/.test(s.kind) ? this.memStmt(s, base) : super.stmt(s, base); }
+  stmt(s, base) { return s && /^mem(read|write|latch)$/.test(s.kind) ? this.memStmt(s, base) : s && /^fifo(read|write)$/.test(s.kind) ? this.fifoStmt(s, base) : super.stmt(s, base); }
   runBlocks() {
     const st = (n) => this.g.const(n, this.stateT);
     this.states = [];
@@ -351,6 +353,8 @@ class SeqFlow extends Flow {
       this.frame = { fn: this.fn, returned: this.F, ret: this.retReg ? this.regNode(this.retReg) : null, rt: this.retType, loops: loopRec ? [loopRec] : [] };
       this.scopes = [this.slots];
       this.access = new Map();
+      this.fifoAcc = new Map();
+      this.stall = this.F;
       for (const s of b.stmts) this.stmt(s, this.T);
       // the next state: after a return, done; a break, its loop's exit; a continue, its loop's next iteration; else
       // the block's own end
@@ -366,6 +370,8 @@ class SeqFlow extends Flow {
         next = this.mux(loopRec.brk, st(b.loop.exit.num), next, this.stateT);
       }
       next = this.mux(this.frame.returned, st(this.doneNum), next, this.stateT);
+      // (a stream's access waits: the state again while its FIFO is empty or full)
+      if (this.stall !== this.F) next = this.mux(this.stall, st(b.num), next, this.stateT);
       const updates = new Map();
       for (const slot of this.slots.values()) {
         if (slot.kind === 'var' && slot.val !== this.regNode(slot.reg)) updates.set(slot.reg.name, slot.val);
@@ -377,9 +383,10 @@ class SeqFlow extends Flow {
         }
       }
       if (this.retReg && this.frame.ret !== this.regNode(this.retReg)) updates.set(this.retReg.name, this.frame.ret);
-      this.states.push({ id: b.num, updates, next, line: firstLine(b.stmts), access: this.access });
+      this.states.push({ id: b.num, updates, next, line: firstLine(b.stmts), access: this.access, fifo: this.fifoAcc });
     }
     this.mems = this.memPorts(this.states);
+    this.fifos = this.fifoPorts(this.states);
   }
   // the outputs read before they are written: a pointer read and written takes its input at the start of a call
   readOut(o) {
@@ -402,6 +409,15 @@ class SeqFlow extends Flow {
     const ports = [], outputs = new Map();
     for (const pa of this.fn.params) {
       const o = this.outs.get(pa.name);
+      const fifo = this.fifos?.find((x) => x.name === pa.name);
+      if (fifo) {
+        // ap_fifo: read, _dout _empty_n _read; written, _din _full_n _write
+        if (!fifo.used) continue;
+        const p = (sfx, dir, w, node) => { ports.push({ name: `${pa.name}${sfx}`, dir, w, s: false, role: 'fifo', param: pa.name }); if (node != null) outputs.set(`${pa.name}${sfx}`, { node }); };
+        if (fifo.dir === 'in') { p('_dout', 'in', fifo.t.w, null); p('_empty_n', 'in', 1, null); p('_read', 'out', 1, fifo.go); }
+        else { p('_din', 'out', fifo.t.w, fifo.d); p('_full_n', 'in', 1, null); p('_write', 'out', 1, fifo.go); }
+        continue;
+      }
       const mem = this.mems?.find((x) => x.ext && x.name === pa.name);
       if (mem) {
         // ap_memory: the address and its enable, the write's enable and data, the value read
@@ -434,8 +450,8 @@ class SeqFlow extends Flow {
     return {
       graph: this.g, regs: [...(this.regs?.values() || [])], states: this.states || [], entry: this.entry?.num ?? 1, idle: 0, done: this.doneNum ?? 1,
       stateT: this.stateT, ports, outputs, ctrl: 'ap_ctrl_hs', diagnostics: this.diags, mems: (this.mems || []).filter((x) => !x.ext),
-      loops: this.loops || [], blocks: this.reached || [], extMems: (this.mems || []).filter((x) => x.ext).map((x) => ({ name: x.name, n: x.n, w: x.t.w, s: x.t.s, aw: x.aw, read: x.read, written: x.written })),
+      loops: this.loops || [], blocks: this.reached || [], fifos: (this.fifos || []).filter((x) => x.used).map((x) => ({ name: x.name, dir: x.dir, w: x.t.w, s: x.t.s })), extMems: (this.mems || []).filter((x) => x.ext).map((x) => ({ name: x.name, n: x.n, w: x.t.w, s: x.t.s, aw: x.aw, read: x.read, written: x.written })),
     };
   }
 }
-Object.assign(SeqFlow.prototype, memMethods);
+Object.assign(SeqFlow.prototype, memMethods, fifoMethods);

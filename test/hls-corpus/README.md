@@ -37,7 +37,7 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | fail | fail | skip | - | C simulation: 20: ';' expected after the statement, not 'arr' |
 | interface-aggregation-disaggregation-aggregation-of-nested-structs | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'S' |
 | interface-aggregation-disaggregation-aggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'A' |
-| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: example.h:17: hls_stream.h: streams are not supported yet |
+| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 20: the parameter 'd': structures (struct A) are not supported in Silinx C yet |
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'A' |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | fail | fail | skip | - | C simulation: 20: ';' expected after the statement, not 'a_in' |
 | interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
@@ -55,7 +55,7 @@ Not part of `npm test` (it needs the network once).
 | interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-streaming-axi-stream-to-master | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'ap_axi_sdata.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-streaming-axis-array-stream-no-side-channel-data | C++ | pass | pass | pass | 203 |  |
-| interface-streaming-using-array-of-streams | C++ | fail | fail | skip | - | C simulation: example.h:20: hls_stream.h: streams are not supported yet |
+| interface-streaming-using-array-of-streams | C++ | fail | fail | skip | - | C simulation: 23: '.write' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | interface-streaming-using-axi-stream-with-side-channel-data | C++ | fail | fail | skip | - | C simulation: example.h:20: the header 'ap_axi_sdata.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-streaming-using-axi-stream-with-struct | C++ | fail | fail | skip | - | C simulation: example.h:1: the header 'ap_axi_sdata.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | migration-python-scripts | C | pass | pass | pass | 1 |  |
@@ -73,11 +73,11 @@ Not part of `npm test` (it needs the network once).
 | modeling-conditional-control-of-pragmas-using-template-function | C++ | fail | fail | skip | - | C simulation: 1: a type expected, not 'template' |
 | modeling-cpp-templates-for-multiple-instances | C++ | fail | fail | skip | - | C simulation: 25: a type expected, not 'template' |
 | modeling-fixed-point-sqrt | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'out_data_t' |
-| modeling-free-running-kernel-remerge-ii4to1 | C++ | fail | fail | skip | - | C simulation: example.h:19: hls_stream.h: streams are not supported yet |
+| modeling-free-running-kernel-remerge-ii4to1 | C++ | fail | fail | skip | - | C simulation: 24: a type expected, not '"in_stream"' |
 | modeling-using-arbitrary-precision-arith | C++ | pass | fail | skip | - | C synthesis: 27: a division by a value that is not a constant is not supported yet (#1526) |
 | modeling-using-arbitrary-precision-casting | C++ | pass | pass | pass | - |  |
 | modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 23: the parameter 'in': floating point (float) is not supported in Silinx C yet: use integers or ap_int<W> |
-| modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: filter2d_hw.cpp:19: hls_stream.h: streams are not supported yet |
+| modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | modeling-using-cpp-templates | C++ | fail | fail | skip | - | C simulation: 21: a type expected, not 'template' |
 | modeling-using-fixed-point | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'dout_t' |
 | modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: 27: '.fp_num' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
@@ -91,11 +91,11 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-control-driven-channels-autorestart | C++ | fail | fail | skip | - | C simulation: diamond_test.cpp:22: the header 'hls_task.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-merge-split-merge-load-balance | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
-| task-level-parallelism-control-driven-channels-merge-split-split-load-balance | C++ | fail | fail | skip | - | C simulation: 19: a type expected, not 'stream' |
-| task-level-parallelism-control-driven-channels-merge-split-split-round-robin | C++ | fail | fail | skip | - | C simulation: 19: a type expected, not 'stream' |
+| task-level-parallelism-control-driven-channels-merge-split-split-load-balance | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
+| task-level-parallelism-control-driven-channels-merge-split-split-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-control-driven-channels-simple-fifos | C++ | fail | fail | skip | - | C simulation: main() returned 1 |
-| task-level-parallelism-control-driven-channels-using-fifos | C++ | fail | fail | skip | - | C simulation: diamond.h:19: hls_stream.h: streams are not supported yet |
-| task-level-parallelism-control-driven-channels-using-stream-of-blocks | C++ | fail | fail | skip | - | C simulation: diamond.h:18: hls_stream.h: streams are not supported yet |
+| task-level-parallelism-control-driven-channels-using-fifos | C++ | fail | fail | skip | - | C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
+| task-level-parallelism-control-driven-channels-using-stream-of-blocks | C++ | fail | fail | skip | - | C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-mixed-control-and-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |

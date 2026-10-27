@@ -72,7 +72,14 @@ function exprParser(T, typedefs, cpp = false) {
   const startsType = () => {
     const t = toks[S.p];
     if (t.t !== 'id') return false;
-    return BASE.has(t.v) || QUAL.has(t.v) || typedefs.has(t.v) || t.v === 'ap_int' || t.v === 'ap_uint' || t.v === 'struct' || t.v === 'union' || t.v === 'enum';
+    return BASE.has(t.v) || QUAL.has(t.v) || typedefs.has(t.v) || t.v === 'ap_int' || t.v === 'ap_uint' || t.v === 'struct' || t.v === 'union' || t.v === 'enum'
+      || (cpp && t.v === 'stream' && toks[S.p + 1]?.v === '<');
+  };
+  // (a template's '>': a '>>' closing two of them gives its first half, C++11)
+  const closeAngle = (what) => {
+    if (at('>')) { S.p++; return; }
+    if (at('>>')) { toks[S.p] = { ...toks[S.p], v: '>' }; return; }
+    expect('>', what);
   };
   /** The declaration specifiers: { type, static, typedef } */
   function specifiers() {
@@ -93,7 +100,7 @@ function exprParser(T, typedefs, cpp = false) {
         S.p++;
         expect('<', `after ${t.v}`);
         const w = ternary(true);
-        expect('>', `after the width of ${t.v}`);
+        closeAngle(`after the width of ${t.v}`);
         type = { kind: 'int', name: t.v, signed: t.v === 'ap_int', bits: null, widthExpr: w, ap: true };
         continue;
       }
@@ -105,6 +112,16 @@ function exprParser(T, typedefs, cpp = false) {
         continue;
       }
       if (!type && !words.length && typedefs.has(t.v)) { type = { ...typedefs.get(t.v) }; S.p++; continue; }
+      // (C++: hls::stream<T> (its qualifier gone, core/cpp-lex.js), a FIFO, #1590)
+      if (cpp && !type && !words.length && t.v === 'stream' && toks[S.p + 1]?.v === '<') {
+        S.p += 2;
+        const inner = declarator(specifiers().type, true).type;
+        let depth = null;
+        if (at(',')) { S.p++; depth = ternary(true); }
+        closeAngle('after the type of the stream');
+        type = { kind: 'stream', of: inner, name: 'hls::stream', depth };
+        continue;
+      }
       break;
     }
     if (!type) {

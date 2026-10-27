@@ -81,7 +81,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:17: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: 20: the parameter 'd': structures (struct A) are not supported in Silinx C yet"
   },
   "interface-aggregation-disaggregation-disaggregation-of-axis-port": {
     "csim": "fail",
@@ -215,7 +215,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:20: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: 23: '.write' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
   },
   "interface-streaming-using-axi-stream-with-side-channel-data": {
     "csim": "fail",
@@ -315,7 +315,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: example.h:19: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: 24: a type expected, not '\"in_stream\"'"
   },
   "modeling-pointers-basic-arithmetic": {
     "csim": "fail",
@@ -385,7 +385,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: filter2d_hw.cpp:19: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "modeling-using-cpp-templates": {
     "csim": "fail",
@@ -483,14 +483,14 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 19: a type expected, not 'stream'"
+    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-split-round-robin": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 19: a type expected, not 'stream'"
+    "reason": "C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-simple-fifos": {
     "csim": "fail",
@@ -504,14 +504,14 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond.h:19: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-control-driven-channels-using-stream-of-blocks": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond.h:18: hls_stream.h: streams are not supported yet"
+    "reason": "C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "task-level-parallelism-data-driven-mixed-control-and-data-driven": {
     "csim": "fail",
