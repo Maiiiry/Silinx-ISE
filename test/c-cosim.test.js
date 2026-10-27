@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cosimulate } from '../core/c-cosim.js';
+import { simulateC } from '../core/c-interp.js';
 
 const ADDER = `#include "ap_int.h"
 #include <stdio.h>
@@ -89,5 +90,25 @@ int main(void) {
     assert.deepEqual(r.gen.diagnostics.filter((d) => d.severity !== 'info'), []);
     assert.equal(r.pass, true, JSON.stringify(r.mismatches, (k, v) => (typeof v === 'bigint' ? `${v}` : v)));
     assert.equal(r.calls, 6);
+  }
+});
+
+test('#1597 a source of several files: the top function in its own file with its header, the test bench in another (a unit including both), the top named: the C simulation and the co-simulation as of one file', () => {
+  const headers = {
+    'mac.h': '#ifndef MAC_H\n#define MAC_H\n#include "ap_int.h"\n#define TAPS 4\ntypedef ap_int<12> sample_t;\nint mac(sample_t x, int k);\n#endif\n',
+    'mac.c': '#include "mac.h"\nint mac(sample_t x, int k) {\n  static int acc = 0;\n  acc += x * (k % TAPS);\n  return acc;\n}\n',
+    'mac_test.c': '#include <stdio.h>\n#include "mac.h"\nstatic int scale(int v) { return v * 2; }\nint main(void) {\n  int r = 0;\n  for (int k = 0; k < 6; k++) r = mac(scale(k) - 5, k);\n  printf("%d\\n", r);\n  return r == 3 ? 0 : 1;\n}\n',
+  };
+  const unit = '#include "mac.c"\n#include "mac_test.c"\n';
+  // (without the top named, the test bench's last function is taken)
+  assert.equal(simulateC(unit, { file: 'unit.c', headers }).top, 'scale');
+  const sim = simulateC(unit, { file: 'unit.c', headers, top: 'mac' });
+  assert.deepEqual([sim.error, sim.top, sim.output, sim.exitCode, sim.calls.length], [null, 'mac', '3\n', 0, 6]);
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(unit, { file: 'unit.c', lang, headers, top: 'mac' });
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.pass, true);
+    assert.equal(r.gen.top, 'mac');
+    assert.deepEqual(r.gen.diagnostics, []);
   }
 });

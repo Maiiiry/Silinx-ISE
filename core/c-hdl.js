@@ -17,8 +17,9 @@ export const bits = (k, w) => {
 };
 export const bin = (k, w) => bits(k, w).toString(2).padStart(w, '0');
 
-export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
-  const checked = checkC(source, file);
+// (headers, top: a source of several files, its top function named, #1597)
+export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null, top = null } = {}) {
+  const checked = checkC(source, file, { headers, top });
   const diagnostics = [...checked.diagnostics];
   if (!checked.ok || !checked.top) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
   let df = dataflow(checked);

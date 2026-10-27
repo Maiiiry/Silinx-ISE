@@ -386,8 +386,8 @@ function stmtParser(T, E, typedefs) {
 
   return { declarations, block, statement };
 }
-export function parse(source, file = 'input.c') {
-  const lx = lex(source, file);
+export function parse(source, file = 'input.c', opts = {}) {
+  const lx = lex(source, file, opts);
   const errors = [...lx.errors];
   const typedefs = new Map(Object.entries(STDINT).map(([n, [bits, signed]]) => [n, { kind: 'int', name: n, bits, signed }]));
   const T = tokenTools(lx.tokens, file, errors);

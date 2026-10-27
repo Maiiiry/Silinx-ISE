@@ -54,8 +54,9 @@ export function constValue(e, consts = new Map()) {
   }
 }
 
-export function checkC(source, file = 'input.c') {
-  const ast = parse(source, file);
+// (opts: headers, the project's own (#1597); top, the top function when no pragma names it)
+export function checkC(source, file = 'input.c', opts = {}) {
+  const ast = parse(source, file, opts);
   const diags = [...ast.errors];
   const report = (loc, message, severity = 'error') => diags.push({ file, line: loc?.line || 1, col: loc?.col || 1, message, severity });
   const funcs = new Map();
@@ -103,6 +104,7 @@ export function checkC(source, file = 'input.c') {
   if (topPragma) top = topPragma.args.name || null;
   for (const f of funcs.values()) for (const st of f.body?.items || []) if (st.kind === 'pragma' && st.pragma.name === 'TOP') top = st.pragma.args.name || f.name;
   if (top && !funcs.get(top)?.body) { report(topPragma?.loc, `the top function '${top}' is not defined`); top = null; }
+  if (!top && opts.top && funcs.get(opts.top)?.body) top = opts.top;
   if (!top) top = [...ast.items].reverse().find((it) => it.kind === 'func' && it.body && it.name !== 'main')?.name || null;
   if (!top && !diags.some((d) => d.severity === 'error')) report({ line: 1, col: 1 }, 'no function to synthesize: Silinx C makes the top function into a module (main() is the test bench)');
 

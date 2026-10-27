@@ -11,8 +11,8 @@ import { fsmd } from './c-fsmd.js';
 import { exprText, stmtText } from './c-print.js';
 import { asmLayout } from './asm-layout.js';
 
-export function cAsm(source, { file = 'input.c', lang = 'vhdl' } = {}) {
-  const checked = checkC(source, file);
+export function cAsm(source, { file = 'input.c', lang = 'vhdl', headers = null, top = null } = {}) {
+  const checked = checkC(source, file, { headers, top });
   if (!checked.ok || !checked.top) return { ok: false, model: null, diagnostics: checked.diagnostics };
   const df = dataflow(checked);
   const seqOnly = df.diagnostics.some((d) => d.severity === 'error') && df.diagnostics.every((d) => d.severity !== 'error' || d.message.includes('#1526'));
