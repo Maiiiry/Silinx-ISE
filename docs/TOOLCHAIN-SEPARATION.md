@@ -203,8 +203,36 @@ Pedro's decisions (27 October 2026):
   (17 MB) and depends on `@yowasp/yosys`.
 - **Versioning**: its own semver, 0.x until the API is stable, with its own changelog (its own fragments).
 - **The front end**: the package takes flat Verilog or a Yosys netlist (JSON); VHDL stays the IDE's, whose
-  front end (the parsers and the elaborator, 19 000 lines) gives the package flat Verilog. A front-end package
-  of its own may come later.
+  front end gives the package flat Verilog (section 5). A front-end package of its own may come later.
 
 So step 6 no longer waits, and step 10 can follow it at once: the package's LICENSE comes with its folder,
 its publishing when the API (step 7) is in place.
+
+## 5. VHDL: the IDE's front end in front of the package
+
+Yosys in WebAssembly reads Verilog only (YoWASP has no GHDL plugin), so VHDL is read by Silinx's own front end,
+as today, and the package never sees it:
+
+```
+VHDL / Verilog ─▶ Silinx front end (the IDE) ─▶ flat Verilog ─▶ silinx-fpga ─▶ .bit, reports
+                 compile, elaborate, toVerilog                   Yosys, pack, place, route, bitgen
+```
+
+- **The front end** is `core/compile.js` (the VHDL and Verilog parsers, the elaborator), `core/unisim.js` (the
+  UNISIM primitives' sources) and `core/synth-verilog.js` with its `synth-*.js` (the elaborated design as one
+  flat Verilog module): 39 modules, about 12 600 lines, with the interpreter and `core/values.js` for the
+  constant expressions. It reads VHDL and Verilog alike, so a Verilog design goes through it too in the IDE, as
+  today (the same netlists, the same warnings).
+- **Steps 3 and 4 make the joint**: the front end's output (the flat Verilog, its top, its warnings, the gate
+  count for the carry chains, the shift arrays) becomes the package's synthesis input, and `runOpenFlow` gets
+  the front end as a hook of `io`. The IDE's wrapper gives Silinx's front end, in Node and in the browser;
+  `silinx-fpga` alone reads Verilog or a Yosys netlist. The gate count and the shift arrays become optional
+  hints of the input, so plain Verilog from another tool synthesises too.
+- **The command line** (step 8) takes Verilog. A VHDL design built from the command line goes through the IDE's
+  front end first: a command of the IDE's (`silinx-ise`, for example `silinx-ise synth top.vhd`) writes the flat
+  Verilog and calls `silinx-fpga`, or `silinx-fpga` accepts a front end given to it (`--frontend <module>`,
+  a module that exports the hook).
+- **Later, if wanted, a front-end package** (`silinx-hdl`, a name to decide): the same 39 modules moved out of
+  the IDE as steps 1 to 7 move the toolchain (a boundary test, then a workspace package, then its API), with a
+  licence of its own (the IDE's AGPL-3.0-only, or the toolchain's Apache-2.0). Its parsers and elaborator are
+  also the simulator's and the editors', so it would serve more than synthesis.
