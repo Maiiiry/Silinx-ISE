@@ -59,8 +59,9 @@ export const exprMethods = {
     return null;
   },
   readOut(o) {
-    o.read = true;
+    // (after a write, its value: not an input, #1603)
     if (o.val !== null) return this.v(o.val, o.t);
+    o.read = true;
     const key = `${o.name}#in`;
     if (!this.inputs.has(key)) this.inputs.set(key, { name: key, t: o.t, port: { key, name: o.name }, id: null });
     const i = this.inputs.get(key);
@@ -248,6 +249,7 @@ export const exprMethods = {
     const name = e.callee.name;
     const fn = this.c.funcs.get(name);
     if (!fn) { if (['printf', 'fprintf', 'puts', 'putchar'].includes(name)) return this.v(this.g.const(0, INT), INT); this.error(e.loc, `the function '${name}' cannot be called here`); }
+    if (!fn.body) this.error(e.loc, `'${name}' is declared but not defined`);   // (#1605)
     const scope = new Map();
     fn.params.forEach((pa, k) => {
       const a = e.args[k];

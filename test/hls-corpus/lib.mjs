@@ -14,14 +14,14 @@ export function unitOf(design, texts) {
 }
 
 const first = (diags) => diags.find((d) => d.severity === 'error');
-const why = (d) => (d ? `${d.file && d.file !== 'unit.c' ? `${d.file.split('/').pop()}:` : ''}${d.line}: ${d.message}` : null);
+const why = (d) => (d ? `${d.file && !/^unit\.c(pp)?$/.test(d.file) ? `${d.file.split('/').pop()}:` : ''}${d.line}: ${d.message}` : null);
 
 /** A design through the stages: { csim, synth, cosim, latency, reason } (each 'pass', 'fail' or 'skip'). */
 export function runDesign(design, texts, { maxCycles = 100000 } = {}) {
   const r = { csim: 'skip', synth: 'skip', cosim: 'skip', latency: null, reason: null };
-  if (design.language !== 'c') { r.reason = 'C++ (#1590)'; return r; }
   const { unit, headers } = unitOf(design, texts);
-  const opts = { file: 'unit.c', headers, top: design.top };
+  // (a C++ design's unit is C++, #1590)
+  const opts = { file: design.language === 'c' ? 'unit.c' : 'unit.cpp', headers, top: design.top };
   const sim = simulateC(unit, { ...opts, files: texts });
   r.csim = sim.ok && sim.exitCode === 0 ? 'pass' : 'fail';
   if (r.csim === 'fail') r.reason ||= `C simulation: ${sim.error ? `${sim.error.line}: ${sim.error.message}` : sim.ok ? `main() returned ${sim.exitCode}` : why(first(sim.diagnostics))}`;

@@ -19,6 +19,8 @@
 //           assign { op, l, r } | cond { c, a, b } | call { callee: Expr, args } | index { e, i } |
 //           member { e, name, arrow } | cast { type, e } | sizeof { type | e } | comma { l, r }
 import { lex, numText } from './c-lex.js';
+import { cppTree } from './cpp-tree.js';
+import { isCpp } from './cpp-lex.js';
 
 // the type names of C and of stdint.h, as Silinx C knows them (docs/c-to-hdl.md: widths, signedness)
 export const STDINT = {
@@ -64,7 +66,7 @@ function tokenTools(toks, file, errors) {
   return { toks, S, at, loc, fail, expect, show, recover, Stop };
 }
 /** The types, declarators and expressions of the parser. */
-function exprParser(T, typedefs) {
+function exprParser(T, typedefs, cpp = false) {
   const { toks, S, at, loc, fail, expect, show } = T;
   // ---------------------------------------------------------- types
   const startsType = () => {
@@ -133,6 +135,9 @@ function exprParser(T, typedefs) {
       type = { kind: 'ptr', to: type };
       while (at('const') || at('volatile') || at('restrict')) { if (toks[S.p].v === 'const') type.const = true; S.p++; }
     }
+    // (C++: a reference, a pointer whose uses core/cpp-tree.js makes *x, #1590)
+    if (cpp && at('&&')) fail('an rvalue reference (&&) is not supported');
+    if (cpp && at('&')) { S.p++; type = { kind: 'ptr', to: type, ref: true }; }
     let name = null, nameTok = toks[S.p];
     if (at('(') && toks[S.p + 1]?.v === '*') fail('function pointers are not supported (Silinx C, as Vitis HLS: no function pointers)');
     if (toks[S.p].t === 'id' && !KEYWORDS.has(toks[S.p].v)) { nameTok = toks[S.p]; name = toks[S.p++].v; }
@@ -391,10 +396,10 @@ export function parse(source, file = 'input.c', opts = {}) {
   const errors = [...lx.errors];
   const typedefs = new Map(Object.entries(STDINT).map(([n, [bits, signed]]) => [n, { kind: 'int', name: n, bits, signed }]));
   typedefs.set('FILE', { kind: 'struct', name: 'FILE' });   // (stdio's, for the test bench's files, #1598)
-  typedefs.set('size_t', { kind: 'int', name: 'size_t', bits: 32, signed: false });
   const T = tokenTools(lx.tokens, file, errors);
   const { toks, S, at, loc, recover, Stop } = T;
-  const E = exprParser(T, typedefs);
+  const cpp = opts.cpp ?? isCpp(file);
+  const E = exprParser(T, typedefs, cpp);
   const { specifiers } = E;
   const { declarations } = stmtParser(T, E, typedefs);
   // ---------------------------------------------------------- the file
@@ -415,5 +420,7 @@ export function parse(source, file = 'input.c', opts = {}) {
       if (S.p === before) S.p++;
     }
   }
-  return { file, items, pragmas: filePragmas, includes: lx.includes, errors };
+  const ast = { file, items, pragmas: filePragmas, includes: lx.includes, errors };
+  if (cpp) cppTree(ast, (n, message) => errors.push({ file, line: n?.loc?.line || 1, col: n?.loc?.col || 1, message, severity: 'error' }), lx.streams);
+  return ast;
 }
