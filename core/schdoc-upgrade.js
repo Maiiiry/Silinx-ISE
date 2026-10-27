@@ -5,19 +5,65 @@
 // Each is placed so that its data inputs, its enable and its select bits stay where they were; only its output O moves,
 // along its lead, and what was connected there goes with it: a wire's end (its last run lengthened or shortened, or a
 // run added when that run is across), an I/O marker, a net name; another symbol's pin there gets a wire to the new O.
+// 5 (#1726): the bus tap drawn as ISE's, a diagonal entry from its bus: its input I a grid step from its output's line
+// (local (0, 0), it was (0, 10)). The tap stays, its output O where it was; what met its old I follows as above (a wire
+// whose last run goes that way has its end moved, else a bus wire joins the old place to the new I).
 // Isomorphic (no DOM).
 import { MUX_BODY_W, MUX_INPUTS, MUX_OLD_BODY_W, symbolDef, xform } from './schdoc-symbols.js';
 
 const same = (a, b) => a.x === b.x && a.y === b.y;
 
+// what was connected at `before` taken to `after` (a pin's move, in place): a wire's end whose last run goes along the
+// move moved, a marker or a net name moved; otherwise (a run across, another symbol's pin there) a wire from there
+function follow(doc, before, after, others, bus) {
+  if (same(before, after)) return;
+  const across = before.x === after.x ? 'x' : 'y';   // (the axis the pin moved along: x or y stays)
+  let joined = false;
+  for (const w of doc.wires) {
+    for (const last of [false, true]) {
+      if (w.points.length < 2) break;
+      const end = last ? w.points.length - 1 : 0, p = w.points[end];
+      if (!same(p, before)) continue;
+      const next = w.points[end === 0 ? 1 : end - 1];
+      if (next[across] === p[across]) {
+        // its last run along the move: its end moved (a run of no length left: the point dropped)
+        w.points[end] = { ...after };
+        if (same(w.points[end], next)) w.points.splice(end, 1);
+      } else joined = true;
+    }
+  }
+  doc.wires = doc.wires.filter(w => w.points.length >= 2);
+  for (const m of [...doc.ports, ...doc.labels]) if (same(m, before)) { m.x = after.x; m.y = after.y; }
+  if (joined || others.has(`${before.x},${before.y}`)) {
+    const w = { id: `W${doc.wires.length + 1}`, points: [{ ...before }, { ...after }] };
+    while (doc.wires.some(x => x.id === w.id)) w.id += '_';
+    if (bus) w.bus = true;
+    doc.wires.push(w);
+  }
+}
+// the pins of the symbols but `skip`'s kind, as 'x,y'
+const pinsOfOthers = (doc, modules, skip) => new Set(doc.symbols.filter(s => !skip(s)).flatMap(s => {
+  const def = symbolDef(s, modules);
+  return def.pins.map(p => { const q = xform(s, def, p.x, p.y); return `${q.x},${q.y}`; });
+}));
+
+/** The bus taps of doc (version 4) drawn as ISE's (#1726), their input moved, doc changed in place. */
+export function moveTaps(doc, modules = {}) {
+  const taps = doc.symbols.filter(s => s.type === 'slice');
+  if (!taps.length) return doc;
+  const others = pinsOfOthers(doc, modules, s => s.type === 'slice');
+  for (const s of taps) {
+    const def = symbolDef(s, {}), i = def.pins.find(p => p.name === 'I');
+    follow(doc, xform(s, def, 0, 10), xform(s, def, i.x, i.y), others, true);
+  }
+  return doc;
+}
+
 /** The multiplexers of doc (version 3) widened (#1136), doc changed in place (modules: the project's, normalized). */
 export function widenMuxes(doc, modules = {}) {
   const muxes = doc.symbols.filter(s => MUX_INPUTS[s.type]);
   // (the pins of the other symbols, where a multiplexer's output met them directly)
-  const others = new Set(muxes.length ? doc.symbols.filter(s => !MUX_INPUTS[s.type]).flatMap(s => {
-    const def = symbolDef(s, modules);
-    return def.pins.map(p => { const q = xform(s, def, p.x, p.y); return `${q.x},${q.y}`; });
-  }) : []);
+  const others = muxes.length ? pinsOfOthers(doc, modules, s => MUX_INPUTS[s.type]) : new Set();
   for (const s of muxes) {
     const def = symbolDef(s, {}), k = Math.log2(MUX_INPUTS[s.type]), oldW = MUX_OLD_BODY_W(k);
     if (oldW === MUX_BODY_W(k)) continue;
@@ -28,32 +74,7 @@ export function widenMuxes(doc, modules = {}) {
     const d0 = def.pins[0], a = xform(s, old, d0.x, d0.y), b = xform(s, def, d0.x, d0.y);
     const before = xform(s, old, oldW + 40, o.y);
     s.x += a.x - b.x; s.y += a.y - b.y;
-    const after = xform(s, def, o.x, o.y);
-    if (same(before, after)) continue;
-    const across = before.x === after.x ? 'x' : 'y';   // (the axis the output moved along: x or y stays)
-    let joined = false;
-    for (const w of doc.wires) {
-      for (const last of [false, true]) {
-        if (w.points.length < 2) break;
-        const end = last ? w.points.length - 1 : 0, p = w.points[end];
-        if (!same(p, before)) continue;
-        const next = w.points[end === 0 ? 1 : end - 1];
-        if (next[across] === p[across]) {
-          // its last run along the lead: its end moved (a run of no length left: the point dropped)
-          w.points[end] = { ...after };
-          if (same(w.points[end], next)) w.points.splice(end, 1);
-        } else joined = true;
-      }
-    }
-    doc.wires = doc.wires.filter(w => w.points.length >= 2);
-    for (const m of [...doc.ports, ...doc.labels]) if (same(m, before)) { m.x = after.x; m.y = after.y; }
-    // a run across, or another symbol's pin there: a wire from there to the new output
-    if (joined || others.has(`${before.x},${before.y}`)) {
-      const w = { id: `W${doc.wires.length + 1}`, points: [{ ...before }, { ...after }] };
-      while (doc.wires.some(x => x.id === w.id)) w.id += '_';
-      if ((o.width || 1) > 1) w.bus = true;
-      doc.wires.push(w);
-    }
+    follow(doc, before, xform(s, def, o.x, o.y), others, (o.width || 1) > 1);
   }
   return doc;
 }

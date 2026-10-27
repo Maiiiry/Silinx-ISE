@@ -435,8 +435,9 @@ export function symbolDef(sym, modules = {}) {
   }
   if (t === 'slice') {
     const msb = int(p.msb, 0), lsb = int(p.lsb, 0);
-    return { w: 40, h: 20, shape: 'slice', text: msb === lsb ? `(${msb})` : `(${msb}:${lsb})`, body: { x: 15, y: 0, w: 10, h: 20 },
-      pins: [{ name: 'I', dir: 'in', x: 0, y: 10, side: 'W', width: p.inWidth ? int(p.inWidth, null) : null },
+    // (drawn as ISE's, #1726: its input on the bus, a diagonal entry from it down to its output's line)
+    return { w: 40, h: 20, shape: 'slice', text: msb === lsb ? `(${msb})` : `(${msb}:${lsb})`, body: { x: 0, y: 0, w: 10, h: 10 },
+      pins: [{ name: 'I', dir: 'in', x: 0, y: 0, side: 'W', width: p.inWidth ? int(p.inWidth, null) : null },
         { name: 'O', dir: 'out', x: 40, y: 10, side: 'E', width: Math.abs(msb - lsb) + 1 }] };
   }
   if (t === 'busjoin') {

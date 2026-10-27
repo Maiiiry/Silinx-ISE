@@ -277,3 +277,42 @@ test('#1488 schematic drawing: the bus join\'s width on its inputs and output, t
     assert.ok(!leads.some((l) => crosses(n, l)), `rot ${rot}${mirror ? ' mirrored' : ''}: DATA(15:8) off the leads`);
   }
 });
+
+// #1726: the bus tap drawn as ISE's: its input (I) on the bus, a diagonal entry from there to the line of the bit(s)
+// it takes, their wire to its output (O), a grid step aside from the input; its bit(s) with the bus's name on that wire,
+// inside the symbol, from the diagonal's end outwards; in every orientation
+test('#1726 schematic drawing: the bus tap as ISE\'s, a diagonal entry from its bus, A(5:2) on its wire inside it', () => {
+  const draw = (rot, mirror, params = { msb: 5, lsb: 2 }) => {
+    const sym = { id: 'S1', type: 'slice', x: 200, y: 100, rot, mirror, name: 'U1', params: { ...defaultParams('slice'), ...params } };
+    const def = symbolDef(sym);
+    return { svg: symbolSvg(sym, def, '', { busName: 'A' }), pins: Object.fromEntries(symbolPins(sym, null, def).map((p) => [p.name, p])) };
+  };
+  const sym0 = { type: 'slice', params: defaultParams('slice') };
+  assert.deepEqual([symbolDef(sym0).w, symbolDef(sym0).h, symbolDef(sym0).pins.map((p) => `${p.name} ${p.x},${p.y} ${p.side}`)], [40, 20, ['I 0,0 W', 'O 40,10 E']]);
+  for (const { rot, mirror } of ORIENTS) {
+    const { svg, pins } = draw(rot, mirror);
+    const where = `rot ${rot}${mirror ? ' mirrored' : ''}`;
+    const [a, b, c, d, e, f] = svg.match(/transform="matrix\(([^)]*)\)"/)[1].split(',').map(Number);
+    const at = (x, y) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+    const leads = [...svg.matchAll(/<line class="(pin[^"]*)"[^>]*>/g)].map((m) => { const l = attrs(m[0]); return { cls: m[1], p: at(+l.x1, +l.y1), q: at(+l.x2, +l.y2) }; });
+    // the diagonal: a bus lead from the input, at 45°, a grid step across; then the output's lead, in line with O
+    const [diag, out] = leads;
+    assert.equal(diag.cls, 'pin bus', where);
+    assert.deepEqual([diag.p.x, diag.p.y], [pins.I.x, pins.I.y], `${where}: the diagonal from the input`);
+    assert.deepEqual([Math.abs(diag.q.x - diag.p.x), Math.abs(diag.q.y - diag.p.y)], [10, 10], `${where}: at 45°`);
+    assert.deepEqual([out.p, out.q].map((p) => [p.x, p.y]), [[diag.q.x, diag.q.y], [pins.O.x, pins.O.y]], `${where}: the output's lead from its end`);
+    assert.equal(out.cls, 'pin bus', `${where}: 4 bits, a bus`);
+    // the text on the output's wire, from the diagonal's end, reading outwards
+    assert.equal(svg.match(/<text class="stext"[^>]*>([^<]*)</)[1], 'A(5:2)');
+    const t = attrs(svg.match(/<text class="stext"[^>]*>/)[0]);
+    const lo = Math.min(diag.q.x, pins.O.x), hi = Math.max(diag.q.x, pins.O.x), ly = Math.min(diag.q.y, pins.O.y), hy = Math.max(diag.q.y, pins.O.y);
+    if (rot === 90 || rot === 270) assert.ok(+t.y > ly && +t.y < hy + 4 && Math.abs(+t.x - pins.O.x) <= 8, `${where}: beside the output's wire (${t.x},${t.y})`);
+    else {
+      assert.ok(+t.x >= lo && +t.x <= hi && Math.abs(+t.y - pins.O.y) <= 8, `${where}: on the output's wire (${t.x},${t.y})`);
+      assert.equal(t['text-anchor'], pins.O.x > pins.I.x ? 'start' : 'end', `${where}: it reads outwards`);
+    }
+  }
+  // one bit: a thin output
+  const one = draw(0, false, { msb: 3, lsb: 3 }).svg;
+  assert.match(one, /<line class="pin" x1="10" y1="10" x2="40" y2="10"\/>/);
+});

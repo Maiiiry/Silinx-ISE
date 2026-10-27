@@ -8,11 +8,11 @@ import { simulate } from '../core/compile.js';
 import { newDoc, normalizeDoc, netlist, generateHdl } from '../core/schdoc.js';
 
 const WRONG = (bus, w = 8) => `error bus tap T1 is the wrong way round: its output O (1 bit) touches the ${w}-bit bus '${bus}' and is not connected to it; the bus goes to its input I`;
-const tap = (x, y, msb = 2, lsb = 2) => ({ id: 'S1', type: 'slice', x, y, rot: 0, mirror: false, name: 'T1', params: { msb, lsb } });   // I at (x, y+10), O at (x+40, y+10)
+const tap = (x, y, msb = 2, lsb = 2) => ({ id: 'S1', type: 'slice', x, y, rot: 0, mirror: false, name: 'T1', params: { msb, lsb } });   // I at (x, y) on its bus, O at (x+40, y+10) (#1726)
 const diags = (nl) => nl.diagnostics.map(d => `${d.severity} ${d.message}`);
 const netOf = (nl, wire) => nl.wireNet.get(wire);
 
-// the tap at (300, 200) reversed: its O (340, 210) on the bus W1, its I (300, 210) on W2 to the output marker y
+// the tap at (300, 200) reversed: its O (340, 210) on the bus W1, its I (300, 200) on W2 to the output marker y
 function reversed({ src }) {
   const d = newDoc('rt', 'vhdl');
   d.symbols.push(tap(300, 200));
@@ -23,8 +23,8 @@ function reversed({ src }) {
     d.symbols.push({ id: 'S2', type: 'counter', x: 410, y: 0, rot: 0, mirror: false, name: 'C1', params: { width: 8 } });
     d.wires.push({ id: 'W3', points: [{ x: 500, y: 210 }, { x: 500, y: 10 }] });
   }
-  d.wires.push({ id: 'W2', points: [{ x: 300, y: 210 }, { x: 200, y: 210 }] });
-  d.ports.push({ id: 'P2', name: 'y', dir: 'out', width: 1, x: 200, y: 210 });
+  d.wires.push({ id: 'W2', points: [{ x: 300, y: 200 }, { x: 200, y: 200 }] });
+  d.ports.push({ id: 'P2', name: 'y', dir: 'out', width: 1, x: 200, y: 200 });
   return netlist(normalizeDoc(d));
 }
 
@@ -67,8 +67,8 @@ test('#1702 a bus tap the wrong way round on an input marker\'s bus, or a named 
 function rightWay(lang, { msb = 2, lsb = 2, yWidth = msb - lsb + 1 } = {}) {
   const d = newDoc('tapok', lang);
   d.symbols.push(tap(300, 200, msb, lsb));
-  d.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 8, x: 200, y: 210 }, { id: 'P2', name: 'y', dir: 'out', width: yWidth, x: 500, y: 210 });
-  d.wires.push({ id: 'W1', points: [{ x: 200, y: 210 }, { x: 300, y: 210 }], bus: true }, { id: 'W2', points: [{ x: 340, y: 210 }, { x: 500, y: 210 }] });
+  d.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 8, x: 200, y: 200 }, { id: 'P2', name: 'y', dir: 'out', width: yWidth, x: 500, y: 210 });
+  d.wires.push({ id: 'W1', points: [{ x: 200, y: 200 }, { x: 300, y: 200 }], bus: true }, { id: 'W2', points: [{ x: 340, y: 210 }, { x: 500, y: 210 }] });
   return normalizeDoc(d);
 }
 

@@ -50,6 +50,13 @@ uiTest('schematic: a bus takes the name of its input (A(5:0) on its wires), a bu
   await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 2, [ED], { what: 'drawn' });
   assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} svg .busname`)].map((t) => t.textContent), ED), ['A(5:0)', 'A(5:0)']);
   assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} svg .sym .stext`)].map((t) => t.textContent), ED), ['A(0)']);
+  // drawn as ISE's (#1726): a diagonal entry from the bus (the tap's input on it), A(0) on the bit's wire, from inside the symbol
+  const tapView = await page.eval((ed) => {
+    const g = document.querySelector(`${ed} svg .sym[data-id="S1"]`), box = g.querySelector('.hitbox').getBoundingClientRect(), t = g.querySelector('.stext').getBoundingClientRect();
+    const d = g.querySelector('line.pin.bus');
+    return { diagonal: d && Math.abs(+d.getAttribute('x2') - +d.getAttribute('x1')) === 10 && Math.abs(+d.getAttribute('y2') - +d.getAttribute('y1')) === 10, inside: t.left >= box.left && t.left < box.right };
+  }, ED);
+  assert.deepEqual(tapView, { diagonal: true, inside: true });
   // the tap is connected: no unconnected-pin marker on its input, a junction dot where it sits
   assert.ok(await page.eval((ed) => [...document.querySelectorAll(`${ed} svg .junction`)].some((c) => c.getAttribute('cx') === '300' && c.getAttribute('cy') === '200'), ED));
 });

@@ -12,14 +12,14 @@ const E = () => env;
 const ED = '.doc:not([hidden]) .sch-editor';
 const ERR = "bus tap T1 is the wrong way round: its output O (1 bit) touches the 8-bit bus 'net_1' and is not connected to it; the bus goes to its input I";
 
-// a counter's Q(7:0) (500, 10) down to (500, 210), on to the tap's O (340, 210); the tap's I (300, 210) to y
+// a counter's Q(7:0) (500, 10) down to (500, 210), on to the tap's O (340, 210); the tap's I (300, 200) to y
 function schematic() {
   const d = newDoc('rtap', 'vhdl');
   d.symbols.push({ id: 'S1', type: 'slice', x: 300, y: 200, rot: 0, mirror: false, name: 'T1', params: { msb: 2, lsb: 2 } },
     { id: 'S2', type: 'counter', x: 410, y: 0, rot: 0, mirror: false, name: 'C1', params: { width: 8 } });
   d.wires.push({ id: 'W1', points: [{ x: 500, y: 210 }, { x: 340, y: 210 }] }, { id: 'W3', points: [{ x: 500, y: 210 }, { x: 500, y: 10 }] },
-    { id: 'W2', points: [{ x: 300, y: 210 }, { x: 200, y: 210 }] });
-  d.ports.push({ id: 'P2', name: 'y', dir: 'out', width: 1, x: 200, y: 210 });
+    { id: 'W2', points: [{ x: 300, y: 200 }, { x: 200, y: 200 }] });
+  d.ports.push({ id: 'P2', name: 'y', dir: 'out', width: 1, x: 200, y: 200 });
   return d;
 }
 

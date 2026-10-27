@@ -1,5 +1,5 @@
 {
- "version": 4,
+ "version": 5,
  "name": "tap_reversed",
  "lang": "vhdl",
  "sheet": {
@@ -55,11 +55,11 @@
    "points": [
     {
      "x": 360,
-     "y": 90
+     "y": 80
     },
     {
      "x": 340,
-     "y": 90
+     "y": 80
     }
    ],
    "bus": true
@@ -83,7 +83,7 @@
   {
    "id": "L6",
    "x": 340,
-   "y": 90,
+   "y": 80,
    "net": "a"
   },
   {
