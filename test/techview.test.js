@@ -1,10 +1,10 @@
-// core/fpga/techview.js: View Technology Schematic in the Silinx toolchain (#119): the netlist of the
+// core/techview.js (core/fpga/techview.js until #1673): View Technology Schematic in the Silinx toolchain (#119): the netlist of the
 // open synthesis (Yosys's JSON) as a schematic model (cells, pins, nets) and as netgen-style VHDL
 // regrouped by the design's instances, which Silinx's schematic engine draws; a LUT's function from
 // its INIT.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { technologyNetlist, lutFunction, initBits, vhdlName } from '../core/fpga/techview.js';
+import { technologyNetlist, lutFunction, initBits, vhdlName } from '../core/techview.js';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
 import { schematicFromHdl, modulesFromLibrary } from '../core/schdoc.js';
@@ -208,4 +208,12 @@ test('the examples blinky and pong, synthesized by Yosys: technology netlists by
     assert.match(lut2.name, /^LUT[1-4]_\d+$/);
     assert.ok(lutFunction(lut2.params.generics.INIT, +lut2.params.module.slice(3)), JSON.stringify(lut2.params));
   }
+});
+
+test('#1673 core/fpga/techview.js re-exports the module moved to core/techview.js', async () => {
+  const old = await import('../core/fpga/techview.js');
+  const moved = await import('../core/techview.js');
+  assert.deepEqual(Object.keys(old).sort(), ['initBits', 'lutFunction', 'technologyNetlist', 'vhdlName']);
+  for (const k of Object.keys(old)) assert.equal(old[k], moved[k], k);
+  assert.deepEqual(Object.keys(moved).sort(), Object.keys(old).sort());
 });
