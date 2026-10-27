@@ -15,6 +15,7 @@ import { Flow, Stop } from './c-dataflow.js';
 import { BOOL, typeOf } from './c-types.js';
 import { constValue } from './c-check.js';
 import { memMethods, MEM_MIN } from './c-mem.js';
+import { loopPragma, unrollBy } from './c-pragma.js';
 
 export function fsmd(checked) {
   return new SeqFlow(checked).runSeq();
@@ -32,6 +33,18 @@ const hasLoop = (n) => {
   return hit;
 };
 /** The line of the first statement of a list (inside its blocks, its pragmas apart), or null. */
+const hasContinue = (n) => {
+  let hit = false;
+  const w = (x) => {
+    if (!x || typeof x !== 'object' || hit) return;
+    if (Array.isArray(x)) { x.forEach(w); return; }
+    if (x.kind === 'continue') { hit = true; return; }
+    if (x.kind === 'for' || x.kind === 'while' || x.kind === 'do') return;   // (its own)
+    for (const [k, v] of Object.entries(x)) if (k !== 'loc' && k !== 'type') w(v);
+  };
+  w(n);
+  return hit;
+};
 const firstLine = (stmts) => {
   for (const s of stmts) {
     if (s.kind === 'pragma' || s.kind === 'empty') continue;
@@ -60,7 +73,7 @@ class SeqFlow extends Flow {
       if (x.kind === 'block') { scopes.push(new Map()); x.items.forEach(walk); scopes.pop(); return; }
       if (x.kind === 'for') { scopes.push(new Map()); walk(x.init); walk(x.cond); walk(x.step); walk(x.body); scopes.pop(); return; }
       if (x.kind === 'decl') {
-        for (const v of x.vars) { if (v.init) walk(v.init); const u = fresh(v.name); scopes.at(-1).set(v.name, u); v.name = u; decls.push(v); }
+        for (const v of x.vars) { if (v.init) walk(v.init); const u = fresh(v.name); scopes.at(-1).set(v.name, u); v.orig = v.name; v.name = u; decls.push(v); }
         return;
       }
       if (x.kind === 'id') { const u = look(x.name); if (u) x.name = u; return; }
@@ -79,7 +92,7 @@ class SeqFlow extends Flow {
     const seq = (list, after, lp) => {
       let cur = mk(lp);
       const entry = cur;
-      for (const s of list) {
+      for (let s of list) {
         const mem = this.hasMem(s);
         if (!hasLoop(s) && !mem) { cur.stmts.push(s); continue; }
         // (a memory's accesses: their states, #1527)
@@ -102,6 +115,44 @@ class SeqFlow extends Flow {
           continue;
         }
         if (s.kind === 'for' || s.kind === 'while' || s.kind === 'do') {
+          // the loop's pragmas (#1529): UNROLL (whole: its iterations in the state it is in; factor=N: N an
+          // iteration), PIPELINE (an iteration a state)
+          const info = this.loopInfo(s);
+          const un = loopPragma(s, 'UNROLL'), pp = loopPragma(s, 'PIPELINE');
+          if (un) {
+            const n = un.factor !== undefined ? Number(un.factor) : Infinity;
+            const why = this.hasMem(s) ? 'it accesses a memory: an access a state' : hasLoop(s.body) ? 'a loop is in it' : null;
+            if (n >= (info.trip ?? Infinity)) {
+              if (info.trip === null) this.warn(s.loc, '#pragma HLS UNROLL: this loop\'s count is not a constant: it is not unrolled (give a factor=)');
+              else if (why) this.warn(s.loc, `#pragma HLS UNROLL: this loop is not unrolled: ${why}`);
+              else { cur.stmts.push({ ...s, unroll: true }); info.unroll = 'whole'; info.states = 0; continue; }
+            } else if (n > 1) {
+              const bad = s.kind === 'do' ? 'a do-while' : hasContinue(s.body) ? "a 'continue' is in it" : hasLoop(s.body) ? 'a loop is in it' : null;
+              if (bad) this.warn(s.loc, `#pragma HLS UNROLL factor=${n}: this loop is not unrolled: ${bad}`);
+              else { s = unrollBy(s, n); info.unroll = n; }
+            }
+          }
+          if (pp && !pp.off) {
+            info.pipeline = Number(pp.ii ?? 1);
+            const bad = this.hasMem(s) ? 'it accesses a memory, an access a state' : hasLoop(s.body) ? 'a loop is in it' : hasContinue(s.body) ? "a 'continue' is in it" : s.kind === 'do' ? 'a do-while' : null;
+            if (!bad) {
+              // one state an iteration: if its condition holds, the body and the step; else out
+              if (s.kind === 'for' && s.init) { if (this.hasMem(s.init)) cur = this.lowerMem(s.init, cur, mk, lp); else cur.stmts.push(s.init); }
+              const exit = mk(lp);
+              const L = { exit, cont: null };
+              const it = mk(L);
+              L.cont = it;
+              const then = { kind: 'block', items: [s.body, ...(s.kind === 'for' && s.step ? [{ kind: 'expr', e: s.step, loc: s.loc }] : [])], loc: s.loc };
+              it.stmts.push(s.cond ? { kind: 'if', cond: s.cond, then, else: { kind: 'break', loc: s.loc }, loc: s.loc } : then);
+              it.term = { goto: it };
+              cur.term = { goto: it };
+              info.blocks = [it];
+              cur = exit;
+              continue;
+            }
+            info.notPipelined = bad;
+          }
+          const before = blocks.length;
           const exit = mk(lp);
           const head = mk(lp);
           const step = s.kind === 'for' && s.step ? mk(lp) : null;
@@ -118,6 +169,7 @@ class SeqFlow extends Flow {
             const last = this.hasMem(se) ? this.lowerMem(se, step, mk, lp) : (step.stmts.push(se), step);
             last.term = { goto: head };
           }
+          info.blocks = blocks.slice(before + 1);
           cur = exit;
           continue;
         }
@@ -155,6 +207,7 @@ class SeqFlow extends Flow {
       this.entry = this.cfg(body.items, null, null);
       this.thread();
       this.runBlocks();
+      this.loops = this.loopsDone();
     } catch (e) { if (!(e instanceof Stop)) throw e; }
     return this.result();
   }
@@ -173,6 +226,11 @@ class SeqFlow extends Flow {
   regNode(r) { return this.g.add('reg', [], r.t, { port: { key: `reg:${r.name}`, name: `ap_r_${r.name}` } }); }
   makeRegisters(fn, decls) {
     this.slots = new Map();
+    // ARRAY_PARTITION complete (#1529): the array's elements registers, whatever its size
+    this.partitioned = new Set();
+    const walkP = (x) => { if (!x || typeof x !== 'object') return; if (Array.isArray(x)) { x.forEach(walkP); return; } if (x.kind === 'pragma' && x.pragma.name === 'ARRAY_PARTITION' && x.pragma.args.variable) { const a = x.pragma.args; if (!a.type || String(a.type).toLowerCase() === 'complete' || a.complete) this.partitioned.add(a.variable); } for (const [k, y] of Object.entries(x)) if (k !== 'loc' && k !== 'type' && k !== 'pragma') walkP(y); };
+    walkP(fn.body);
+    for (const pa of fn.params) if (this.partitioned.has(pa.name)) this.warn(pa.loc, `#pragma HLS ARRAY_PARTITION of the argument '${pa.name}' is not made yet: it is ap_memory`);
     // the arguments: read at the start of a call (latched), a pointer's value its register
     for (const pa of fn.params) {
       const t = pa.type;
@@ -196,15 +254,16 @@ class SeqFlow extends Flow {
     for (const v of decls) this.slots.set(v.name, this.regSlot(v));
     for (const [name, gv] of this.globals) {
       if (!gv.const) this.slots.set(name, this.regSlot({ ...gv, static: true }));
-      else if (gv.type.kind === 'array' && this.arrayLength(gv) > MEM_MIN) this.slots.set(name, this.memSlot(gv));   // (a ROM)
+      else if (gv.type.kind === 'array' && this.arrayLength(gv) > MEM_MIN && !this.partitioned.has(name)) this.slots.set(name, this.memSlot(gv));   // (a ROM)
     }
     if (this.retType) this.retReg = this.reg('ap_return_reg', this.retType);
   }
   regSlot(v) {
     const t = v.type;
+    const parted = this.partitioned?.has(v.orig ?? v.name);
     const init = (e) => (e ? constValue(e, this.consts()) : 0n);
     if (t.kind === 'array') {
-      if (this.arrayLength(v) > MEM_MIN) return this.memSlot(v);
+      if (this.arrayLength(v) > MEM_MIN && !parted) return this.memSlot(v);
       const et = typeOf(t.of);
       if (!et) this.error(v.loc, `'${v.name}': only arrays of integers (one dimension) are supported yet`);
       const n = t.length ?? (v.init?.kind === 'init' ? v.init.items.length : null);
@@ -255,7 +314,24 @@ class SeqFlow extends Flow {
     }
     slot.val = this.mux(g, this.conv(this.expr(v.init, g), slot.t).id, slot.val, slot.t);
   }
-  loop(s) { this.error(s.loc, 'internal: a loop inside a block'); }
+  loop(s, base) { if (s.unroll) return super.loop(s, base); this.error(s.loc, 'internal: a loop inside a block'); return undefined; }
+  /** The record of a loop for the report: its line, its count (checkC's), what its pragmas made. */
+  loopInfo(s) {
+    const c = this.c.loops.find((l) => l.loc.line === s.loc.line && l.loc.col === s.loc.col) || { trip: null, max: null };
+    const info = { line: s.loc.line, trip: c.trip, max: c.max, unroll: null, pipeline: null, blocks: [], loc: s.loc };
+    (this.loopReport ||= []).push(info);
+    return info;
+  }
+  /** The loops' report, once the states are numbered: the states an iteration (II), the cycles of the loop. */
+  loopsDone() {
+    return (this.loopReport || []).map((l) => {
+      const ii = l.unroll === 'whole' ? 0 : l.blocks.filter((b) => b.num).length;
+      if (l.pipeline && l.notPipelined) this.warn(l.loc, `#pragma HLS PIPELINE II=${l.pipeline}: II=${ii} made (${l.notPipelined})`);
+      else if (l.pipeline && ii > l.pipeline) this.warn(l.loc, `#pragma HLS PIPELINE II=${l.pipeline}: II=${ii} made`);
+      const n = l.trip ?? l.max;
+      return { line: l.line, trip: l.trip, max: l.max, unroll: l.unroll, pipeline: l.pipeline, ii, cycles: n === null ? null : l.unroll === 'whole' ? 0 : Math.ceil(n / (typeof l.unroll === 'number' ? l.unroll : 1)) * ii + 1 };
+    });
+  }
   stmt(s, base) { return s && /^mem(read|write|latch)$/.test(s.kind) ? this.memStmt(s, base) : super.stmt(s, base); }
   runBlocks() {
     const st = (n) => this.g.const(n, this.stateT);
@@ -354,7 +430,7 @@ class SeqFlow extends Flow {
     return {
       graph: this.g, regs: [...(this.regs?.values() || [])], states: this.states || [], entry: this.entry?.num ?? 1, idle: 0, done: this.doneNum ?? 1,
       stateT: this.stateT, ports, outputs, ctrl: 'ap_ctrl_hs', diagnostics: this.diags, mems: (this.mems || []).filter((x) => !x.ext),
-      extMems: (this.mems || []).filter((x) => x.ext).map((x) => ({ name: x.name, n: x.n, w: x.t.w, s: x.t.s, aw: x.aw, read: x.read, written: x.written })),
+      loops: this.loops || [], extMems: (this.mems || []).filter((x) => x.ext).map((x) => ({ name: x.name, n: x.n, w: x.t.w, s: x.t.s, aw: x.aw, read: x.read, written: x.written })),
     };
   }
 }

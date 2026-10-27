@@ -3,7 +3,7 @@
 // combinational function is a combinational module (its graph, core/c-dataflow.js), one signal per operation.
 // Isomorphic ES module: no DOM and no Node APIs.
 //
-//   cToHdl(source, { file, lang: 'vhdl' | 'verilog' }) -> { ok, hdl, top, ports, diagnostics }
+//   cToHdl(source, { file, lang: 'vhdl' | 'verilog' }) -> { ok, hdl, top, ports, diagnostics, sequential, report }
 //     ports: [{ name, dir, w }] in the module's order (the block protocol's first, as Vitis HLS)
 import { checkC } from './c-check.js';
 import { dataflow } from './c-dataflow.js';
@@ -47,7 +47,13 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
   const name = rn(checked.top);
   const src = file.split('/').pop();
   const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
-  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0, memories: df.seq ? df.extMems : [] };
+  // the report (#1529): a sequential module's states, registers, memories and loops (each one's II and cycles)
+  const report = df.seq
+    ? { sequential: true, states: df.states.length + 2, registerBits: df.regs.reduce((a, r) => a + r.w, 0) + df.stateT.w,
+      memories: [...df.mems.map((x) => ({ name: x.name, words: x.n, bits: x.t.w, kind: x.rom || (!x.written && x.init) ? 'ROM' : 'RAM' })), ...df.extMems.map((x) => ({ name: x.name, words: x.n, bits: x.w, kind: 'ap_memory' }))],
+      loops: df.loops }
+    : { sequential: false };
+  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0, memories: df.seq ? df.extMems : [], report };
 }
 
 /** The nodes to write: those the outputs need. */
