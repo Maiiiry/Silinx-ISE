@@ -11,7 +11,7 @@ import { packDevice, loadDevice } from '../core/fpga/device.js';
 import { routeDesign, checkRouting, netEndpoints } from '../core/fpga/route.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
 import {
-  WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, netTree, treePath, pathDelay, distanceDelay,
+  WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, lutPinIndex, netTree, treePath, pathDelay, distanceDelay,
   instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable, clockArrivals, parseOffsets, checkOffsets, DELAY_KIND, delayKind,
   clockSources, clockRequirement, checkCross,
 } from '../core/fpga/timing.js';
@@ -82,10 +82,10 @@ test('routed connection delays: the path in the net\'s tree, node delays and bra
   const f1 = device.node('CLB_X3Y0', 'F1_B_PINWIRE0'), g1 = device.node('CLB_X3Y0', 'G1_B_PINWIRE0');
   assert.deepEqual(treePath(tree, f1), [src, device.node('CLB_X1Y0', 'OMUX0'), device.node('CLB_X1Y0', 'LH0'), f1]);
   assert.equal(treePath(tree, device.node('CLB_X3Y0', 'X0')), null);
-  const W = SPEED_4.wire, B = SPEED_4.branch;
-  // OMUX0 has two branches (to LH0 and to E2BEG0): one extra branch load
-  close(pathDelay(treePath(tree, f1), tree, device), SPEED_4.base + W[WIRE.OMUX] + B[WIRE.OMUX] + W[WIRE.LONG] + W[WIRE.PIN]);
-  close(pathDelay(treePath(tree, g1), tree, device), SPEED_4.base + W[WIRE.OMUX] + B[WIRE.OMUX] + 2 * W[WIRE.DOUBLE]);
+  const W = SPEED_4.wire, B = SPEED_4.branch, P1 = SPEED_4.lutPin[0];
+  // OMUX0 has two branches (to LH0 and to E2BEG0): one extra branch load; F1 / G1: a LUT's input 1 (#1359)
+  close(pathDelay(treePath(tree, f1), tree, device), SPEED_4.base + W[WIRE.OMUX] + B[WIRE.OMUX] + W[WIRE.LONG] + W[WIRE.PIN] + P1);
+  close(pathDelay(treePath(tree, g1), tree, device), SPEED_4.base + W[WIRE.OMUX] + B[WIRE.OMUX] + 2 * W[WIRE.DOUBLE] + P1);
   // no general routing wire on the path (a carry chain, F5 -> FXINA): no delay
   assert.equal(pathDelay([src, f1], { children: new Map() }, device), 0);
   // a PIP the device does not have: no tree
@@ -224,10 +224,10 @@ test('analyzeTiming: connection delays from the design\'s routing, or from the d
   close(unrouted.conns[1].delay, est);
   const fast = design(net('d', [['a', 'XQ']], [['b', 'F1']], ['CLB_X1Y0 XQ0 -> OMUX0', 'CLB_X1Y0 OMUX0 -> LH0', 'CLB_X3Y0 LH0 -> F1_B_PINWIRE0']));
   const slow = design(net('d', [['a', 'XQ']], [['b', 'F1']], ['CLB_X1Y0 XQ0 -> OMUX0', 'CLB_X1Y0 OMUX0 -> E2BEG0', 'CLB_X2Y0 E2END0 -> E2BEG1', 'CLB_X3Y0 E2END1 -> F1_B_PINWIRE0']));
-  const W = SPEED_4.wire;
+  const W = SPEED_4.wire, P1 = SPEED_4.lutPin[0];   // (b.F1: a LUT's input 1, #1359)
   const rf = analyzeTiming(fast, device), rs = analyzeTiming(slow, device);
-  close(rf.conns[0].delay, SPEED_4.base + W[WIRE.OMUX] + W[WIRE.LONG]);
-  close(rs.conns[0].delay, SPEED_4.base + W[WIRE.OMUX] + 2 * W[WIRE.DOUBLE]);
+  close(rf.conns[0].delay, SPEED_4.base + W[WIRE.OMUX] + W[WIRE.LONG] + P1);
+  close(rs.conns[0].delay, SPEED_4.base + W[WIRE.OMUX] + 2 * W[WIRE.DOUBLE] + P1);
   close(rs.period - rf.period, 2 * W[WIRE.DOUBLE] - W[WIRE.LONG]);
   assert.deepEqual(rf.conns.map(c => [c.net, c.from, c.to, c.crit]), [['d', 'a.XQ', 'b.F1', 1]]);
 });
@@ -322,7 +322,7 @@ test('block RAM and multiplier arcs, as trce times them (#457): clock to out, se
 test('static timing against trce on routed designs with block RAMs and multipliers (#457)', async () => {
   const { loadDeviceCache } = await import('../core/fpga/device-node.js');
   const g = loadDeviceCache('xc3s250ecp132-4');
-  for (const [name, trce, period] of [['hard_prim', 7.147, 7.110], ['mult_reg', 8.722, 8.711], ['stopwatch', 12.719, 12.602]]) {
+  for (const [name, trce, period] of [['hard_prim', 7.147, 7.170], ['mult_reg', 8.722, 8.711], ['stopwatch', 12.719, 12.602]]) {
     const d = parseXdl(zlib.gunzipSync(fs.readFileSync(path.join(FIX, 'trce', `${name}.xdl.gz`))).toString('utf8'));
     const sta = analyzeTiming(d, g);
     assert.ok(Math.abs(sta.period - period) < 0.0005, `${name}: ${sta.period}`);
@@ -370,6 +370,65 @@ test('timing-fit: reportgen -delay\'s report read back (names wrapped at 80 colu
   assert.deepEqual([...d.keys()], ['u_knight.pattern<1>', `${long}.net_FX`]);
   assert.deepEqual(d.get('u_knight.pattern<1>'), { driver: '$ff$2073.YQ', loads: new Map([['$ff$2073.F1', 0.891], ['$ff$2075.F2', 0.597]]) });
   assert.deepEqual(d.get(`${long}.net_FX`), { driver: `${long}.lut1.FX`, loads: new Map([[`${long}.lut0.FXINB`, 0]]) });
+});
+
+// Silinx's routing of vtr-ch-intrinsics (test/designs-corpus, XC3S1200E-FG320) and ISE's delay of each of its LUT inputs
+// (reportgen -delay on it, 531 connections): ISE's delay depends on the LUT's input, pins 3 and 4 the fastest (#1359)
+test('#1359 a LUT input\'s delay by its pin: the model against ISE\'s delays of a routed design, pins 3 and 4 faster than 1', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const d = parseXdl(zlib.gunzipSync(fs.readFileSync(path.join(FIX, 'trce', 'vtr-ch-intrinsics.xdl.gz'))).toString('utf8'));
+  const g = loadDeviceCache(d.part);
+  const ise = new Map(JSON.parse(fs.readFileSync(path.join(FIX, 'trce', 'vtr-ch-intrinsics-delay.json'), 'utf8')).map(([n, load, ns]) => [`${n}|${load}`, ns]));
+  // every slice's F1-F4 / G1-G4: their input's number, other nodes 0 (cached)
+  const idx = lutPinIndex(g);
+  assert.equal(lutPinIndex(g), idx);
+  const count = [0, 0, 0, 0, 0];
+  for (const v of idx) count[v]++;
+  assert.deepEqual(count.slice(1), [17344, 17344, 17344, 17344], 'two LUTs in each of the 8672 slices');
+  const flat = { ...SPEED_4, lutPin: [0, 0, 0, 0] };
+  const err = { model: [[], [], [], []], flat: [[], [], [], []] };
+  for (const n of netEndpoints(d, g).nets) {
+    if (n.clock || !n.sources.length) continue;
+    const tree = netTree(n.net.pips, n.sources, g);
+    for (const s of n.sinks) {
+      const ns = ise.get(`${n.name}|${s.pin.inst}.${s.pin.pin}`);
+      if (ns === undefined) continue;
+      const p = treePath(tree, s.node), k = +s.pin.pin[1] - 1;
+      err.model[k].push(pathDelay(p, tree, g) - ns);
+      err.flat[k].push(pathDelay(p, tree, g, flat) - ns);
+    }
+  }
+  const mean = e => e.reduce((a, b) => a + b, 0) / e.length;
+  assert.deepEqual(err.model.map(e => e.length), [138, 134, 128, 131]);
+  // the same delay at every pin: pin 1 under ISE's, pins 3 and 4 over it, 0.12 ns apart
+  assert.ok(mean(err.flat[2]) - mean(err.flat[0]) > 0.1 && mean(err.flat[3]) - mean(err.flat[0]) > 0.1, err.flat.map(mean).join(' '));
+  // with the pins' delays: within 0.03 ns of ISE's on average at every pin, and closer overall
+  for (const e of err.model) assert.ok(Math.abs(mean(e)) < 0.03, err.model.map(mean).join(' '));
+  const rms = e => Math.sqrt(mean(e.flat().map(x => x * x)));
+  assert.ok(rms(err.model) < rms(err.flat) - 0.01, `${rms(err.model)} against ${rms(err.flat)}`);
+  // the router's node delays and a connection's delay carry the pin's, at the sink only
+  const nd = nodeDelays(g), f3 = idx.indexOf(3), f1 = idx.indexOf(1);
+  assert.equal(nd[f3], Math.fround(SPEED_4.wire[WIRE.PIN] + SPEED_4.lutPin[2]));
+  assert.equal(nd[f1], Math.fround(SPEED_4.wire[WIRE.PIN] + SPEED_4.lutPin[0]));
+  assert.ok(SPEED_4.lutPin[2] < SPEED_4.lutPin[0] && SPEED_4.lutPin[3] < SPEED_4.lutPin[0]);
+});
+
+test('#1359 timing-driven routing: the critical loads of the LUTs on their fast inputs (3 and 4), the period shorter', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  const d = parseXdl(zlib.gunzipSync(fs.readFileSync(path.join(FIX, 'trce', 'stopwatch.xdl.gz'))).toString('utf8'));
+  const routed = model => {
+    const r = routeDesign(d, g, { timing: true, model });
+    assert.deepEqual(r.failed, []);
+    const sta = analyzeTiming(parseXdl(writeXdl(r.design)), g);
+    const byPin = [0, 0, 0, 0];
+    for (const c of sta.conns) { const m = /\.[FG]([1-4])$/.exec(c.to); if (m && c.crit > 0.9) byPin[m[1] - 1]++; }
+    return { period: sta.period, byPin };
+  };
+  const flat = routed({ ...SPEED_4, lutPin: [0, 0, 0, 0] }), pins = routed(SPEED_4);
+  assert.deepEqual(pins.byPin, [0, 1, 5, 8]);
+  assert.deepEqual(flat.byPin, [3, 3, 3, 5]);
+  assert.ok(pins.period < flat.period, `${pins.period} against ${flat.period}`);
 });
 
 test('#1103 a PERIOD on the port of a clock with no path between two of its flip-flops (one register stage): met, no path to time, not missing', () => {
@@ -782,12 +841,12 @@ test('delayTable: the fastest routes from a CLB\'s outputs to the inputs at each
   // F2 only from the west; west, only F2 of the lower slice. Its slices have no flip-flop outputs
   // (XQ, YQ): their table is the X / Y outputs' (#104)
   const rdev = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'route-device.xdlrc'), 'utf8')));
-  const W = SPEED_4.wire, hop = W[WIRE.OMUX] + W[WIRE.DOUBLE];
+  const W = SPEED_4.wire, hop = W[WIRE.OMUX] + W[WIRE.DOUBLE], P = SPEED_4.lutPin;   // (F1, F2: a LUT's inputs 1 and 2, #1359)
   const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);   // (a Float32Array)
   const t = delayTable(rdev);
   assert.deepEqual([t.w, t.h, t.d.length], [3, 1, 2 * 3]);
-  near(t.at(1, 0), SPEED_4.base + (hop + hop + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 4);
-  near(t.at(-1, 0), SPEED_4.base + hop);
+  near(t.at(1, 0), SPEED_4.base + (hop + P[0] + hop + P[0] + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 4);
+  near(t.at(-1, 0), SPEED_4.base + hop + P[1]);
   for (const dc of [-1, 0, 1]) assert.equal(t.at(dc, 0, DELAY_KIND.REG), t.at(dc, 0, DELAY_KIND.COMB));
   // beyond the table: its edge
   assert.equal(t.at(5, 3), t.at(1, 0));
@@ -796,7 +855,7 @@ test('delayTable: the fastest routes from a CLB\'s outputs to the inputs at each
   const allow = (tile, from, to) => to !== 'F1_B_PINWIRE0';
   const r = delayTable(rdev, { allowPip: allow });
   assert.notEqual(r, t);
-  near(r.at(1, 0), SPEED_4.base + (hop + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 3);
+  near(r.at(1, 0), SPEED_4.base + (hop + P[0] + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 3);
   assert.equal(delayTable(rdev, { allowPip: allow }), r);
 });
 
@@ -807,13 +866,14 @@ test('delayTable (XC3S250E graph, #104): a flip-flop\'s output reaches its own C
   const dev = loadDeviceCache('xc3s250ecp132-4');
   const t = delayTable(dev, { allowPip: knownRouting(loadDb('xc3s250ecp132-4', { graph: dev })).allowPip });
   const W = SPEED_4.wire, near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
+  const lut = 2 * SPEED_4.lutPin.reduce((a, b) => a + b);   // the 8 LUT inputs' own delays (F1..F4, G1..G4, #1359)
   // own CLB: X / Y -> a LUT input by an input multiplexer only (8 of the 10 inputs), BX / BY by a
   // double (2); XQ / YQ through OMUX first, to any input
-  near(t.at(0, 0, DELAY_KIND.COMB), SPEED_4.base + (8 * W[WIRE.IMUX] + 2 * (W[WIRE.DOUBLE] + W[WIRE.IMUX])) / 10);
-  near(t.at(0, 0, DELAY_KIND.REG), SPEED_4.base + W[WIRE.OMUX] + W[WIRE.IMUX]);
+  near(t.at(0, 0, DELAY_KIND.COMB), SPEED_4.base + (8 * W[WIRE.IMUX] + lut + 2 * (W[WIRE.DOUBLE] + W[WIRE.IMUX])) / 10);
+  near(t.at(0, 0, DELAY_KIND.REG), SPEED_4.base + W[WIRE.OMUX] + W[WIRE.IMUX] + lut / 10);
   // the next CLB up: X / Y straight onto a double, XQ / YQ to the neighbour's inputs through OMUX
-  near(t.at(0, -1, DELAY_KIND.COMB), SPEED_4.base + W[WIRE.DOUBLE] + W[WIRE.IMUX]);
-  near(t.at(0, -1, DELAY_KIND.REG), SPEED_4.base + W[WIRE.OMUX] + W[WIRE.IMUX]);
+  near(t.at(0, -1, DELAY_KIND.COMB), SPEED_4.base + W[WIRE.DOUBLE] + W[WIRE.IMUX] + lut / 10);
+  near(t.at(0, -1, DELAY_KIND.REG), SPEED_4.base + W[WIRE.OMUX] + W[WIRE.IMUX] + lut / 10);
   assert.equal(t.at(0, -1), t.at(0, -1, DELAY_KIND.COMB), 'the default kind');
   for (let dr = -4; dr <= 4; dr++) for (let dc = -4; dc <= 4; dc++) assert.ok(t.at(dc, dr, DELAY_KIND.REG) >= t.at(dc, dr, DELAY_KIND.COMB) - 1e-6, `${dc},${dr}`);
   assert.deepEqual(['XQ', 'YQ', 'X', 'Y', 'I', 'DOA0', 'P0'].map(delayKind), [1, 1, 0, 0, 0, 0, 0]);

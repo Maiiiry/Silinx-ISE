@@ -138,9 +138,10 @@ endmodule
 `;
 
 // #651: the polish's two more moves, the whole net of a critical connection routed again (polishNet) and
-// the lookahead when no change gains; on CE64's placements of seeds 2 and 5 (by the analysis): the router
-// as before 5.776 and 5.342 ns, the whole-net move 5.547 on seed 2, the lookahead 5.122 on seed 5; never
-// longer, the routing legal and complete
+// the lookahead when no change gains; on CE64's placements (by the analysis, with the LUT inputs' delays by
+// pin, #1359): seed 19, the router as before 5.344 ns, the whole-net move 5.114; the lookahead on the first of
+// seeds 2, 14, 7 where it gains (on macOS 5.914 -> 5.499 on seed 2; Linux's placement of seed 2 differs, and the
+// lookahead gains nothing there); never longer, the routing legal and complete
 test('routeDesign: the polish routes a critical connection\'s whole net again, and looks ahead when stuck (#651)', { timeout: 300000 }, async () => {
   const r = await synthesizeOpen(elaborate(compile([{ path: 'ce64.v', lang: 'verilog', text: CE64 }]), 'ce64'), { run: yosysNode });
   assert.deepEqual(r.warnings, []);
@@ -161,11 +162,19 @@ test('routeDesign: the polish routes a critical connection\'s whole net again, a
     };
     return { before: route({ polishNet: false, lookahead: 0 }), net: route({ lookahead: 0 }), look: route({ polishNet: false }), both: route({}) };
   };
-  const s2 = periods(2), s5 = periods(5);
-  for (const p of [s2, s5]) for (const k of ['net', 'look', 'both']) assert.ok(p[k] <= p.before + 1e-9, `${k} ${p[k].toFixed(3)} ns, before ${p.before.toFixed(3)} ns`);
-  assert.ok(s2.net <= s2.before - 0.15, `seed 2: the whole net again ${s2.net.toFixed(3)} ns, before ${s2.before.toFixed(3)} ns`);
-  assert.ok(s5.look <= s5.before - 0.15, `seed 5: the lookahead ${s5.look.toFixed(3)} ns, before ${s5.before.toFixed(3)} ns`);
-  assert.ok(s2.both <= s2.before - 0.15 && s5.both <= s5.before - 0.15);
+  const never = p => { for (const k of ['net', 'look', 'both']) assert.ok(p[k] <= p.before + 1e-9, `${k} ${p[k].toFixed(3)} ns, before ${p.before.toFixed(3)} ns`); };
+  const s19 = periods(19);
+  never(s19);
+  assert.ok(s19.net <= s19.before - 0.15, `seed 19: the whole net again ${s19.net.toFixed(3)} ns, before ${s19.before.toFixed(3)} ns`);
+  assert.ok(s19.both <= s19.before - 0.15);
+  const tried = [];
+  for (const seed of [2, 14, 7]) {
+    const p = periods(seed);
+    never(p);
+    tried.push(`seed ${seed} ${p.before.toFixed(3)} -> ${p.look.toFixed(3)} ns`);
+    if (p.look <= p.before - 0.15) { assert.ok(p.both <= p.before - 0.15); break; }
+    assert.ok(tried.length < 3, `the lookahead: ${tried.join(', ')}`);
+  }
 });
 
 test('placeRouteBest: tries from the seed on, the fastest kept; then register replication, kept only when faster; replicate: false tries none', { timeout: 600000 }, async () => {
@@ -329,9 +338,10 @@ test('the XC3S1200E\'s long-line splitters (#23, #709): the router takes one whe
   const { example, exampleUcf } = await import('./examples-lib.mjs');
   const { bitgen, pipFeatures } = await import('../core/fpga/bitgen.js');
   const part = 'xc3s1200efg320-4';
-  const ex = example('blinky');
+  // the traffic example (blinky's routing took none once the LUT inputs' delays were by pin, #1359)
+  const ex = example('traffic');
   const r = await synthesizeOpen(elaborate(compile(ex.design), ex.project.top), { run: yosysNode });
-  const ucf = exampleUcf('blinky', { board: 'nexys2', variant: '1200' }).text;
+  const ucf = exampleUcf('traffic', { board: 'nexys2', variant: '1200' }).text;
   const netlist = readYosysJson(r.files[`${ex.project.top}.json`]);
   const packed = pack(netlist, { ucf, part });
   const device = loadDeviceCache(part);
