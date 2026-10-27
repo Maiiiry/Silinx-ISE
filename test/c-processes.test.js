@@ -3,7 +3,8 @@
 // or the STREAM pragma's, else 2), a local array a buffer its readers start once its writer is done; the top's arguments
 // passed on; ap_ctrl_hs over them all. The C simulation as the C++ compiler's; the co-simulation in VHDL and Verilog,
 // its ports, warnings and report; a stream that cannot hold what a call writes, said; what is not supported, said; a
-// region of other statements, made sequential (said).
+// region of other statements, made sequential (said). hls::task (#1719): a process running by itself (its ap_start 1),
+// the top not waiting for it; the co-simulation waits for the values its call reads and writes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulateC } from '../core/c-interp.js';
@@ -124,5 +125,53 @@ test('#1707 DATAFLOW\'s module through the open synthesis (Yosys, Spartan-3E), f
     const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
     assert.deepEqual(r.warnings, [], lang);
     assert.ok(Object.keys(r.cells).length > 0, lang);
+  }
+});
+
+const TASKS = `#include "hls_task.h"
+#include <stdio.h>
+void count(hls::stream<int>& in, hls::stream<int>& out) {
+  int cnt = 100;
+  while (1) {
+    int t = in.read();
+    int v = t + cnt;
+    cnt++;
+    out.write(v);
+  }
+}
+void pairs(hls::stream<int>& in, hls::stream<int>& out) {
+  int a = in.read();
+  int b = in.read();
+  out.write(a * 10 + b);
+}
+void top(hls::stream<int>& in, hls::stream<int>& out);
+void top(hls::stream<int>& in, hls::stream<int>& out) {
+  hls_thread_local hls::stream<int, 4> mid;
+  hls_thread_local hls::task t1(pairs, in, mid);
+  hls_thread_local hls::task t2(count, mid, out);
+}
+int main() {
+  hls::stream<int> in, out;
+  in.write(1); in.write(2); in.write(3);
+  top(in, out);
+  printf("%d |", out.read());
+  in.write(4); in.write(5); in.write(6);
+  top(in, out);
+  while (!out.empty()) printf(" %d", out.read());
+  printf("\\n");
+  return 0;
+}
+`;
+
+test('#1719 hls::task in hardware: each task a process running by itself (its ap_start 1, its state kept across calls), its streams FIFOs; co-simulated in VHDL and Verilog', () => {
+  assert.equal(simulateC(TASKS, { file: 'tasks.cpp' }).output, '112 | 135 158\n');
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(TASKS, { file: 'tasks.cpp', lang });
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.pass, true, JSON.stringify(r.mismatches, big));
+    assert.deepEqual(r.gen.diagnostics.map((d) => `${d.line} ${d.message}`), ['5 the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)']);
+    assert.deepEqual(r.gen.ports.map((p) => p.name), ['ap_clk', 'ap_rst', 'ap_start', 'ap_done', 'ap_idle', 'ap_ready', 'in_r_dout', 'in_r_empty_n', 'in_r_read', 'out_r_din', 'out_r_full_n', 'out_r_write']);
+    assert.deepEqual([r.gen.report.tasks, r.gen.report.processes.map((p) => `${p.instance} ${p.task}`), r.gen.report.fifos], [true, ['pairs_U0 t1', 'count_U1 t2'], [{ name: 'mid', depth: 4 }]]);
+    assert.match(r.gen.hdl, lang === 'vhdl' ? /pairs_U0_ap_start <= '1';/ : /assign pairs_U0_ap_start = 1'b1;/);
   }
 });

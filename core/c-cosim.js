@@ -37,7 +37,16 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
   // (a stream: a FIFO in the test bench, its values the C's before each call; empty and full now and then, the
   // module's waits exercised, #1590)
   const fifos = gen.fifos || [];
-  const depth = (f, key) => Math.max(1, ...calls.map((c) => (c[key][f.name] || []).length)) + (key === 'streamOut' ? 4 : 0);
+  // (hls::task's run by themselves, #1719: an input stream's values kept across calls, each call adding the test
+  // bench's new ones; the values read counted from the start, at least the C's: a task may read ahead)
+  const free = !!gen.report?.tasks;
+  const fresh = new Map(), reads = new Map();
+  if (free) for (const f of fifos.filter((x) => x.dir === 'in')) {
+    let left = 0, total = 0;
+    fresh.set(f.name, calls.map((c) => { const q = c.streamIn[f.name] || []; const nw = q.slice(left); left = q.length - (c.streamRead[f.name] ?? 0); return nw; }));
+    reads.set(f.name, calls.map((c) => (total += c.streamRead[f.name] ?? 0)));
+  }
+  const depth = (f, key) => (free && key === 'streamIn' ? Math.max(1, fresh.get(f.name).flat().length) : Math.max(1, ...calls.map((c) => (c[key][f.name] || []).length)) + (key === 'streamOut' ? 4 : 0));
   if (fifos.length) L.push('  reg [31:0] ap_tick = 0;');
   for (const f of fifos) {
     if (f.dir === 'in') {
@@ -66,23 +75,30 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
   else if (port('ap_start')) L.push('    ap_start = 1;');
   const shown = [port('ap_return') ? 'ap_return' : null, ...outs.flatMap((o) => (seq || port(`${o.name}_ap_vld`) ? [seq ? `cap_${o.name}` : o.name, seq ? `got_${o.name}` : `${o.name}_ap_vld`] : [o.name, "1'b1"])),
     ...mems.filter((x) => x.written).flatMap((x) => Array.from({ length: x.n }, (_, k) => `mem_${x.name}[${k}]`))].filter(Boolean);
-  for (const c of calls) {
+  calls.forEach((c, ci) => {
     const asg = gen.ports.filter((p) => p.dir === 'in' && p.param && p.role !== 'mem' && p.role !== 'fifo').map((p) => {
       if (p.fields) return `${p.name} = ${hex(pack(p.fields, (m) => c.ptrIn[m] ?? c.args[m]), p.w)};`;
       const v = p.name.endsWith('_i') && c.ptrIn[p.param] !== undefined ? c.ptrIn[p.param] : (c.args[p.param] ?? c.ptrIn[p.param] ?? 0n);
       return `${p.name} = ${hex(v, p.w)};`;
     }).concat(mems.flatMap((x) => (c.memIn[x.name] || []).map((v, k) => `mem_${x.name}[${k}] = ${hex(v, x.w)};`)))
-      .concat(fifos.flatMap((f) => (f.dir === 'in' ? [...(c.streamIn[f.name] || []).map((v, k) => `fin_${f.name}[${k}] = ${hex(v, f.w)};`), `fi_${f.name} = 0; fn_${f.name} = ${(c.streamIn[f.name] || []).length};`] : [`fo_${f.name} = 0;`]))).join(' ');
+      .concat(fifos.flatMap((f) => {
+        if (f.dir !== 'in') return [`fo_${f.name} = 0;`];
+        if (free) { const at = fresh.get(f.name).slice(0, ci).flat().length, nw = fresh.get(f.name)[ci]; return [...nw.map((v, k) => `fin_${f.name}[${at + k}] = ${hex(v, f.w)};`), `fn_${f.name} = ${at + nw.length};`]; }
+        return [...(c.streamIn[f.name] || []).map((v, k) => `fin_${f.name}[${k}] = ${hex(v, f.w)};`), `fi_${f.name} = 0; fn_${f.name} = ${(c.streamIn[f.name] || []).length};`];
+      })).join(' ');
     // (per call: the values each stream gives back, as many as the C's)
     const each = [...shown, ...fifos.flatMap((f) => (f.dir === 'in' ? [`fi_${f.name}`] : [`fo_${f.name}`, ...(c.streamOut[f.name] || []).map((_, k) => `fout_${f.name}[${k}]`)])), ...(seq ? ['cyc'] : [])];
     if (seq) {
       L.push('    if (!ap_idle) bad = bad + 1;', `    ${asg} ${outs.map((o) => `got_${o.name} = 0;`).join(' ')} ap_start = 1; cyc = 0;`, '    @(posedge ap_clk); #1 ap_start = 0;');
       L.push(`    while (!ap_done && cyc < ${maxCycles}) begin @(posedge ap_clk); #1 cyc = cyc + 1; end`, '    if (!ap_ready) bad = bad + 1;', '    @(posedge ap_clk); #1;');
+      // (hls::task's run by themselves: the call's values, read and written, waited for, #1719)
+      const want = free ? fifos.map((f) => (f.dir === 'in' ? `fi_${f.name} < ${reads.get(f.name)[ci]}` : `fo_${f.name} < ${(c.streamOut[f.name] || []).length}`)) : [];
+      if (want.length) L.push(`    while ((${want.join(' || ')}) && cyc < ${maxCycles}) begin @(posedge ap_clk); #1 cyc = cyc + 1; end`);
     } else L.push(`    ${asg} #1;`);
     L.push(`    $display("${each.map(() => '%h').join(' ')}", ${each.join(', ')});`);
-  }
+  });
   L.push('    $display("bad %0d", bad);', '    $finish;', '  end', 'endmodule');
-  return { text: L.join('\n'), shown, seq };
+  return { text: L.join('\n'), shown, seq, reads: free ? reads : null };
 }
 
 export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles = MAX_CYCLES, alter = null, headers = null, top = null } = {}) {
@@ -123,7 +139,12 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
       for (let k = 0; k < x.n; k++) { const got = row[q++], e = (exp[k] ?? 0n) & mask(x.w); if (k < n && got !== e) say(`${x.name}[${k}]`, e, got); }
     }
     for (const f of gen.fifos || []) {
-      if (f.dir === 'in') { const got = row[q++], e = BigInt(c.streamRead[f.name] ?? 0); if (got !== e) say(`${f.name} (values read)`, e, got); continue; }
+      if (f.dir === 'in') {
+        // (tasks: the values read from the start, at least the C's; a task may read ahead, #1719)
+        const got = row[q++], e = BigInt(tb.reads ? tb.reads.get(f.name)[k] : c.streamRead[f.name] ?? 0);
+        if (tb.reads ? got === null || got < e : got !== e) say(`${f.name} (values read)`, e, got);
+        continue;
+      }
       const exp = c.streamOut[f.name] || [];
       const n = row[q++];
       if (n !== BigInt(exp.length)) say(`${f.name} (values written)`, BigInt(exp.length), n);

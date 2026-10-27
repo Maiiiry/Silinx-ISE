@@ -2,11 +2,10 @@
 // started once (hls_thread_local) runs its function again and again while its inputs have values, whenever the test
 // bench or the top would wait; an invocation that would read an empty stream is undone and tried again later; a
 // function `init; while (1) body` keeps its init's variables across iterations and across the top's calls. Its
-// hardware is not made yet (said, #1719).
+// hardware (#1719): test/c-processes.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulateC } from '../core/c-interp.js';
-import { cToHdl } from '../core/c-hdl.js';
 
 const run = (src) => { const r = simulateC(src, { file: 't.cpp' }); assert.deepEqual([r.error, r.diagnostics.filter((d) => d.severity === 'error')], [null, []]); return r; };
 
@@ -80,9 +79,7 @@ int main() {
   assert.deepEqual(r.calls.map((c) => [c.streamRead.in, c.streamOut.out]), [[2, [112n]], [4, [135n, 158n]]]);
 });
 
-test('#1721 a task that never reads nor writes (waiting on a condition) stops; its hardware not made yet, said (#1719)', () => {
+test('#1721 a task that never reads nor writes (waiting on a condition) stops, run again when its input comes', () => {
   const src = '#include "hls_task.h"\nvoid idle(hls::stream<int>& in, hls::stream<int>& out) { if (!in.empty()) out.write(in.read()); }\nvoid top(hls::stream<int>& in, hls::stream<int>& out) {\n  hls_thread_local hls::task t(idle, in, out);\n}\nint main() { hls::stream<int> a, b; top(a, b); a.write(7); top(a, b); return b.read() == 7 ? 0 : 1; }\n';
   assert.equal(run(src).exitCode, 0);
-  assert.deepEqual(cToHdl(src, { file: 't.cpp' }).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`),
-    ["4 hls::task 't': its hardware (a process running by itself) is not made yet (#1719): its C simulation is"]);
 });

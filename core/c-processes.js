@@ -23,21 +23,24 @@ const SAID = /^#pragma HLS (DATAFLOW|STREAM) is accepted and ignored|^#pragma HL
  *  { fallback: why }. */
 export function region(fn) {
   const calls = [], locals = new Map(), depths = new Map();
+  let task = null;
   for (const st of fn.body.items) {
     if (st.kind === 'pragma') {
+      if (st.pragma.name === 'TASK') task = st.pragma.args.name;   // (the next call an hls::task, #1719)
       if (st.pragma.name === 'STREAM' && st.pragma.args.variable && /^\d+$/.test(String(st.pragma.args.depth))) depths.set(st.pragma.args.variable, Number(st.pragma.args.depth));
       continue;
     }
     if (st.kind === 'decl') {
       for (const v of st.vars) {
-        if (v.init || v.static || !['stream', 'array'].includes(v.type.kind)) return { fallback: `'${v.name}': only streams and arrays are declared in a DATAFLOW region` };
+        // (hls_thread_local: a static, a stream living across calls)
+        if (v.init || (v.static && v.type.kind !== 'stream') || !['stream', 'array'].includes(v.type.kind)) return { fallback: `'${v.name}': only streams and arrays are declared in a DATAFLOW region` };
         locals.set(v.name, { kind: v.type.kind, type: v.type, loc: v.loc });
       }
       continue;
     }
     const e = st.kind === 'expr' ? st.e : null;
     if (e?.kind === 'call' && e.callee.kind === 'id' && e.callee.name === 'assert') continue;
-    if (e?.kind === 'call' && e.callee.kind === 'id') { calls.push({ callee: e.callee.name, args: e.args, loc: st.loc }); continue; }
+    if (e?.kind === 'call' && e.callee.kind === 'id') { calls.push({ callee: e.callee.name, args: e.args, loc: st.loc, task }); task = null; continue; }
     return { fallback: 'its statements other than calls of functions and declarations of streams and arrays' };
   }
   if (!calls.length) return { fallback: 'no function called in it' };
@@ -54,9 +57,6 @@ export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
   const rg = region(fn);
   const loc = fn.body.items.find((s) => s.kind === 'pragma' && (s.pragma.name === 'DATAFLOW' || s.pragma.name === 'TASK')).loc;
   const diag = (l, message, severity = 'error') => ({ file, line: l.line, col: l.col, message, severity });
-  // (hls::task: its C simulation, #1721; its hardware not yet, #1719)
-  const task = fn.body.items.find((s) => s.kind === 'pragma' && s.pragma.name === 'TASK');
-  if (task) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics: [...checked.diagnostics, diag(task.loc, `hls::task '${task.pragma.args.name}': its hardware (a process running by itself) is not made yet (#1719): its C simulation is`)] };
   if (rg.fallback) return { fallback: diag(loc, `#pragma HLS DATAFLOW: the region has ${rg.fallback}: made sequential (not as processes)`, 'warning') };
   const rn = (n) => (isReservedWord(n) ? `${n}_r` : n);
   const params = new Map(fn.params.map((p) => [p.name, p]));
@@ -83,7 +83,7 @@ export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
       mods.set(key, { callee: c.callee, module, gen: cToHdl(source, { file, lang, headers, top: c.callee, depths, module, flat: true }) });
     }
     const m = mods.get(key);
-    procs.push({ k, call: c, f, mod: m, inst: `${m.module}_U${k}`, deps: new Set() });
+    procs.push({ k, call: c, f, mod: m, inst: `${m.module}_U${k}`, deps: new Set(), task: !!c.task });
   });
   const diagnostics = [];
   const seen = new Set();
@@ -100,7 +100,8 @@ export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
     for (const port of p.mod.gen.ports) {
       if (CTRL.includes(port.name)) continue;
       const i = p.f.params.findIndex((pa) => pa.name === port.param);
-      const a = p.call.args[i];
+      // (*s: a reference to a stream, an argument of a function declared before its definition)
+      const a0 = p.call.args[i], a = a0?.kind === 'unary' && a0.op === '*' && a0.e.kind === 'id' ? a0.e : a0;
       if (port.role === 'arg_vld') continue;
       if (port.role === 'return' || (port.role === 'arg' && port.dir === 'out')) { fail(p.call.loc, `'${p.call.callee}' gives back a value (${port.name}): not supported in a DATAFLOW region yet (a stream or an array)`); continue; }
       if (port.role === 'arg') {
@@ -131,6 +132,7 @@ export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
       if (ps.size > 1) fail(params.get(n).loc, `the argument '${n}' is used by ${ps.size} processes: one process each (not yet shared)`);
     }
   }
+  for (const p of procs) if (p.task && p.deps.size) fail(p.call.loc, `the task '${p.call.task}' reads an array a process writes: a task's channels are streams`);
   // (a process waits for the buffers it reads: no cycle)
   const order = [], state = new Map();
   const visit = (p) => { if (state.get(p) === 2) return true; if (state.get(p) === 1) return false; state.set(p, 1); for (const d of p.deps) if (!visit(d)) return false; state.set(p, 2); order.push(p); return true; };
@@ -167,7 +169,7 @@ export function cProcesses(source, checked, { file, lang, headers, cToHdl }) {
   const net = { name, src, procs, use, locals: rg.locals, params, ports, rn, fn };
   const top = lang === 'vhdl' ? vhdlTop(net) : verilogTop(net);
   const hdl = [...[...mods.values()].map((m) => m.gen.hdl), ...top].join('\n');
-  const report = { sequential: true, dataflow: true, processes: procs.map((p) => ({ name: p.call.callee, module: p.mod.module, instance: p.inst, states: p.mod.gen.report.states, registerBits: p.mod.gen.report.registerBits, after: [...p.deps].map((d) => d.call.callee) })),
+  const report = { sequential: true, dataflow: true, tasks: procs.some((p) => p.task), processes: procs.map((p) => ({ name: p.call.callee, module: p.mod.module, instance: p.inst, states: p.mod.gen.report.states, registerBits: p.mod.gen.report.registerBits, after: [...p.deps].map((d) => d.call.callee), ...(p.task ? { task: p.call.task } : {}) })),
     memories: [...memories.map((x) => ({ name: x.name, words: x.n, bits: x.w, kind: 'ap_memory' })), ...[...rg.locals].filter(([, l]) => l.kind === 'array').map(([n, l]) => ({ name: n, words: Number(l.type.length), bits: typeOf(l.type.of)?.w ?? 0, kind: 'RAM (PIPO)' }))],
     fifos: [...rg.locals].filter(([, l]) => l.kind === 'stream').map(([n, l]) => ({ name: n, depth: l.depth })), waits, loops: [] };
   return { ok: true, hdl, top: name, ports, diagnostics: diagnostics.sort(byLine), sequential: true, states: 0, memories, fifos, report, dataflow: true };
@@ -215,9 +217,10 @@ function pieces(net) {
   return { sigs, links, fifos, bufs, sig };
 }
 
-/** The processes' start: each once a call, after the buffers it reads are written; the top done when all are. */
+/** The processes' start: each once a call, after the buffers it reads are written; the top done when all are. (An
+ *  hls::task runs by itself: its ap_start 1, the top not waiting for it, #1719.) */
 function control(procs) {
-  return procs.map((p) => ({ inst: p.inst, deps: [...p.deps].map((d) => d.inst) }));
+  return procs.filter((p) => !p.task).map((p) => ({ inst: p.inst, deps: [...p.deps].map((d) => d.inst) }));
 }
 
 // ------------------------------------------------------------------ VHDL
@@ -232,7 +235,7 @@ function vhdlTop(net) {
   net.ports.forEach((p, k) => L.push(`    ${p.name} : ${p.dir} ${T(p.w)}${k < net.ports.length - 1 ? ';' : ''}`));
   L.push('  );', `end ${name};`, '', `architecture behav of ${name} is`, "  signal ap_busy : std_logic := '0';");
   for (const s of sigs) L.push(`  signal ${s.name} : ${T(s.w)};`);
-  for (const p of procs) L.push(`  signal ${p.inst}_pend, ${p.inst}_fin : std_logic := '0';`);
+  for (const p of procs) if (!p.task) L.push(`  signal ${p.inst}_pend, ${p.inst}_fin : std_logic := '0';`);
   L.push('  signal ap_all_done : std_logic;');
   for (const b of bufs) L.push(`  type ${b.name}_t is array (0 to ${b.n - 1}) of std_logic_vector(${b.w - 1} downto 0);`, `  signal ${b.name} : ${b.name}_t;`,
     `  signal ${b.name}_addr : unsigned(${b.aw - 1} downto 0);`, `  signal ${b.name}_ce, ${b.name}_we : std_logic;`, `  signal ${b.name}_d, ${b.name}_q : std_logic_vector(${b.w - 1} downto 0);`);
@@ -267,7 +270,8 @@ function vhdlTop(net) {
   }
   const ctl = control(procs);
   for (const c of ctl) L.push(`  ${c.inst}_ap_start <= ${[`${c.inst}_pend`, ...c.deps.map((d) => `${d}_fin`)].join(' and ')};`);
-  L.push(`  ap_all_done <= ${ctl.map((c) => `${c.inst}_fin`).join(' and ')};`, '  ap_done <= ap_busy and ap_all_done;', '  ap_ready <= ap_busy and ap_all_done;', '  ap_idle <= not ap_busy;');
+  for (const p of procs) if (p.task) L.push(`  ${p.inst}_ap_start <= '1';`);
+  L.push(`  ap_all_done <= ${ctl.map((c) => `${c.inst}_fin`).join(' and ') || "'1'"};`, '  ap_done <= ap_busy and ap_all_done;', '  ap_ready <= ap_busy and ap_all_done;', '  ap_idle <= not ap_busy;');
   L.push('  process (ap_clk)', '  begin', '    if rising_edge(ap_clk) then', "      if ap_rst = '1' then", "        ap_busy <= '0';", ...ctl.flatMap((c) => [`        ${c.inst}_pend <= '0';`, `        ${c.inst}_fin <= '0';`]),
     "      elsif ap_busy = '0' then", "        if ap_start = '1' then", "          ap_busy <= '1';", ...ctl.flatMap((c) => [`          ${c.inst}_pend <= '1';`, `          ${c.inst}_fin <= '0';`]), '        end if;', '      else');
   for (const c of ctl) L.push(`        if ${c.inst}_ap_start = '1' and ${c.inst}_ap_idle = '1' then`, `          ${c.inst}_pend <= '0';`, '        end if;', `        if ${c.inst}_ap_done = '1' then`, `          ${c.inst}_fin <= '1';`, '        end if;');
@@ -302,7 +306,7 @@ function verilogTop(net) {
   net.ports.forEach((p, k) => L.push(`  ${p.dir === 'in' ? 'input ' : 'output'} wire ${W(p.w)}${p.name}${k < net.ports.length - 1 ? ',' : ''}`));
   L.push(');', '  reg ap_busy;');
   for (const s of sigs) L.push(`  wire ${W(s.w)}${s.name};`);
-  for (const p of procs) L.push(`  reg ${p.inst}_pend, ${p.inst}_fin;`);
+  for (const p of procs) if (!p.task) L.push(`  reg ${p.inst}_pend, ${p.inst}_fin;`);
   L.push('  wire ap_all_done;');
   for (const b of bufs) L.push(`  reg [${b.w - 1}:0] ${b.name} [0:${b.n - 1}];`, `  reg [${b.w - 1}:0] ${b.name}_q;`, `  wire [${b.aw - 1}:0] ${b.name}_addr;`, `  wire ${b.name}_ce, ${b.name}_we;`, `  wire [${b.w - 1}:0] ${b.name}_d;`);
   for (const p of procs) L.push(`  ${p.mod.module} ${p.inst} (${p.mod.gen.ports.map((port) => `.${port.name}(${['ap_clk', 'ap_rst'].includes(port.name) ? port.name : sig(p, port)})`).join(', ')});`);
@@ -323,7 +327,8 @@ function verilogTop(net) {
   }
   const ctl = control(procs);
   for (const c of ctl) L.push(`  assign ${c.inst}_ap_start = ${[`${c.inst}_pend`, ...c.deps.map((d) => `${d}_fin`)].join(' & ')};`);
-  L.push(`  assign ap_all_done = ${ctl.map((c) => `${c.inst}_fin`).join(' & ')};`, '  assign ap_done = ap_busy & ap_all_done;', '  assign ap_ready = ap_busy & ap_all_done;', '  assign ap_idle = ~ap_busy;');
+  for (const p of procs) if (p.task) L.push(`  assign ${p.inst}_ap_start = 1'b1;`);
+  L.push(`  assign ap_all_done = ${ctl.map((c) => `${c.inst}_fin`).join(' & ') || "1'b1"};`, '  assign ap_done = ap_busy & ap_all_done;', '  assign ap_ready = ap_busy & ap_all_done;', '  assign ap_idle = ~ap_busy;');
   L.push('  always @(posedge ap_clk) begin', '    if (ap_rst) begin', "      ap_busy <= 1'b0;", ...ctl.flatMap((c) => [`      ${c.inst}_pend <= 1'b0;`, `      ${c.inst}_fin <= 1'b0;`]),
     '    end else if (!ap_busy) begin', '      if (ap_start) begin', "        ap_busy <= 1'b1;", ...ctl.flatMap((c) => [`        ${c.inst}_pend <= 1'b1;`, `        ${c.inst}_fin <= 1'b0;`]), '      end', '    end else begin');
   for (const c of ctl) L.push(`      if (${c.inst}_ap_start && ${c.inst}_ap_idle) ${c.inst}_pend <= 1'b0;`, `      if (${c.inst}_ap_done) ${c.inst}_fin <= 1'b1;`);

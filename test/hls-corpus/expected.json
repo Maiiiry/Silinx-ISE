@@ -598,10 +598,14 @@
   },
   "task-level-parallelism-data-driven-simple-data-driven": {
     "csim": "pass",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C synthesis: 42: hls::task 't1': its hardware (a process running by itself) is not made yet (#1719): its C simulation is"
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 58,
+      "max": 58,
+      "avg": 58
+    },
+    "reason": null
   },
   "task-level-parallelism-data-driven-unique-task-regions": {
     "csim": "pass",

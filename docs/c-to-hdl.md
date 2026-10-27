@@ -219,8 +219,10 @@ the top shared by two processes, a channel with two writers or readers.
 and again while its inputs have values (`hls_thread_local` streams and tasks live across calls). The C simulation runs
 the tasks whenever the test bench or the top would wait (a read of an empty stream, the end of a call of the top),
 as Vitis HLS's threads would: an invocation of `f` that would read an empty stream is undone and run again later; an
-`f` of the form `init; while (1) body` keeps its init's variables across its iterations. Its hardware (a process
-running by itself) is not made yet (#1719).
+`f` of the form `init; while (1) body` keeps its init's variables across its iterations. In hardware (#1719) each task
+is a process running by itself (its `ap_start` 1: its machine starts again when done, its state kept across calls), its
+`hls_thread_local` streams FIFOs; the top's `ap_done` does not wait for the tasks, and the co-simulation waits for the
+values a call reads and writes (an input stream's values kept across calls: a task may read ahead of the C's).
 
 ## Pragmas (`#pragma HLS …`)
 
