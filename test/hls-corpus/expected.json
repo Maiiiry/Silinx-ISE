@@ -251,11 +251,15 @@
     "reason": null
   },
   "interface-streaming-using-array-of-streams": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 23: '.write' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 348,
+      "max": 348,
+      "avg": 348
+    },
+    "reason": null
   },
   "interface-streaming-using-axi-stream-with-side-channel-data": {
     "csim": "pass",
@@ -367,11 +371,15 @@
     "reason": null
   },
   "modeling-free-running-kernel-remerge-ii4to1": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 24: a type expected, not '\"in_stream\"'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 459,
+      "max": 459,
+      "avg": 459
+    },
+    "reason": null
   },
   "modeling-pointers-basic-arithmetic": {
     "csim": "pass",

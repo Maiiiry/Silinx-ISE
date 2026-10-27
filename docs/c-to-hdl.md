@@ -90,6 +90,10 @@ so its hardware is the C's:
   (`hls::stream<S>`, #1662) is a stream per member of `S` (`A_data`, `A_last`…), all written or read together:
   `write`, `<<`, `read()` in a declaration, an assignment or a `return`, `read(v)`, `>>`, `empty`, `full`, passed to a
   function, named by a pragma. Vitis HLS makes one stream of them (a warning says so: not yet, #1668).
+- **Arrays of streams** (#1739): `hls::stream<T> s[N]`, a parameter `s[N]` or `(&s)[N]`: each element a stream of its
+  own (its ap_fifo ports `s_0_dout`…, a FIFO in a DATAFLOW region); `s[k]` by a constant that stream, `s[i]` by a
+  variable the statement made for each element (an `if` on the index); the array passed whole, its elements; its
+  pragmas each element's. A stream's name (`hls::stream<T> s("name")`) is accepted.
 - Test benches: `std::cout` / `cerr` (with `<iomanip>`'s `setw`, `left` / `right`, `setfill('0')`, `hex` /
   `oct` / `dec`), `ofstream` / `ifstream` (files in memory), `>>` and `<<` on streams.
 - Macros are expanded in pragmas (`#define F 4` … `#pragma HLS UNROLL factor=F`), as Vitis HLS does.

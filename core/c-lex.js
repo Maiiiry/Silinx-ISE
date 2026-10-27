@@ -18,6 +18,7 @@ import { CPP_OWN_HEADERS } from './cpp-headers.js';
 import { readPragma } from './c-pragma.js';
 import { cppTemplates } from './cpp-template.js';
 import { cppStl } from './cpp-stl.js';
+import { streamArrays } from './c-stream-array.js';
 import { cppSugar } from './cpp-sugar.js';
 import { cStructs } from './c-struct.js';
 
@@ -245,7 +246,8 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
   const report = (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' });
   if (cpp) {
     // (a test bench's std::vector, generate / fill, <random> first: C tokens, core/cpp-stl.js, #1734)
-    const st = cStructs(cppSugar(cppTemplates(cppStl(tokens, report), report), report), report, true);
+    // (then the arrays of streams: a stream each element, core/c-stream-array.js, #1739)
+    const st = cStructs(cppSugar(cppTemplates(streamArrays(cppStl(tokens, report), report), report), report), report, true);
     return { tokens: cppTokens(st.tokens, report, streams), pragmas, includes, errors, streams, structArgs: st.structArgs };
   }
   const st = cStructs(tokens, report, false);
