@@ -398,6 +398,8 @@ uiTest('#1616 ISim stimuli: an edit (a bit, a bus value, a bit of a bus, an expe
   assert.deepEqual(await view(page), v0, 'the timing');
   // Zoom to Full View: an edit keeps the whole simulation in view
   await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Zoom to Full View"]`);
+  // (a few frames: the time's scrollbar shortened, its scroll event, the view's own, did not undo the full view)
+  await page.eval(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 100)))));
   const v1 = await view(page);
   assert.equal(v1.fit, true);
   await edited(page, async () => clickLine(page, await lineOf(page, 'en'), 3, P), '800,000');

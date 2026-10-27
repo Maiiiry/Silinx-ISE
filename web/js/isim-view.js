@@ -60,7 +60,10 @@ export function mountView(ctx) {
     hSpacer = Math.min(4e6, Math.max(cw2, cw2 * hTotal / span));
     hsc.firstElementChild.style.width = hSpacer + 'px';
     const sl = (st.t0 / hTotal) * hSpacer;
-    if (Math.abs(hsc.scrollLeft - sl) > 1) { hsc.scrollLeft = sl; setLeft = hsc.scrollLeft; }
+    if (Math.abs(hsc.scrollLeft - sl) > 1) hsc.scrollLeft = sl;
+    // (also when the scrollbar shortened put it there itself, #1616: Zoom to Full View, its scroll event taken for
+    // the user's, undid the full view)
+    setLeft = hsc.scrollLeft;
   }
   on(vsc, 'scroll', () => {
     st.scrollY = vsc.scrollTop; invalidate(false);
