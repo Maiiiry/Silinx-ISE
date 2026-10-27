@@ -290,7 +290,7 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
           else if (!once.has(key)) run(headers[key], key, depth + 1);
           continue;
         }
-        if (cpp && m[1] === 'hls_stream.h') continue;   // (hls::stream: C++'s, #1590)
+        if (cpp && (m[1] === 'hls_stream.h' || m[1] === 'hls_task.h')) continue;   // (hls::stream, hls::task: C++'s, #1590, #1721)
         // (a header Silinx HLS writes itself: core/cpp-headers.js, #1662)
         if (cpp && CPP_OWN_HEADERS[m[1]]) { if (!once.has(`<${m[1]}>`)) run(CPP_OWN_HEADERS[m[1]], `<${m[1]}>`, depth + 1); continue; }
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: hls::stream is C++: write the source as a .cpp file'

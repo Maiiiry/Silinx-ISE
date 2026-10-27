@@ -51,6 +51,16 @@ export function cppTokens(toks, report, streams = new Map()) {
       while (out.length && out.at(-1).t === 'id' && toks[k + 1]?.t === 'id' && !isKeywordish(out.at(-1).v)) { out.pop(); break; }
       continue;
     }
+    // hls_thread_local: a static (it lives across calls); hls::task t(f, a…); a task of f (#1721): #pragma HLS TASK name=t
+    // then the call f(a…), the C simulation's task (core/c-interp-task.js)
+    if (t.t === 'id' && t.v === 'hls_thread_local') { out.push({ ...t, v: 'static' }); continue; }
+    if (t.t === 'id' && t.v === 'task' && toks[k + 1]?.t === 'id' && is(k + 2, '(') && toks[k + 3]?.t === 'id') {
+      while (out.length && out.at(-1).t === 'id' && out.at(-1).v === 'static') out.pop();
+      const name = toks[k + 1].v;
+      out.push({ ...t, t: 'pragma', v: { name: 'TASK', args: { name }, text: `HLS TASK name=${name}` } }, toks[k + 3], toks[k + 2]);
+      k = is(k + 4, ',') ? k + 4 : k + 3;
+      continue;
+    }
     // a file stream (ofstream f; ifstream g("in.dat");): a FILE * (core/cpp-tree.js its <<, >>, open, close, #1590)
     if (t.t === 'id' && STREAM_TYPES[t.v] && toks[k + 1]?.t === 'id') {
       const nameTok = toks[k + 1];

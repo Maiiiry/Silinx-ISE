@@ -169,7 +169,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
   for (const f of funcs.values()) {
     if (!f.body) continue;
     const hw = synth.has(f.name);
-    checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk, dataflow: f.name === top && hasDataflow(f) });
+    checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk, dataflow: hasDataflow(f) });   // (a region's streams: any function's, its C simulation; the hardware the top's, core/c-processes.js)
   }
   // the HLS pragmas of the synthesized functions (#1529)
   checkPragmas(ast, new Map([...funcs].filter(([n]) => synth.has(n))), report);
@@ -179,7 +179,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
 
 /** The checks of one function's body (hw: it is synthesized). */
 /** Whether a function's body has #pragma HLS DATAFLOW (its processes, core/c-processes.js, #1707). */
-export const hasDataflow = (f) => !!f?.body?.items.some((st) => st.kind === 'pragma' && st.pragma.name === 'DATAFLOW');
+export const hasDataflow = (f) => !!f?.body?.items.some((st) => st.kind === 'pragma' && (st.pragma.name === 'DATAFLOW' || st.pragma.name === 'TASK'));   // (an hls::task's region too, #1721)
 
 function checkFunction(f, ctx) {
   const { hw, funcs, globals, consts, report, loops, typeOk, dataflow } = ctx;

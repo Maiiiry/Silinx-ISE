@@ -225,7 +225,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 37: the argument of 'inStreamTop_data' must be a pointer or an array"
+    "reason": "C simulation: 32: 'out_memory' is an array: give an index"
   },
   "interface-streaming-axis-array-stream-no-side-channel-data": {
     "csim": "pass",
@@ -534,7 +534,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: diamond_test.cpp:22: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "reason": "C simulation: diamond_test.cpp:23: the header 'ap_float.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
   },
   "task-level-parallelism-control-driven-channels-merge-split-merge-load-balance": {
     "csim": "fail",
@@ -597,17 +597,17 @@
     "reason": "C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
   },
   "task-level-parallelism-data-driven-simple-data-driven": {
-    "csim": "fail",
+    "csim": "pass",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "reason": "C synthesis: 42: hls::task 't1': its hardware (a process running by itself) is not made yet (#1719): its C simulation is"
   },
   "task-level-parallelism-data-driven-unique-task-regions": {
-    "csim": "fail",
+    "csim": "pass",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
+    "reason": "C synthesis: 38: 'mid_class_c1_in1_t' is not an integer"
   }
 }
