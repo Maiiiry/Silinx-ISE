@@ -15,6 +15,7 @@
 import { parse } from './c-parse.js';
 import { checkPragmas } from './c-pragma.js';
 import { MATH } from './c-float.js';
+import { Q_MODES, O_MODES } from './c-fixed.js';
 
 // the library calls Silinx HLS refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
@@ -86,6 +87,16 @@ export function checkC(source, file = 'input.c', opts = {}) {
       if (w === null) report(loc, `the width of ${t.name}<…> must be a constant`);
       else if (w < 1n || w > BigInt(MAX_AP_WIDTH)) report(loc, `the width of ${t.name}<${w}> must be from 1 to ${MAX_AP_WIDTH}`);
       else t.bits = Number(w);
+      if (t.fixed) {
+        // (ap_fixed: its integer bits, its modes, core/c-fixed.js)
+        const i = constValue(t.intExpr, consts);
+        if (i === null) report(loc, `the integer bits of ${t.name}<…> must be a constant`);
+        else t.ibits = Number(i);
+        if (!Q_MODES.includes(t.q)) report(loc, `${t.name}: '${t.q}' is not a quantization mode (${Q_MODES.join(', ')})`);
+        if (!O_MODES.includes(t.o)) report(loc, `${t.name}: '${t.o}' is not an overflow mode (${O_MODES.join(', ')})`);
+        const n = t.nExpr ? constValue(t.nExpr, consts) : 0n;
+        if (t.o === 'AP_WRAP_SM' || n) report(loc, `${t.name}: ${n ? 'saturation bits (N)' : 'AP_WRAP_SM'} are not supported yet`);
+      }
     }
     if (t.kind === 'stream') typeOk(t.of, loc);   // (#1590)
     if (t.kind === 'array') {
@@ -172,6 +183,7 @@ function checkFunction(f, ctx) {
   function typeHw(t, loc, what) {
     if (!t) return;
     if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx HLS yet: use integers or ap_int<W>`);
+    else if (t.fixed) report(loc, `${what}: ${t.name} is not synthesized yet (#1643): the C simulation runs it`);
     else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx HLS yet`);
     else if (t.kind === 'array') typeHw(t.of, loc, what);
     else if (t.kind === 'ptr') {
