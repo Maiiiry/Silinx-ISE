@@ -143,7 +143,7 @@ int main() { ap_uint<12> r; top(1, 2, &r); printf("%d\\n", (int)r); return 0; }`
   assert.deepEqual(msgs('int main() { return 0; }'), ['1:1 error: no function to synthesize: Silinx HLS makes the top function into a module (main() is the test bench)']);
 });
 
-test('checkC: what cannot be synthesized (UG1399): recursion, dynamic memory, system calls, pointers, floating point, structures, goto, unbounded loops, undefined behaviour', () => {
+test('checkC: what cannot be synthesized (UG1399): recursion, dynamic memory, system calls, pointers, floating point, goto, unbounded loops, undefined behaviour', () => {
   assert.deepEqual(msgs('int f(int n) { return n ? f(n - 1) : 0; }'), ['1:5 error: recursion is not possible in hardware (Silinx HLS, as Vitis HLS): f → f']);
   assert.deepEqual(msgs('int g(int n);\nint f(int n) { return g(n); }\nint g(int n) { return f(n); }\nint top(int x) { return f(x); }'),
     ['2:5 error: recursion is not possible in hardware (Silinx HLS, as Vitis HLS): f → g → f']);
@@ -169,7 +169,6 @@ out:
     "8:8 error: 'm': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
     '8:12 error: malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)',
     '9:3 error: exit is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)',
-    "10:24 error: 's': structures (struct pt) are not supported in Silinx HLS yet",
     "11:3 error: 'goto' is not supported in Silinx HLS (use loops, 'break' and 'continue')",
     '13:21 error: pointer arithmetic is not possible in Silinx HLS: index the array instead',
     '13:30 error: division by zero',

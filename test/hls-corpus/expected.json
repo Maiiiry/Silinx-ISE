@@ -60,42 +60,54 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 20: ';' expected after the statement, not 'arr'"
+    "reason": "C simulation: 26: 'A' is not declared"
   },
   "interface-aggregation-disaggregation-aggregation-of-nested-structs": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'S'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 83,
+      "max": 83,
+      "avg": 83
+    },
+    "reason": null
   },
   "interface-aggregation-disaggregation-aggregation-of-struct": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'A'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 183,
+      "max": 183,
+      "avg": 183
+    },
+    "reason": null
   },
   "interface-aggregation-disaggregation-auto-disaggregation-of-struct": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 20: the parameter 'd': structures (struct A) are not supported in Silinx HLS yet"
+    "reason": "C simulation: 22: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it"
   },
   "interface-aggregation-disaggregation-disaggregation-of-axis-port": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'A'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 53,
+      "max": 53,
+      "avg": 53
+    },
+    "reason": null
   },
   "interface-aggregation-disaggregation-struct-ii-issue": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 20: ';' expected after the statement, not 'a_in'"
+    "reason": "C simulation: example.cpp:23: the pointer to a struct 'a_in' indexed: write the parameter as an array, a_in[N]"
   },
   "interface-memory-burst-rw": {
     "csim": "fail",
@@ -414,7 +426,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 27: '.fp_num' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
+    "reason": "C simulation: fp_mul_pow2.c:29: 'bexp' is not a member of float_num_t"
   },
   "modeling-using-vectors": {
     "csim": "fail",

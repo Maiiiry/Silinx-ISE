@@ -9,6 +9,7 @@ export const CPP_HEADERS = { cstdint: 'stdint.h', cstdio: 'stdio.h', cstdlib: 's
   climits: 'limits.h', cstddef: 'stddef.h', iostream: 'stdio.h', ostream: 'stdio.h', fstream: 'stdio.h', cassert: 'stddef.h', iomanip: 'stdio.h', 'assert.h': 'stddef.h' };
 export const isCpp = (file) => /\.(cpp|cc|cxx|hpp|hh)$/i.test(String(file || ''));
 
+const FUNC_CASTS = new Set(['char', 'short', 'int', 'long', 'unsigned', 'signed', 'bool']);
 const STREAM_TYPES = { ofstream: 'w', ifstream: 'r', fstream: 'r' };
 
 export function cppTokens(toks, report, streams = new Map()) {
@@ -70,6 +71,11 @@ export function cppTokens(toks, report, streams = new Map()) {
       continue;
     }
     if (t.t === 'id' && renamed.has(t.v)) { out.push({ ...t, v: renamed.get(t.v) }); continue; }
+    // int(e): a cast, (int)(e)
+    if (t.t === 'id' && FUNC_CASTS.has(t.v) && is(k + 1, '(') && out.length && (out.at(-1).t === 'op' ? out.at(-1).v !== ')' : out.at(-1).v === 'return')) {
+      out.push({ ...t, t: 'op', v: '(' }, t, { ...t, t: 'op', v: ')' });
+      continue;
+    }
     if (t.t === 'id' && t.v === 'nullptr') { out.push({ ...t, t: 'num', v: '0' }); continue; }
     if (t.t === 'id' && t.v === 'constexpr') { out.push({ ...t, v: 'const' }); continue; }
     if (t.t === 'id' && (t.v === 'static_cast' || t.v === 'const_cast') && is(k + 1, '<')) {

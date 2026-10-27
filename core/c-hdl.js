@@ -36,6 +36,12 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
   for (const n of [checked.top, ...fn.params.map((p) => p.name)]) {
     if (isReservedWord(n)) diagnostics.push({ file, line: fn.loc.line, col: fn.loc.col, message: `'${n}' is a reserved word of VHDL or Verilog: it is named ${n}_r in the module`, severity: 'warning' });
   }
+  // a struct argument (#1590): its members ports of their own (Vitis HLS aggregates them into one port: #1628)
+  for (const a of checked.ast.structArgs?.get(checked.top) || []) {
+    diagnostics.push({ file, line: a.loc.line, col: a.loc.col, message: a.name === 'return' ? `the struct returned by '${checked.top}': its members are outputs of their own (${a.members.join(', ')}); Vitis HLS makes one port of them (not yet, #1628)`
+      : `the struct argument '${a.name}': its members are ports of their own (${a.members.join(', ')}); Vitis HLS makes one port of them (not yet, #1628)`, severity: 'warning' });
+  }
+  diagnostics.sort((a, b) => a.line - b.line || a.col - b.col);
   for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = node.port.param ? rn(node.port.param) + node.port.suffix : rn(node.port.name);
   const ctrl = df.seq
     ? [{ name: 'ap_clk', dir: 'in', w: 1 }, { name: 'ap_rst', dir: 'in', w: 1 }, { name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
