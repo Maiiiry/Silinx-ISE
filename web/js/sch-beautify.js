@@ -1,12 +1,15 @@
-// The schematic editor's Beautify (#1481): a clearer drawing, in one undo step. Without a selection the whole sheet is
-// laid out again (#1506, core/schbeautify-sheet.js: the inputs on the left, the outputs on the right, the symbols by
-// the flow of the signals, with ELK's layout when the page has it) and its wires drawn again; with a selection, only
-// its wires and the wires of its symbols and I/O markers are drawn again (core/schbeautify.js).
+// The schematic editor's Rearrange Wires and Rearrange Schematic (#1481's Beautify, as two commands, #1730): a clearer
+// drawing, in one undo step each.
+//   Rearrange Wires      the wires drawn again (core/schbeautify.js), the symbols, markers and net names where they are:
+//                        the whole sheet's, or with a selection its wires and the wires of its symbols and markers
+//   Rearrange Schematic  the whole sheet laid out again (#1506, core/schbeautify-sheet.js: the inputs on the left, the
+//                        outputs on the right, the symbols moved by the flow of the signals, with ELK's layout when the
+//                        page has it), then its wires drawn again
 import { beautifyWires } from '/core/schbeautify.js';
 import { beautifySheet } from '/core/schbeautify-sheet.js';
 import { symbolPins } from '/core/schdoc.js';
 
-/** { beautify } of mountSchEditor (doc(), modules(), sel(): its current values). */
+/** { rearrangeWires, rearrangeSheet } of mountSchEditor (doc(), modules(), sel(): its current values). */
 export function mountSchBeautify(ctx) {
   const { doc, edit, fit, flash, modules, sel, snapshot } = ctx;
   let busy = false;
@@ -24,17 +27,16 @@ export function mountSchBeautify(ctx) {
     for (const w of doc().wires) if ([w.points[0], w.points[w.points.length - 1]].some(p => at.has(`${p.x},${p.y}`))) ids.add(w.id);
     return ids;
   }
-  const wiresNote = n => (n ? `Beautify: ${n} wire${n === 1 ? '' : 's'} drawn again` : 'Beautify: the wires are already as clear as they can be');
-  async function beautify() {
+  const wiresNote = (what, n) => (n ? `${what}: ${n} wire${n === 1 ? '' : 's'} drawn again` : `${what}: the wires are already as clear as they can be`);
+  function rearrangeWires() {
     const only = scope();
-    if (only && !only.size) { flash('Beautify: no wire in the selection', 3000); return; }
-    if (only) {
-      let n = 0;
-      edit(() => { n = beautifyWires(doc(), { modules: modules(), only }).changed.length; }, { keepProps: true });
-      flash(wiresNote(n), 3000);
-      return;
-    }
-    // the whole sheet: laid out on a copy (ELK answers later), taken in one edit unless the drawing changed meanwhile
+    if (only && !only.size) { flash('Rearrange Wires: no wire in the selection', 3000); return; }
+    let n = 0;
+    edit(() => { n = beautifyWires(doc(), { modules: modules(), ...(only ? { only } : {}) }).changed.length; }, { keepProps: true });
+    flash(wiresNote('Rearrange Wires', n), 3000);
+  }
+  // the whole sheet: laid out on a copy (ELK answers later), taken in one edit unless the drawing changed meanwhile
+  async function rearrangeSheet() {
     if (busy) return;
     busy = true;
     try {
@@ -43,12 +45,13 @@ export function mountSchBeautify(ctx) {
       const r = await beautifySheet(d, { modules: modules(), layout: elk ? g => elk.layout(g) : undefined });
       if (snapshot() !== before) return;
       edit(() => { for (const k of ['symbols', 'ports', 'wires', 'labels', 'sheet']) doc()[k] = d[k]; }, { keepProps: true });
-      if (!r.sheet) { flash(wiresNote(r.changed.length), 3000); return; }
-      if (snapshot() === before) { flash('Beautify: the schematic is already laid out this way', 3000); return; }
+      // (not laid out again: it would not mean the same, or its symbols would overlap; its wires drawn again only)
+      if (!r.sheet) { flash(`Rearrange Schematic: the symbols kept where they were; ${wiresNote('wires', r.changed.length).replace(/^wires: /, '')}`, 4000); return; }
+      if (snapshot() === before) { flash('Rearrange Schematic: the schematic is already laid out this way', 3000); return; }
       fit();
-      flash('Beautify: the schematic laid out again', 3000);
+      flash('Rearrange Schematic: the schematic laid out again', 3000);
     } finally { busy = false; }
   }
 
-  return { beautify };
+  return { rearrangeWires, rearrangeSheet };
 }

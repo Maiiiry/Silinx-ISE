@@ -38,14 +38,17 @@ export const SCH_PT = {
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   // a net name another net has (#689)
   'Hop-overs': 'Saltos', 'Draw a small arc where two wires cross without connecting': 'Desenhar um pequeno arco onde dois fios se cruzam sem se ligarem',
-  // Beautify (#1481, #1506)
-  'Beautify': 'Embelezar',
-  'Beautify: lay the schematic out again, easier to read (the inputs on the left, the outputs on the right, the symbols in the order of the signals, the wires with few bends and crossings); with a selection, only its wires drawn again. The connections stay the same':
-    'Embelezar: dispor de novo o esquemático, mais fácil de ler (as entradas à esquerda, as saídas à direita, os símbolos pela ordem dos sinais, os fios com poucas dobras e cruzamentos); com uma seleção, só os seus fios desenhados de novo. As ligações ficam iguais',
-  'Beautify: the schematic laid out again': 'Embelezar: esquemático disposto de novo',
-  'Beautify: the schematic is already laid out this way': 'Embelezar: o esquemático já está disposto assim',
-  'Beautify: no wire in the selection': 'Embelezar: nenhum fio na seleção',
-  'Beautify: the wires are already as clear as they can be': 'Embelezar: os fios já estão tão claros quanto possível',
+  // Rearrange Wires / Rearrange Schematic (#1481's Beautify, #1506, #1730)
+  'Rearrange Wires': 'Reorganizar fios', 'Rearrange Schematic': 'Reorganizar esquemático',
+  'Rearrange Wires: draw the wires again with few bends and crossings, the symbols, I/O markers and net names where they are; with a selection, only its wires. The connections stay the same':
+    'Reorganizar fios: desenhar de novo os fios com poucas dobras e cruzamentos, os símbolos, marcadores de E/S e nomes de rede onde estão; com uma seleção, só os seus fios. As ligações ficam iguais',
+  'Rearrange Schematic: lay the whole schematic out again, easier to read (the inputs on the left, the outputs on the right, the symbols moved in the order of the signals, the wires with few bends and crossings). The connections stay the same':
+    'Reorganizar esquemático: dispor de novo todo o esquemático, mais fácil de ler (as entradas à esquerda, as saídas à direita, os símbolos deslocados pela ordem dos sinais, os fios com poucas dobras e cruzamentos). As ligações ficam iguais',
+  'Rearrange Schematic: the schematic laid out again': 'Reorganizar esquemático: esquemático disposto de novo',
+  'Rearrange Schematic: the schematic is already laid out this way': 'Reorganizar esquemático: o esquemático já está disposto assim',
+  'Rearrange Wires: no wire in the selection': 'Reorganizar fios: nenhum fio na seleção',
+  'Rearrange Wires: the wires are already as clear as they can be': 'Reorganizar fios: os fios já estão tão claros quanto possível',
+  'Rearrange Schematic: the symbols kept where they were; the wires are already as clear as they can be': 'Reorganizar esquemático: os símbolos ficaram onde estavam; os fios já estão tão claros quanto possível',
   // curved wires (#1144)
   'Curved wires': 'Fios curvos',
   'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)': 'Desenhar os fios como curvas suaves de qualquer forma em vez dos cantos retos do desenho técnico (as ligações, as redes e o HDL iguais)',
@@ -103,7 +106,8 @@ export const SCH_PT_PATTERNS = [
     return p;
   }).join(' e ')}`],
   [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
-  [/^Beautify: (\d+) wires? drawn again$/, (m, n) => `Embelezar: ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
+  [/^Rearrange Wires: (\d+) wires? drawn again$/, (m, n) => `Reorganizar fios: ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
+  [/^Rearrange Schematic: the symbols kept where they were; (\d+) wires? drawn again$/, (m, n) => `Reorganizar esquemático: os símbolos ficaram onde estavam; ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
   // a wire, a move or a paste between two named nets refused, as in ISE (#754, #806)
   [/^(The wire|The move|Pasting|Duplicating) would short net '(.+)' and net '(.+)': two named nets cannot be joined\. Rename one of them first \(the same name connects them\)\.$/,
     (m, what, a, b) => `${{ 'The wire': 'O fio', 'The move': 'A deslocação', Pasting: 'Colar', Duplicating: 'Duplicar' }[what]} poria em curto a rede '${a}' e a rede '${b}': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).`],
