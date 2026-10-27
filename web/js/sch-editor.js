@@ -72,6 +72,8 @@ export const ICON = {
   check: I('<rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="#fff" stroke="#24476f"/><path d="M4 8.2l2.6 2.6L12 5" fill="none" stroke="#008000" stroke-width="2"/>'),
   sim: I('<rect x="1" y="4" width="7" height="8" rx="1.5" fill="#1f6b1f" stroke="#0d3d0d"/><rect x="4.5" y="5.5" width="2.5" height="5" rx=".6" fill="#fff"/><path d="M9 8h2.5" stroke="#00b000" stroke-width="1.6"/><circle cx="13" cy="8" r="2.4" fill="#33e033" stroke="#0d6d0d"/>'),
   info: I('<circle cx="8" cy="8" r="6.5" fill="#e8f2fc" stroke="#24476f" stroke-width="1.2"/><circle cx="8" cy="4.6" r="1.1" fill="#24476f"/><path d="M8 7v5" stroke="#24476f" stroke-width="2"/>'),
+  // (#1730: a wire with a square bend redrawn, Rearrange Wires)
+  rewire: I('<path d="M1.5 12.5h4v-8h5v4h4" fill="none" stroke="#24476f" stroke-width="1.6" stroke-linejoin="round"/><circle cx="1.5" cy="12.5" r="1.4" fill="#24476f"/><circle cx="14.5" cy="8.5" r="1.4" fill="#24476f"/><path d="M12 1l.6 1.4 1.4.6-1.4.6L12 5l-.6-1.4L10 3l1.4-.6z" fill="#e0a000"/>'),
   beautify: I('<path d="M2 14.5l8.5-8.5" stroke="#24476f" stroke-width="2" stroke-linecap="round"/><path d="M11.5 1l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="#e0a000"/><path d="M4 3l.5 1 1 .5-1 .5L4 6l-.5-1-1-.5 1-.5zM13.5 9.5l.5 1 1 .5-1 .5-.5 1-.5-1-1-.5 1-.5z" fill="#e0a000"/>'),
   view: I('<path d="M3 1.5h7l3 3v10H3z" fill="#fff" stroke="#24476f"/><path d="M10 1.5v3h3" fill="none" stroke="#24476f"/><text x="4.2" y="12" font-size="6.5" font-family="Consolas,monospace" font-weight="bold" fill="#000080">&lt;/&gt;</text>'),
 };
@@ -152,10 +154,10 @@ export function mountSchEditor(container, opts = {}) {
   // Curved wires (#1144, sch-curve.js): the schematic drawn with curves (saved with it), or the technical drawing
   const curve = mountSchCurve({ doc: () => doc, sel: () => sel, view: () => view, live: () => live, readOnly, edit: (...a) => edit(...a), render: (...a) => render(...a), renderProps: (...a) => renderProps(...a), snapshot: (...a) => snapshot(...a), pushUndo: (...a) => pushUndo(...a), changed: (...a) => changed(...a), contentG: () => contentG });
   // (the toolbar's buttons and their clicks: sch-toolbar.js)
-  // Beautify (#1481, sch-beautify.js): the wires drawn again
-  const { beautify } = mountSchBeautify({ doc: () => doc, edit: (...a) => edit(...a), fit: (...a) => fit(...a), flash: (...a) => flash(...a), modules: () => modules, sel: () => sel, snapshot: (...a) => snapshot(...a) });
+  // Rearrange Wires / Rearrange Schematic (#1481, #1730, sch-beautify.js)
+  const { rearrangeWires, rearrangeSheet } = mountSchBeautify({ doc: () => doc, edit: (...a) => edit(...a), fit: (...a) => fit(...a), flash: (...a) => flash(...a), modules: () => modules, sel: () => sel, snapshot: (...a) => snapshot(...a) });
   const { optBox } = mountSchToolbar({
-    beautify, container, btn, canSim, curvedBox: curve.box, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
+    rearrangeWires, rearrangeSheet, container, btn, canSim, curvedBox: curve.box, deleteSel: (...a) => deleteSel(...a), enterSim: (...a) => enterSim(...a),
     fit: (...a) => fit(...a), hopsBox, infoTarget: (...a) => infoTarget(...a), keepBox,
     leaveSim: (...a) => leaveSim(...a), live: () => live, mirrorSel: (...a) => mirrorSel(...a), namesBox,
     openInfo: (...a) => openInfo(...a), readOnly, redo: (...a) => redo(...a), rotateSel: (...a) => rotateSel(...a),
