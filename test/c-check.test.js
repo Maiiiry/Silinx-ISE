@@ -164,7 +164,7 @@ out:
     "2:9 warning: the pointer argument 'p' is indexed: a memory (ap_memory) of 1024 elements, its depth not given (#pragma HLS INTERFACE port=p depth=N)",
     "3:12 error: the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet",
     "4:9 error: 'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>",
-    "6:3 error: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it",
+    "6:3 warning: the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)",
     '7:3 warning: printf is ignored by synthesis (it only prints in C simulation)',
     "8:12 error: the pointer 'm': set to something other than an array, &x, &a[i] or a + i: not supported yet",
     '8:12 error: malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)',
@@ -216,7 +216,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ["the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet", 'c-pointer-variable'],
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
     ["'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>", 'c-float'],
-    ["the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it", 'c-loop-bound'],
+    ["the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)", 'c-loop-bound'],
     ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
   ]) {

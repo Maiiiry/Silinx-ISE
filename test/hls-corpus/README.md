@@ -37,14 +37,14 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-aggregation-of-nested-structs | C++ | pass | pass | pass | 83 |  |
 | interface-aggregation-disaggregation-aggregation-of-struct | C++ | pass | pass | pass | 183 |  |
-| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 22: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
+| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 22: '.empty' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | pass | pass | pass | 2708 |  |
 | interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | interface-memory-ecc-flags | C++ | pass | pass | pass | 118 |  |
 | interface-memory-lmem-2rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:20: the header 'vector' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | fail | fail | skip | - | C simulation: 19: 'NUM' is declared twice |
+| interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | fail | fail | skip | - | C simulation: 25: the size of an array must be a constant (Silinx HLS: fixed sizes) |
 | interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success | C++ | fail | fail | skip | - | C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-manual-burst-manual-burst-with-conditionals | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-max-widen-port-width | C++ | pass | pass | pass | 259 |  |
@@ -53,7 +53,7 @@ Not part of `npm test` (it needs the network once).
 | interface-memory-using-axi-master | C++ | fail | fail | skip | - | C simulation: 37: memcpy is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS) |
 | interface-register-using-axi-lite-with-user-defined-offset | C++ | pass | pass | pass | - |  |
 | interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'packet' |
-| interface-streaming-axi-stream-to-master | C++ | fail | fail | skip | - | C simulation: 25: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
+| interface-streaming-axi-stream-to-master | C++ | fail | fail | skip | - | C simulation: 43: 'in_val' is not declared |
 | interface-streaming-axis-array-stream-no-side-channel-data | C++ | pass | pass | pass | 203 |  |
 | interface-streaming-using-array-of-streams | C++ | fail | fail | skip | - | C simulation: 23: '.write' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | interface-streaming-using-axi-stream-with-side-channel-data | C++ | pass | pass | pass | 31-34 |  |
@@ -82,7 +82,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-using-fixed-point | C++ | pass | pass | pass | 1 |  |
 | modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: fp_mul_pow2.c:29: 'bexp' is not a member of float_num_t |
 | modeling-using-vectors | C++ | fail | fail | skip | - | C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| modeling-variable-bound-loops | C++ | fail | fail | skip | - | C simulation: 26: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
+| modeling-variable-bound-loops | C++ | pass | pass | pass | 3-127 |  |
 | pipelining-functions-function-instantiate | C++ | pass | pass | pass | - |  |
 | pipelining-functions-hier-func | C++ | fail | fail | skip | - | C simulation: 81: 'fp1': structures (FILE) are not supported in Silinx HLS yet |
 | pipelining-loops-imperfect-loop | C++ | pass | pass | pass | 1723 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 
-73 designs: 30 through co-simulation.
+73 designs: 31 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

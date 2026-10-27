@@ -93,7 +93,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 22: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it"
+    "reason": "C simulation: 22: '.empty' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
   },
   "interface-aggregation-disaggregation-disaggregation-of-axis-port": {
     "csim": "pass",
@@ -154,7 +154,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 19: 'NUM' is declared twice"
+    "reason": "C simulation: 25: the size of an array must be a constant (Silinx HLS: fixed sizes)"
   },
   "interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success": {
     "csim": "fail",
@@ -225,7 +225,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 25: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it"
+    "reason": "C simulation: 43: 'in_val' is not declared"
   },
   "interface-streaming-axis-array-stream-no-side-channel-data": {
     "csim": "pass",
@@ -476,11 +476,15 @@
     "reason": "C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)"
   },
   "modeling-variable-bound-loops": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 26: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 3,
+      "max": 127,
+      "avg": 65
+    },
+    "reason": null
   },
   "pipelining-functions-function-instantiate": {
     "csim": "pass",

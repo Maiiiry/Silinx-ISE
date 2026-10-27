@@ -46,10 +46,10 @@ export const C_HINTS = [
   },
   {
     id: 'c-loop-bound', re: /^the number of iterations of this loop is not known/,
-    en: { explain: 'The circuit is made before it runs: Silinx HLS must know how many times a loop can run at most, to know how long a call takes and how many resources it needs.',
-      fix: "Write it as 'for (int i = 0; i < N; i++)' with N a constant and i not changed inside the loop; or, when the count depends on the inputs, add #pragma HLS LOOP_TRIPCOUNT max=N as the loop's first line." },
-    pt: { explain: 'O circuito é feito antes de correr: o Silinx HLS tem de saber quantas vezes um ciclo pode correr no máximo, para saber quanto tempo demora uma chamada e quantos recursos precisa.',
-      fix: "Escreva-o como 'for (int i = 0; i < N; i++)' com N uma constante e i sem ser mudado dentro do ciclo; ou, quando o número depende das entradas, acrescente #pragma HLS LOOP_TRIPCOUNT max=N na primeira linha do ciclo." },
+    en: { explain: 'Silinx HLS, as Vitis HLS, makes such a loop a state machine that runs until its condition is false: it works, but how many clock cycles a call takes is not known before it runs, so the report gives no latency.',
+      fix: "Nothing is needed. To give the report a bound, add #pragma HLS LOOP_TRIPCOUNT max=N as the loop's first line (N the most times it runs); a 'for (int i = 0; i < N; i++)' with N a constant has its count known." },
+    pt: { explain: 'O Silinx HLS, como o Vitis HLS, faz deste ciclo uma máquina de estados que corre até a condição ser falsa: funciona, mas quantos ciclos de relógio demora uma chamada não se sabe antes de correr, por isso o relatório não dá a latência.',
+      fix: "Não é preciso nada. Para dar um limite ao relatório, acrescente #pragma HLS LOOP_TRIPCOUNT max=N na primeira linha do ciclo (N o número máximo de vezes que corre); um 'for (int i = 0; i < N; i++)' com N uma constante tem o número conhecido." },
   },
   {
     id: 'c-header', re: /^the header '(.+)' is not one of Silinx HLS's/,
