@@ -118,6 +118,52 @@ export function bitsValue(bits) {
   return `0b${bits}`;
 }
 
+// HDL blocks that write one signal (#1715: a vector driven part by part, assign y[3:0] = …; assign y[7:4] = …;, or
+// y(3 downto 0) <= …; y(7 downto 4) <= …;) would be its net's drivers, one each: they become one block, the first one,
+// holding their statements in order, its pins theirs (a signal it writes is not an input of it). symbols, nets: as
+// schematicFromHdl builds them (changed in place).
+function mergePartDrivers(symbols, nets, nk) {
+  const blocks = symbols.filter(s => s.type === 'hdlblock');
+  const order = new Map(blocks.map((s, k) => [s, k]));
+  const root = new Map(blocks.map(s => [s, s]));
+  const top = s => { while (root.get(s) !== s) s = root.get(s); return s; };
+  const writer = new Map();
+  for (const s of blocks) for (const q of s.params.outputs) {
+    const t = writer.get(nk(q.name));
+    if (!t) { writer.set(nk(q.name), s); continue; }
+    const [a, b] = [top(t), top(s)].sort((x, y) => order.get(x) - order.get(y));
+    if (a !== b) root.set(b, a);
+  }
+  const into = new Map();         // a block merged: its id -> the block of its group
+  for (const s of blocks) {
+    const g = top(s);
+    if (g === s) continue;
+    into.set(s.id, g);
+    g.hdl = `${g.hdl}\n${s.hdl}`;
+    for (const q of s.params.outputs) {
+      const o = g.params.outputs.find(x => nk(x.name) === nk(q.name));
+      if (!o) g.params.outputs.push(q); else if (q.reg) o.reg = true;
+    }
+    for (const q of s.params.inputs) if (!g.params.inputs.some(x => nk(x.name) === nk(q.name))) g.params.inputs.push(q);
+  }
+  if (!into.size) return;
+  for (const g of new Set(into.values())) {
+    const outs = new Set(g.params.outputs.map(q => nk(q.name)));
+    g.params.inputs = g.params.inputs.filter(q => !outs.has(nk(q.name)));
+    // (a clock first, as each block has them)
+    g.params.inputs.sort((x, y) => !!y.clock - !!x.clock);
+  }
+  const key = e => (e.sym ? `${e.sym}/${e.pin}` : `port/${e.port}`);
+  for (const n of nets.values()) {
+    const at = e => (e.sym && into.has(e.sym) ? { ...e, sym: into.get(e.sym).id } : e);
+    const drv = new Set(n.drivers.map(e => key(at(e))));
+    const seen = new Set();
+    n.eps = n.eps.map(at).filter(e => !seen.has(key(e)) && seen.add(key(e)));
+    n.drivers = n.eps.filter(e => drv.has(key(e)));
+  }
+  for (let k = symbols.length - 1; k >= 0; k--) if (into.has(symbols[k].id)) symbols.splice(k, 1);
+}
+
 // Build a schematic document from an elaborated instance.
 //   opts: { lang, sourceText (text of the instance's file) | sources: { path: text },
 //           layout: async (elkGraph) => elkResult (optional; e.g. g => new ELK().layout(g)),
@@ -381,6 +427,7 @@ export async function schematicFromHdl(inst, opts = {}) {
     for (const x of [...clocks, ...others]) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) });
     for (const x of outs) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) }, true);
   }
+  mergePartDrivers(symbols, nets, nk);
   // hide hdlblock output pins whose signal nobody else uses (internal state)
   for (const s of symbols) {
     if (s.type !== 'hdlblock') continue;
