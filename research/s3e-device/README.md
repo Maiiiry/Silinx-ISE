@@ -1065,3 +1065,21 @@ writes round k's tests across the joins rounds 1 to k-1 confirmed. `measure.mjs 
 whether round k found joins, so another round is needed, or none, so the rounds are done. On the 38 designs' observation
 alone (before the random designs), round 1 predicts 51 262 joins not observed: 45 775 tests in 40 designs, 5487 not
 testable from a CLB, 38 s.
+
+### The recipe for the other dies, part 3 (2026-10-27)
+
+The XC3S100E's join tests, ISE 14.7 on the Mac mini, every verdict scored against the shipped graph:
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 1 | 44 657 (40) | 23 917 joins, 20 740 islands | **all** |
+| 2 | 1986 (12) | 1254 joins, 732 islands | **all** |
+| 3 | 200 (11) | 116 joins, 84 islands | **all** |
+| 4, from IOB / block-RAM sources | 2279 (25, 208 s) | 1154 joins, 1125 islands | **all** |
+
+Round 4 is the XC3S250E's rounds 4-6 in one (`SOURCES=1 DBPIPS=1 SOURCEXDL=bram,ramwide,ramnarrow MAXJOINS=3
+MAXDEPTH=5`): the observation designs already use every block RAM, multiplier and pad. By kinds: block RAM-block RAM
+419, block RAM-CLB 704, block RAM-I/O 76, CLB-I/O 881, I/O-I/O 199. Round 5 finds only 64 more tests; 1484 joins stay
+untestable, of the I/O tiles. For them the I/O arc probe, as round 7: `candidates.mjs io obs.json io.json t5/tests.json`
+asks only the PIPs into the joins' I/O ends and one step back (`leftCandidates`: 6514 of the 126 097 candidates), then
+`probe-run.mjs io.json probe.json` and the rounds with `PROBED=probe.json`.

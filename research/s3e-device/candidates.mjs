@@ -4,7 +4,9 @@
 //   node candidates.mjs tiles obs.json out.json      switch-box tiles: the observed prefixes at every X / Y of their kind
 //   node candidates.mjs sites clb-tiles.txt out.json  a SLICEM on every slice site (the SLICEL sites refuse it), VCC sites
 //   node candidates.mjs census clb-tiles.txt out.json every PIP of the database's CLB types in every CLB
-//   node candidates.mjs io obs.json out.json          every PIP of the database's I/O types in every observed I/O tile (#3, round 7)
+//   node candidates.mjs io obs.json out.json [tests.json]   every PIP of the database's I/O types in every observed I/O tile
+//                                                     (#3, round 7); with a round's tests.json, only those its untestable
+//                                                     joins need (leftCandidates)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,8 +97,17 @@ export function ioCandidates(obs, tilesDb, dbType) {
   return pips;
 }
 
+/** The I/O candidates a round's untestable joins need (#3, round 7): the PIPs into their ends in an I/O tile, and the
+ *  PIPs into those PIPs' from-wires (a test's path one step further back), in the tile of each. */
+export function leftCandidates(pips, untestable) {
+  const io = n => /IOIS|IBUFS/.test(n.split('/')[0]);
+  const want = new Set(untestable.flat().filter(io));
+  const from = new Set(pips.filter(p => want.has(`${p.tile}/${p.to}`)).map(p => `${p.tile}/${p.from}`));
+  return pips.filter(p => want.has(`${p.tile}/${p.to}`) || from.has(`${p.tile}/${p.to}`));
+}
+
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
-  const [cmd, input, out] = process.argv.slice(2);
+  const [cmd, input, out, tests] = process.argv.slice(2);
   const read = f => JSON.parse(fs.readFileSync(f, 'utf8'));
   const lines = f => fs.readFileSync(f, 'utf8').split('\n').map(s => s.trim()).filter(t => t.startsWith('CLB_'));
   let res;
@@ -107,7 +118,8 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
     res = { part: PART, pips: censusCandidates(lines(input), read(path.join(db, 's3e-tiles.json')), read(path.join(db, `${DEVICE}-layout.json`)).brkRows || []) };
   } else if (cmd === 'io') {
     const db = read(path.join(HERE, '../s3e-bitstream/db/s3e-tiles.json'));
-    res = { part: PART, pips: ioCandidates(read(input), db, t => tileXY(t).prefix) };
+    const pips = ioCandidates(read(input), db, t => tileXY(t).prefix);
+    res = { part: PART, pips: tests ? leftCandidates(pips, read(tests).untestable) : pips };
   } else { console.error('usage: candidates.mjs tiles|sites|census|io input out.json'); process.exit(1); }
   fs.writeFileSync(out, JSON.stringify(res));
   console.log(`${(res.pips || res.sites).length} candidates`);
