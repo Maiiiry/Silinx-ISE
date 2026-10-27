@@ -1,0 +1,28 @@
+{
+  "name": "arith",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": null,
+  "top": "arith",
+  "simTop": "tb_arith",
+  "files": [
+    {
+      "path": "sim/tb_arith.vhd",
+      "lang": "vhdl",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

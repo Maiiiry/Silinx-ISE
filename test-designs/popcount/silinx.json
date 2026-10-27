@@ -1,0 +1,22 @@
+{
+  "name": "popcount",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": null,
+  "top": "popcount",
+  "simTop": "",
+  "files": [],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

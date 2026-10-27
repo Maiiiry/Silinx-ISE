@@ -61,6 +61,9 @@ test('t(): exact strings, patterns, surrounding whitespace, unknown text unchang
   assert.equal(t('Processes: top'), 'Processos: top');
   assert.equal(t('Number of DCMs'), 'Número de DCMs');
   assert.equal(t('Example: blinky'), 'Exemplo: blinky');
+  // the test designs in New Project (#1746)
+  assert.equal(t('Test design: full_adder'), 'Projeto de teste: full_adder');
+  assert.equal(t("The test design has its own sources and its test: a test bench (Simulate), or the C program's main() (C Simulation)."), 'O projeto de teste tem as suas próprias fontes e o seu teste: uma bancada de teste (Simular), ou o main() do programa em C (Simulação de C).');
   // a task's button with its dot (#991): the task and its state
   assert.equal(t('Implement — done with warnings'), 'Implementar — concluído com avisos');
   assert.equal(t('Design — done, no warnings'), 'Design — concluído, sem avisos', 'the Design task: Design in Portuguese too (#1046)');

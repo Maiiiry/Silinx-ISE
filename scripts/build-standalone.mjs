@@ -92,12 +92,18 @@ function readTree(dir, base = '') {
   }
   return out;
 }
-const examples = {};
-for (const e of fs.readdirSync(path.join(ROOT, 'examples'), { withFileTypes: true })) {
-  const dir = path.join(ROOT, 'examples', e.name);
-  if (!e.isDirectory() || !fs.existsSync(path.join(dir, 'silinx.json'))) continue;
-  examples[e.name] = { json: JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8')), files: readTree(dir) };
+// the projects of a folder of templates: the examples, the test designs (#1746)
+function templates(folder) {
+  const out = {};
+  for (const e of fs.readdirSync(path.join(ROOT, folder), { withFileTypes: true })) {
+    const dir = path.join(ROOT, folder, e.name);
+    if (!e.isDirectory() || !fs.existsSync(path.join(dir, 'silinx.json'))) continue;
+    out[e.name] = { json: JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8')), files: readTree(dir) };
+  }
+  return out;
 }
+const examples = templates('examples');
+const testDesigns = templates('test-designs');
 
 // ---- bundle the app with the local (server-less) API
 const plugin = {
@@ -105,8 +111,8 @@ const plugin = {
   setup(b) {
     b.onResolve({ filter: /^\/core\// }, a => ({ path: path.join(ROOT, a.path) }));
     b.onResolve({ filter: /^\.\/api\.js$/ }, a => (a.importer.includes(`${path.sep}web${path.sep}js${path.sep}`) ? { path: path.join(ROOT, 'web/js/api-local.js') } : undefined));
-    b.onResolve({ filter: /^silinx-examples$/ }, () => ({ path: 'silinx-examples', namespace: 'virtual' }));
-    b.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({ contents: `export default ${JSON.stringify(examples)};`, loader: 'js' }));
+    b.onResolve({ filter: /^silinx-(examples|test-designs)$/ }, a => ({ path: a.path, namespace: 'virtual' }));
+    b.onLoad({ filter: /.*/, namespace: 'virtual' }, a => ({ contents: `export default ${JSON.stringify(a.path === 'silinx-test-designs' ? testDesigns : examples)};`, loader: 'js' }));
   },
 };
 // a development build's changes since the last release, its Development menu (#707): a release has none

@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as P from './projects.js';
 import { orderExamples } from '../core/examples.js';
+import { orderTestDesigns } from '../core/test-designs.js';
 import { importMapPackages } from './import-map.js';
 import { contentSecurityPolicy, inlineScriptHashes } from './csp.js';
 
@@ -121,6 +122,8 @@ export async function createApp({ host = '127.0.0.1', token = null } = {}) {
   api.get('/templates', wrap(() => orderExamples(fs.readdirSync(P.EXAMPLES_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory() && fs.existsSync(path.join(P.EXAMPLES_DIR, d.name, 'silinx.json')))
     .map(d => d.name))));
+  // the test designs (#1746), a category of their own (core/test-designs.js)
+  api.get('/test-designs', wrap(() => orderTestDesigns(P.templateNames(P.TEST_DESIGNS_DIR))));
 
   // Implementation (ISE) + programming routes live in impl-routes.js.
   const { registerImplRoutes } = await import('./impl-routes.js');

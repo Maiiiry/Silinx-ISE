@@ -23,6 +23,8 @@ import { VERSION, versionLabel } from '../../core/version.js';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { createZip } from '../../core/zip.js';
+import { EXAMPLE_ORDER } from '../../core/examples.js';
+import { TEST_DESIGN_ORDER } from '../../core/test-designs.js';
 
 let env, plain, html, site, server, siteUrl, build, skip = null;
 const served = [];   // (the paths the site served, #967)
@@ -51,7 +53,7 @@ before(async () => {
   const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
   git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'build');
   build = buildInfo(root, VERSION, devEnv());
-  for (const d of ['web', 'core', 'server', 'examples', 'research', 'changes']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
+  for (const d of ['web', 'core', 'server', 'examples', 'test-designs', 'research', 'changes']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
   site = path.join(root, 'site');
@@ -112,6 +114,8 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.waitDialog('New Project Wizard');
   // where the project goes: this browser's storage, not the full application's workspace folder (#125)
   assert.match(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main .hint:last-child').textContent), /^Projects are kept in this browser's storage \(/);
+  // the templates: the examples, then the test designs (#1746), embedded too
+  assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay .wiz-main select').options].map((o) => o.value)), ['empty', ...EXAMPLE_ORDER, ...TEST_DESIGN_ORDER]);
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Solo');
   await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
   await page.dialogButton('Next >');

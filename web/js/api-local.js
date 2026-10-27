@@ -15,6 +15,8 @@ import { resourcesOf } from '../../core/resources.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
 import { orderExamples } from '../../core/examples.js';
+import TEST_DESIGNS from 'silinx-test-designs';
+import { orderTestDesigns } from '../../core/test-designs.js';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
@@ -28,7 +30,8 @@ const fail = msg => { throw new Error(msg); };
 // ---- the project storage in use: the browser's storage, or a folder on the disk (Chrome / Edge)
 const browser = browserStore();
 let store = browser;
-const ops = projectOps(() => store, EXAMPLES);
+// (a new project from an example, or from a test design: #1746)
+const ops = projectOps(() => store, { ...TEST_DESIGNS, ...EXAMPLES });
 const projectJson = async name => (await store.load(name)).json;
 
 // the workspace folder's handle, remembered in IndexedDB between visits (a test replaces this with
@@ -266,6 +269,7 @@ export const api = {
   // ---- projects
   projects: () => ops.list(),
   templates: async () => orderExamples(Object.keys(EXAMPLES)),
+  testDesigns: async () => orderTestDesigns(Object.keys(TEST_DESIGNS)),
   createProject: p => ops.create(p),
   project: name => ops.project(name),
   saveProject: (name, pj) => ops.saveProject(name, pj),

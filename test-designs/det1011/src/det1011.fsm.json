@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "kind": "fsm",
+  "name": "det1011",
+  "lang": "vhdl",
+  "type": "mealy",
+  "clock": "clk",
+  "reset": {
+    "name": "rst",
+    "active": "high",
+    "sync": false
+  },
+  "encoding": "binary",
+  "style": "3process",
+  "inputs": [
+    {
+      "name": "x",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "y",
+      "width": 1,
+      "default": "1'b0"
+    }
+  ],
+  "states": [
+    {
+      "id": "s1",
+      "name": "S0",
+      "x": 80,
+      "y": 256,
+      "outputs": {}
+    },
+    {
+      "id": "s2",
+      "name": "S1",
+      "x": 256,
+      "y": 80,
+      "outputs": {}
+    },
+    {
+      "id": "s3",
+      "name": "S10",
+      "x": 432,
+      "y": 256,
+      "outputs": {}
+    },
+    {
+      "id": "s4",
+      "name": "S101",
+      "x": 256,
+      "y": 432,
+      "outputs": {}
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t1",
+      "from": "s1",
+      "to": "s1",
+      "cond": "!x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t2",
+      "from": "s1",
+      "to": "s2",
+      "cond": "x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t3",
+      "from": "s2",
+      "to": "s3",
+      "cond": "!x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t4",
+      "from": "s2",
+      "to": "s2",
+      "cond": "x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t5",
+      "from": "s3",
+      "to": "s1",
+      "cond": "!x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t6",
+      "from": "s3",
+      "to": "s4",
+      "cond": "x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t7",
+      "from": "s4",
+      "to": "s3",
+      "cond": "!x",
+      "outputs": {
+        "y": "1'b0"
+      }
+    },
+    {
+      "id": "t8",
+      "from": "s4",
+      "to": "s2",
+      "cond": "x",
+      "outputs": {
+        "y": "1'b1"
+      }
+    }
+  ],
+  "initial": "s1"
+}

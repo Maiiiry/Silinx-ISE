@@ -1,0 +1,28 @@
+{
+  "name": "bus_join",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": null,
+  "top": "bus_join",
+  "simTop": "tb_bus_join",
+  "files": [
+    {
+      "path": "sim/tb_bus_join.vhd",
+      "lang": "vhdl",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

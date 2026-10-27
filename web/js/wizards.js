@@ -182,6 +182,8 @@ const SYNTH_TOOLS = [['silinx', 'Silinx (VHDL/Verilog; no ISE needed)'], ['xst',
 export async function newProjectWizard({ template = 'empty' } = {}) {
   const db = S.devices || await api.devices();
   const templates = await api.templates().catch(() => []);
+  // the test designs (#1746): the designs Silinx is tested with, listed after the examples
+  const tests = await api.testDesigns().catch(() => []);
   const st = {
     name: template !== 'empty' ? template : '', template, board: '',
     device: { ...DEFAULT_DEVICE }, lang: 'vhdl',
@@ -193,7 +195,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     : kept.kind === 'folder' ? { location: `${kept.folder}/`, hint: `Projects are kept in the folder ${kept.folder} on the disk (File ▸ Open Workspace Folder… to change it).` }
       : { location: 'this browser: ', hint: kept.supported ? "Projects are kept in this browser's storage (File ▸ Open Workspace Folder… keeps them in a folder on the disk)." : "Projects are kept in this browser's storage (a folder on the disk needs Chrome or Edge)." };
   const name = h('input', { type: 'text', value: st.name, placeholder: 'project name' });
-  const tplSel = select([['empty', 'Empty project'], ...templates.map(t => [t, `Example: ${t}`])], template);
+  const tplSel = select([['empty', 'Empty project'], ...templates.map(t => [t, `Example: ${t}`]), ...tests.map(t => [t, `Test design: ${t}`])], template);
   const p1 = {
     title: 'Create New Project',
     render: () => h('div', {},
@@ -233,7 +235,8 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     topType.disabled = ex;
     if (ex) topType.value = 'hdl';
     const t = TOP_TYPES.find(x => x.id === topType.value);
-    topNote.textContent = ex ? 'The example has its own sources.' : t.id === 'hdl' ? '' : `The project starts with ${t.file} (the top module 'top') and its HDL module, generated from it.`;
+    topNote.textContent = !ex ? (t.id === 'hdl' ? '' : `The project starts with ${t.file} (the top module 'top') and its HDL module, generated from it.`)
+      : tests.includes(tplSel.value) ? 'The test design has its own sources and its test: a test bench (Simulate), or the C program\'s main() (C Simulation).' : 'The example has its own sources.';
     topNote.style.display = topNote.textContent ? '' : 'none';
   };
   topType.addEventListener('change', syncTop);

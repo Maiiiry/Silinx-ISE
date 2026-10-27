@@ -1,0 +1,28 @@
+{
+  "name": "full_adder",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": null,
+  "top": "full_adder",
+  "simTop": "tb_full_adder",
+  "files": [
+    {
+      "path": "sim/tb_full_adder.vhd",
+      "lang": "vhdl",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

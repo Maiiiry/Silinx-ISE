@@ -1,0 +1,291 @@
+{
+  "version": 1,
+  "kind": "fsm",
+  "name": "vending",
+  "lang": "vhdl",
+  "type": "mealy",
+  "clock": "clk",
+  "reset": {
+    "name": "rst",
+    "active": "high",
+    "sync": false
+  },
+  "encoding": "binary",
+  "style": "3process",
+  "inputs": [
+    {
+      "name": "x",
+      "width": 2
+    }
+  ],
+  "outputs": [
+    {
+      "name": "y",
+      "width": 3,
+      "default": "3'b000"
+    }
+  ],
+  "states": [
+    {
+      "id": "s1",
+      "name": "C0",
+      "x": 80,
+      "y": 344,
+      "outputs": {}
+    },
+    {
+      "id": "s2",
+      "name": "C5",
+      "x": 212,
+      "y": 115,
+      "outputs": {}
+    },
+    {
+      "id": "s3",
+      "name": "C10",
+      "x": 476,
+      "y": 115,
+      "outputs": {}
+    },
+    {
+      "id": "s4",
+      "name": "C25",
+      "x": 608,
+      "y": 344,
+      "outputs": {}
+    },
+    {
+      "id": "s5",
+      "name": "C15",
+      "x": 476,
+      "y": 573,
+      "outputs": {}
+    },
+    {
+      "id": "s6",
+      "name": "C20",
+      "x": 212,
+      "y": 573,
+      "outputs": {}
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t1",
+      "from": "s1",
+      "to": "s1",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t2",
+      "from": "s1",
+      "to": "s2",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t3",
+      "from": "s1",
+      "to": "s3",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t4",
+      "from": "s1",
+      "to": "s4",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t5",
+      "from": "s2",
+      "to": "s2",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t6",
+      "from": "s2",
+      "to": "s3",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t7",
+      "from": "s2",
+      "to": "s5",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t8",
+      "from": "s2",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b100"
+      }
+    },
+    {
+      "id": "t9",
+      "from": "s3",
+      "to": "s3",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t10",
+      "from": "s3",
+      "to": "s5",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t11",
+      "from": "s3",
+      "to": "s6",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t12",
+      "from": "s3",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b101"
+      }
+    },
+    {
+      "id": "t13",
+      "from": "s5",
+      "to": "s5",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t14",
+      "from": "s5",
+      "to": "s6",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t15",
+      "from": "s5",
+      "to": "s4",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t16",
+      "from": "s5",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b110"
+      }
+    },
+    {
+      "id": "t17",
+      "from": "s6",
+      "to": "s6",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t18",
+      "from": "s6",
+      "to": "s4",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t19",
+      "from": "s6",
+      "to": "s1",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b100"
+      }
+    },
+    {
+      "id": "t20",
+      "from": "s6",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b111"
+      }
+    },
+    {
+      "id": "t21",
+      "from": "s4",
+      "to": "s4",
+      "cond": "!x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b000"
+      }
+    },
+    {
+      "id": "t22",
+      "from": "s4",
+      "to": "s1",
+      "cond": "!x[1] & x[0]",
+      "outputs": {
+        "y": "3'b100"
+      }
+    },
+    {
+      "id": "t23",
+      "from": "s4",
+      "to": "s1",
+      "cond": "x[1] & !x[0]",
+      "outputs": {
+        "y": "3'b101"
+      }
+    },
+    {
+      "id": "t24",
+      "from": "s4",
+      "to": "s1",
+      "cond": "x[1] & x[0]",
+      "outputs": {
+        "y": "3'b111"
+      }
+    }
+  ],
+  "initial": "s1"
+}

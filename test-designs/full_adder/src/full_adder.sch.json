@@ -1,0 +1,324 @@
+{
+ "version": 4,
+ "name": "full_adder",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "module",
+   "x": 190,
+   "y": 90,
+   "rot": 0,
+   "mirror": false,
+   "name": "HA1",
+   "params": {
+    "module": "half_adder",
+    "generics": {},
+    "ports": [
+     {
+      "name": "a",
+      "dir": "in",
+      "width": 1
+     },
+     {
+      "name": "b",
+      "dir": "in",
+      "width": 1
+     },
+     {
+      "name": "s",
+      "dir": "out",
+      "width": 1
+     },
+     {
+      "name": "c",
+      "dir": "out",
+      "width": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "S2",
+   "type": "module",
+   "x": 390,
+   "y": 90,
+   "rot": 0,
+   "mirror": false,
+   "name": "HA2",
+   "params": {
+    "module": "half_adder",
+    "generics": {},
+    "ports": [
+     {
+      "name": "a",
+      "dir": "in",
+      "width": 1
+     },
+     {
+      "name": "b",
+      "dir": "in",
+      "width": 1
+     },
+     {
+      "name": "s",
+      "dir": "out",
+      "width": 1
+     },
+     {
+      "name": "c",
+      "dir": "out",
+      "width": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "S3",
+   "type": "or2",
+   "x": 590,
+   "y": 160,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_3",
+   "params": {
+    "width": 1
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W1",
+   "points": [
+    {
+     "x": 120,
+     "y": 70
+    },
+    {
+     "x": 140,
+     "y": 70
+    },
+    {
+     "x": 140,
+     "y": 110
+    },
+    {
+     "x": 190,
+     "y": 110
+    }
+   ]
+  },
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 120,
+     "y": 130
+    },
+    {
+     "x": 190,
+     "y": 130
+    }
+   ]
+  },
+  {
+   "id": "W3",
+   "points": [
+    {
+     "x": 320,
+     "y": 110
+    },
+    {
+     "x": 390,
+     "y": 110
+    }
+   ]
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 320,
+     "y": 130
+    },
+    {
+     "x": 340,
+     "y": 130
+    },
+    {
+     "x": 340,
+     "y": 170
+    },
+    {
+     "x": 590,
+     "y": 170
+    }
+   ]
+  },
+  {
+   "id": "W5",
+   "points": [
+    {
+     "x": 120,
+     "y": 190
+    },
+    {
+     "x": 360,
+     "y": 190
+    },
+    {
+     "x": 360,
+     "y": 130
+    },
+    {
+     "x": 390,
+     "y": 130
+    }
+   ]
+  },
+  {
+   "id": "W6",
+   "points": [
+    {
+     "x": 520,
+     "y": 110
+    },
+    {
+     "x": 740,
+     "y": 110
+    }
+   ]
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 520,
+     "y": 130
+    },
+    {
+     "x": 540,
+     "y": 130
+    },
+    {
+     "x": 540,
+     "y": 190
+    },
+    {
+     "x": 590,
+     "y": 190
+    }
+   ]
+  },
+  {
+   "id": "W8",
+   "points": [
+    {
+     "x": 670,
+     "y": 180
+    },
+    {
+     "x": 740,
+     "y": 180
+    }
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "id": "L1",
+   "x": 340,
+   "y": 110,
+   "net": "s1"
+  },
+  {
+   "id": "L2",
+   "x": 340,
+   "y": 130,
+   "net": "c1"
+  },
+  {
+   "id": "L3",
+   "x": 540,
+   "y": 130,
+   "net": "c2"
+  },
+  {
+   "id": "L4",
+   "x": 140,
+   "y": 80,
+   "net": "a"
+  },
+  {
+   "id": "L5",
+   "x": 140,
+   "y": 130,
+   "net": "b"
+  },
+  {
+   "id": "L6",
+   "x": 140,
+   "y": 190,
+   "net": "ci"
+  },
+  {
+   "id": "L7",
+   "x": 540,
+   "y": 110,
+   "net": "s"
+  },
+  {
+   "id": "L8",
+   "x": 690,
+   "y": 180,
+   "net": "co"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 1,
+   "x": 120,
+   "y": 70
+  },
+  {
+   "id": "P3",
+   "name": "b",
+   "dir": "in",
+   "width": 1,
+   "x": 120,
+   "y": 130
+  },
+  {
+   "id": "P5",
+   "name": "ci",
+   "dir": "in",
+   "width": 1,
+   "x": 120,
+   "y": 190
+  },
+  {
+   "id": "P7",
+   "name": "s",
+   "dir": "out",
+   "width": 1,
+   "x": 740,
+   "y": 110
+  },
+  {
+   "id": "P9",
+   "name": "co",
+   "dir": "out",
+   "width": 1,
+   "x": 740,
+   "y": 180
+  }
+ ],
+ "description": "A full adder of two half adders: module symbols of another schematic of the project."
+}

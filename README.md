@@ -414,7 +414,7 @@ in Firefox and WebKit.
 
 `node bin/silinx-ise.js mcp` serves the projects of the Silinx workspace to an AI assistant (Claude
 Desktop, Claude Code, any client of the Model Context Protocol) over stdin / stdout. Its tools:
-`list_examples`, `new_project_from_example`, `new_project` (an empty one, for a board), `set_top` (the top
+`list_examples` (the examples, then the test designs: the designs Silinx is tested with), `new_project_from_example`, `new_project` (an empty one, for a board), `set_top` (the top
 module and the test bench, as *Set as Top Module*; the constraints from the board's pins, as *Update
 Constraints*), `list_projects`, `project_info`, `read_file`, `write_file`, `check_syntax` (the errors and warnings of *Check Syntax*, the design checks included),
 `simulate` (the test bench: its messages and its signals' changes), `run_process` (synthesize,
