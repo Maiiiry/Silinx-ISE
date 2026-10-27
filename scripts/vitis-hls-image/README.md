@@ -38,6 +38,8 @@ Never committed: the installer, the image, Vitis's outputs and logs.
 ## Running the comparison
 
     node scripts/hls-vitis.mjs [--filter pointer] [--update]
+    node scripts/hls-vitis.mjs --detach [--filter pointer]         # the whole corpus takes hours: in the background
+    node scripts/hls-vitis.mjs --collect silinx-vitis-… --update   # its progress, or its results once done
 
 The machine is `SILINX_ISE_HOST` (else `~/.silinx/config.json`'s ssh user and host, read at run time, never written
 in a file; `local` for the image on this machine); `SILINX_VITIS_IMAGE` (default `xilinx/vitis-hls:2025.2`),
