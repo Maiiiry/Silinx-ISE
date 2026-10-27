@@ -371,7 +371,7 @@ export async function postParTiming(mod) {
 export async function textPowerReport(mod) {
   if (!await runImpl(mod, [...FLOW_UP_TO.par, 'xpwr'])) return;
   const rel = `build/${S.project.top}.pwr`;
-  try { showTextDoc(`${S.project.top}.pwr`, await api.readFile(S.project.name, rel)); } catch (e) { log(`WARNING: cannot read ${rel}: ${e.message}`, 'warn'); }
+  try { await showTextDoc(`${S.project.top}.pwr`, await api.readFile(S.project.name, rel)); } catch (e) { log(`WARNING: cannot read ${rel}: ${e.message}`, 'warn'); }
 }
 // Back-annotate Pin Locations: the pins chosen by the tools (ISE's pin2ucf; in the Silinx toolchain,
 // the pads its placer chose, written as pin2ucf writes them) are added to the project's UCF for the
@@ -400,10 +400,10 @@ export async function readBuildFile(rel) {
   if (t == null) throw new Error(`file '${rel}' not found`);
   return typeof t === 'string' ? t : new TextDecoder().decode(t);
 }
-function showTextDoc(title, text) {
+async function showTextDoc(title, text) {
   const id = `text:${title}`;
   const old = findDoc(id);
-  if (old) closeDoc(old);
+  if (old) await closeDoc(old);
   openDoc({ id, title, icon: 'report', create(el) { el.append(h('pre', { class: 'report-text', style: { margin: 0, padding: '8px', overflow: 'auto', height: '100%', boxSizing: 'border-box', font: '12px var(--mono)' } }, text)); } });
 }
 

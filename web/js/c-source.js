@@ -11,11 +11,11 @@ export const isC = (p) => /\.(c|cpp|cc|cxx)$/i.test(p || '');
 export const cBadge = (p) => (/\.c$/i.test(p || '') ? 'C' : 'C++');
 
 /** The HDL made from a C source, read-only, in a document of its own (made again when it is opened again). */
-export function openCHdl(path) {
+export async function openCHdl(path) {
   const src = S.sources.find((s) => s.view && s.path === path);
   const id = `chdl:${path}`;
   const old = findDoc(id);
-  if (old) closeDoc(old);
+  if (old) await closeDoc(old);
   const lang = src?.lang === 'verilog' ? 'verilog' : 'vhdl';
   const name = `${src?.module || path.split('/').pop().replace(/\.(c|cpp|cc|cxx)$/i, '')}.${lang === 'verilog' ? 'v' : 'vhd'}`;
   return openDoc({
@@ -38,7 +38,7 @@ export const cSequential = (path) => !!S.sources.find((s) => s.view && s.path ==
 export async function openCAsm(path) {
   const id = `casm:${path}`;
   const old = findDoc(id);
-  if (old) closeDoc(old);
+  if (old) await closeDoc(old);
   const { cAsm } = await import('/core/c-asm.js');
   const r = cAsm(await text(path), { file: path, lang: hdlLang() });
   if (!r.ok) { log(`ERROR:SilinxC - "${path}" ${r.diagnostics.filter((d) => d.severity === 'error').map((d) => `line ${d.line}: ${d.message}`).join('; ')}`, 'err'); return null; }

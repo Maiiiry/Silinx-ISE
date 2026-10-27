@@ -22,7 +22,7 @@ export async function openCModel(mod) {
   log(`The C model of '${mod}': ${r.clock ? `sequential, ${r.top}_step a rising edge of ${r.clock}` : 'combinational'}.`, 'ok');
   const id = `cmodel:${mod}`;
   const old = findDoc(id);
-  if (old) closeDoc(old);
+  if (old) await closeDoc(old);
   const name = `${r.top}_model.c`;
   return openDoc({
     id, title: name, tooltip: `${name}, the C model of ${mod}`, icon: 'file',
