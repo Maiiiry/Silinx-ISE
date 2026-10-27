@@ -20,7 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign, muxCount } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
-import { observationDesigns, implemented, GENERATORS, tileLists } from '../research/s3e-device/measure.mjs';
+import { observationDesigns, implemented, GENERATORS, tileLists, roundPaths, roundSummary } from '../research/s3e-device/measure.mjs';
 import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
@@ -1099,4 +1099,36 @@ test('measure tiles: the switch-box tiles seen or found by the probe, the CLBs a
   assert.deepEqual(tileLists(['CLB_X2Y1', 'BIOIS_X3Y0'], [{ tile: 'CLB_X10Y1' }, { tile: 'CLB_X2Y1' }]),
     { switchTiles: ['BIOIS_X3Y0', 'CLB_X10Y1', 'CLB_X2Y1'], clbTiles: ['CLB_X10Y1', 'CLB_X2Y1'] });
   assert.deepEqual(tileLists([], []), { switchTiles: [], clbTiles: [] });
+});
+
+test('measure random, round, verdicts: the random designs of a part\'s CLBs; each round across the earlier rounds\' folders; another round while one finds joins (#3)', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-measure-'));
+  try {
+    // the XC3S100E's 240 CLBs: 4 designs, a quarter of the slices each, every one of them a slice of those CLBs
+    const dev = loadDeviceCache('xc3s100ecp132-4');
+    const clb100 = dev.tileNames.filter(t => /^CLB_X\d+Y\d+$/.test(t));
+    assert.equal(clb100.length, 240);
+    fs.writeFileSync(path.join(tmp, 'clb-tiles.txt'), clb100.join('\n') + '\n');
+    const out = execFileSync(process.execPath, [path.join('research/s3e-device/measure.mjs'), 'random', path.join(tmp, 'clb-tiles.txt'), path.join(tmp, 'rand')],
+      { env: { ...process.env, PART: 'xc3s100ecp132-4' }, encoding: 'utf8' });
+    assert.equal(out, '4 designs, 240 CLB tiles\n');
+    const files = fs.readdirSync(path.join(tmp, 'rand')).sort();
+    assert.deepEqual(files, ['o11.xdl', 'o12.xdl', 'o13.xdl', 'o14.xdl']);
+    const slices = new Set(clb100.flatMap(t => clbSlices(t)));
+    for (const f of files) {
+      const x = fs.readFileSync(path.join(tmp, 'rand', f), 'utf8');
+      assert.match(x, /^design "observe" xc3s100ecp132-4 v3\.2 ;$/m, f);
+      const used = [...x.matchAll(/^inst "(SLICE_X\d+Y\d+)"/gm)].map(m => m[1]);
+      assert.ok(used.length > 0.15 * slices.size && used.length < 0.35 * slices.size, `${f}: ${used.length} of ${slices.size} slices`);
+      assert.ok(used.every(u => slices.has(u)), f);
+    }
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  // round k crosses the joins of rounds 1 to k-1, its own folder t<k>
+  assert.deepEqual(roundPaths('w', 1), { pred: path.join('w', 'pred1.json'), dir: path.join('w', 't1'), tested: [] });
+  assert.deepEqual(roundPaths('w', 3).tested, [path.join('w', 't1'), path.join('w', 't2')]);
+  for (const k of [0, -1, 1.5, NaN]) assert.throws(() => roundPaths('w', k), /^Error: measure: round .* is not a round \(1, 2, …\)$/);
+  // a round that found joins: another; none (islands, tests not run): the rounds are done
+  assert.deepEqual(roundSummary([['a', 'b', 'join'], ['c', 'd', 'no-join'], ['e', 'f', 'not-run'], ['g', 'h', 'join']]), { join: 2, island: 1, other: 1, again: true });
+  assert.deepEqual(roundSummary([['c', 'd', 'no-join'], ['e', 'f', 'not-run']]), { join: 0, island: 1, other: 1, again: false });
+  assert.deepEqual(roundSummary([]), { join: 0, island: 0, other: 0, again: false });
 });

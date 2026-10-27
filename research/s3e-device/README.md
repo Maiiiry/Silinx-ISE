@@ -26,7 +26,7 @@ showed it.
 | `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
 | `gen-obshdl.mjs` | Observation designs in HDL for ISE to implement: every block RAM's and multiplier's outputs, every pad's input (round 5) |
 | `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
-| `measure.mjs` | The XC3S250E's recipe for another die, in stages: `designs` (every observation design, sized to the part), `observe`, `tiles` (the tile probe: switch-tiles.txt, clb-tiles.txt) (#3, the other devices) |
+| `measure.mjs` | The XC3S250E's recipe for another die, in stages: `designs` (every observation design, sized to the part), `observe`, `tiles` (the tile probe: switch-tiles.txt, clb-tiles.txt), `random`, `round k` and `verdicts k` (the join tests' rounds) (#3, the other devices) |
 | `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph; `score`: the tests' verdicts against the shipped graph |
 
 What the experiments produce (ISE's routed XDL and logs, the candidates, the verdicts) stays in the
@@ -1052,3 +1052,16 @@ clock pad is now the first bonded pad of the top I/O tile in the column of the t
 (`gen-obspins.mjs dcmClockPad`): B9 on the XC3S100E, still B8 on the XC3S250E, XC3S500E and XC3S1200E. iobddr has no DCM
 and keeps B8. With these and the 81-pad `pads` design, all 38 pass, and `observe` explains every join (0 unexplained).
 The XC3S250E's designs are unchanged, byte for byte.
+
+### The recipe for the other dies, part 2 (2026-10-27)
+
+The XC3S100E's tile probe (`measure.mjs tiles`, 3 rounds, 24 designs) gives 332 switch-box tiles, 240 of them CLBs: the
+shipped graph's switch-box tiles exactly. Every one was seen in ISE's routes of the 38 designs, and the 468 candidates
+the probe asked (each prefix at every X / Y of its kind) are names with no tile there.
+`measure.mjs random` writes the random designs ISE routes keeping their placement (gen-observe.mjs, as the XC3S250E's:
+4 designs, seed 11, a quarter of the CLBs each; 236, 280, 292 and 220 of the XC3S100E's 960 slices). `observe` then
+reads their routes as well (`*.r.xdl`, ise-remote.sh -r). `measure.mjs round k` predicts joins (`predict`, SEG=1) and
+writes round k's tests across the joins rounds 1 to k-1 confirmed. `measure.mjs verdicts k` reads ISE's DRC and says
+whether round k found joins, so another round is needed, or none, so the rounds are done. On the 38 designs' observation
+alone (before the random designs), round 1 predicts 51 262 joins not observed: 45 775 tests in 40 designs, 5487 not
+testable from a CLB, 38 s.
