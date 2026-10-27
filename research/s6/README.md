@@ -239,10 +239,32 @@ from the slice's base, and every slice's base.
   row, 1204 of its 6822 slices, 21 designs, 40 minutes): its 4816 LUTs found, laid out as the XC6SLX16's, and the rule
   checked on it gives every slice's base (`extendBases`; the XC6SLX16's sample gives its measured map exactly, which
   the tests check).
-- **A used slice** (every LUT `O6 = 0`) sets 8 bits besides the LUTs' in a SLICEL (frame 4, bits 9, 10, 15, 29, 30,
-  44, 45, 47 from its base) and in a SLICEM (frame 5, the same bits), none in a SLICEX: the slice settings' matter
-  (S6-C). On the XC6SLX45 the zero design also sets 8 bits of the top row's HCLK word (bit 527) in minors 16 to 19 of
-  columns 16 and 32: the clocking's (#727).
+- **The zero design** sets 8 bits besides the LUTs' in frame 4 of a SLICEL and frame 5 of a SLICEM (bits 9, 10, 15, 29,
+  30, 44, 45, 47 from its base): they are the neighbouring SLICEX's (its frame before its LUTs' is that frame, S6-C
+  below), its defaults when its flip-flops are not used. On the XC6SLX45 the zero design also sets 8 bits of the top
+  row's HCLK word (bit 527) in minors 16 to 19 of columns 16 and 32: the clocking's (#727).
+
+### The slice settings without nets (#725, S6-C, 2026-10-27)
+
+`prim-defs6.mjs` reads the primitive definitions of an XDLRC (night 1's, the same for both parts):
+`measured/prim-defs.json`, every site's elements and their options. `gen-slice6.mjs` writes one design per slice kind
+for the XC6SLX16: a base slice (the four LUTs `O6 = A1 * A2`, the four flip-flops on O6, SRINIT0, CLK, SYNC, the
+outputs, CE and SR used) at the first and the last place, and one slice per variant, the base with one element
+changed (every option, its removal, every BEL without options added): 70 SLICEX, 114 SLICEL, 169 SLICEM variants, each
+slice in a tile of its own. `ana-slice6.mjs` compares each slice's bits (its column's frames, its 64-bit band) with the
+base's: `db/xc6slx16-slice.json`. Three designs, 3½ minutes.
+
+- **Measured**: the flip-flops (a latch, AND2L or OR2L: one bit for the four; each SRINIT1: a bit of its own;
+  SYNC_ATTR: one bit, set for SYNC), the flip-flops' sources (FFMUX: AX … DX on a SLICEX, F7 / F8, CY and XOR on a
+  SLICEL or SLICEM, two or three bits each), `*OUTMUX = O6`, and a SLICEM's LUT modes (SPRAM / DPRAM 32 or 64,
+  SRL16 / SRL32: one to three bits of frame 2, and the SRLs' contents written differently: bits of the LUT's moved).
+  A SLICEL's and a SLICEM's settings are in frame 4 and 5 from their base, a SLICEX's in the frame before its LUTs
+  (its neighbour's frame 4 or 5); a few are elsewhere in the column (the SLICEX's CFFSRINIT 6 frames before, the
+  SLICEM's AFFSRINIT one before).
+- **No bits without nets**: CLKINV, CEUSED, SRUSED, the outputs used (`*USED`), the other `*OUTMUX` options, the
+  carry (CARRY4, `*CY0`, PRECYINIT, COUTUSED), F7 / F8, the 5-input LUTs and flip-flops, a SLICEM's DI muxes, WEMUX,
+  WA7USED / WA8USED: they are written when a net uses the pin (as on the Spartan-3E). The next round puts nets on
+  them.
 
 ## The order of the work
 
@@ -319,4 +341,7 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `gen-lutmap6.mjs` | The LUT map's designs in XDL (`--sample`: a sample of the slices) (#725) |
 | `ise-xdl-bits.sh` | Inside the ISE container: XDL designs through `xdl -xdl2ncd` and bitgen (#725) |
 | `ana-lutmap6.mjs` | The LUT map from their bitstreams: `db/<device>-lut.json` (#725) |
+| `prim-defs6.mjs` | The sites' elements and options from an XDLRC: `measured/prim-defs.json` (#725) |
+| `gen-slice6.mjs` | The slice settings' designs in XDL, one per slice kind (#725) |
+| `ana-slice6.mjs` | The slice settings from their bitstreams: `db/<device>-slice.json` (#725) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |

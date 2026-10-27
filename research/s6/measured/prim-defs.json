@@ -1,0 +1,7323 @@
+{
+ "BSCAN": {
+  "BSCAN": {
+   "bel": true,
+   "cfg": []
+  },
+  "JTAG_CHAIN": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "3",
+    "2",
+    "1"
+   ]
+  },
+  "JTAG_TEST": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  }
+ },
+ "BUFDS": {
+  "BUFDS": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "BUFG": {
+  "BUFG": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "BUFGMUX": {
+  "CLK_SEL_TYPE": {
+   "bel": false,
+   "cfg": [
+    "ASYNC",
+    "SYNC"
+   ]
+  },
+  "BUFGMUX": {
+   "bel": true,
+   "cfg": []
+  },
+  "DISABLE_ATTR": {
+   "bel": false,
+   "cfg": [
+    "HIGH",
+    "LOW"
+   ]
+  },
+  "SINV": {
+   "bel": false,
+   "cfg": [
+    "S",
+    "S_B"
+   ]
+  }
+ },
+ "BUFH": {
+  "BUFH": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "BUFIO2": {
+  "BUFIO2": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8"
+   ]
+  },
+  "DIVIDE_BYPASS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "I_INVERT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "BUFIO2FB": {
+  "BUFIO2FB": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIVIDE_BYPASS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "INVERT_INPUTS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "BUFIO2FB_2CLK": {
+  "BUFIO2FB_2CLK": {
+   "bel": true,
+   "cfg": []
+  },
+  "INVERT_INPUTS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "BUFIO2_2CLK": {
+  "BUFIO2_2CLK": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8"
+   ]
+  },
+  "R_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "POS_EDGE": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8"
+   ]
+  },
+  "NEG_EDGE": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8"
+   ]
+  },
+  "I_INVERT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "FROM_BUFIO2": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "BUFPLL": {
+  "ENABLE_SYNC": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DATA_RATE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "SDR"
+   ]
+  },
+  "DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "4",
+    "1",
+    "8",
+    "2",
+    "7",
+    "3",
+    "6"
+   ]
+  },
+  "BUFPLL": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "BUFPLL_MCB": {
+  "LOCK_SRC": {
+   "bel": false,
+   "cfg": [
+    "LOCK_TO_1",
+    "LOCK_TO_0"
+   ]
+  },
+  "DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "4",
+    "1",
+    "8",
+    "2",
+    "7",
+    "3",
+    "6"
+   ]
+  },
+  "BUFPLL_MCB": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "DCM": {
+  "DCM": {
+   "bel": true,
+   "cfg": []
+  },
+  "DSS_MODE": {
+   "bel": false,
+   "cfg": [
+    "SPREAD_8",
+    "SPREAD_4",
+    "NONE",
+    "SPREAD_2",
+    "SPREAD_6"
+   ]
+  },
+  "VERY_HIGH_FREQUENCY": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLKIN_DIVIDE_BY_2": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLKOUT_PHASE_SHIFT": {
+   "bel": false,
+   "cfg": [
+    "FIXED",
+    "VARIABLE",
+    "NONE"
+   ]
+  },
+  "CLKDV_DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "1.5",
+    "2.0",
+    "2.5",
+    "3.0",
+    "3.5",
+    "4.0",
+    "4.5",
+    "5.0",
+    "5.5",
+    "6.0",
+    "6.5",
+    "7.0",
+    "7.5",
+    "8.0",
+    "9.0",
+    "10.0",
+    "11.0",
+    "12.0",
+    "13.0",
+    "14.0",
+    "15.0",
+    "16.0"
+   ]
+  },
+  "DESKEW_ADJUST": {
+   "bel": false,
+   "cfg": [
+    "15",
+    "14",
+    "13",
+    "12",
+    "11",
+    "10",
+    "9",
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "CLK_FEEDBACK": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "2X",
+    "1X"
+   ]
+  },
+  "PSCLKINV": {
+   "bel": false,
+   "cfg": [
+    "PSCLK_B",
+    "PSCLK"
+   ]
+  },
+  "PSENINV": {
+   "bel": false,
+   "cfg": [
+    "PSEN_B",
+    "PSEN"
+   ]
+  },
+  "PSINCDECINV": {
+   "bel": false,
+   "cfg": [
+    "PSINCDEC_B",
+    "PSINCDEC"
+   ]
+  },
+  "RSTINV": {
+   "bel": false,
+   "cfg": [
+    "RST_B",
+    "RST"
+   ]
+  },
+  "SKEWININV": {
+   "bel": false,
+   "cfg": [
+    "SKEWIN_B",
+    "SKEWIN"
+   ]
+  },
+  "CTLGOINV": {
+   "bel": false,
+   "cfg": [
+    "CTLGO_B",
+    "CTLGO"
+   ]
+  },
+  "CTLSEL0INV": {
+   "bel": false,
+   "cfg": [
+    "CTLSEL0_B",
+    "CTLSEL0"
+   ]
+  },
+  "CTLSEL1INV": {
+   "bel": false,
+   "cfg": [
+    "CTLSEL1_B",
+    "CTLSEL1"
+   ]
+  },
+  "CTLSEL2INV": {
+   "bel": false,
+   "cfg": [
+    "CTLSEL2_B",
+    "CTLSEL2"
+   ]
+  },
+  "SKEWRSTINV": {
+   "bel": false,
+   "cfg": [
+    "SKEWRST_B",
+    "SKEWRST"
+   ]
+  },
+  "DUTY_CYCLE_CORRECTION": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "STARTUP_WAIT": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DFS_FREQUENCY_MODE": {
+   "bel": false,
+   "cfg": [
+    "LOW",
+    "HIGH"
+   ]
+  },
+  "DLL_FREQUENCY_MODE": {
+   "bel": false,
+   "cfg": [
+    "LOW",
+    "HIGH"
+   ]
+  }
+ },
+ "DCM_CLKGEN": {
+  "SPREAD_SPECTRUM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "CENTER_HIGH_SPREAD",
+    "CENTER_LOW_SPREAD",
+    "VIDEO_LINK_M0",
+    "VIDEO_LINK_M1",
+    "VIDEO_LINK_M2"
+   ]
+  },
+  "PROG_MD_BANDWIDTH": {
+   "bel": false,
+   "cfg": [
+    "OPTIMIZED",
+    "HIGH",
+    "LOW"
+   ]
+  },
+  "DFS_BANDWIDTH": {
+   "bel": false,
+   "cfg": [
+    "OPTIMIZED",
+    "HIGH",
+    "LOW"
+   ]
+  },
+  "CLKFXDV_DIVIDE": {
+   "bel": false,
+   "cfg": [
+    "32",
+    "8",
+    "2",
+    "4",
+    "16"
+   ]
+  },
+  "PROGCLKINV": {
+   "bel": false,
+   "cfg": [
+    "PROGCLK_B",
+    "PROGCLK"
+   ]
+  },
+  "PROGENINV": {
+   "bel": false,
+   "cfg": [
+    "PROGEN_B",
+    "PROGEN"
+   ]
+  },
+  "PROGDATAINV": {
+   "bel": false,
+   "cfg": [
+    "PROGDATA_B",
+    "PROGDATA"
+   ]
+  },
+  "DCM_CLKGEN": {
+   "bel": true,
+   "cfg": []
+  },
+  "STARTUP_WAIT": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RSTINV": {
+   "bel": false,
+   "cfg": [
+    "RST_B",
+    "RST"
+   ]
+  }
+ },
+ "DNA_PORT": {
+  "DNA_PORT": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "DSP48A1": {
+  "DSP48A1": {
+   "bel": true,
+   "cfg": []
+  },
+  "CEOPMODEINV": {
+   "bel": false,
+   "cfg": [
+    "CEOPMODE_B",
+    "CEOPMODE"
+   ]
+  },
+  "MREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "A0REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CEMINV": {
+   "bel": false,
+   "cfg": [
+    "CEM_B",
+    "CEM"
+   ]
+  },
+  "B_INPUT": {
+   "bel": false,
+   "cfg": [
+    "DIRECT",
+    "CASCADE"
+   ]
+  },
+  "B0REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "RSTBINV": {
+   "bel": false,
+   "cfg": [
+    "RSTB_B",
+    "RSTB"
+   ]
+  },
+  "CEDINV": {
+   "bel": false,
+   "cfg": [
+    "CED_B",
+    "CED"
+   ]
+  },
+  "CLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLK_B",
+    "CLK"
+   ]
+  },
+  "RSTAINV": {
+   "bel": false,
+   "cfg": [
+    "RSTA_B",
+    "RSTA"
+   ]
+  },
+  "RSTPINV": {
+   "bel": false,
+   "cfg": [
+    "RSTP_B",
+    "RSTP"
+   ]
+  },
+  "CEPINV": {
+   "bel": false,
+   "cfg": [
+    "CEP_B",
+    "CEP"
+   ]
+  },
+  "RSTCINV": {
+   "bel": false,
+   "cfg": [
+    "RSTC_B",
+    "RSTC"
+   ]
+  },
+  "CECINV": {
+   "bel": false,
+   "cfg": [
+    "CEC_B",
+    "CEC"
+   ]
+  },
+  "CARRYINSEL": {
+   "bel": false,
+   "cfg": [
+    "OPMODE5",
+    "CARRYIN"
+   ]
+  },
+  "CEAINV": {
+   "bel": false,
+   "cfg": [
+    "CEA_B",
+    "CEA"
+   ]
+  },
+  "OPMODEREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "B1REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CARRYOUTREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CARRYINREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CECARRYININV": {
+   "bel": false,
+   "cfg": [
+    "CECARRYIN_B",
+    "CECARRYIN"
+   ]
+  },
+  "RSTDINV": {
+   "bel": false,
+   "cfg": [
+    "RSTD_B",
+    "RSTD"
+   ]
+  },
+  "RSTOPMODEINV": {
+   "bel": false,
+   "cfg": [
+    "RSTOPMODE_B",
+    "RSTOPMODE"
+   ]
+  },
+  "DREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CEBINV": {
+   "bel": false,
+   "cfg": [
+    "CEB_B",
+    "CEB"
+   ]
+  },
+  "RSTTYPE": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "PREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "RSTCARRYININV": {
+   "bel": false,
+   "cfg": [
+    "RSTCARRYIN_B",
+    "RSTCARRYIN"
+   ]
+  },
+  "A1REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "RSTMINV": {
+   "bel": false,
+   "cfg": [
+    "RSTM_B",
+    "RSTM"
+   ]
+  },
+  "CREG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  }
+ },
+ "GTPA1_DUAL": {
+  "AC_CAP_DIS_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "AC_CAP_DIS_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "ALIGN_COMMA_WORD_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2"
+   ]
+  },
+  "ALIGN_COMMA_WORD_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2"
+   ]
+  },
+  "CB2_INH_CC_PERIOD_0": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15"
+   ]
+  },
+  "CB2_INH_CC_PERIOD_1": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15"
+   ]
+  },
+  "CHAN_BOND_KEEP_ALIGN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CHAN_BOND_KEEP_ALIGN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CHAN_BOND_SEQ_LEN_0": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3"
+   ]
+  },
+  "CHAN_BOND_SEQ_LEN_1": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3"
+   ]
+  },
+  "CHAN_BOND_SEQ_2_USE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CHAN_BOND_SEQ_2_USE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CHAN_BOND_1_MAX_SKEW_0": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+   ]
+  },
+  "CHAN_BOND_1_MAX_SKEW_1": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+   ]
+  },
+  "CHAN_BOND_2_MAX_SKEW_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+   ]
+  },
+  "CHAN_BOND_2_MAX_SKEW_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+   ]
+  },
+  "CLK_COR_ADJ_LEN_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ]
+  },
+  "CLK_COR_ADJ_LEN_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ]
+  },
+  "CLK_COR_DET_LEN_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ]
+  },
+  "CLK_COR_DET_LEN_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ]
+  },
+  "CLK_COR_INSERT_IDLE_FLAG_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_COR_INSERT_IDLE_FLAG_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_COR_KEEP_IDLE_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_COR_KEEP_IDLE_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_COR_MAX_LAT_0": {
+   "bel": false,
+   "cfg": [
+    "18",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48"
+   ]
+  },
+  "CLK_COR_MAX_LAT_1": {
+   "bel": false,
+   "cfg": [
+    "18",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48"
+   ]
+  },
+  "CLK_COR_MIN_LAT_0": {
+   "bel": false,
+   "cfg": [
+    "16",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48"
+   ]
+  },
+  "CLK_COR_MIN_LAT_1": {
+   "bel": false,
+   "cfg": [
+    "16",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48"
+   ]
+  },
+  "CLK_COR_PRECEDENCE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK_COR_PRECEDENCE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK_CORRECT_USE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK_CORRECT_USE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK_COR_REPEAT_WAIT_0": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31"
+   ]
+  },
+  "CLK_COR_REPEAT_WAIT_1": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31"
+   ]
+  },
+  "CLK_COR_SEQ_2_USE_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_COR_SEQ_2_USE_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLKINDC_B_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLKINDC_B_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK_OUT_GTP_SEL_0": {
+   "bel": false,
+   "cfg": [
+    "TXOUTCLK0",
+    "REFCLKPLL0"
+   ]
+  },
+  "CLK_OUT_GTP_SEL_1": {
+   "bel": false,
+   "cfg": [
+    "TXOUTCLK1",
+    "REFCLKPLL1"
+   ]
+  },
+  "CLKRCV_TRST_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLKRCV_TRST_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "CLK25_DIVIDER_0": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "10",
+    "12"
+   ]
+  },
+  "CLK25_DIVIDER_1": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "10",
+    "12"
+   ]
+  },
+  "DEC_MCOMMA_DETECT_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DEC_MCOMMA_DETECT_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DEC_PCOMMA_DETECT_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DEC_PCOMMA_DETECT_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DEC_VALID_COMMA_ONLY_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DEC_VALID_COMMA_ONLY_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "GTP_CFG_PWRUP_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "GTP_CFG_PWRUP_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "LOOPBACK_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "LOOPBACK_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "MASTER_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "MASTER_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "MCOMMA_DETECT_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "MCOMMA_DETECT_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "OOB_CLK_DIVIDER_0": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "6",
+    "8",
+    "10",
+    "12",
+    "14"
+   ]
+  },
+  "OOB_CLK_DIVIDER_1": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "6",
+    "8",
+    "10",
+    "12",
+    "14"
+   ]
+  },
+  "PCI_EXPRESS_MODE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PCI_EXPRESS_MODE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PCOMMA_DETECT_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PCOMMA_DETECT_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PDELIDLE_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PDELIDLE_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PHASEALIGN_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PHASEALIGN_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_DIVSEL_FB_0": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "1",
+    "2",
+    "3",
+    "4",
+    "8",
+    "10"
+   ]
+  },
+  "PLL_DIVSEL_FB_1": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "1",
+    "2",
+    "3",
+    "4",
+    "8",
+    "10"
+   ]
+  },
+  "PLL_DIVSEL_REF_0": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "1",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "10",
+    "12",
+    "16",
+    "20"
+   ]
+  },
+  "PLL_DIVSEL_REF_1": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "1",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "10",
+    "12",
+    "16",
+    "20"
+   ]
+  },
+  "PLL_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_RXDIVSEL_OUT_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "4"
+   ]
+  },
+  "PLL_RXDIVSEL_OUT_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "4"
+   ]
+  },
+  "PLL_SATA_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_SATA_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_SOURCE_0": {
+   "bel": false,
+   "cfg": [
+    "PLL0",
+    "PLL1"
+   ]
+  },
+  "PLL_SOURCE_1": {
+   "bel": false,
+   "cfg": [
+    "PLL1",
+    "PLL0"
+   ]
+  },
+  "PLL_STARTUP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PLL_STARTUP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PLL_TXDIVSEL_OUT_0": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "4"
+   ]
+  },
+  "PLL_TXDIVSEL_OUT_1": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "4"
+   ]
+  },
+  "POLARITY_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "POLARITY_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PRBS_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PRBS_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RCV_TERM_GND_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RCV_TERM_GND_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RCV_TERM_VTTRX_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RCV_TERM_VTTRX_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RESET_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RESET_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_BUFFER_USE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_BUFFER_USE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_CDR_FORCE_ROTATE_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_CDR_FORCE_ROTATE_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_DECODE_SEQ_MATCH_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_DECODE_SEQ_MATCH_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_HOLD_CDR_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_EN_IDLE_HOLD_CDR_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_BUF_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_BUF_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_FR_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_FR_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_PH_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_IDLE_RESET_PH_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_MODE_RESET_BUF_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RX_EN_MODE_RESET_BUF_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "RXEQ_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RXEQ_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_LOS_INVALID_INCR_0": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "1",
+    "2",
+    "4",
+    "16",
+    "32",
+    "64",
+    "128"
+   ]
+  },
+  "RX_LOS_INVALID_INCR_1": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "1",
+    "2",
+    "4",
+    "16",
+    "32",
+    "64",
+    "128"
+   ]
+  },
+  "RX_LOSS_OF_SYNC_FSM_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_LOSS_OF_SYNC_FSM_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "RX_LOS_THRESHOLD_0": {
+   "bel": false,
+   "cfg": [
+    "128",
+    "4",
+    "8",
+    "16",
+    "32",
+    "64",
+    "256",
+    "512"
+   ]
+  },
+  "RX_LOS_THRESHOLD_1": {
+   "bel": false,
+   "cfg": [
+    "128",
+    "4",
+    "8",
+    "16",
+    "32",
+    "64",
+    "256",
+    "512"
+   ]
+  },
+  "RX_SLIDE_MODE_0": {
+   "bel": false,
+   "cfg": [
+    "PCS",
+    "PMA"
+   ]
+  },
+  "RX_SLIDE_MODE_1": {
+   "bel": false,
+   "cfg": [
+    "PCS",
+    "PMA"
+   ]
+  },
+  "RX_STATUS_FMT_0": {
+   "bel": false,
+   "cfg": [
+    "PCIE",
+    "SATA"
+   ]
+  },
+  "RX_STATUS_FMT_1": {
+   "bel": false,
+   "cfg": [
+    "PCIE",
+    "SATA"
+   ]
+  },
+  "RX_XCLK_SEL_0": {
+   "bel": false,
+   "cfg": [
+    "RXREC",
+    "RXUSR"
+   ]
+  },
+  "RX_XCLK_SEL_1": {
+   "bel": false,
+   "cfg": [
+    "RXREC",
+    "RXUSR"
+   ]
+  },
+  "SATA_MAX_BURST_0": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MAX_BURST_1": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MAX_INIT_0": {
+   "bel": false,
+   "cfg": [
+    "22",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MAX_INIT_1": {
+   "bel": false,
+   "cfg": [
+    "22",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MAX_WAKE_0": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MAX_WAKE_1": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_BURST_0": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_BURST_1": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_INIT_0": {
+   "bel": false,
+   "cfg": [
+    "12",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_INIT_1": {
+   "bel": false,
+   "cfg": [
+    "12",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_WAKE_0": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "SATA_MIN_WAKE_1": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61"
+   ]
+  },
+  "TERMINATION_OVRD_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TERMINATION_OVRD_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TX_BUFFER_USE_0": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "TX_BUFFER_USE_1": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "TXDRIVE_DRP_EN_0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TXDRIVE_DRP_EN_1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TX_XCLK_SEL_0": {
+   "bel": false,
+   "cfg": [
+    "TXUSR",
+    "TXOUT"
+   ]
+  },
+  "TX_XCLK_SEL_1": {
+   "bel": false,
+   "cfg": [
+    "TXUSR",
+    "TXOUT"
+   ]
+  },
+  "DCLKINV": {
+   "bel": false,
+   "cfg": [
+    "DCLK",
+    "DCLK_B"
+   ]
+  },
+  "RXUSRCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "RXUSRCLK0",
+    "RXUSRCLK0_B"
+   ]
+  },
+  "RXUSRCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "RXUSRCLK1",
+    "RXUSRCLK1_B"
+   ]
+  },
+  "RXUSRCLK20INV": {
+   "bel": false,
+   "cfg": [
+    "RXUSRCLK20",
+    "RXUSRCLK20_B"
+   ]
+  },
+  "RXUSRCLK21INV": {
+   "bel": false,
+   "cfg": [
+    "RXUSRCLK21",
+    "RXUSRCLK21_B"
+   ]
+  },
+  "TSTCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "TSTCLK0",
+    "TSTCLK0_B"
+   ]
+  },
+  "TSTCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "TSTCLK1",
+    "TSTCLK1_B"
+   ]
+  },
+  "TXUSRCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "TXUSRCLK0",
+    "TXUSRCLK0_B"
+   ]
+  },
+  "TXUSRCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "TXUSRCLK1",
+    "TXUSRCLK1_B"
+   ]
+  },
+  "TXUSRCLK20INV": {
+   "bel": false,
+   "cfg": [
+    "TXUSRCLK20",
+    "TXUSRCLK20_B"
+   ]
+  },
+  "TXUSRCLK21INV": {
+   "bel": false,
+   "cfg": [
+    "TXUSRCLK21",
+    "TXUSRCLK21_B"
+   ]
+  },
+  "GTPA1_DUAL": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "ICAP": {
+  "ICAP": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "ILOGIC2": {
+  "IFF": {
+   "bel": true,
+   "cfg": []
+  },
+  "SAME_EDGE_PIPELINED": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DDR_ALIGNMENT": {
+   "bel": false,
+   "cfg": [
+    "C1",
+    "C0",
+    "NONE"
+   ]
+  },
+  "IFFTYPE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "D2OBYP_SEL": {
+   "bel": false,
+   "cfg": [
+    "GND",
+    "T"
+   ]
+  },
+  "IFFMUX": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "IMUX": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "CLK0INV": {
+   "bel": false,
+   "cfg": [
+    "CLK0_B",
+    "CLK0"
+   ]
+  },
+  "CLK1INV": {
+   "bel": false,
+   "cfg": [
+    "CLK1",
+    "CLK1_B"
+   ]
+  },
+  "SRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "SRINIT_Q": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1"
+   ]
+  },
+  "SRTYPE_Q": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "DFBUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "FABRICOUTUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "REVUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CFB1USED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CFB0USED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "D2OBYPSEL_GND": {
+   "bel": true,
+   "cfg": []
+  },
+  "D2OFFBYP_SRC": {
+   "bel": true,
+   "cfg": []
+  },
+  "D2OBYP_SRC": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "IOB": {
+  "INBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIFF_TERM": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DIFFI_INUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUTBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "SLEW": {
+   "bel": false,
+   "cfg": [
+    "SLOW",
+    "FAST",
+    "QUIETIO"
+   ]
+  },
+  "SUSPEND": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_LAST_VALUE",
+    "3STATE",
+    "3STATE_PULLUP",
+    "3STATE_PULLDOWN",
+    "3STATE_KEEPER",
+    "3STATE_OCT_ON"
+   ]
+  },
+  "DRIVEATTRBOX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "4",
+    "6",
+    "8",
+    "12",
+    "16",
+    "24"
+   ]
+  },
+  "DRIVE_0MA": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_0MA"
+   ]
+  },
+  "PRE_EMPHASIS": {
+   "bel": false,
+   "cfg": [
+    "ON",
+    "#OFF"
+   ]
+  },
+  "IN_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_SPLIT_25",
+    "UNTUNED_SPLIT_50",
+    "UNTUNED_SPLIT_75"
+   ]
+  },
+  "OUT_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_25",
+    "UNTUNED_50",
+    "UNTUNED_75"
+   ]
+  },
+  "PCI_RDYUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "IMUX": {
+   "bel": true,
+   "cfg": [
+    "I_B",
+    "I"
+   ]
+  },
+  "BYPASS_MUX": {
+   "bel": false,
+   "cfg": [
+    "I",
+    "O",
+    "T"
+   ]
+  },
+  "IINV": {
+   "bel": true,
+   "cfg": []
+  },
+  "PADOUTUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "PULL": {
+   "bel": true,
+   "cfg": []
+  },
+  "PULLTYPE": {
+   "bel": false,
+   "cfg": [
+    "KEEPER",
+    "PULLDOWN",
+    "PULLUP"
+   ]
+  },
+  "PAD": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "IOBM": {
+  "INBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIFF_TERM": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DIFFI_INUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUTBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "SLEW": {
+   "bel": false,
+   "cfg": [
+    "SLOW",
+    "FAST",
+    "QUIETIO"
+   ]
+  },
+  "SUSPEND": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_LAST_VALUE",
+    "3STATE",
+    "3STATE_PULLUP",
+    "3STATE_PULLDOWN",
+    "3STATE_KEEPER",
+    "3STATE_OCT_ON"
+   ]
+  },
+  "DRIVEATTRBOX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "4",
+    "6",
+    "8",
+    "12",
+    "16",
+    "24"
+   ]
+  },
+  "DRIVE_0MA": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_0MA"
+   ]
+  },
+  "PRE_EMPHASIS": {
+   "bel": false,
+   "cfg": [
+    "ON",
+    "#OFF"
+   ]
+  },
+  "IN_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_SPLIT_25",
+    "UNTUNED_SPLIT_50",
+    "UNTUNED_SPLIT_75"
+   ]
+  },
+  "OUT_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_25",
+    "UNTUNED_50",
+    "UNTUNED_75"
+   ]
+  },
+  "PCI_RDYUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DIFFO_OUTUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "IMUX": {
+   "bel": true,
+   "cfg": [
+    "I_B",
+    "I"
+   ]
+  },
+  "BYPASS_MUX": {
+   "bel": false,
+   "cfg": [
+    "I",
+    "O",
+    "T"
+   ]
+  },
+  "IINV": {
+   "bel": true,
+   "cfg": []
+  },
+  "PADOUTUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "PULL": {
+   "bel": true,
+   "cfg": []
+  },
+  "PULLTYPE": {
+   "bel": false,
+   "cfg": [
+    "KEEPER",
+    "PULLDOWN",
+    "PULLUP"
+   ]
+  },
+  "PAD": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "IOBS": {
+  "INBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "DIFF_TERM": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DIFFI_INUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUTBUF": {
+   "bel": true,
+   "cfg": []
+  },
+  "SLEW": {
+   "bel": false,
+   "cfg": [
+    "SLOW",
+    "FAST",
+    "QUIETIO"
+   ]
+  },
+  "SUSPEND": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_LAST_VALUE",
+    "3STATE",
+    "3STATE_PULLUP",
+    "3STATE_PULLDOWN",
+    "3STATE_KEEPER",
+    "3STATE_OCT_ON"
+   ]
+  },
+  "DRIVEATTRBOX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "4",
+    "6",
+    "8",
+    "12",
+    "16",
+    "24"
+   ]
+  },
+  "DRIVE_0MA": {
+   "bel": false,
+   "cfg": [
+    "DRIVE_0MA"
+   ]
+  },
+  "PRE_EMPHASIS": {
+   "bel": false,
+   "cfg": [
+    "ON",
+    "#OFF"
+   ]
+  },
+  "IN_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_SPLIT_25",
+    "UNTUNED_SPLIT_50",
+    "UNTUNED_SPLIT_75"
+   ]
+  },
+  "OUT_TERM": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "UNTUNED_25",
+    "UNTUNED_50",
+    "UNTUNED_75"
+   ]
+  },
+  "PCI_RDYUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OUTMUX": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1"
+   ]
+  },
+  "IMUX": {
+   "bel": true,
+   "cfg": [
+    "I_B",
+    "I"
+   ]
+  },
+  "BYPASS_MUX": {
+   "bel": false,
+   "cfg": [
+    "I",
+    "O",
+    "T"
+   ]
+  },
+  "IINV": {
+   "bel": true,
+   "cfg": []
+  },
+  "PADOUTUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DIFFO_INUSED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "PULL": {
+   "bel": true,
+   "cfg": []
+  },
+  "PULLTYPE": {
+   "bel": false,
+   "cfg": [
+    "KEEPER",
+    "PULLDOWN",
+    "PULLUP"
+   ]
+  },
+  "PAD": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "IODELAY2": {
+  "IOCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK1",
+    "IOCLK1_B"
+   ]
+  },
+  "SERDES_MODE": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "SLAVE",
+    "MASTER"
+   ]
+  },
+  "IOCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK0_B",
+    "IOCLK0"
+   ]
+  },
+  "DATA_RATE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "SDR"
+   ]
+  },
+  "IODELAY_CHANGE": {
+   "bel": false,
+   "cfg": [
+    "CHANGE_ON_CLOCK",
+    "CHANGE_ON_DATA"
+   ]
+  },
+  "TEST_GLITCH_FILTER": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "COUNTER_WRAPAROUND": {
+   "bel": false,
+   "cfg": [
+    "WRAPAROUND",
+    "STAY_AT_LIMIT"
+   ]
+  },
+  "IDELAY_MODE": {
+   "bel": false,
+   "cfg": [
+    "PCI",
+    "NORMAL"
+   ]
+  },
+  "IDELAY_TYPE": {
+   "bel": false,
+   "cfg": [
+    "FIXED",
+    "DEFAULT",
+    "VARIABLE_FROM_ZERO",
+    "VARIABLE_FROM_HALF_MAX",
+    "DIFF_PHASE_DETECTOR"
+   ]
+  },
+  "DELAYCHAIN_OSC": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DELAY_SRC": {
+   "bel": false,
+   "cfg": [
+    "IDATAIN",
+    "ODATAIN",
+    "IO"
+   ]
+  },
+  "IODELAY2": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "IODRP2": {
+  "IOCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK1",
+    "IOCLK1_B"
+   ]
+  },
+  "IODRP2": {
+   "bel": true,
+   "cfg": []
+  },
+  "IOCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK0",
+    "IOCLK0_B"
+   ]
+  },
+  "DATA_RATE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "SDR"
+   ]
+  },
+  "DELAYCHAIN_OSC": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "IODELAY_CHANGE": {
+   "bel": false,
+   "cfg": [
+    "CHANGE_ON_CLOCK",
+    "CHANGE_ON_DATA"
+   ]
+  },
+  "TEST_GLITCH_FILTER": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "COUNTER_WRAPAROUND": {
+   "bel": false,
+   "cfg": [
+    "WRAPAROUND",
+    "STAY_AT_LIMIT"
+   ]
+  },
+  "IDELAY_MODE": {
+   "bel": false,
+   "cfg": [
+    "PCI",
+    "NORMAL"
+   ]
+  },
+  "IDELAY_TYPE": {
+   "bel": false,
+   "cfg": [
+    "FIXED",
+    "DEFAULT",
+    "VARIABLE_FROM_ZERO",
+    "VARIABLE_FROM_HALF_MAX",
+    "DIFF_PHASE_DETECTOR"
+   ]
+  },
+  "DELAY_SRC": {
+   "bel": false,
+   "cfg": [
+    "IDATAIN",
+    "ODATAIN",
+    "IO"
+   ]
+  },
+  "SERDES_MODE": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "SLAVE",
+    "MASTER"
+   ]
+  }
+ },
+ "IODRP2_MCB": {
+  "IOCLK0INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK0",
+    "IOCLK0_B"
+   ]
+  },
+  "IOCLK1INV": {
+   "bel": false,
+   "cfg": [
+    "IOCLK1",
+    "IOCLK1_B"
+   ]
+  },
+  "IODRP2_MCB": {
+   "bel": true,
+   "cfg": []
+  },
+  "DATA_RATE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "SDR"
+   ]
+  },
+  "SERDES_MODE": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "SLAVE",
+    "MASTER"
+   ]
+  }
+ },
+ "IPAD": {
+  "PAD": {
+   "bel": true,
+   "cfg": []
+  },
+  "IPAD": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "ISERDES2": {
+  "ISERDES2": {
+   "bel": true,
+   "cfg": []
+  },
+  "CLK1INV": {
+   "bel": false,
+   "cfg": [
+    "CLK1_B",
+    "CLK1"
+   ]
+  },
+  "CLK0INV": {
+   "bel": false,
+   "cfg": [
+    "CLK0_B",
+    "CLK0"
+   ]
+  },
+  "INTERFACE_TYPE": {
+   "bel": false,
+   "cfg": [
+    "RETIMED",
+    "NETWORKING",
+    "NETWORKING_PIPELINED"
+   ]
+  },
+  "BITSLIP_ENABLE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "SERDES_MODE": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "SLAVE",
+    "MASTER"
+   ]
+  },
+  "SHIFT_REGISTER_MODE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DATA_WIDTH": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "1",
+    "4",
+    "8",
+    "2",
+    "7",
+    "3",
+    "6"
+   ]
+  },
+  "DATA_RATE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "SDR"
+   ]
+  }
+ },
+ "MCB": {
+  "ARB_NUM_TIME_SLOTS": {
+   "bel": false,
+   "cfg": [
+    "12",
+    "10"
+   ]
+  },
+  "CAL_BYPASS": {
+   "bel": false,
+   "cfg": [
+    "YES",
+    "NO"
+   ]
+  },
+  "CAL_CALIBRATION_MODE": {
+   "bel": false,
+   "cfg": [
+    "CALIBRATION",
+    "NOCALIBRATION"
+   ]
+  },
+  "CAL_CLK_DIV": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "2",
+    "4",
+    "8"
+   ]
+  },
+  "CAL_DELAY": {
+   "bel": false,
+   "cfg": [
+    "QUARTER",
+    "FULL",
+    "HALF",
+    "THREEQUARTER"
+   ]
+  },
+  "MEM_ADDR_ORDER": {
+   "bel": false,
+   "cfg": [
+    "BANK_ROW_COLUMN",
+    "ROW_BANK_COLUMN"
+   ]
+  },
+  "MEM_BA_SIZE": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "2"
+   ]
+  },
+  "MEM_BURST_LEN": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "4"
+   ]
+  },
+  "MEM_CA_SIZE": {
+   "bel": false,
+   "cfg": [
+    "11",
+    "9",
+    "10",
+    "12"
+   ]
+  },
+  "MEM_CAS_LATENCY": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "1",
+    "2",
+    "3",
+    "5",
+    "6"
+   ]
+  },
+  "MEM_DDR1_2_ODS": {
+   "bel": false,
+   "cfg": [
+    "FULL",
+    "REDUCED"
+   ]
+  },
+  "MEM_DDR2_ADD_LATENCY": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5"
+   ]
+  },
+  "MEM_DDR2_DIFF_DQS_EN": {
+   "bel": false,
+   "cfg": [
+    "YES",
+    "NO"
+   ]
+  },
+  "MEM_DDR2_RTT": {
+   "bel": false,
+   "cfg": [
+    "50OHMS",
+    "75OHMS",
+    "150OHMS",
+    "#OFF"
+   ]
+  },
+  "MEM_DDR2_WRT_RECOVERY": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "2",
+    "3",
+    "5",
+    "6"
+   ]
+  },
+  "MEM_DDR2_3_HIGH_TEMP_SR": {
+   "bel": false,
+   "cfg": [
+    "NORMAL",
+    "EXTENDED"
+   ]
+  },
+  "MEM_DDR2_3_PA_SR": {
+   "bel": false,
+   "cfg": [
+    "FULL",
+    "EIGHTH1",
+    "EIGHTH2",
+    "HALF1",
+    "HALF2",
+    "QUARTER1",
+    "QUARTER2",
+    "THREEQUARTER"
+   ]
+  },
+  "MEM_DDR3_ADD_LATENCY": {
+   "bel": false,
+   "cfg": [
+    "#OFF",
+    "CL1",
+    "CL2"
+   ]
+  },
+  "MEM_DDR3_AUTO_SR": {
+   "bel": false,
+   "cfg": [
+    "ENABLED",
+    "MANUAL"
+   ]
+  },
+  "MEM_DDR3_CAS_LATENCY": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "5",
+    "6",
+    "8",
+    "9",
+    "10"
+   ]
+  },
+  "MEM_DDR3_CAS_WR_LATENCY": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ]
+  },
+  "MEM_DDR3_DYN_WRT_ODT": {
+   "bel": false,
+   "cfg": [
+    "#OFF",
+    "DIV2",
+    "DIV4"
+   ]
+  },
+  "MEM_DDR3_ODS": {
+   "bel": false,
+   "cfg": [
+    "DIV7",
+    "DIV6"
+   ]
+  },
+  "MEM_DDR3_RTT": {
+   "bel": false,
+   "cfg": [
+    "DIV2",
+    "DIV4",
+    "DIV6",
+    "DIV8",
+    "DIV12",
+    "#OFF"
+   ]
+  },
+  "MEM_DDR3_WRT_RECOVERY": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "5",
+    "6",
+    "8",
+    "10",
+    "12"
+   ]
+  },
+  "MEM_MDDR_ODS": {
+   "bel": false,
+   "cfg": [
+    "FULL",
+    "HALF",
+    "QUARTER",
+    "THREEQUARTERS"
+   ]
+  },
+  "MEM_MOBILE_PA_SR": {
+   "bel": false,
+   "cfg": [
+    "FULL",
+    "HALF"
+   ]
+  },
+  "MEM_MOBILE_TC_SR": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "2",
+    "3"
+   ]
+  },
+  "MEM_RA_SIZE": {
+   "bel": false,
+   "cfg": [
+    "13",
+    "12",
+    "14",
+    "15"
+   ]
+  },
+  "MEM_RCD_VAL": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+   ]
+  },
+  "MEM_RAS_VAL": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31"
+   ]
+  },
+  "MEM_RTP_VAL": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+   ]
+  },
+  "MEM_TYPE": {
+   "bel": false,
+   "cfg": [
+    "DDR3",
+    "DDR",
+    "DDR2",
+    "MDDR"
+   ]
+  },
+  "MEM_WIDTH": {
+   "bel": false,
+   "cfg": [
+    "4",
+    "8",
+    "16"
+   ]
+  },
+  "MEM_WR_VAL": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+   ]
+  },
+  "MEM_WTR_VAL": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "0",
+    "1",
+    "2",
+    "4",
+    "5",
+    "6",
+    "7"
+   ]
+  },
+  "PORT_CONFIG": {
+   "bel": false,
+   "cfg": [
+    "B32_B32_B32_B32",
+    "B32_B32_R32_R32_R32_R32",
+    "B32_B32_R32_R32_R32_W32",
+    "B32_B32_R32_R32_W32_R32",
+    "B32_B32_R32_R32_W32_W32",
+    "B32_B32_R32_W32_R32_R32",
+    "B32_B32_R32_W32_R32_W32",
+    "B32_B32_R32_W32_W32_R32",
+    "B32_B32_R32_W32_W32_W32",
+    "B32_B32_W32_R32_R32_R32",
+    "B32_B32_W32_R32_R32_W32",
+    "B32_B32_W32_R32_W32_R32",
+    "B32_B32_W32_R32_W32_W32",
+    "B32_B32_W32_W32_R32_R32",
+    "B32_B32_W32_W32_R32_W32",
+    "B32_B32_W32_W32_W32_R32",
+    "B32_B32_W32_W32_W32_W32",
+    "B64_B32_B32",
+    "B64_B64",
+    "B128"
+   ]
+  },
+  "P0CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P0CMDCLK",
+    "P0CMDCLK_B"
+   ]
+  },
+  "P0CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P0CMDEN",
+    "P0CMDEN_B"
+   ]
+  },
+  "P0RDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P0RDCLK",
+    "P0RDCLK_B"
+   ]
+  },
+  "P0RDENINV": {
+   "bel": false,
+   "cfg": [
+    "P0RDEN",
+    "P0RDEN_B"
+   ]
+  },
+  "P0WRCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P0WRCLK",
+    "P0WRCLK_B"
+   ]
+  },
+  "P0WRENINV": {
+   "bel": false,
+   "cfg": [
+    "P0WREN",
+    "P0WREN_B"
+   ]
+  },
+  "P1CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P1CMDCLK",
+    "P1CMDCLK_B"
+   ]
+  },
+  "P1CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P1CMDEN",
+    "P1CMDEN_B"
+   ]
+  },
+  "P1RDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P1RDCLK",
+    "P1RDCLK_B"
+   ]
+  },
+  "P1RDENINV": {
+   "bel": false,
+   "cfg": [
+    "P1RDEN",
+    "P1RDEN_B"
+   ]
+  },
+  "P1WRCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P1WRCLK",
+    "P1WRCLK_B"
+   ]
+  },
+  "P1WRENINV": {
+   "bel": false,
+   "cfg": [
+    "P1WREN",
+    "P1WREN_B"
+   ]
+  },
+  "P2CLKINV": {
+   "bel": false,
+   "cfg": [
+    "P2CLK",
+    "P2CLK_B"
+   ]
+  },
+  "P2CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P2CMDCLK",
+    "P2CMDCLK_B"
+   ]
+  },
+  "P2CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P2CMDEN",
+    "P2CMDEN_B"
+   ]
+  },
+  "P2ENINV": {
+   "bel": false,
+   "cfg": [
+    "P2EN",
+    "P2EN_B"
+   ]
+  },
+  "P3CLKINV": {
+   "bel": false,
+   "cfg": [
+    "P3CLK",
+    "P3CLK_B"
+   ]
+  },
+  "P3CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P3CMDCLK",
+    "P3CMDCLK_B"
+   ]
+  },
+  "P3CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P3CMDEN",
+    "P3CMDEN_B"
+   ]
+  },
+  "P3ENINV": {
+   "bel": false,
+   "cfg": [
+    "P3EN",
+    "P3EN_B"
+   ]
+  },
+  "P4CLKINV": {
+   "bel": false,
+   "cfg": [
+    "P4CLK",
+    "P4CLK_B"
+   ]
+  },
+  "P4CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P4CMDCLK",
+    "P4CMDCLK_B"
+   ]
+  },
+  "P4CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P4CMDEN",
+    "P4CMDEN_B"
+   ]
+  },
+  "P4ENINV": {
+   "bel": false,
+   "cfg": [
+    "P4EN",
+    "P4EN_B"
+   ]
+  },
+  "P5CLKINV": {
+   "bel": false,
+   "cfg": [
+    "P5CLK",
+    "P5CLK_B"
+   ]
+  },
+  "P5CMDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "P5CMDCLK",
+    "P5CMDCLK_B"
+   ]
+  },
+  "P5CMDENINV": {
+   "bel": false,
+   "cfg": [
+    "P5CMDEN",
+    "P5CMDEN_B"
+   ]
+  },
+  "P5ENINV": {
+   "bel": false,
+   "cfg": [
+    "P5EN",
+    "P5EN_B"
+   ]
+  },
+  "MCB": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "OCT_CALIBRATE": {
+  "ACCESS_MODE": {
+   "bel": false,
+   "cfg": [
+    "STATIC",
+    "USER"
+   ]
+  },
+  "VREF_VALUE": {
+   "bel": false,
+   "cfg": [
+    "#OFF",
+    "0.5",
+    "0.25",
+    "0.75"
+   ]
+  },
+  "OCT_CALIBRATE": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "OLOGIC2": {
+  "OUTFF": {
+   "bel": true,
+   "cfg": []
+  },
+  "D1USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "D2USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OCEUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CLK0INV": {
+   "bel": false,
+   "cfg": [
+    "CLK0",
+    "CLK0_B"
+   ]
+  },
+  "OMUX": {
+   "bel": false,
+   "cfg": [
+    "D1",
+    "OUTFF"
+   ]
+  },
+  "OSRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TSRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OREVUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TREVUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TFF": {
+   "bel": true,
+   "cfg": []
+  },
+  "T1USED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "T2USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "TCEUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CLK1INV": {
+   "bel": false,
+   "cfg": [
+    "CLK1",
+    "CLK1_B"
+   ]
+  },
+  "TMUX": {
+   "bel": false,
+   "cfg": [
+    "T1",
+    "TFF"
+   ]
+  },
+  "TFFTYPE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "OUTFFTYPE": {
+   "bel": false,
+   "cfg": [
+    "DDR",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "TDDR_ALIGNMENT": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "C0",
+    "C1"
+   ]
+  },
+  "DDR_ALIGNMENT": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "C0",
+    "C1"
+   ]
+  },
+  "SRTYPE_OQ": {
+   "bel": false,
+   "cfg": [
+    "ASYNC",
+    "SYNC"
+   ]
+  },
+  "SRINIT_OQ": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1"
+   ]
+  },
+  "SRTYPE_TQ": {
+   "bel": false,
+   "cfg": [
+    "ASYNC",
+    "SYNC"
+   ]
+  },
+  "SRINIT_TQ": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1"
+   ]
+  },
+  "MISRATTRBOX": {
+   "bel": false,
+   "cfg": [
+    "MISR_ENABLE_DATA"
+   ]
+  },
+  "MISR_ENABLE_CLK": {
+   "bel": false,
+   "cfg": [
+    "CLK1",
+    "CLK0"
+   ]
+  },
+  "MISR": {
+   "bel": true,
+   "cfg": []
+  },
+  "O1USED": {
+   "bel": true,
+   "cfg": [
+    "0"
+   ]
+  },
+  "OT1USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  }
+ },
+ "OPAD": {
+  "PAD": {
+   "bel": true,
+   "cfg": []
+  },
+  "OPAD": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "OSERDES2": {
+  "DATA_RATE_OQ": {
+   "bel": false,
+   "cfg": [
+    "SDR",
+    "DDR"
+   ]
+  },
+  "DATA_RATE_OT": {
+   "bel": false,
+   "cfg": [
+    "SDR",
+    "DDR",
+    "BUF"
+   ]
+  },
+  "DATA_WIDTH": {
+   "bel": false,
+   "cfg": [
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1"
+   ]
+  },
+  "SERDES_MODE": {
+   "bel": false,
+   "cfg": [
+    "NONE",
+    "SLAVE",
+    "MASTER"
+   ]
+  },
+  "BYPASS_GCLK_FF": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "OUTPUT_MODE": {
+   "bel": false,
+   "cfg": [
+    "DIFFERENTIAL",
+    "SINGLE_ENDED"
+   ]
+  },
+  "TRAIN_PATTERN": {
+   "bel": false,
+   "cfg": [
+    "15",
+    "14",
+    "13",
+    "12",
+    "11",
+    "10",
+    "9",
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "OSERDES2": {
+   "bel": true,
+   "cfg": []
+  },
+  "CLK0INV": {
+   "bel": false,
+   "cfg": [
+    "CLK0_B",
+    "CLK0"
+   ]
+  },
+  "CLK1INV": {
+   "bel": false,
+   "cfg": [
+    "CLK1_B",
+    "CLK1"
+   ]
+  }
+ },
+ "PCIE_A1": {
+  "DEV_CAP_EXT_TAG_SUPPORTED": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DEV_CAP_ROLE_BASED_ERROR": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "DISABLE_BAR_FILTERING": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DISABLE_ID_CHECK": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "DISABLE_SCRAMBLING": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "ENABLE_RX_TD_ECRC_TRIM": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "FAST_TRAIN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "LINK_STATUS_SLOT_CLOCK_CONFIG": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "LL_ACK_TIMEOUT_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "LL_REPLAY_TIMEOUT_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PCIE_CAP_SLOT_IMPLEMENTED": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLM_AUTO_CONFIG": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PM_CAP_DSI": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PM_CAP_D1SUPPORT": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PM_CAP_D2SUPPORT": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PM_CAP_PME_CLOCK": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "SLOT_CAP_ATT_BUTTON_PRESENT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "SLOT_CAP_ATT_INDICATOR_PRESENT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "SLOT_CAP_POWER_INDICATOR_PRESENT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TL_TFC_DISABLE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "TL_TX_CHECKS_DISABLE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "USR_CFG": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "USR_EXT_CFG": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "VC0_CPL_INFINITE": {
+   "bel": false,
+   "cfg": [
+    "TRUE",
+    "FALSE"
+   ]
+  },
+  "PCIE_A1": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "PCILOGICSE": {
+  "PCILOGICSE": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "PLL_ADV": {
+  "PLL_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_DIVCLK_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_PFD_DLY": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CLK4MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CLKFBOUT_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKBURST_CNT": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "2",
+    "7",
+    "0",
+    "3",
+    "1",
+    "4",
+    "6"
+   ]
+  },
+  "PLL_CLKCNTRL": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1"
+   ]
+  },
+  "PLL_PFD_CNTRL": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "13",
+    "10",
+    "0",
+    "1",
+    "4",
+    "8",
+    "15",
+    "14",
+    "12",
+    "2",
+    "9",
+    "7",
+    "3",
+    "11",
+    "6"
+   ]
+  },
+  "PLL_CLKOUT3_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_LFHF": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CP_RES": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CLKFBOUT_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLAMP_BYPASS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CP": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "13",
+    "10",
+    "0",
+    "1",
+    "4",
+    "8",
+    "15",
+    "14",
+    "12",
+    "2",
+    "9",
+    "7",
+    "3",
+    "11",
+    "6"
+   ]
+  },
+  "PLL_CP_REPL": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "13",
+    "10",
+    "0",
+    "1",
+    "4",
+    "8",
+    "15",
+    "14",
+    "12",
+    "2",
+    "9",
+    "7",
+    "3",
+    "11",
+    "6"
+   ]
+  },
+  "PLL_EN_LEAKAGE": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "PLL_IO_CLKSRC": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "PLL_ADD_LEAKAGE": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "PLL_VDD_SEL": {
+   "bel": false,
+   "cfg": [
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "PLL_CLKOUT2_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT1_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK0MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_EN_VCO5": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT4_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "BANDWIDTH": {
+   "bel": false,
+   "cfg": [
+    "OPTIMIZED",
+    "HIGH",
+    "LOW"
+   ]
+  },
+  "PLL_DIVCLK_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_LOCK_REF_DLY": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "31",
+    "19",
+    "10",
+    "24",
+    "4",
+    "8",
+    "15",
+    "14",
+    "20",
+    "12",
+    "9",
+    "3",
+    "28",
+    "6",
+    "27",
+    "25",
+    "29",
+    "23",
+    "13",
+    "16",
+    "30",
+    "0",
+    "18",
+    "1",
+    "22",
+    "2",
+    "17",
+    "26",
+    "7",
+    "21",
+    "11"
+   ]
+  },
+  "PLL_CLKOUT5_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT0_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT3_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT5_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_DIRECT_PATH_CNTRL": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_VLFHIGH_DIS": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO3": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO_DIV1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO6": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_TCLK3": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK3MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_SKEW_CNTRL": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_DVDD_COMP_SET": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CLKOUT2_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK2MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CLKOUT2_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_DLY": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLAMP_REF_SEL": {
+   "bel": false,
+   "cfg": [
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "PLL_LOCK_FB_DLY": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "31",
+    "19",
+    "10",
+    "24",
+    "4",
+    "8",
+    "15",
+    "14",
+    "20",
+    "12",
+    "9",
+    "3",
+    "28",
+    "6",
+    "27",
+    "25",
+    "29",
+    "23",
+    "13",
+    "16",
+    "30",
+    "0",
+    "18",
+    "1",
+    "22",
+    "2",
+    "17",
+    "26",
+    "7",
+    "21",
+    "11"
+   ]
+  },
+  "PLL_CLKOUT1_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT4_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_PWRD_CFG": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKFBOUT2_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "CLK_FEEDBACK": {
+   "bel": false,
+   "cfg": [
+    "CLKOUT0",
+    "CLKFBOUT"
+   ]
+  },
+  "PLL_NBTI_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO7": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_MAN_LF_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO2": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_TCLK2": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT3_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT0_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK1MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_EN_TCLK0": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT5_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT0_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO_DIV6": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_INTFB": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_TEST_IN_WINDOW": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_REG_INPUT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK_LOST_DETECT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_EN_VCO1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKFBOUT2_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKFBMX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_EN_VCO4": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKOUT4_EDGE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_RES": {
+   "bel": false,
+   "cfg": [
+    "5",
+    "13",
+    "10",
+    "0",
+    "1",
+    "4",
+    "8",
+    "15",
+    "14",
+    "12",
+    "2",
+    "9",
+    "7",
+    "3",
+    "11",
+    "6"
+   ]
+  },
+  "PLL_CLKOUT1_NOCOUNT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_SEL_SLIPD": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLK5MX": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_EN_TCLK1": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_AVDD_COMP_SET": {
+   "bel": false,
+   "cfg": [
+    "2",
+    "3",
+    "0",
+    "1"
+   ]
+  },
+  "PLL_CP_BIAS_TRIP_SHIFT": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_CLKBURST_ENABLE": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "COMPENSATION": {
+   "bel": false,
+   "cfg": [
+    "SOURCE_SYNCHRONOUS",
+    "PLL2DCM",
+    "SYSTEM_SYNCHRONOUS",
+    "INTERNAL",
+    "DCM2PLL",
+    "EXTERNAL"
+   ]
+  },
+  "PLL_CLKFBOUT_EN": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "PLL_ADV": {
+   "bel": true,
+   "cfg": []
+  },
+  "CLKBRSTINV": {
+   "bel": false,
+   "cfg": [
+    "CLKBRST",
+    "CLKBRST_B"
+   ]
+  },
+  "CLKINSELINV": {
+   "bel": false,
+   "cfg": [
+    "CLKINSEL",
+    "CLKINSEL_B"
+   ]
+  },
+  "ENOUTSYNCINV": {
+   "bel": false,
+   "cfg": [
+    "ENOUTSYNC",
+    "ENOUTSYNC_B"
+   ]
+  },
+  "MANPDLFINV": {
+   "bel": false,
+   "cfg": [
+    "MANPDLF",
+    "MANPDLF_B"
+   ]
+  },
+  "MANPULFINV": {
+   "bel": false,
+   "cfg": [
+    "MANPULF",
+    "MANPULF_B"
+   ]
+  },
+  "RELINV": {
+   "bel": false,
+   "cfg": [
+    "REL_B",
+    "REL"
+   ]
+  },
+  "RSTINV": {
+   "bel": false,
+   "cfg": [
+    "RST",
+    "RST_B"
+   ]
+  },
+  "SKEWCLKIN1INV": {
+   "bel": false,
+   "cfg": [
+    "SKEWCLKIN1",
+    "SKEWCLKIN1_B"
+   ]
+  },
+  "SKEWCLKIN2INV": {
+   "bel": false,
+   "cfg": [
+    "SKEWCLKIN2",
+    "SKEWCLKIN2_B"
+   ]
+  },
+  "SKEWRSTINV": {
+   "bel": false,
+   "cfg": [
+    "SKEWRST",
+    "SKEWRST_B"
+   ]
+  },
+  "SKEWSTBINV": {
+   "bel": false,
+   "cfg": [
+    "SKEWSTB",
+    "SKEWSTB_B"
+   ]
+  }
+ },
+ "PMV": {
+  "PMV": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "POST_CRC_INTERNAL": {
+  "POST_CRC_INTERNAL": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "RAMB16BWER": {
+  "RAMB16BWER": {
+   "bel": true,
+   "cfg": []
+  },
+  "CLKAINV": {
+   "bel": false,
+   "cfg": [
+    "CLKA_B",
+    "CLKA"
+   ]
+  },
+  "CLKBINV": {
+   "bel": false,
+   "cfg": [
+    "CLKB_B",
+    "CLKB"
+   ]
+  },
+  "DATA_WIDTH_A": {
+   "bel": false,
+   "cfg": [
+    "36",
+    "18",
+    "9",
+    "4",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "DATA_WIDTH_B": {
+   "bel": false,
+   "cfg": [
+    "36",
+    "18",
+    "9",
+    "4",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "DOA_REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "DOB_REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "ENAINV": {
+   "bel": false,
+   "cfg": [
+    "ENA_B",
+    "ENA"
+   ]
+  },
+  "ENBINV": {
+   "bel": false,
+   "cfg": [
+    "ENB_B",
+    "ENB"
+   ]
+  },
+  "REGCEAINV": {
+   "bel": false,
+   "cfg": [
+    "REGCEA_B",
+    "REGCEA"
+   ]
+  },
+  "REGCEBINV": {
+   "bel": false,
+   "cfg": [
+    "REGCEB_B",
+    "REGCEB"
+   ]
+  },
+  "RSTAINV": {
+   "bel": false,
+   "cfg": [
+    "RSTA_B",
+    "RSTA"
+   ]
+  },
+  "RSTBINV": {
+   "bel": false,
+   "cfg": [
+    "RSTB_B",
+    "RSTB"
+   ]
+  },
+  "RSTTYPE": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "WEA0INV": {
+   "bel": false,
+   "cfg": [
+    "WEA0_B",
+    "WEA0"
+   ]
+  },
+  "WEA1INV": {
+   "bel": false,
+   "cfg": [
+    "WEA1_B",
+    "WEA1"
+   ]
+  },
+  "WEA2INV": {
+   "bel": false,
+   "cfg": [
+    "WEA2_B",
+    "WEA2"
+   ]
+  },
+  "WEA3INV": {
+   "bel": false,
+   "cfg": [
+    "WEA3_B",
+    "WEA3"
+   ]
+  },
+  "WEB0INV": {
+   "bel": false,
+   "cfg": [
+    "WEB0_B",
+    "WEB0"
+   ]
+  },
+  "WEB1INV": {
+   "bel": false,
+   "cfg": [
+    "WEB1_B",
+    "WEB1"
+   ]
+  },
+  "WEB2INV": {
+   "bel": false,
+   "cfg": [
+    "WEB2_B",
+    "WEB2"
+   ]
+  },
+  "WEB3INV": {
+   "bel": false,
+   "cfg": [
+    "WEB3_B",
+    "WEB3"
+   ]
+  },
+  "WRITE_MODE_A": {
+   "bel": false,
+   "cfg": [
+    "WRITE_FIRST",
+    "READ_FIRST",
+    "NO_CHANGE"
+   ]
+  },
+  "WRITE_MODE_B": {
+   "bel": false,
+   "cfg": [
+    "WRITE_FIRST",
+    "READ_FIRST",
+    "NO_CHANGE"
+   ]
+  },
+  "RAM_MODE": {
+   "bel": false,
+   "cfg": [
+    "TDP",
+    "SDP",
+    "SP"
+   ]
+  },
+  "RST_PRIORITY_A": {
+   "bel": false,
+   "cfg": [
+    "SR",
+    "CE"
+   ]
+  },
+  "RST_PRIORITY_B": {
+   "bel": false,
+   "cfg": [
+    "SR",
+    "CE"
+   ]
+  },
+  "EN_RSTRAM_A": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "EN_RSTRAM_B": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "RAMB8BWER": {
+  "RAMB8BWER": {
+   "bel": true,
+   "cfg": []
+  },
+  "CLKAWRCLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLKAWRCLK_B",
+    "CLKAWRCLK"
+   ]
+  },
+  "CLKBRDCLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLKBRDCLK_B",
+    "CLKBRDCLK"
+   ]
+  },
+  "DATA_WIDTH_A": {
+   "bel": false,
+   "cfg": [
+    "36",
+    "18",
+    "9",
+    "4",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "DATA_WIDTH_B": {
+   "bel": false,
+   "cfg": [
+    "36",
+    "18",
+    "9",
+    "4",
+    "2",
+    "1",
+    "0"
+   ]
+  },
+  "DOA_REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "DOB_REG": {
+   "bel": false,
+   "cfg": [
+    "1",
+    "0"
+   ]
+  },
+  "ENAWRENINV": {
+   "bel": false,
+   "cfg": [
+    "ENAWREN_B",
+    "ENAWREN"
+   ]
+  },
+  "ENBRDENINV": {
+   "bel": false,
+   "cfg": [
+    "ENBRDEN_B",
+    "ENBRDEN"
+   ]
+  },
+  "REGCEAINV": {
+   "bel": false,
+   "cfg": [
+    "REGCEA_B",
+    "REGCEA"
+   ]
+  },
+  "REGCEBREGCEINV": {
+   "bel": false,
+   "cfg": [
+    "REGCEBREGCE_B",
+    "REGCEBREGCE"
+   ]
+  },
+  "RSTAINV": {
+   "bel": false,
+   "cfg": [
+    "RSTA_B",
+    "RSTA"
+   ]
+  },
+  "RSTBRSTINV": {
+   "bel": false,
+   "cfg": [
+    "RSTBRST_B",
+    "RSTBRST"
+   ]
+  },
+  "RSTTYPE": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "WEAWEL0INV": {
+   "bel": false,
+   "cfg": [
+    "WEAWEL0_B",
+    "WEAWEL0"
+   ]
+  },
+  "WEAWEL1INV": {
+   "bel": false,
+   "cfg": [
+    "WEAWEL1_B",
+    "WEAWEL1"
+   ]
+  },
+  "WEBWEU0INV": {
+   "bel": false,
+   "cfg": [
+    "WEBWEU0_B",
+    "WEBWEU0"
+   ]
+  },
+  "WEBWEU1INV": {
+   "bel": false,
+   "cfg": [
+    "WEBWEU1_B",
+    "WEBWEU1"
+   ]
+  },
+  "WRITE_MODE_A": {
+   "bel": false,
+   "cfg": [
+    "WRITE_FIRST",
+    "READ_FIRST",
+    "NO_CHANGE"
+   ]
+  },
+  "WRITE_MODE_B": {
+   "bel": false,
+   "cfg": [
+    "WRITE_FIRST",
+    "READ_FIRST",
+    "NO_CHANGE"
+   ]
+  },
+  "RAM_MODE": {
+   "bel": false,
+   "cfg": [
+    "TDP",
+    "SDP",
+    "SP"
+   ]
+  },
+  "RST_PRIORITY_A": {
+   "bel": false,
+   "cfg": [
+    "SR",
+    "CE"
+   ]
+  },
+  "RST_PRIORITY_B": {
+   "bel": false,
+   "cfg": [
+    "SR",
+    "CE"
+   ]
+  },
+  "EN_RSTRAM_A": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  },
+  "EN_RSTRAM_B": {
+   "bel": false,
+   "cfg": [
+    "FALSE",
+    "TRUE"
+   ]
+  }
+ },
+ "SLAVE_SPI": {
+  "SLAVE_SPI": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "SLICEL": {
+  "ACY0": {
+   "bel": false,
+   "cfg": [
+    "AX",
+    "O5"
+   ]
+  },
+  "AFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "AX",
+    "F7",
+    "CY",
+    "XOR"
+   ]
+  },
+  "AOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "A5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F7"
+   ]
+  },
+  "AUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "BCY0": {
+   "bel": false,
+   "cfg": [
+    "BX",
+    "O5"
+   ]
+  },
+  "BFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "BX",
+    "F8",
+    "CY",
+    "XOR"
+   ]
+  },
+  "BOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "B5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F8"
+   ]
+  },
+  "BUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CCY0": {
+   "bel": false,
+   "cfg": [
+    "CX",
+    "O5"
+   ]
+  },
+  "CEUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "CX",
+    "F7",
+    "CY",
+    "XOR"
+   ]
+  },
+  "CLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLK_B",
+    "CLK"
+   ]
+  },
+  "COUTMUX": {
+   "bel": false,
+   "cfg": [
+    "C5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F7"
+   ]
+  },
+  "COUTUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DCY0": {
+   "bel": false,
+   "cfg": [
+    "DX",
+    "O5"
+   ]
+  },
+  "DUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "PRECYINIT": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "AX"
+   ]
+  },
+  "SRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "D5Q",
+    "CY",
+    "XOR"
+   ]
+  },
+  "DFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "DX",
+    "XOR",
+    "CY"
+   ]
+  },
+  "SYNC_ATTR": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "AFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "AFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "A5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "BFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "BFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "B5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "B5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "CFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "CFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "C5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "C5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "DFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "DFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "D5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "D5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "A6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "B5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "B6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "C5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "C6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "D5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "D6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "CARRY4": {
+   "bel": true,
+   "cfg": []
+  },
+  "CYINITGND": {
+   "bel": true,
+   "cfg": []
+  },
+  "CYINITVCC": {
+   "bel": true,
+   "cfg": []
+  },
+  "F7AMUX": {
+   "bel": true,
+   "cfg": []
+  },
+  "F7BMUX": {
+   "bel": true,
+   "cfg": []
+  },
+  "F8MUX": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "SLICEM": {
+  "ACY0": {
+   "bel": false,
+   "cfg": [
+    "AX",
+    "O5"
+   ]
+  },
+  "ADI1MUX": {
+   "bel": false,
+   "cfg": [
+    "AX",
+    "BDI1",
+    "BMC31"
+   ]
+  },
+  "AFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "AX",
+    "F7",
+    "CY",
+    "XOR"
+   ]
+  },
+  "AOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "A5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F7"
+   ]
+  },
+  "AUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "BCY0": {
+   "bel": false,
+   "cfg": [
+    "BX",
+    "O5"
+   ]
+  },
+  "BDI1MUX": {
+   "bel": false,
+   "cfg": [
+    "BX",
+    "DX",
+    "CMC31"
+   ]
+  },
+  "BFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "BX",
+    "F8",
+    "CY",
+    "XOR"
+   ]
+  },
+  "BOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "B5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F8"
+   ]
+  },
+  "BUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CCY0": {
+   "bel": false,
+   "cfg": [
+    "CX",
+    "O5"
+   ]
+  },
+  "CDI1MUX": {
+   "bel": false,
+   "cfg": [
+    "CX",
+    "DX",
+    "DMC31"
+   ]
+  },
+  "CEUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "CX",
+    "F7",
+    "CY",
+    "XOR"
+   ]
+  },
+  "CLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLK_B",
+    "CLK"
+   ]
+  },
+  "COUTMUX": {
+   "bel": false,
+   "cfg": [
+    "C5Q",
+    "O5",
+    "O6",
+    "XOR",
+    "CY",
+    "F7"
+   ]
+  },
+  "COUTUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DCY0": {
+   "bel": false,
+   "cfg": [
+    "DX",
+    "O5"
+   ]
+  },
+  "DFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "DX",
+    "MC31",
+    "CY",
+    "XOR"
+   ]
+  },
+  "DOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "D5Q",
+    "MC31",
+    "CY",
+    "XOR"
+   ]
+  },
+  "DUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "PRECYINIT": {
+   "bel": false,
+   "cfg": [
+    "0",
+    "1",
+    "AX"
+   ]
+  },
+  "SRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "WA7USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "WA8USED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "WEMUX": {
+   "bel": false,
+   "cfg": [
+    "WE",
+    "CE"
+   ]
+  },
+  "SYNC_ATTR": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "AFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "AFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "A5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "BFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "BFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "B5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "B5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "CFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "CFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "C5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "C5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "DFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "DFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "D5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "D5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "A5RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SRL16"
+   ]
+  },
+  "A6LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "A6RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SPRAM64",
+    "DPRAM64",
+    "SRL16"
+   ]
+  },
+  "B5LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "B5RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SRL16"
+   ]
+  },
+  "B6LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "B6RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SPRAM64",
+    "DPRAM64",
+    "SRL16"
+   ]
+  },
+  "C5LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "C5RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SRL16"
+   ]
+  },
+  "C6LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "C6RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SPRAM64",
+    "DPRAM64",
+    "SRL16"
+   ]
+  },
+  "D5LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "D5RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SRL16"
+   ]
+  },
+  "D6LUT": {
+   "bel": true,
+   "cfg": [
+    "#RAM:<eqn>",
+    "#ROM:<eqn>",
+    "#LUT:<eqn>"
+   ]
+  },
+  "D6RAMMODE": {
+   "bel": false,
+   "cfg": [
+    "SPRAM32",
+    "SRL32",
+    "DPRAM32",
+    "SPRAM64",
+    "DPRAM64",
+    "SRL16"
+   ]
+  },
+  "CARRY4": {
+   "bel": true,
+   "cfg": []
+  },
+  "CYINITGND": {
+   "bel": true,
+   "cfg": []
+  },
+  "CYINITVCC": {
+   "bel": true,
+   "cfg": []
+  },
+  "F7AMUX": {
+   "bel": true,
+   "cfg": []
+  },
+  "F7BMUX": {
+   "bel": true,
+   "cfg": []
+  },
+  "F8MUX": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "SLICEX": {
+  "AFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "AX"
+   ]
+  },
+  "AOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "A5Q",
+    "O5",
+    "O6"
+   ]
+  },
+  "BFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "BX"
+   ]
+  },
+  "BOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "B5Q",
+    "O5",
+    "O6"
+   ]
+  },
+  "CFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "CX"
+   ]
+  },
+  "COUTMUX": {
+   "bel": false,
+   "cfg": [
+    "C5Q",
+    "O5",
+    "O6"
+   ]
+  },
+  "DFFMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "DX"
+   ]
+  },
+  "DOUTMUX": {
+   "bel": false,
+   "cfg": [
+    "O6",
+    "O5",
+    "D5Q"
+   ]
+  },
+  "AUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "BUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CEUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "CLKINV": {
+   "bel": false,
+   "cfg": [
+    "CLK_B",
+    "CLK"
+   ]
+  },
+  "CUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "DUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "SRUSED": {
+   "bel": false,
+   "cfg": [
+    "0"
+   ]
+  },
+  "SYNC_ATTR": {
+   "bel": false,
+   "cfg": [
+    "SYNC",
+    "ASYNC"
+   ]
+  },
+  "AFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "AFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "A5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "BFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "BFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "B5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "B5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "CFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "CFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "C5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "C5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "DFF": {
+   "bel": true,
+   "cfg": [
+    "OR2L",
+    "AND2L",
+    "#LATCH",
+    "#FF"
+   ]
+  },
+  "DFFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "D5FF": {
+   "bel": true,
+   "cfg": []
+  },
+  "D5FFSRINIT": {
+   "bel": false,
+   "cfg": [
+    "SRINIT0",
+    "SRINIT1"
+   ]
+  },
+  "A5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "A6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "B5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "B6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "C5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "C6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "D5LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  },
+  "D6LUT": {
+   "bel": true,
+   "cfg": [
+    "<eqn>"
+   ]
+  }
+ },
+ "SPI_ACCESS": {
+  "SPI_ACCESS": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "STARTUP": {
+  "STARTUP": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "SUSPEND_SYNC": {
+  "SUSPEND_SYNC": {
+   "bel": true,
+   "cfg": []
+  }
+ },
+ "TIEOFF": {
+  "HARD0GND": {
+   "bel": true,
+   "cfg": []
+  },
+  "HARD1VCC": {
+   "bel": true,
+   "cfg": []
+  },
+  "KEEP1VCC": {
+   "bel": true,
+   "cfg": []
+  }
+ }
+}
