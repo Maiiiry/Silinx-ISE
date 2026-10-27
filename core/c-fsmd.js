@@ -262,7 +262,38 @@ class SeqFlow extends Flow {
       if (!gv.const) this.slots.set(name, this.regSlot({ ...gv, static: true }));
       else if (gv.type.kind === 'array' && this.arrayLength(gv) > MEM_MIN && !this.partitioned.has(name)) this.slots.set(name, this.memSlot(gv));   // (a ROM)
     }
+    // the statics of the functions the top calls (#1618): a register each, all the calls of a function sharing it
+    this.calleeStatics = new Map();
+    for (const f of this.called(fn)) {
+      const own = new Map();
+      const walk = (x) => {
+        if (!x || typeof x !== 'object') return;
+        if (Array.isArray(x)) { x.forEach(walk); return; }
+        if (x.kind === 'decl') for (const v of x.vars) if (v.static) {
+          let name = `${f.name}_${v.name}`;
+          while (this.regs.has(name) || this.regs.has(`${name}_0`)) name += '_s';
+          const slot = this.regSlot({ ...v, name });
+          if (slot.kind === 'mem') this.error(v.loc, `the static array '${v.name}' of '${f.name}': a memory in a function the top calls is not supported yet`);
+          this.slots.set(`${f.name}::${v.name}`, slot);
+          own.set(v.name, slot);
+        }
+        for (const [k, y] of Object.entries(x)) if (k !== 'loc' && k !== 'type') walk(y);
+      };
+      walk(f.body);
+      if (own.size) this.calleeStatics.set(f.name, own);
+    }
     if (this.retType) this.retReg = this.reg('ap_return_reg', this.retType);
+  }
+  /** The functions fn calls, directly or through others. */
+  called(fn) {
+    const out = new Set();
+    const visit = (f) => { for (const g of this.c.funcs.values()) if (g !== fn && g.body && !out.has(g) && this.calls(f, g.name)) { out.add(g); visit(g); } };
+    visit(fn);
+    return out;
+  }
+  inline(fn, scope, g) {
+    for (const [n, slot] of this.calleeStatics?.get(fn.name) || []) scope.set(n, slot);
+    return super.inline(fn, scope, g);
   }
   regSlot(v) {
     const t = v.type;
@@ -311,6 +342,9 @@ class SeqFlow extends Flow {
   }
   // ------------------------------------------------------------------ each block, symbolically
   declare(v, g) {
+    // (a local of a function the top calls, run inside a state: a value, as a combinational function's; its statics
+    // registers, put in its scope by inline, #1618)
+    if (this.frame && this.frame.fn !== this.fn) { if (!v.static) this.scopes.at(-1).set(v.name, this.newSlot(v, g)); return; }
     const slot = this.slots.get(v.name);
     if (!v.init || v.static || slot.kind === 'mem') return;   // (a static is initialized once, at the reset; a memory holds its values)
     if (slot.kind === 'array') {

@@ -126,6 +126,34 @@ int acc(int a, int *count, unsigned char *n8) {
 }`, 'acc', { ins: [{ name: 'a', ...I32 }], outs: [{ name: 'count', ...I32 }, { name: 'n8', w: 8, s: false }], ret: I32, n: 20, seed: 3, fix: { a: (x) => x % 1000n } });
 });
 
+test('#1618 C to HDL, sequential: the statics of the functions the top calls (one register each, every call of a function sharing it, its initial value at the reset), their other locals; through another function too', { skip: noCC }, () => {
+  against(`void acc1(int x, int *o) {
+  static int acc = 0;
+  acc += x;
+  *o = acc;
+}
+void acc2(int x, int *o) {
+  static int acc = 5;
+  static unsigned char n;
+  n++;
+  acc += 2 * x + n;
+  *o = acc;
+}
+void twice(int x, int *o) {
+  int t;
+  acc1(x, &t);
+  int u = t + 1;
+  *o = u;
+}
+int top(int x, int *a, int *b) {
+  int c;
+  acc1(x, a);
+  acc2(x, b);
+  twice(x, &c);
+  return c;
+}`, 'top', { ins: [{ name: 'x', ...I32 }], outs: [{ name: 'a', ...I32 }, { name: 'b', ...I32 }], ret: I32, n: 16, seed: 5, fix: { x: (v) => v % 1000n } });
+});
+
 test('C to HDL, sequential: nested loops with break and continue, an early return in a loop, do-while, an if with a loop in it, local arrays, a read-write pointer, an inlined function', { skip: noCC }, () => {
   against(`static int clip(int v) { return v > 1000 ? 1000 : v < -1000 ? -1000 : v; }
 int mixed(int x, unsigned char k, int *io) {
