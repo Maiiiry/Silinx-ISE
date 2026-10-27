@@ -88,6 +88,7 @@ export function readIseNets(model, opts, { lang, modules, docName, warn }) {
   for (const [k, pol] of portPol) if (/input|bidir/i.test(pol)) driven.set(k, (driven.get(k) || 0) + 1);
 
   // ------------------------------------------------------------- buses: bit / sub-range signals of a bus
+  const ioNames = new Set([...model.ports.map(p => lc(p.name.trim())), ...model.sheets.flatMap(sh => sh.iomarkers.map(i => lc(i.name.trim())))]);
   const groups = new Map();
   for (const s of sigs.values()) if (s.p.range || s.p.bit != null) { const g = lc(s.p.base); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
   const helpers = [];          // virtual blocks: slices / bus joins
@@ -99,7 +100,10 @@ export function readIseNets(model, opts, { lang, modules, docName, warn }) {
     const main = ranged[0];
     const lo = Math.min(main.p.msb, main.p.lsb), hi = Math.max(main.p.msb, main.p.lsb);
     const desc = main.p.msb >= main.p.lsb;
-    const pos = i => (desc ? i - main.p.lsb : main.p.lsb - i);
+    // (a bus named with its indices, not from 0, D(7:4): it keeps them, its parts' bits too, #1689; an I/O marker's
+    // bus and an ascending one are taken from 0)
+    const keep = desc && main.p.lsb > 0 && !ioNames.has(main.key);
+    const pos = i => (keep ? i : desc ? i - main.p.lsb : main.p.lsb - i);
     const members = [];
     for (const s of list) {
       if (s === main) continue;
@@ -109,7 +113,7 @@ export function readIseNets(model, opts, { lang, modules, docName, warn }) {
       if (s.p.range && (a >= b) !== desc && a !== b) warn(`bus '${s.name}' has the opposite bit order of '${main.name}': bits are taken in '${main.name}' order`);
       members.push({ s, msb: Math.max(pa, pb), lsb: Math.min(pa, pb) });
     }
-    mainInfo.set(main.key, { width: main.p.width });
+    mainInfo.set(main.key, { width: main.p.width, ...(keep ? { msb: main.p.msb, lsb: main.p.lsb } : {}) });
     if (!members.length) continue;
     const mainDriven = driven.has(main.key);
     const drivenMembers = members.filter(m => driven.has(m.s.key));
@@ -123,13 +127,14 @@ export function readIseNets(model, opts, { lang, modules, docName, warn }) {
       }
       chosen.sort((x, y) => y.msb - x.msb);
       const segs = [];
-      let at = main.p.width - 1;
+      const bottom = keep ? main.p.lsb : 0;
+      let at = keep ? main.p.msb : main.p.width - 1;
       for (const c of chosen) {
         if (c.msb < at) segs.push({ key: null, width: at - c.msb });
         segs.push({ key: c.s.key, width: c.msb - c.lsb + 1 });
         at = c.lsb - 1;
       }
-      if (at >= 0) segs.push({ key: null, width: at + 1 });
+      if (at >= bottom) segs.push({ key: null, width: at - bottom + 1 });
       if (segs.some(s => !s.key)) warn(`bus '${main.name}': bits not driven by any part are tied to 0`);
       helpers.push({ kind: 'join', main: main.key, segs });
       joined = new Set(chosen.map(c => c.s.key));

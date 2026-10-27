@@ -91,3 +91,59 @@ test('#1693 a 1-bit tap into an output read back: msb_int <= a(7), Check Syntax 
     assert.deepEqual(r.sim.log.map(l => l.text.replace(/'/g, '')), ['11', '10'], `${lang}: msb = a(7), ends = a(7) and a(0)`);
   }
 });
+
+// #1689: a bus named with its indices, not from 0 (d(7:4)): declared with them (VHDL (7 downto 4), Verilog [7:4]), a
+// tap of its bit 7 its most significant bit; a bus join into e(7:4); the same through the ISE export and import
+test('#1689 a bus named d(7:4): declared (7 downto 4) / [7:4], its taps by their indices, simulated; the ISE round trip keeps them', async () => {
+  const { normalizeDoc, symbolPins, netlist } = await import('../core/schdoc.js');
+  const { exportIseSch, importIseSch } = await import('../core/isesch.js');
+  const { simulate } = await import('../core/compile.js');
+  const d = { version: 5, name: 'ofs', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, symbols: [], wires: [], labels: [], ports: [] };
+  const V = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+  let n = 0;
+  const sym = (type, params, conn) => {
+    const s = { id: `S${++n}`, type, x: 300, y: 100 + 100 * n, rot: 0, mirror: false, name: `U${n}`, params };
+    d.symbols.push(s);
+    for (const p of symbolPins(normalizeDoc({ ...d, symbols: [s] }).symbols[0])) {
+      if (!conn[p.name]) continue;
+      const e = { x: p.x + 20 * V[p.side][0], y: p.y + 20 * V[p.side][1] };
+      d.wires.push({ id: `W${++n}`, points: [{ x: p.x, y: p.y }, e], ...(/\(/.test(conn[p.name]) ? { bus: true } : {}) });
+      d.labels.push({ id: `L${++n}`, x: e.x, y: e.y, net: conn[p.name] });
+    }
+  };
+  // a(3:0) -> BUF -> d(7:4); y = d(7), z = d(5:4); e(7:4) = d(5:4) & d(7:6) (a bus join)
+  for (const [i, [nm, dir, w]] of [['a', 'in', 4], ['y', 'out', 1], ['z', 'out', 2], ['e', 'out', 4]].entries()) {
+    d.ports.push({ id: `P${i}`, name: nm, dir, width: w, x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i });
+    d.wires.push({ id: `WP${i}`, points: [{ x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i }, { x: dir === 'in' ? 120 : 1480, y: 100 + 60 * i }], ...(w > 1 ? { bus: true } : {}) });
+  }
+  sym('buf', { width: 4 }, { I: 'a', O: 'd(7:4)' });
+  sym('slice', { msb: 7, lsb: 7 }, { I: 'd', O: 'y' });
+  sym('slice', { msb: 5, lsb: 4 }, { I: 'd', O: 'z' });
+  sym('slice', { msb: 7, lsb: 6 }, { I: 'd', O: 'hi' });
+  sym('busjoin', { widths: '2,2' }, { I0: 'z', I1: 'hi', O: 'e' });
+  const doc = normalizeDoc(d);
+  assert.deepEqual(netlist(doc).diagnostics, []);
+  const TB = {
+    vhdl: 'library ieee; use ieee.std_logic_1164.all;\nentity tb is end;\narchitecture s of tb is signal a, e : std_logic_vector(3 downto 0); signal z : std_logic_vector(1 downto 0); signal y : std_logic; begin\n u : entity work.ofs port map (a => a, y => y, z => z, e => e);\n process begin a <= "1001"; wait for 1 ns; report std_logic\'image(y) & " " & to_string(z) & " " & to_string(e); wait; end process;\nend;',
+    verilog: 'module tb; reg [3:0] a; wire y; wire [1:0] z; wire [3:0] e; ofs u(.a(a), .y(y), .z(z), .e(e)); initial begin a = 4\'b1001; #1 $display("%b %b %b", y, z, e); end endmodule',
+  };
+  const run = (dc, lang) => {
+    const g = generateHdl({ ...dc, lang }, { lang });
+    const src = [{ path: `ofs.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: g.code }, { path: `tb.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: TB[lang] }];
+    const r = simulate(src, 'tb', { until: 1e7 });
+    return { g, errors: r.errors.map((e) => e.message), log: r.sim.log.map((l) => l.text.replace(/'/g, '')) };
+  };
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = run(doc, lang);
+    assert.deepEqual(r.g.diagnostics, [], lang);
+    assert.match(r.g.code, lang === 'vhdl' ? /signal d : std_logic_vector\(7 downto 4\);/ : /wire \[7:4\] d;/);
+    assert.match(r.g.code, lang === 'vhdl' ? /y <= d\(7\);/ : /assign y = d\[7\];/);
+    assert.deepEqual([r.errors, r.log], [[], ['1 01 0110']], `${lang}: y = a(3), z = a(1:0), e = a(1:0) & a(3:2)`);
+  }
+  // exported as an ISE schematic (its buses d(7:4) and e(3:0) named so) and imported again: the same behaviour
+  const ex = exportIseSch(doc, { lang: 'vhdl' });
+  assert.match(ex.xml, /<signal name="d\(7:4\)"/);
+  const back = importIseSch(ex.xml, { name: 'ofs', lang: 'vhdl', symbols: Object.fromEntries((ex.files || []).filter((f) => /\.sym$/.test(f.path)).map((f) => [f.path, f.text])) });
+  assert.deepEqual(back.warnings, []);
+  assert.deepEqual(run(back.doc, 'vhdl').log, ['1 01 0110'], 'imported back');
+});

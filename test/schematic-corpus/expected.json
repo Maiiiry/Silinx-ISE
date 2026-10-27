@@ -73,8 +73,8 @@
   "load": "pass",
   "check": "pass",
   "hdl": "pass",
-  "sim": "mismatch: vhdl: simulation: the simulation stopped (error)",
-  "ise": "mismatch: the reference's simulation: the simulation stopped (error)",
+  "sim": "pass",
+  "ise": "pass",
   "synth": "pass",
   "flow": "complete",
   "quality": {
@@ -88,10 +88,6 @@
    "xc3s1200efg320-4": "complete"
   },
   "warnings": {
-   "hdl": [
-    "verilog: bus_offset.v:12: index 7 out of range for 'd'",
-    "vhdl: bus_offset.vhd:18: index 7 out of range for 'd'"
-   ],
    "ise": [
     "export: ISE symbols not in the Xilinx library: xl_buf_w4, xl_slice4_7_7 — add the returned HDL (.vhd) and .sym files to the ISE project"
    ]
