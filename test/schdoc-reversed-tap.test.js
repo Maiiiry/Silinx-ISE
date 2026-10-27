@@ -100,3 +100,21 @@ test('#1702 a 4-bit tap\'s O into an 8-bit output marker: a width mismatch, not 
   assert.equal(nl.pinNet.get('S1/O'), netOf(nl, 'W2'));
   assert.deepEqual(diags(nl), ["error width mismatch on net 'y': 8 vs 4 bits"]);
 });
+
+// #1691: a bus tap's MSB below its LSB (MSB 1, LSB 2 of a(3:0)): its HDL would be a(1 to 2) / a[1:2], against the bus's
+// direction (illegal in both languages, #1692): an error on the tap; MSB = LSB and MSB > LSB, none
+test('#1691 a bus tap with its MSB below its LSB: an error on the tap, in the check and the HDL generation', async () => {
+  const { symbolPins } = await import('../core/schdoc.js');
+  const of = (msb, lsb) => {
+    const d = newDoc('rv', 'vhdl');
+    d.symbols.push(tap(300, 200, msb, lsb));
+    const pins = Object.fromEntries(symbolPins(normalizeDoc(d).symbols[0]).map((p) => [p.name, p]));
+    d.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 4, x: pins.I.x - 60, y: pins.I.y }, { id: 'P2', name: 'y', dir: 'out', width: Math.abs(msb - lsb) + 1, x: pins.O.x + 60, y: pins.O.y });
+    d.wires.push({ id: 'W1', points: [{ x: pins.I.x - 60, y: pins.I.y }, { x: pins.I.x, y: pins.I.y }], bus: true }, { id: 'W2', points: [{ x: pins.O.x, y: pins.O.y }, { x: pins.O.x + 60, y: pins.O.y }] });
+    return normalizeDoc(d);
+  };
+  const ERR = 'error bus tap T1: its MSB (1) is below its LSB (2): a bus tap takes the bits MSB downto LSB';
+  assert.deepEqual(diags(netlist(of(1, 2))), [ERR]);
+  for (const lang of ['vhdl', 'verilog']) assert.deepEqual(generateHdl({ ...of(1, 2), lang }, { lang }).diagnostics.map((x) => `${x.severity} ${x.message}`), [ERR], lang);
+  for (const [m, l] of [[2, 1], [2, 2], [3, 0]]) assert.deepEqual(diags(netlist(of(m, l))), [], `${m}..${l}`);
+});

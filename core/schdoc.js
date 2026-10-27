@@ -444,6 +444,12 @@ export function netlist(docIn, { modules = {} } = {}) {
       if (net && net.endpoints.length + net.wires.length + net.labels.length > 1) diags.push({ severity: 'error', message: `${s.name}: pin ${n} is connected, but module '${s.params.module}' ${od.removed.includes(n) ? 'no longer has that port' : 'has that port in the other direction now'}: Update Symbol, then connect it again`, ref: { kind: 'symbol', id: s.id, pin: n }, x: s.x, y: s.y });
     }
   }
+  // a bus tap takes bits MSB downto LSB (#1691): its MSB below its LSB, its HDL would be a slice against its bus's
+  // direction (a(1 to 2) of a(3 downto 0), a[1:2] of a[3:0]), which neither language allows
+  for (const s of doc.symbols) {
+    if (s.type !== 'slice' || int(s.params.msb, 0) >= int(s.params.lsb, 0)) continue;
+    diags.push({ severity: 'error', message: `bus tap ${s.name}: its MSB (${int(s.params.msb, 0)}) is below its LSB (${int(s.params.lsb, 0)}): a bus tap takes the bits MSB downto LSB`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y });
+  }
   // duplicate instance / port names
   const seen = new Map();
   for (const s of doc.symbols) { const k = nk(s.name); if (seen.has(k)) diags.push({ severity: 'error', message: `duplicate instance name '${s.name}'`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y }); seen.set(k, s); }
