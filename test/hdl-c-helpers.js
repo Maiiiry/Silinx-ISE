@@ -1,6 +1,7 @@
 // Helpers of the HDL to C tests (#1530): a design's C model (core/hdl-c.js) compiled with cc and run on input vectors,
 // and the same vectors through Silinx's simulator (a Verilog test bench instancing the design): their outputs, cycle by
-// cycle, to be compared.
+// cycle, to be compared. The model is compiled with the undefined-behaviour sanitizer (not on Windows): C that is not
+// C's (a shift by a negative amount, #1530) stops the run, whatever the compiler would make of it.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,7 +24,7 @@ export function runModel(sources, top, vectors) {
   try {
     fs.writeFileSync(path.join(dir, 'm.c'), m.text + main);
     const exe = path.join(dir, process.platform === 'win32' ? 'm.exe' : 'm');
-    execFileSync(CC, ['-std=c99', '-Wall', '-Werror', '-Wno-unused-function', '-O1', '-o', exe, path.join(dir, 'm.c')], { stdio: ['ignore', 'ignore', 'pipe'] });
+    execFileSync(CC, ['-std=c99', '-Wall', '-Werror', '-Wno-unused-function', '-O1', ...(process.platform !== 'win32' ? ['-fsanitize=undefined', '-fno-sanitize-recover=all'] : []), '-o', exe, path.join(dir, 'm.c')], { stdio: ['ignore', 'ignore', 'pipe'] });
     return { model: m, lines: execFileSync(exe, { encoding: 'utf8' }).trim().split('\n') };
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
