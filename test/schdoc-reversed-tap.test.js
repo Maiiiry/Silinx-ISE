@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulate } from '../core/compile.js';
-import { newDoc, normalizeDoc, netlist, generateHdl } from '../core/schdoc.js';
+import { newDoc, normalizeDoc, netlist, generateHdl, symbolPins } from '../core/schdoc.js';
 
 const WRONG = (bus, w = 8) => `error bus tap T1 is the wrong way round: its output O (1 bit) touches the ${w}-bit bus '${bus}' and is not connected to it; the bus goes to its input I`;
 const tap = (x, y, msb = 2, lsb = 2) => ({ id: 'S1', type: 'slice', x, y, rot: 0, mirror: false, name: 'T1', params: { msb, lsb } });   // I at (x, y) on its bus, O at (x+40, y+10) (#1726)
@@ -117,4 +117,28 @@ test('#1691 a bus tap with its MSB below its LSB: an error on the tap, in the ch
   assert.deepEqual(diags(netlist(of(1, 2))), [ERR]);
   for (const lang of ['vhdl', 'verilog']) assert.deepEqual(generateHdl({ ...of(1, 2), lang }, { lang }).diagnostics.map((x) => `${x.severity} ${x.message}`), [ERR], lang);
   for (const [m, l] of [[2, 1], [2, 2], [3, 0]]) assert.deepEqual(diags(netlist(of(m, l))), [], `${m}..${l}`);
+});
+
+// #1690: a bus tap of bits its bus does not have: an error on the tap (the HDL took a(5) of a(3:0), a warning on the
+// generated file only, and failed in simulation); the bits it has, no error; a tap with nothing on its input, no such error
+function tapOf(msb, lsb, width = 4) {
+  const d = newDoc('tr', 'vhdl');
+  const t = tap(300, 200, msb, lsb);
+  d.symbols.push(t);
+  const pins = Object.fromEntries(symbolPins(normalizeDoc(d).symbols[0]).map((p) => [p.name, p]));
+  d.ports.push({ id: 'P1', name: 'a', dir: 'in', width, x: pins.I.x - 60, y: pins.I.y }, { id: 'P2', name: 'y', dir: 'out', width: Math.abs(msb - lsb) + 1, x: pins.O.x + 60, y: pins.O.y });
+  d.wires.push({ id: 'W1', points: [{ x: pins.I.x - 60, y: pins.I.y }, { x: pins.I.x, y: pins.I.y }], bus: width > 1 }, { id: 'W2', points: [{ x: pins.O.x, y: pins.O.y }, { x: pins.O.x + 60, y: pins.O.y }] });
+  return normalizeDoc(d);
+}
+test('#1690 a bus tap of bits outside its bus: an error on the tap, in the check and the HDL generation; the bits it has, none', () => {
+  assert.deepEqual(diags(netlist(tapOf(5, 5))), ["error bus tap T1 takes bit 5, outside its bus 'a' (3 downto 0)"]);
+  assert.deepEqual(diags(netlist(tapOf(4, 2))), ["error bus tap T1 takes bits 4..2, outside its bus 'a' (3 downto 0)"]);
+  assert.deepEqual(diags(netlist(tapOf(1, 1, 1))), ["error bus tap T1 takes bit 1, outside its bus 'a' (one bit, 0)"]);
+  assert.deepEqual(generateHdl(tapOf(5, 5)).diagnostics.map((x) => `${x.severity} ${x.message}`), ["error bus tap T1 takes bit 5, outside its bus 'a' (3 downto 0)"]);
+  for (const [m, l] of [[3, 3], [3, 0], [0, 0]]) assert.deepEqual(diags(netlist(tapOf(m, l))), [], `${m}..${l}`);
+  assert.deepEqual(diags(netlist(tapOf(0, 0, 1))), [], 'bit 0 of one bit');
+  // nothing on its input: unconnected, not outside
+  const alone = newDoc('al', 'vhdl');
+  alone.symbols.push(tap(300, 200, 5, 5));
+  assert.deepEqual(diags(netlist(normalizeDoc(alone))).filter((x) => /outside/.test(x)), []);
 });

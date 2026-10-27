@@ -89,7 +89,8 @@
   },
   "warnings": {
    "ise": [
-    "export: ISE symbols not in the Xilinx library: xl_buf_w4, xl_slice4_7_7 — add the returned HDL (.vhd) and .sym files to the ISE project"
+    "export: ISE symbols not in the Xilinx library: xl_buf_w4, xl_slice4_7_7 — add the returned HDL (.vhd) and .sym files to the ISE project",
+    "export: xl_slice4_7_7: HDL module has errors: bus tap U1 takes bit 7, outside its bus 'I' (3 downto 0)"
    ]
   }
  },
@@ -1712,7 +1713,7 @@
  },
  "tap_range": {
   "load": "pass",
-  "check": "pass",
+  "check": "fail: bus tap XLXI_1 takes bit 5, outside its bus 'a' (3 downto 0)",
   "hdl": "pass",
   "sim": "skip: no reference",
   "ise": "mismatch: the reference's simulation: the simulation stopped (error)",
@@ -1736,7 +1737,10 @@
     "vhdl: tap_range.vhd:9: Input <a<3:0>> is never used."
    ],
    "ise": [
-    "export: ISE symbols not in the Xilinx library: xl_slice4_5_5 — add the returned HDL (.vhd) and .sym files to the ISE project"
+    "export: ISE symbols not in the Xilinx library: xl_slice4_5_5 — add the returned HDL (.vhd) and .sym files to the ISE project",
+    "export: schematic check: bus tap XLXI_1 takes bit 5, outside its bus 'a' (3 downto 0)",
+    "export: xl_slice4_5_5: HDL module has errors: bus tap U1 takes bit 5, outside its bus 'I' (3 downto 0)",
+    "import: schematic check: bus tap XLXI_1 takes bit 5, outside its bus 'a' (3 downto 0)"
    ]
   }
  },
