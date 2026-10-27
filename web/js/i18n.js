@@ -109,7 +109,9 @@ const PT = {
   // narrow screens (#266): the drawer of the left side, the editors' panels over the canvas
   'Show / hide the side panel (Design, Files, Processes)': 'Mostrar / esconder o painel lateral (Projeto, Ficheiros, Processos)',
   '☰ Properties': '☰ Propriedades', 'Show / hide the properties panel': 'Mostrar / esconder o painel das propriedades',
-  '☰ Symbols': '☰ Símbolos', 'Show / hide the symbols panel': 'Mostrar / esconder o painel dos símbolos',
+  '☰ Symbols': '☰ Símbolos', 'Collapse the Symbols panel': 'Recolher o painel dos símbolos', 'Expand the Symbols panel': 'Expandir o painel dos símbolos',
+  'Collapse the Properties panel': 'Recolher o painel das propriedades', 'Expand the Properties panel': 'Expandir o painel das propriedades',   // (#1713)
+  'Show / hide the symbols panel': 'Mostrar / esconder o painel dos símbolos',
   'Design': 'Projeto', 'View:': 'Vista:', 'Processes:': 'Processos:', 'Processes': 'Processos', 'Start': 'Início', 'Files': 'Ficheiros',
   'Libraries': 'Bibliotecas', 'Console': 'Consola', 'Errors': 'Erros', 'Warnings': 'Avisos', 'Ready': 'Pronto', 'Clear': 'Limpar',
   'Project Commands': 'Comandos do Projeto', 'No projects yet.': 'Ainda não há projetos.',

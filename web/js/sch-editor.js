@@ -47,6 +47,7 @@ import { mountSchCheck } from './sch-check.js';
 import { mountSchOptions } from './sch-options.js';
 import { mountSchCurve } from './sch-curve.js';
 import { mountSchBeautify } from './sch-beautify.js';
+import { mountSchPanels } from './sch-panels.js';
 import { onLayoutToggled } from './layout-fit.js';
 import { clone } from '/core/util.js';
 export { clone };   // (core/util.js's)
@@ -195,6 +196,8 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- right: properties
   const propBody = h('div', { class: 'se-props' });
   right.append(h('div', { class: 'se-cap', text: 'Properties' }), propBody);
+  // the two panels folded and expanded by their titles (sch-panels.js, #1713)
+  mountSchPanels({ container, left, right });
 
   // ---------------- view transform (sch-view.js)
   const { applyView, centerOn, fit, print, toSheet, zoomAt } = mountSchView({

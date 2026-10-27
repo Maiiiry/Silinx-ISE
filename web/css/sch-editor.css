@@ -303,6 +303,21 @@
 .sch-editor .se-symdoc .sd-code { border: 1px solid #e0e0e8; max-height: 360px; flex: none; }
 .sch-editor .se-props .se-sum { margin-bottom: 2px; }
 
+/* the side panels folded (#1713, web/js/sch-panels.js): a thin strip, the title's button on top, its name down the side */
+.sch-editor .se-fold { border: 0; background: none; padding: 0 2px; margin-right: -2px; color: inherit; display: inline-flex; align-items: center; cursor: pointer; opacity: .75; }
+.sch-editor .se-fold:hover { opacity: 1; color: var(--se-title-fg); }
+@media (min-width: 1024px) {
+  .sch-editor:is(.sym-folded) .se-left, .sch-editor:is(.props-folded) .se-right { width: 24px; cursor: pointer; }
+  .sch-editor.sym-folded .se-left > :not(.se-cap), .sch-editor.props-folded .se-right > :not(.se-cap) { display: none; }
+  .sch-editor.sym-folded .se-left .se-cap, .sch-editor.props-folded .se-right .se-cap {
+    flex: 1; height: auto; writing-mode: vertical-rl; flex-direction: row-reverse; justify-content: flex-end; padding: 6px 0; gap: 8px;
+    border-bottom: 0; align-items: center; background: var(--se-panel);
+  }
+  .sch-editor.sym-folded .se-left .se-cap .sp, .sch-editor.props-folded .se-right .se-cap .sp { display: none; }
+  .sch-editor.sym-folded .se-left .se-fold, .sch-editor.props-folded .se-right .se-fold { writing-mode: horizontal-tb; margin: 0; }
+}
+@media (max-width: 1023px) { .sch-editor .se-fold { display: none; } }
+
 /* under 1024 px wide (#266, #1418, web/js/narrow.js): the symbols and the properties go over the canvas,
    shown by the toolbar's Symbols (.pal-open) and Properties (.side-open) buttons */
 .sch-editor .se-panels { display: inline-flex; gap: 2px; margin-left: auto; }
