@@ -153,10 +153,10 @@ uiTest('#1652 the Split button: the right side empty, a document opened there, a
   if (await page.eval(() => !!document.getElementById('task-view'))) assert.equal(btn.next, 'max');
   await page.click('#split-btn');
   await page.waitFor(() => document.getElementById('workspace').classList.contains('split'), [], { what: 'split' });
-  // the right side empty, worked in: what to open there (the other documents, one click away)
+  // the right side empty, worked in: how to bring a document there under a large pen (#1720), the other documents one click away
   assert.deepEqual(await ids(page), [`a:${VHD}*`]);
-  const empty = await page.eval(() => { const e = document.getElementById('split-empty'); return { side: e.dataset.side, front: e.classList.contains('pane-front'), text: e.querySelector('p').textContent, picks: [...e.querySelectorAll('.split-picks button')].filter((b) => b.getClientRects().length).map((b) => b.textContent) }; });
-  assert.deepEqual(empty, { side: 'b', front: true, text: 'Open a source on this side: from the Design panel, or drag a tab here', picks: empty.picks.includes('Design Summary') ? ['Design Summary', 'tb_gates.vhd'] : ['tb_gates.vhd'] });
+  const empty = await page.eval(() => { const e = document.getElementById('split-empty'); return { side: e.dataset.side, front: e.classList.contains('pane-front'), text: e.querySelector('p').textContent, icon: (() => { const r = e.querySelector('.split-ico svg')?.getBoundingClientRect(); return r ? [Math.round(r.width), Math.round(r.height), r.bottom <= e.querySelector('p').getBoundingClientRect().top] : null; })(), picks: [...e.querySelectorAll('.split-picks button')].filter((b) => b.getClientRects().length).map((b) => b.textContent) }; });
+  assert.deepEqual(empty, { side: 'b', front: true, text: 'Drag a tab here, or right-click an open tab and choose Move to the Other Side', icon: [48, 48, true], picks: empty.picks.includes('Design Summary') ? ['Design Summary', 'tb_gates.vhd'] : ['tb_gates.vhd'] });
   assert.equal(await page.eval(() => document.getElementById('split-btn').getAttribute('aria-pressed')), 'true');
   assert.deepEqual(await viewItems(), ['Split Editor (checked)', 'Show Generated HDL Beside (disabled)']);
   // a document opened (the Design pane's schematic): there
@@ -201,8 +201,8 @@ uiTest('#1652 the Split button: the right side empty, a document opened there, a
   await page.eval(() => window.SilinxApp.closeDoc(window.Silinx.docs.find((d) => d.id === 'sch:src/gates.sch.json')));
   await page.waitFor(() => !document.getElementById('workspace').classList.contains('split'), [], { what: 'the right side\'s last closed' });
   await page.click('#split-btn');
-  await page.waitFor(() => !document.getElementById('split-empty')?.hidden && document.querySelector('#split-empty p')?.textContent.startsWith('Abra'), [], { what: 'the empty side in Portuguese' });
-  assert.equal(await page.eval(() => document.querySelector('#split-empty p').textContent), 'Abra uma fonte deste lado: no painel Projeto, ou arraste para aqui um separador');
+  await page.waitFor(() => !document.getElementById('split-empty')?.hidden && document.querySelector('#split-empty p')?.textContent.startsWith('Arraste'), [], { what: 'the empty side in Portuguese' });
+  assert.equal(await page.eval(() => document.querySelector('#split-empty p').textContent), 'Arraste para aqui um separador, ou clique com o botão direito num separador aberto e escolha Mover para o Outro Lado');
   await page.menu('Ver', 'Dividir o Editor');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await page.waitFor(() => !document.getElementById('workspace').classList.contains('split'), [], { what: 'one side' });
