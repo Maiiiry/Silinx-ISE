@@ -81,12 +81,13 @@ difference: record an improvement with `--update`, make an issue of a loss.
 | #1715 | Convert to Schematic refuses a vector driven part by part (`assign y[3:0] = …; assign y[7:4] = …`) |
 | #1716 | Convert to Schematic refuses a Verilog module with `` `ifdef `` / `` `else `` inside it |
 | #1717 | Convert to Schematic writes a port of width 0, which `normalizeDoc` makes 1 |
+| #1763 | the ISE export renames escaped port names (`\opcode[0]`) |
 
-The generated part: of the design corpus's designs, 45 are converted and pass the document, the checks, Check
+The generated part: of the design corpus's designs, 55 are converted and pass the document, the checks, Check
 Syntax and the simulation against their HDL (two whose own HDL stops in simulation under random inputs, ITC'99 b04
-and b11, apart); their ISE export does not compile in 36 of them (#1695). Ten are refused (#1697, #1715, #1716,
-#1717) and ten (the larger EPFL netlists, thousands of gates) are not drawn within the time and memory limits
-(`skip: too large`).
+and b11, apart); their ISE export does not compile in 40 of them (#1695), and renames the escaped port names of
+four EPFL netlists (#1763). Ten (the larger EPFL netlists, thousands of gates) are not drawn within the time and
+memory limits (`skip: too large`).
 
 ## The results
 
@@ -116,5 +117,5 @@ and b11, apart); their ISE export does not compile in 36 of them (#1695). Ten ar
 | ise-Counter_2b | ise | pass | pass | pass | skip: no reference | pass | pass (1 / 2) | complete |  |
 | gates | example | pass | pass | pass | pass | pass | pass (1 / 0) | complete |  |
 
-Generated from the design corpus: 65 designs; load 45, check 46, hdl 46, sim 44, ise 9 pass (each design's stages in expected.json).
+Generated from the design corpus: 65 designs; load 55, check 55, hdl 55, sim 53, ise 11 pass (each design's stages in expected.json).
 <!-- /results -->
