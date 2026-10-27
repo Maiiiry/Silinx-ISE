@@ -5,6 +5,7 @@
 //
 //   checkPragmas(ast, funcs, report)   report(loc, message, severity)
 //   loopPragma(loop, name) -> its pragma's args, or null
+//   readPragma(text after #pragma) -> { name, args, text } | null
 //   unrollBy(loop, n) -> the loop with n copies of its body (a 'for'), each after the first if its condition holds
 
 // what Silinx makes of the pragmas it knows
@@ -15,6 +16,15 @@ export const IGNORED = new Set(['DATAFLOW', 'STREAM', 'LATENCY', 'BIND_OP', 'BIN
   'ARRAY_RESHAPE', 'STABLE', 'RESET', 'SHARED', 'ALIAS', 'CACHE', 'PERFORMANCE']);
 // the interfaces of an argument Silinx makes (the others: ignored with a warning, its default made)
 export const ARG_MODES = new Set(['ap_none', 'ap_vld', 'ap_ovld', 'ap_memory', 'bram']);
+/** `#pragma HLS NAME key=value key` -> { name, args, text }; null if not an HLS pragma (core/c-lex.js's). */
+export function readPragma(rest) {
+  const m = /^\s*HLS\s+(\w+)\s*(.*)$/i.exec(rest);
+  if (!m) return null;
+  const args = {};
+  for (const a of m[2].matchAll(/(\w+)\s*(?:=\s*("[^"]*"|[^\s,]+))?/g)) args[a[1].toLowerCase()] = a[2] === undefined ? true : a[2].replace(/^"|"$/g, '');
+  return { name: m[1].toUpperCase(), args, text: rest.trim() };
+}
+
 const LOOP_ONLY = new Set(['PIPELINE', 'UNROLL', 'LOOP_TRIPCOUNT']);
 
 const isLoop = (s) => s && (s.kind === 'for' || s.kind === 'while' || s.kind === 'do');

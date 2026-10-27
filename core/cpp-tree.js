@@ -13,6 +13,9 @@ const walkExpr = (x, f) => {
   return x;
 };
 
+// (the manipulators of a stream: endl a new line, the others its format from here on; '' those that change nothing)
+const MANIP = { endl: '\n', left: 'left', right: 'right', hex: 'x', oct: 'o', dec: 'd', fixed: '', scientific: '', showpoint: '', noshowpoint: '', flush: '' };
+
 export function cppTree(ast, report, streams = new Map()) {
   const funcs = new Map(ast.items.filter((it) => it.kind === 'func').map((f) => [f.name, f]));
   // (a stream passed by reference is the stream: no pointer, hls::stream<T> &s is s)
@@ -84,11 +87,33 @@ export function cppTree(ast, report, streams = new Map()) {
       if (!(e?.kind === 'id' && (e.name === 'cout' || e.name === 'cerr' || file)) || !parts.length) return undefined;
       let fmt = '';
       const args = [];
+      // (<iomanip>'s manipulators: setw the next item's width, left / right, setfill('0'), hex / oct / dec, setbase;
+      // fixed, setprecision and the others of floating point ignored)
+      let width = 0, left = false, zero = false, base = 'd';
+      const flags = () => `${left ? '-' : ''}${zero && !left ? '0' : ''}${width || ''}`;
+      const num = (e) => (e?.kind === 'num' ? Number(e.value) : null);
       for (const p of parts) {
-        if (p.kind === 'id' && p.name === 'endl') fmt += '\n';
-        else if (p.kind === 'str') fmt += p.value.replace(/%/g, '%%');
-        else if (p.kind === 'chr') fmt += String.fromCharCode(Number(p.value)).replace(/%/g, '%%');
-        else { fmt += '%lld'; args.push({ kind: 'cast', type: { kind: 'int', name: 'long long', bits: 64, signed: true }, e: p, loc: p.loc }); }
+        if (p.kind === 'id' && MANIP[p.name] !== undefined) {
+          const m = MANIP[p.name];
+          if (m === '\n') fmt += '\n';
+          else if (m === 'left' || m === 'right') left = m === 'left';
+          else if (m) base = m;
+          continue;
+        }
+        if (p.kind === 'call' && p.callee.kind === 'id' && ['setw', 'setprecision', 'setbase', 'setfill'].includes(p.callee.name)) {
+          const v = p.args[0];
+          if (p.callee.name === 'setw') { width = num(v); if (width === null) { report(p, 'setw takes a constant'); width = 0; } }
+          if (p.callee.name === 'setbase') base = { 16: 'x', 8: 'o' }[num(v)] || 'd';
+          if (p.callee.name === 'setfill') zero = v?.kind === 'chr' && Number(v.value) === 48;
+          continue;
+        }
+        const strs = p.kind === 'cond' && p.a.kind === 'str' && p.b.kind === 'str';
+        if (p.kind === 'str' && !width) fmt += p.value.replace(/%/g, '%%');
+        else if (p.kind === 'chr' && !width) fmt += String.fromCharCode(Number(p.value)).replace(/%/g, '%%');
+        else if (p.kind === 'str' || strs) { fmt += `%${left ? '-' : ''}${width || ''}s`; args.push(p); }
+        else if (p.kind === 'chr') { fmt += `%${left ? '-' : ''}${width || ''}c`; args.push(p); }
+        else { fmt += `%${flags()}ll${base}`; args.push({ kind: 'cast', type: { kind: 'int', name: 'long long', bits: 64, signed: true }, e: p, loc: p.loc }); }
+        width = 0;
       }
       const fmtArg = { kind: 'str', value: fmt, loc: x.loc };
       return { kind: 'expr', e: { kind: 'call', callee: { kind: 'id', name: file ? 'fprintf' : 'printf', loc: x.loc }, args: [...(file ? [file] : []), fmtArg, ...args], loc: x.loc }, loc: x.loc };

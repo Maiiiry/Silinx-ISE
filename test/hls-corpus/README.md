@@ -48,7 +48,7 @@ Not part of `npm test` (it needs the network once).
 | interface-memory-manual-burst-manual-burst-example-manual-burst-inference-success | C++ | fail | fail | skip | - | C simulation: example.h:19: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-memory-manual-burst-manual-burst-with-conditionals | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-memory-max-widen-port-width | C++ | pass | pass | pass | 259 |  |
-| interface-memory-ram-uram | C++ | fail | fail | skip | - | C simulation: 31: 'right' is not declared |
+| interface-memory-ram-uram | C++ | pass | pass | pass | 4-5 |  |
 | interface-memory-rom-lookup-table-math | C++ | fail | fail | skip | - | C simulation: 24: 'real_val': floating point (dint_t) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | interface-memory-using-axi-master | C++ | fail | fail | skip | - | C simulation: 37: memcpy is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS) |
 | interface-register-using-axi-lite-with-user-defined-offset | C++ | pass | pass | pass | - |  |
@@ -69,16 +69,16 @@ Not part of `npm test` (it needs the network once).
 | modeling-pointers-stream-better | C | pass | pass | pass | - |  |
 | modeling-pointers-stream-good | C | fail | fail | skip | - | C simulation: 23: pointer arithmetic is not possible in Silinx HLS: index the array instead |
 | modeling-pointers-using-double | C | fail | fail | skip | - | C simulation: 19: the parameter 'flagPtr': a pointer to a pointer is not possible (Silinx HLS: pointers only to arguments) |
-| modeling-conditional-control-of-pragmas-using-defines | C++ | pass | pass | pass | 83 |  |
-| modeling-conditional-control-of-pragmas-using-template-function | C++ | fail | fail | skip | - | C simulation: 1: a type expected, not 'template' |
-| modeling-cpp-templates-for-multiple-instances | C++ | fail | fail | skip | - | C simulation: 25: a type expected, not 'template' |
+| modeling-conditional-control-of-pragmas-using-defines | C++ | pass | pass | pass | 71 |  |
+| modeling-conditional-control-of-pragmas-using-template-function | C++ | pass | fail | skip | - | C synthesis: 2: 'adder_1_4' has a loop and is called from 'top': a function with a loop called by another is not supported yet (write the loop in 'top') |
+| modeling-cpp-templates-for-multiple-instances | C++ | pass | pass | pass | 1 |  |
 | modeling-fixed-point-sqrt | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'out_data_t' |
 | modeling-free-running-kernel-remerge-ii4to1 | C++ | fail | fail | skip | - | C simulation: 24: a type expected, not '"in_stream"' |
 | modeling-using-arbitrary-precision-arith | C++ | pass | fail | skip | - | C synthesis: 27: a division by a value that is not a constant is not supported yet (#1526) |
 | modeling-using-arbitrary-precision-casting | C++ | pass | pass | pass | - |  |
 | modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 23: the parameter 'in': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
-| modeling-using-cpp-templates | C++ | fail | fail | skip | - | C simulation: 21: a type expected, not 'template' |
+| modeling-using-cpp-templates | C++ | pass | pass | pass | - |  |
 | modeling-using-fixed-point | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'dout_t' |
 | modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: 27: '.fp_num' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | modeling-using-vectors | C++ | fail | fail | skip | - | C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
@@ -100,5 +100,5 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 
-73 designs: 10 through co-simulation.
+73 designs: 13 through co-simulation.
 <!-- /results -->

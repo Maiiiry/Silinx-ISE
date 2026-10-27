@@ -158,11 +158,15 @@
     "reason": null
   },
   "interface-memory-ram-uram": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 31: 'right' is not declared"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 4,
+      "max": 5,
+      "avg": 4.5
+    },
+    "reason": null
   },
   "interface-memory-rom-lookup-table-math": {
     "csim": "fail",
@@ -283,25 +287,29 @@
     "synth": "pass",
     "cosim": "pass",
     "latency": {
-      "min": 83,
-      "max": 83,
-      "avg": 83
+      "min": 71,
+      "max": 71,
+      "avg": 71
     },
     "reason": null
   },
   "modeling-conditional-control-of-pragmas-using-template-function": {
-    "csim": "fail",
+    "csim": "pass",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 1: a type expected, not 'template'"
+    "reason": "C synthesis: 2: 'adder_1_4' has a loop and is called from 'top': a function with a loop called by another is not supported yet (write the loop in 'top')"
   },
   "modeling-cpp-templates-for-multiple-instances": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 25: a type expected, not 'template'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 1,
+      "max": 1,
+      "avg": 1
+    },
+    "reason": null
   },
   "modeling-fixed-point-sqrt": {
     "csim": "fail",
@@ -388,11 +396,11 @@
     "reason": "C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"
   },
   "modeling-using-cpp-templates": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
     "latency": null,
-    "reason": "C simulation: 21: a type expected, not 'template'"
+    "reason": null
   },
   "modeling-using-fixed-point": {
     "csim": "fail",
