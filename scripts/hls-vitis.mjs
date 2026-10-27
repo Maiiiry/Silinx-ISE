@@ -10,7 +10,7 @@
 //   node scripts/hls-vitis.mjs [--filter pointer] [--update]
 //     --update: the results written to test/hls-corpus/vitis.json and the table of test/hls-corpus/README.md
 //   SILINX_ISE_HOST=user@host (else ~/.silinx/config.json's ssh user and host, read here, never written in a file),
-//   SILINX_ISE_HOST=local: the image on this machine; SILINX_VITIS_IMAGE (default xilinx/vitis-hls:2025.1),
+//   SILINX_ISE_HOST=local: the image on this machine; SILINX_VITIS_IMAGE (default xilinx/vitis-hls:2025.2),
 //   SILINX_VITIS_PART (default xc7a35tcpg236-1); SILINX_ISE_REMOTE_DIR as scripts/check-open-flow.mjs.
 // Vitis's own files (reports, logs, HDL) stay in a temporary folder, deleted after the run: only numbers and port names
 // are written (#1624, never commit Xilinx files).
@@ -143,7 +143,7 @@ async function main() {
   const { DOCKER_ISOLATION } = await import('../server/ise.js');
   const a = process.argv.slice(2);
   const filter = a.includes('--filter') ? a[a.indexOf('--filter') + 1] : '';
-  const IMAGE = process.env.SILINX_VITIS_IMAGE || 'xilinx/vitis-hls:2025.1';
+  const IMAGE = process.env.SILINX_VITIS_IMAGE || 'xilinx/vitis-hls:2025.2';
   const part = process.env.SILINX_VITIS_PART || PART;
   // the host: only from the environment or the user's config, never written in a file
   let HOST = process.env.SILINX_ISE_HOST;

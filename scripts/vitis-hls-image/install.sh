@@ -2,7 +2,7 @@
 # Installs Vivado ML Standard (with Vitis HLS, the small 7-series devices only) into the base image and saves the
 # result as the Vitis HLS image (#1624, README.md). Run on the machine with Docker, after downloading AMD's Linux
 # web installer (FPGAs_AdaptiveSoCs_Unified_<version>_<date>_Lin64.bin) and writing install_config.txt beside it:
-#   bash scripts/vitis-hls-image/install.sh <the installer's folder> <version, e.g. 2025.1>
+#   bash scripts/vitis-hls-image/install.sh <the installer's folder> <version, e.g. 2025.2>
 # It asks for the AMD account once (xsetup -b AuthTokenGen, typed by its owner); the token is deleted before the
 # image is saved.
 set -eu
