@@ -330,11 +330,19 @@ export function netlist(docIn, { modules = {} } = {}) {
     const first = Math.min(...g.map(id => orderIdx.get(id) ?? (1e9 + (id.startsWith('w:') ? 0 : 1))));
     return { g, first };
   }).sort((a, b) => a.first - b.first);
+  const wrongWay = [];   // [bus tap's O, the bus's net] (#1702)
   for (const { g } of sorted) {
-    const eps = g.filter(id => pinInfo.has(id)).map(id => pinInfo.get(id));
+    let eps = g.filter(id => pinInfo.has(id)).map(id => pinInfo.get(id));
     const wires = g.filter(id => id.startsWith('w:')).map(id => id.slice(2));
     const labels = g.filter(id => id.startsWith('l:')).map(id => labelOf.get(id));
     if (!eps.length && !wires.length && !labels.length) continue;
+    // a bus tap the wrong way round (#1702): its output O on a wider bus (driven by an input marker or an output, or
+    // named) is not connected to it, the bus keeping its width (a wider input it drives: a width mismatch, below)
+    const taps = eps.filter(e => e.kind === 'pin' && e.pin === 'O' && isNum(e.width) && symById.get(e.sym)?.type === 'slice').filter(t => {
+      const w = [...eps.filter(e => e !== t && (e.kind === 'pin' ? e.dir === 'out' : e.dir === 'in')).map(e => e.width), ...labels.map(L => L.width)].filter(isNum);
+      return w.length && Math.max(...w) > Math.max(t.width, 1);
+    });
+    if (taps.length) eps = eps.filter(e => !taps.includes(e));
     const ports = eps.filter(e => e.kind === 'port');
     const net = { id: `N${nets.length + 1}`, name: null, auto: false, width: null, endpoints: eps, wires, labels: labels.map(L => L.label.id), ports: ports.map(e => e.port), drivers: [] };
     // name: I/O marker > label > auto
@@ -391,9 +399,19 @@ export function netlist(docIn, { modules = {} } = {}) {
         diags.push({ severity: 'warning', message: `net '${net.name}' connects only ${epName(e, symById, doc)}`, ref: refOf(e, symById), x: e.x, y: e.y, net: net.name });
     }
     nets.push(net);
+    for (const t of taps) wrongWay.push([t, net]);
     for (const e of eps) { if (e.kind === 'pin') pinNet.set(`${e.sym}/${e.pin}`, net); else portNet.set(e.port, net); }
     for (const w of wires) wireNet.set(w, net);
     for (const L of labels) labelNet.set(L.label.id, net);
+  }
+  // the bus taps the wrong way round: their O on a net of its own, an error on the tap
+  for (const [t, bus] of wrongWay) {
+    do auto++; while (used.has(nk(`net_${auto}`)));
+    const net = { id: `N${nets.length + 1}`, name: `net_${auto}`, auto: true, width: t.width, endpoints: [t], wires: [], labels: [], ports: [], drivers: [t] };
+    nets.push(net);
+    pinNet.set(`${t.sym}/${t.pin}`, net);
+    const s = symById.get(t.sym);
+    diags.push({ severity: 'error', message: `bus tap ${s.name} is the wrong way round: its output O (${t.width} bit${t.width > 1 ? 's' : ''}) touches the ${bus.width}-bit bus '${bus.name}' and is not connected to it; the bus goes to its input I`, ref: { kind: 'symbol', id: s.id, pin: 'O' }, x: t.x, y: t.y, net: bus.name });
   }
   // unconnected pins
   for (const s of doc.symbols) {
