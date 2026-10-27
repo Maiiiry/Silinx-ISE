@@ -78,8 +78,8 @@ uiTest('View ▸ Interface ▸ Modern: the task switcher in the header, the task
   assert.deepEqual(L, {
     ui: 'modern', stored: 'modern', tasks: ['Design', 'Simulate', 'Emulate', 'Implement'],   // (no Program: Implement's, #1172)
     bar: ['Close'],   // (Close: a single document's, #854; Simulate's choices on its page, #1291; no action button, #1292)
-    // (in the header, #1218; the Split button first, #1652)
-    view: ['Split the editor: two documents side by side, each side with its tabs', 'Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)'],
+    // (in the header, #1218; the Split button before Maximize, #1652, #1657)
+    view: ['Show or hide the side panel', 'Show or hide the messages', 'Split the editor: two documents side by side, each side with its tabs', 'Maximize the document (double-click its tab)'],
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -1628,7 +1628,7 @@ uiTest('#1218 Tasks: the layout buttons at the top right, after the theme button
       rightEnd: top.getBoundingClientRect().right - r.at(-1).right < 24, inBar: document.querySelectorAll('#task-bar [data-act=side], #task-bar [data-act=console], #task-bar [data-act=max]').length,
     };
   });
-  assert.deepEqual(await where(), { acts: ['split', 'side', 'console', 'max'], inHeader: true, afterSettings: true, rightEnd: true, inBar: 0 });
+  assert.deepEqual(await where(), { acts: ['side', 'console', 'split', 'max'], inHeader: true, afterSettings: true, rightEnd: true, inBar: 0 });
   // they still act
   await page.click('#task-view [data-act="side"]');
   assert.equal((await state(page)).side, 'folded');

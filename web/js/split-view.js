@@ -1,5 +1,5 @@
 // Two documents side by side (#1619, #1652): the editor split in two sides, each with its own tabs and its own document
-// in front, a divider between them. The Split button (the header's right end, before the side panel's; View ▸ Split
+// in front, a divider between them. The Split button (the header's right end, before Maximize; View ▸ Split
 // Editor) splits it: the right side empty, where the next document opened goes. A document opened goes to the side
 // worked in (the one of the document in front, or the empty side clicked); a tab dragged to the other side's tabs or
 // pane, or its menu's Move to the Other Side, moves it there. Show Generated HDL Beside opens a drawing's HDL file, or a
@@ -143,7 +143,7 @@ export function restoreSplit(kept, find) {
 }
 
 // ---- on the page
-/** The Split button: in the Tasks interface's header before the side panel's button, in the modern one's at its right
+/** The Split button: in the Tasks interface's header between the messages' button and Maximize (#1657), in the modern one's at its right
  *  end, in the classic one's toolbar at its right end. */
 function placeButton() {
   if (!button) {
@@ -154,7 +154,8 @@ function placeButton() {
   const where = view || (modern ? $('top-actions') : $('toolbar'));
   if (!where) return;
   button.className = view || !modern ? 'tb-btn' : 'm-icon-btn';
-  if (button.parentNode !== where) { if (view) view.prepend(button); else where.append(button); }
+  const max = view?.querySelector('[data-act=max]');
+  if (button.parentNode !== where || (max && button.nextElementSibling !== max)) { if (max) max.before(button); else where.append(button); }
   button.setAttribute('aria-pressed', String(on));
 }
 
