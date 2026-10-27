@@ -19,6 +19,7 @@ import { readPragma } from './c-pragma.js';
 import { cppTemplates } from './cpp-template.js';
 import { cppStl } from './cpp-stl.js';
 import { streamArrays } from './c-stream-array.js';
+import { npChannels } from './cpp-np-channel.js';
 import { cppSugar } from './cpp-sugar.js';
 import { cStructs } from './c-struct.js';
 
@@ -35,7 +36,7 @@ const SINGLE = '+-*/%<>=!~&|^?:;,.()[]{}#';
 const ESC = { n: 10, t: 9, r: 13, 0: 0, '\\': 92, "'": 39, '"': 34, a: 7, b: 8, f: 12, v: 11, '?': 63 };
 
 /** The tokens of one line of text (no preprocessing): [{ t, v, col }]; errors pushed to `bad`. */
-function scan(text, line, bad) {
+export function scan(text, line, bad) {
   const out = [];
   let i = 0;
   while (i < text.length) {
@@ -243,11 +244,11 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
   const last = lines.at(-1);
   tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
   const streams = new Map();
-  const report = (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' });
+  const report = (t, m, severity = 'error') => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity });
   if (cpp) {
     // (a test bench's std::vector, generate / fill, <random> first: C tokens, core/cpp-stl.js, #1734)
     // (then the arrays of streams: a stream each element, core/c-stream-array.js, #1739)
-    const st = cStructs(cppSugar(cppTemplates(streamArrays(cppStl(tokens, report), report), report), report), report, true);
+    const st = cStructs(cppSugar(cppTemplates(streamArrays(npChannels(cppStl(tokens, report), report), report), report), report), report, true);
     return { tokens: cppTokens(st.tokens, report, streams), pragmas, includes, errors, streams, structArgs: st.structArgs };
   }
   const st = cStructs(tokens, report, false);
@@ -299,6 +300,7 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
         if (cpp && (m[1] === 'hls_stream.h' || m[1] === 'hls_task.h')) continue;   // (hls::stream, hls::task: C++'s, #1590, #1721)
         // (a test bench's std::vector, <algorithm>, <random>: core/cpp-stl.js, #1734; their stdlib.h's macros, as libstdc++'s
         // headers bring them, EXIT_FAILURE)
+        if (cpp && m[1] === 'hls_np_channel.h') continue;   // (hls::split, hls::merge: core/cpp-np-channel.js, #1743)
         if (cpp && TB_HEADERS.has(m[1])) { for (const [k, v] of Object.entries(HEADER_MACROS['stdlib.h'])) if (!macros.has(k)) macros.set(k, { params: null, body: scan(v, line, bad).map((t) => ({ ...t, line })) }); continue; }
         // (a header Silinx HLS writes itself: core/cpp-headers.js, #1662)
         if (cpp && CPP_OWN_HEADERS[m[1]]) { if (!once.has(`<${m[1]}>`)) run(CPP_OWN_HEADERS[m[1]], `<${m[1]}>`, depth + 1); continue; }

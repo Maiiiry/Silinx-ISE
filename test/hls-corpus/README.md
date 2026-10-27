@@ -89,18 +89,18 @@ Not part of `npm test` (it needs the network once).
 | pipelining-loops-perfect-loop | C++ | pass | pass | pass | 1723 |  |
 | pipelining-loops-using-free-running-pipeline | C++ | fail | fail | skip | - | C simulation: 21: the parameter 'A': floating point (data_t) is not supported in Silinx HLS yet: use integers or ap_int<W> |
 | task-level-parallelism-control-driven-channels-autorestart | C++ | fail | fail | skip | - | C simulation: diamond_test.cpp:23: the header 'ap_float.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| task-level-parallelism-control-driven-channels-merge-split-merge-load-balance | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| task-level-parallelism-control-driven-channels-merge-split-split-load-balance | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| task-level-parallelism-control-driven-channels-merge-split-split-round-robin | C++ | fail | fail | skip | - | C simulation: test.h:20: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
+| task-level-parallelism-control-driven-channels-merge-split-merge-load-balance | C++ | pass | pass | pass | 600 |  |
+| task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | pass | pass | pass | 600 |  |
+| task-level-parallelism-control-driven-channels-merge-split-split-load-balance | C++ | pass | pass | pass | 158 |  |
+| task-level-parallelism-control-driven-channels-merge-split-split-round-robin | C++ | pass | pass | pass | 158 |  |
 | task-level-parallelism-control-driven-channels-simple-fifos | C++ | pass | pass | pass | 1315 |  |
 | task-level-parallelism-control-driven-channels-using-fifos | C++ | fail | fail | skip | - | C simulation: diamond.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-control-driven-channels-using-stream-of-blocks | C++ | fail | fail | skip | - | C simulation: diamond.h:19: the header 'hls_streamofblocks.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
-| task-level-parallelism-data-driven-mixed-control-and-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_np_channel.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
+| task-level-parallelism-data-driven-mixed-control-and-data-driven | C++ | fail | fail | skip | - | C simulation: test.cpp:38: hls::split::round_robin: hls::split::round_robin<T, N> name; (N a constant) |
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 38 through co-simulation.
+73 designs: 42 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

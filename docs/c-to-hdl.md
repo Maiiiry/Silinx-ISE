@@ -219,6 +219,12 @@ the streams that may be too shallow (a stream to a process that waits for its wr
 must hold all a call writes). Not yet: a process giving back a value (a pointer output or a result), an argument of
 the top shared by two processes, a channel with two writers or readers.
 
+**`hls::split` and `hls::merge`** (`hls_np_channel.h`, #1743): `hls::split::round_robin<T, N, D> s;` (its processes
+writing `s.in`, reading `s.out[i]`) and `hls::merge::round_robin<T, N, D> m;` (writing `m.in[i]`, reading `m.out`) are
+FIFOs and a task of their own moving each value, a split's to its outputs in turn, a merge's from its inputs in turn.
+`load_balance` (Vitis HLS's a free output, an input with data, in the schedule's order) is made as `round_robin`, with a
+warning.
+
 **`hls::task`** (`hls_task.h`, #1721): `hls_thread_local hls::task t(f, a…);` starts, once, a task running `f` again
 and again while its inputs have values (`hls_thread_local` streams and tasks live across calls). The C simulation runs
 the tasks whenever the test bench or the top would wait (a read of an empty stream, the end of a call of the top),
