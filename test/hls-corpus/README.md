@@ -41,7 +41,7 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | pass | pass | pass | 2715 |  |
 | interface-memory-burst-rw | C++ | pass | pass | pass | 20531 |  |
-| interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
+| interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 44: cos: floating point is not supported in Silinx HLS yet (the test bench only) |
 | interface-memory-ecc-flags | C++ | pass | pass | pass | 118 |  |
 | interface-memory-lmem-2rw | C++ | pass | pass | pass | 67627 |  |
 | interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | pass | pass | pass | 22573 |  |
@@ -49,7 +49,7 @@ Not part of `npm test` (it needs the network once).
 | interface-memory-manual-burst-manual-burst-with-conditionals | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-max-widen-port-width | C++ | pass | pass | pass | 259 |  |
 | interface-memory-ram-uram | C++ | pass | pass | pass | 4-5 |  |
-| interface-memory-rom-lookup-table-math | C++ | fail | fail | skip | - | C simulation: 24: 'real_val': floating point (dint_t) is not supported in Silinx HLS yet: use integers or ap_int<W> |
+| interface-memory-rom-lookup-table-math | C++ | fail | fail | skip | - | C simulation: 24: 'real_val': double is not supported in Silinx HLS yet: use float (#1761) |
 | interface-memory-using-axi-master | C++ | fail | fail | skip | - | C simulation: 37: memcpy is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS) |
 | interface-register-using-axi-lite-with-user-defined-offset | C++ | pass | pass | pass | - |  |
 | interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'packet' |
@@ -76,7 +76,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-free-running-kernel-remerge-ii4to1 | C++ | pass | pass | pass | 459 |  |
 | modeling-using-arbitrary-precision-arith | C++ | pass | pass | pass | - |  |
 | modeling-using-arbitrary-precision-casting | C++ | pass | pass | pass | - |  |
-| modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 23: the parameter 'in': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W> |
+| modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 36: an index of a value that is not an array |
 | modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | modeling-using-cpp-templates | C++ | pass | pass | pass | - |  |
 | modeling-using-fixed-point | C++ | pass | pass | pass | 1 |  |
@@ -87,7 +87,7 @@ Not part of `npm test` (it needs the network once).
 | pipelining-functions-hier-func | C++ | fail | fail | skip | - | C simulation: 81: 'fp1': structures (FILE) are not supported in Silinx HLS yet |
 | pipelining-loops-imperfect-loop | C++ | pass | pass | pass | 1723 |  |
 | pipelining-loops-perfect-loop | C++ | pass | pass | pass | 1723 |  |
-| pipelining-loops-using-free-running-pipeline | C++ | fail | fail | skip | - | C simulation: 21: the parameter 'A': floating point (data_t) is not supported in Silinx HLS yet: use integers or ap_int<W> |
+| pipelining-loops-using-free-running-pipeline | C++ | fail | fail | skip | - | C simulation: 21: the parameter 'A': double is not supported in Silinx HLS yet: use float (#1761) |
 | task-level-parallelism-control-driven-channels-autorestart | C++ | fail | fail | skip | - | C simulation: diamond_test.cpp:23: the header 'ap_float.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-control-driven-channels-merge-split-merge-load-balance | C++ | pass | pass | pass | 600 |  |
 | task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | pass | pass | pass | 600 |  |

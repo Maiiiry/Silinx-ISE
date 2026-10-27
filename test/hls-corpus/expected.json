@@ -133,7 +133,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 43: 'real_val': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>"
+    "reason": "C simulation: 44: cos: floating point is not supported in Silinx HLS yet (the test bench only)"
   },
   "interface-memory-ecc-flags": {
     "csim": "pass",
@@ -209,7 +209,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 24: 'real_val': floating point (dint_t) is not supported in Silinx HLS yet: use integers or ap_int<W>"
+    "reason": "C simulation: 24: 'real_val': double is not supported in Silinx HLS yet: use float (#1761)"
   },
   "interface-memory-using-axi-master": {
     "csim": "fail",
@@ -454,7 +454,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 23: the parameter 'in': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>"
+    "reason": "C simulation: 36: an index of a value that is not an array"
   },
   "modeling-using-array-stencil-2d": {
     "csim": "fail",
@@ -547,7 +547,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 21: the parameter 'A': floating point (data_t) is not supported in Silinx HLS yet: use integers or ap_int<W>"
+    "reason": "C simulation: 21: the parameter 'A': double is not supported in Silinx HLS yet: use float (#1761)"
   },
   "task-level-parallelism-control-driven-channels-autorestart": {
     "csim": "fail",

@@ -38,11 +38,11 @@ export const C_HINTS = [
       fix: 'Escreva p[1] em vez de *(p + 1).' },
   },
   {
-    id: 'c-float', re: /floating point \((.+)\) is not supported in Silinx HLS yet/,
-    en: { explain: 'Floating-point numbers ($1) need large arithmetic units; Silinx HLS works with integers for now.',
-      fix: 'Use integers scaled by a power of 2 (e.g. the value × 256), or ap_int<W> / ap_uint<W> of the width you need.' },
-    pt: { explain: 'Os números de vírgula flutuante ($1) precisam de unidades aritméticas grandes; por agora o Silinx HLS trabalha com inteiros.',
-      fix: 'Use inteiros multiplicados por uma potência de 2 (p. ex. o valor × 256), ou ap_int<W> / ap_uint<W> com a largura de que precisa.' },
+    id: 'c-float', re: /\b(double) is not supported in Silinx HLS yet: use float|floating point \((.+)\) is not supported in Silinx HLS yet/,
+    en: { explain: 'Silinx HLS makes float in hardware (IEEE-754, each operation a circuit of its own, as Vitis HLS\'s cores); $1 is not made yet: it needs larger circuits still.',
+      fix: 'Use float (and write its constants as floats: 0.5f), or integers / ap_fixed<W, I> when the values have a known range.' },
+    pt: { explain: 'O Silinx HLS faz float em hardware (IEEE-754, cada operação um circuito, como os cores do Vitis HLS); $1 ainda não: precisa de circuitos ainda maiores.',
+      fix: 'Use float (e escreva as suas constantes como float: 0.5f), ou inteiros / ap_fixed<W, I> quando os valores têm uma gama conhecida.' },
   },
   {
     id: 'c-loop-bound', re: /^the number of iterations of this loop is not known/,

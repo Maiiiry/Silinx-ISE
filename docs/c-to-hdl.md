@@ -35,8 +35,16 @@ Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* bel
 | `long`, `long long` and their unsigned | 64 | |
 | `int8_t` … `int64_t`, `uint8_t` … `uint64_t` | as named | |
 | `ap_int<W>` / `ap_uint<W>` | W | yes / no |
+| `float` (#1768) | 32 (its IEEE-754 bits) | |
 
-No floating point in hardware. `ap_fixed<W, I, Q, O>` / `ap_ufixed` (`#include "ap_fixed.h"`, #1643) run in the C
+**`float` in hardware** (#1768): a synthesized function's float variables, arguments, arrays and results are their
+IEEE-754 binary32 bits (32-bit ports, as Vitis HLS's), and each operation (`+ - *`, the comparisons, `?:`, `-x`, `!x`,
+the conversions to and from the integers) is a circuit of the soft-float library (core/c-softfloat.js: round to nearest
+even, subnormals, infinities, a NaN `0x7fc00000`), inlined where it is: the hardware gives the C simulation's bits. A
+`double` constant is a float's value when converted to one (`float s = 0.0;`); in an operation with a float write it as
+a float (`0.5f`): `double` arithmetic, `double` itself, a division and `math.h` are not made yet (#1761).
+
+`ap_fixed<W, I, Q, O>` / `ap_ufixed` (`#include "ap_fixed.h"`, #1643) run in the C
 simulation as AMD's `ap_fixed.h` computes them: full-precision results, the quantization modes (`AP_TRN`,
 `AP_TRN_ZERO`, `AP_RND`, `AP_RND_ZERO`, `AP_RND_MIN_INF`, `AP_RND_INF`, `AP_RND_CONV`) and overflow modes (`AP_WRAP`,
 `AP_SAT`, `AP_SAT_ZERO`, `AP_SAT_SYM`) of a conversion, `to_double()`, `to_int()` (toward zero), `cout` of a value.

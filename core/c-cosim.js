@@ -12,12 +12,15 @@
 import { simulateC } from './c-interp.js';
 import { cToHdl } from './c-hdl.js';
 import { simulate } from './compile.js';
+import { f32Bits } from './c-dataflow-float.js';
 
 export const MAX_CYCLES = 100000;
 const mask = (w) => (1n << BigInt(w)) - 1n;
-const hex = (v, w) => `${w}'h${(BigInt(v) & mask(w)).toString(16)}`;
+// (a float's value: its IEEE bits, as its port holds them, #1768)
+const B = (v, w) => (typeof v === 'number' ? f32Bits(v) : BigInt(v)) & mask(w);
+const hex = (v, w) => `${w}'h${B(v, w).toString(16)}`;
 /** A struct's port's value (#1628): its members' (value(member)) at their fields, the padding 0. */
-export const pack = (fields, value) => fields.reduce((acc, f) => acc | ((BigInt(value(f.param) ?? 0n) & mask(f.w)) << BigInt(f.off)), 0n);
+export const pack = (fields, value) => fields.reduce((acc, f) => acc | (B(value(f.param) ?? 0n, f.w) << BigInt(f.off)), 0n);
 
 /** The Verilog test bench replaying the calls: one line of hex values per call (and the protocol's faults last). */
 export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
@@ -123,12 +126,12 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
     const row = rows[k] || [];
     let q = 0;
     const say = (p, expected, got) => mismatches.push({ call: k + 1, port: p, expected, got });
-    if (port('ap_return')) { const { w, fields } = port('ap_return'); const exp = fields ? pack(fields, (m) => c.ptrOut[m]) : c.ret === null ? null : c.ret & mask(w); const got = row[q++]; if (exp !== null && got !== exp) say('ap_return', exp, got); }
+    if (port('ap_return')) { const { w, fields } = port('ap_return'); const exp = fields ? pack(fields, (m) => c.ptrOut[m]) : c.ret === null ? null : B(c.ret, w); const got = row[q++]; if (exp !== null && got !== exp) say('ap_return', exp, got); }
     for (const o of gen.ports.filter((p) => p.dir === 'out' && p.role === 'arg')) {
       const val = row[q++], vld = row[q++];
       // (a struct's: its members', those not written as they were, #1628)
-      const exp = o.fields ? pack(o.fields, (m) => c.ptrOut[m] ?? c.ptrIn[m]) : (c.ptrOut[o.param] ?? 0n) & mask(o.w);
-      const before = o.fields ? pack(o.fields, (m) => c.ptrIn[m]) : c.ptrIn[o.param] === undefined ? null : c.ptrIn[o.param] & mask(o.w);
+      const exp = o.fields ? pack(o.fields, (m) => c.ptrOut[m] ?? c.ptrIn[m]) : B(c.ptrOut[o.param] ?? 0n, o.w);
+      const before = o.fields ? pack(o.fields, (m) => c.ptrIn[m]) : c.ptrIn[o.param] === undefined ? null : B(c.ptrIn[o.param], o.w);
       if (vld === 1n) { if (val !== exp) say(o.name, exp, val); }
       else if (o.name.endsWith('_o') ? exp !== before : before !== null && exp !== before) say(`${o.name}_ap_vld`, 1n, vld);
     }
@@ -137,7 +140,7 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
       const exp = c.memOut[x.name] || [];
       // (the elements the C's array has: a pointer argument's memory may be deeper than it, #1599)
       const n = c.memOut[x.name] && exp.length < x.n ? exp.length : x.n;
-      for (let k = 0; k < x.n; k++) { const got = row[q++], e = (exp[k] ?? 0n) & mask(x.w); if (k < n && got !== e) say(`${x.name}[${k}]`, e, got); }
+      for (let k = 0; k < x.n; k++) { const got = row[q++], e = B(exp[k] ?? 0n, x.w); if (k < n && got !== e) say(`${x.name}[${k}]`, e, got); }
     }
     for (const f of gen.fifos || []) {
       if (f.dir === 'in') {
@@ -149,7 +152,7 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
       const exp = c.streamOut[f.name] || [];
       const n = row[q++];
       if (n !== BigInt(exp.length)) say(`${f.name} (values written)`, BigInt(exp.length), n);
-      exp.forEach((v, k) => { const got = row[q++], e = v & mask(f.w); if (got !== e) say(`${f.name}[${k}]`, e, got); });
+      exp.forEach((v, k) => { const got = row[q++], e = B(v, f.w); if (got !== e) say(`${f.name}[${k}]`, e, got); });
     }
     if (tb.seq) cycles.push(Number(row[q] ?? 0n));
   });

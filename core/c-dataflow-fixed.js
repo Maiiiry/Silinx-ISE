@@ -13,7 +13,8 @@ const OPS = { '+': 'add', '-': 'sub', '&': 'and', '|': 'or', '^': 'xor' };
 
 export const fixedMethods = {
   /** A double constant (a literal, -literal): its number, to be an ap_fixed's value. */
-  floatConst(e, neg = false) { const x = Number(e.text.replace(/[fFlL]$/, '')); return { fconst: neg ? -x : x, t: { w: 64, s: true, fl: 64 }, id: null, loc: e.loc }; },
+  // (single: written as a float, 0.5f, core/c-dataflow-float.js, #1768)
+  floatConst(e, neg = false) { const x = Number(e.text.replace(/[fFlL]$/, '')); return { fconst: neg ? -x : x, t: { w: 64, s: true, fl: 64 }, id: null, loc: e.loc, single: /[fF]$/.test(e.text), text: `${neg ? '-' : ''}${e.text.replace(/[fF]$/, '')}` }; },
   /** The bits of a constant initial value e of the type t (an ap_fixed's: a double or an integer, quantized as the C
    *  simulation does), or null. */
   constOf(e, t) {
