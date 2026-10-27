@@ -194,6 +194,27 @@ Each access takes a state: a statement reading a memory has a state per read (it
 other side effect in it; the index of a memory has no side effect; a memory is accessed in the top function only
 (not passed to a function, not in a `switch`). A combinational function's constant arrays are LUT ROMs.
 
+### DATAFLOW (#1707)
+
+`#pragma HLS DATAFLOW` in the top function, whose body is calls of functions and declarations of streams and
+arrays, makes each call a **process** running at the same time as the others, as Vitis HLS does (UG1399,
+Task-level parallelism): each callee is a module of its own, made as the top would be (its own machine and
+`ap_ctrl_hs`; a callee called twice, two instances; a pointer argument the size of the array it is given). The
+channels between them:
+
+- a local `hls::stream` is a **FIFO**, one process writing it and one reading it; its depth is `#pragma HLS STREAM
+  variable= depth=`'s, else `hls::stream<T, D>`'s `D`, else 2;
+- a local array is a **buffer** (a block RAM) written by one process; the process reading it starts once its writer
+  is done (ping-pong within a call);
+- the top's arguments are passed to the process that uses them: a stream or an array to one process, a scalar to
+  any (an argument of a call is an argument of the top, a constant, a local stream or array).
+
+The top's `ap_ctrl_hs` starts every process once a call and is done when every one is. The C simulation runs the
+calls in order; the co-simulation drives the top's ports as for any module, and when a call does not end it names
+the streams that may be too shallow (a stream to a process that waits for its writer to be done, through a buffer,
+must hold all a call writes). Not yet: a process giving back a value (a pointer output or a result), an argument of
+the top shared by two processes, a channel with two writers or readers, `hls::task` (#1706).
+
 ## Pragmas (`#pragma HLS …`)
 
 | Pragma | In Silinx |
@@ -206,7 +227,9 @@ other side effect in it; the index of a memory has no side effect; a memory is a
 | `PIPELINE [II=]` (in a loop's body) | a sequential module's loop: an iteration a state (II=1: its condition, body and step in one clock cycle); a loop that accesses a memory, has a loop or a `continue` in it keeps its states, a warning saying the II made |
 | `UNROLL` / `UNROLL factor=N` (in a loop's body) | whole: a loop of constant count run in the state it is in (no state of its own); `factor=N`: N iterations a state. A combinational module's loops are all unrolled |
 | `ARRAY_PARTITION variable= type=complete` | the array's elements registers, whatever its size (not a memory); `block` / `cyclic` ignored with a warning |
-| `DATAFLOW`, `STREAM`, `LATENCY`, `BIND_OP`, `BIND_STORAGE`, `DEPENDENCE`, `LOOP_FLATTEN`, … and AXI interfaces (`s_axilite`, `m_axi`, `axis`) | accepted and ignored, with a warning; an unknown pragma: a warning |
+| `DATAFLOW` (the top function's, #1707) | its calls processes running at once (below); a region of other statements: a warning, made sequential |
+| `STREAM variable= depth=` | a DATAFLOW region's stream: its FIFO's depth (else `hls::stream<T, D>`'s D, else 2) |
+| `STREAM` elsewhere, `LATENCY`, `BIND_OP`, `BIND_STORAGE`, `DEPENDENCE`, `LOOP_FLATTEN`, … and AXI interfaces (`s_axilite`, `m_axi`, `axis`) | accepted and ignored, with a warning; an unknown pragma: a warning |
 
 A loop's pragma is its body's first statements; one elsewhere is ignored with a warning (a function's `PIPELINE`
 too). The generation's report (`cToHdl(…).report`) gives a sequential module's states, register bits, memories

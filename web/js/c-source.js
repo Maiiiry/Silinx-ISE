@@ -123,10 +123,17 @@ export async function runCReport(path) {
   if (!r.ok) { log('\nProcess "View C Synthesis Report" failed', 'err', { diag: false }); return false; }
   const rep = r.report;
   const L = [`C Synthesis Report of '${r.top}' (${path}, ${lang === 'vhdl' ? 'VHDL' : 'Verilog'})`, ''];
-  L.push(rep.sequential ? `Module: sequential, ap_ctrl_hs (ap_clk, ap_rst, ap_start / ap_done / ap_idle / ap_ready), ${rep.states} states, ${rep.registerBits} register bits` : 'Module: combinational');
+  if (rep.dataflow) L.push(`Module: DATAFLOW, ap_ctrl_hs (ap_clk, ap_rst, ap_start / ap_done / ap_idle / ap_ready), ${rep.processes.length} processes running at once`);
+  else L.push(rep.sequential ? `Module: sequential, ap_ctrl_hs (ap_clk, ap_rst, ap_start / ap_done / ap_idle / ap_ready), ${rep.states} states, ${rep.registerBits} register bits` : 'Module: combinational');
   L.push('', 'Ports:');
   for (const p of r.ports) L.push(`  ${p.name.padEnd(16)} ${p.dir === 'in' ? 'in ' : 'out'} ${String(p.w).padStart(3)} bit${p.w > 1 ? 's' : ''}`);
-  if (rep.memories?.length) { L.push('', 'Memories:'); for (const m of rep.memories) L.push(`  ${m.name.padEnd(16)} ${m.words} x ${m.bits} bits, ${m.kind === 'ap_memory' ? 'ap_memory (outside the module)' : m.kind === 'ROM' ? 'a ROM (block RAM)' : 'a RAM (block RAM)'}`); }
+  // (DATAFLOW, #1707: each process a module, the FIFOs between them)
+  if (rep.dataflow) {
+    L.push('', 'Processes:');
+    for (const p of rep.processes) L.push(`  ${p.instance.padEnd(16)} ${p.name}: ${p.states} states, ${p.registerBits} register bits${p.after.length ? `; starts once ${p.after.join(', ')} ${p.after.length > 1 ? 'are' : 'is'} done` : ''}`);
+    if (rep.fifos.length) { L.push('', 'FIFOs:'); for (const f of rep.fifos) L.push(`  ${f.name.padEnd(16)} ${f.depth} words`); }
+  }
+  if (rep.memories?.length) { L.push('', 'Memories:'); for (const m of rep.memories) L.push(`  ${m.name.padEnd(16)} ${m.words} x ${m.bits} bits, ${m.kind === 'ap_memory' ? 'ap_memory (outside the module)' : m.kind === 'ROM' ? 'a ROM (block RAM)' : m.kind === 'RAM (PIPO)' ? 'a buffer between processes (block RAM)' : 'a RAM (block RAM)'}`); }
   if (rep.loops?.length) {
     L.push('', 'Loops:');
     for (const l of rep.loops) {

@@ -128,7 +128,7 @@ int main(void) { for (int k = 0; k < 90; k += 7) printf("%d ", shift(k)); return
 test('#1529 the pragmas accepted and ignored, unknown, misplaced or wrong: their warnings and errors; a combinational module\'s report', () => {
   const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line} ${d.severity}: ${d.message}`);
   assert.deepEqual(msgs('int f(int a) {\n#pragma HLS DATAFLOW\n#pragma HLS LATENCY max=2\n#pragma HLS FOO\n  return a;\n}'), [
-    '2 warning: #pragma HLS DATAFLOW is accepted and ignored: Silinx does not make it',
+    '2 warning: #pragma HLS DATAFLOW: the region has its statements other than calls of functions and declarations of streams and arrays: made sequential (not as processes)',
     '3 warning: #pragma HLS LATENCY is accepted and ignored: Silinx does not make it',
     '4 warning: #pragma HLS FOO is not a pragma Silinx knows: ignored',
   ]);

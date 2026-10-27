@@ -163,22 +163,26 @@ export function checkC(source, file = 'input.c', opts = {}) {
 
   // ---------------------------------------------------------------- each function: names, calls, constructs
   const loops = [];
-  pointerArithmetic(funcs, globals, synth, report, ast.structArgs, top);   // (*(p + e) is p[e]; a pointer argument indexed an array, #1599)
+  // (opts.depths: a DATAFLOW process's pointer arguments, its caller's arrays' sizes, core/c-processes.js, #1707)
+  pointerArithmetic(funcs, globals, synth, report, ast.structArgs, top, opts.depths);   // (*(p + e) is p[e]; a pointer argument indexed an array, #1599)
   pointerVariables(funcs, globals, synth, report);   // (a local pointer: its target and offset)
   for (const f of funcs.values()) {
     if (!f.body) continue;
     const hw = synth.has(f.name);
-    checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk });
+    checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk, dataflow: f.name === top && hasDataflow(f) });
   }
   // the HLS pragmas of the synthesized functions (#1529)
   checkPragmas(ast, new Map([...funcs].filter(([n]) => synth.has(n))), report);
   diags.sort((a, b) => a.line - b.line || a.col - b.col);
-  return { ast, top, funcs, loops, diagnostics: diags, ok: !diags.some((d) => d.severity === 'error') };
+  return { ast, top, funcs, loops, diagnostics: diags, ok: !diags.some((d) => d.severity === 'error'), dataflow: !!top && hasDataflow(funcs.get(top)) };
 }
 
 /** The checks of one function's body (hw: it is synthesized). */
+/** Whether a function's body has #pragma HLS DATAFLOW (its processes, core/c-processes.js, #1707). */
+export const hasDataflow = (f) => !!f?.body?.items.some((st) => st.kind === 'pragma' && st.pragma.name === 'DATAFLOW');
+
 function checkFunction(f, ctx) {
-  const { hw, funcs, globals, consts, report, loops, typeOk } = ctx;
+  const { hw, funcs, globals, consts, report, loops, typeOk, dataflow } = ctx;
   const scopes = [new Map()];
   for (const pa of f.params) {
     if (!pa.name) { if (f.name !== 'main') report(pa.loc, `a parameter of '${f.name}' has no name`); continue; }   // (main(int, char **), C++)
@@ -203,7 +207,8 @@ function checkFunction(f, ctx) {
     typeOk(v.type, v.loc);
     if (hw) {
       typeHw(v.type, v.loc, `'${v.name}'`);
-      if (v.type.kind === 'stream') report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
+      // (a DATAFLOW region's: a FIFO between its processes, #1707)
+      if (v.type.kind === 'stream' && !dataflow) report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
       if (v.type.kind === 'ptr' && !v.said) report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)`);
       if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
     }

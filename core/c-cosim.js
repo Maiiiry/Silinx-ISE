@@ -131,7 +131,12 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
     }
     if (tb.seq) cycles.push(Number(row[q] ?? 0n));
   });
-  if (tb.seq && cycles.some((x) => x >= maxCycles)) return { ...base, ok: true, errors: [`a call did not end in ${maxCycles} cycles`], calls: sim.calls.length, mismatches };
+  if (tb.seq && cycles.some((x) => x >= maxCycles)) {
+    // (DATAFLOW's processes waiting for each other: a stream too shallow for a call's values, core/c-processes.js, #1707)
+    const w = gen.report?.waits || [];
+    const why = w.length ? `: DATAFLOW's processes may wait for each other: ${[...new Set(w.map((x) => `${x.to}|${x.from}`))].map((k) => { const [to, from] = k.split('|'); return `'${to}' starts once '${from}' is done, and ${w.filter((x) => x.to === to && x.from === from).map((x) => `the stream '${x.stream}' from '${from}' to it holds ${x.depth} values`).join('; ')} (a call may write more)`; }).join('; ')}` : '';
+    return { ...base, ok: true, errors: [`a call did not end in ${maxCycles} cycles${why}`], calls: sim.calls.length, mismatches };
+  }
   if (bad) mismatches.push({ call: null, port: 'ap_ctrl_hs', expected: 'ap_idle between calls, ap_done with ap_ready', got: `${bad} fault(s)` });
   const latency = tb.seq ? { min: Math.min(...cycles), max: Math.max(...cycles), avg: cycles.reduce((a, b) => a + b, 0) / cycles.length } : null;
   return { ...base, ok: true, pass: !mismatches.length, calls: sim.calls.length, mismatches, latency };
