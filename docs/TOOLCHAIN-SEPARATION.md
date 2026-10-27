@@ -115,7 +115,8 @@ view does, which stays in the IDE), so the elkjs permission is not needed for th
 component is Yosys (YoWASP, ISC, with Yosys's own dependencies' notices). The package needs a NOTICE and a
 THIRD-PARTY-NOTICES of its own; the IDE's keep listing Yosys while it bundles it in the standalone edition.
 The bit database and the routing graphs are facts measured by observation (`docs/OPEN-TOOLCHAIN.md`): their
-licence can be decided apart from the code's (Project X-Ray publishes its database under CC0).
+licence could have been another than the code's (Project X-Ray publishes its database under CC0); the
+package's licence, the data's included, is decided in section 4.
 
 ## 3. How to separate it
 
@@ -147,7 +148,7 @@ recommended: it duplicates everything and does not fit a protected `main` with a
 Each step is a pull request (or a few) that changes no behaviour, as CLAUDE.md's splitting rules (#405) ask:
 the code moves as it is, the old modules re-export what moved, the importers stay as they are until the step
 that changes them, the moved modules are checked against `main`'s on the corpus. Steps 1 to 5 change nothing
-in the layout and can start now; step 6 needs the package's name.
+in the layout and can start now; the decisions steps 6 and 10 needed are taken (section 4).
 
 1. **A boundary test** ([#1672](https://github.com/pmnmalo/Silinx-ISE/issues/1672)): the toolchain's
    modules, and the modules of the IDE they may import today (the four above), listed in a test; a new import
@@ -164,8 +165,8 @@ in the layout and can start now; step 6 needs the package's name.
 5. **The bit database out of research/** ([#1676](https://github.com/pmnmalo/Silinx-ISE/issues/1676)): the
    data the application ships moves next to the graphs; research re-exports its path (`test/layering.test.js`);
    the standalone build and the related tests' data map (#772) follow.
-6. **The workspace package** ([#1677](https://github.com/pmnmalo/Silinx-ISE/issues/1677)): `packages/<name>/`
-   with its `package.json` (private until publishing is decided), the root's `workspaces`; `core/fpga/` (the
+6. **The workspace package** ([#1677](https://github.com/pmnmalo/Silinx-ISE/issues/1677)): `packages/silinx-fpga/`
+   with its `package.json` (private until step 10) and its Apache-2.0 LICENSE, the root's `workspaces`; `core/fpga/` (the
    Spartan-6 part, the graphs and the bit database included) and the toolchain's modules of `core/` move there
    as they are, in a few PRs; every old path re-exports, the server serves the package to the browser, the
    standalone build and the release zip take it. Done in agreement with the sessions working in `core/fpga/`
@@ -181,19 +182,29 @@ in the layout and can start now; step 6 needs the package's name.
    the 64 unit test files, `check:open-flow`, the data-building research; the test globs, the shards,
    related-tests and the workflows (ISE, Quality, Yosys update) follow.
 10. **Licence, notices, versioning and publishing**
-    ([#1681](https://github.com/pmnmalo/Silinx-ISE/issues/1681)): once Pedro has decided (below): the package's
-    LICENSE, NOTICE and THIRD-PARTY-NOTICES, its changelog fragments and version, a publishing workflow.
+    ([#1681](https://github.com/pmnmalo/Silinx-ISE/issues/1681)): as decided (section 4): the package's NOTICE
+    and THIRD-PARTY-NOTICES, the IDE's NOTICE naming it, its changelog fragments and 0.x version, a publishing
+    workflow from its own tag in this repository.
 11. **Its own repository** ([#1651](https://github.com/pmnmalo/Silinx-ISE/issues/1651)): when decided.
 
-## 4. To decide (Pedro)
+## 4. Decided
 
-- **The name**: of the package and of a later repository (for example `silinx-fpga`, `@silinx/fpga`,
-  `spartan3e-toolchain`); an npm scope needs an npm organisation.
-- **The licence of the package**: AGPL-3.0-only as today (simplest; as the only author Pedro can still
-  relicense later), or LGPL-3.0 / MPL-2.0 (a library others can link), or permissive (MIT, Apache-2.0, ISC
-  like Yosys). And the data's (the bit database, the graphs): the code's, or CC0 / CC-BY as Project X-Ray.
-- **npm publishing**: whether, when (only from its own repository, or already from this one), and with
-  provenance; the package carries 12 MB of graphs and the bit database, and depends on Yosys (76 MB).
-- **Versioning**: its own semver (0.x until the API is stable) with its own changelog, or the IDE's version.
-- **The front end**: the package takes flat Verilog or a Yosys netlist; VHDL needs Silinx's front end (the
-  parsers and the elaborator, 19 000 lines), which stays in the IDE unless it becomes a package of its own too.
+Pedro's decisions (27 October 2026):
+
+- **The name**: `silinx-fpga`, for the package (unscoped: no npm organisation needed; the name was free on
+  npm) and for a later repository; its command line is `silinx-fpga`.
+- **The licence**: Apache-2.0, for the code and the data alike (the bit database, the device graphs): one
+  LICENSE for the whole package. Pedro, the only author, relicenses the moved code; the IDE stays
+  AGPL-3.0-only with the elkjs permission, and Apache-2.0 code may be part of an AGPL-3.0 work. The IDE's
+  NOTICE then names `silinx-fpga` (Apache-2.0) among its components, and the package has its own NOTICE
+  (Apache-2.0's) and THIRD-PARTY-NOTICES (Yosys / YoWASP, ISC).
+- **npm publishing**: from this repository, from a tag of its own (for example `silinx-fpga-v0.1.0`), with
+  provenance, once its tests have passed on that commit; the package carries the graphs and the bit database
+  (17 MB) and depends on `@yowasp/yosys`.
+- **Versioning**: its own semver, 0.x until the API is stable, with its own changelog (its own fragments).
+- **The front end**: the package takes flat Verilog or a Yosys netlist (JSON); VHDL stays the IDE's, whose
+  front end (the parsers and the elaborator, 19 000 lines) gives the package flat Verilog. A front-end package
+  of its own may come later.
+
+So step 6 no longer waits, and step 10 can follow it at once: the package's LICENSE comes with its folder,
+its publishing when the API (step 7) is in place.
