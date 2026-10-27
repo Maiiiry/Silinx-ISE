@@ -33,7 +33,7 @@ import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
 import { prefKey } from './prefs.js';
 import { keepCursor, keptCursor } from './doc-cursor.js';
-import { placeSplit, restoreSplit, splitClosed, splitItems, splitKeys } from './split-view.js';
+import { mountSplit, placeSplit, restoreSplit, splitClosed, splitItems, splitKeys } from './split-view.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -352,10 +352,9 @@ export function openDoc(spec) {
 
 // background: opened with the project, not by the user (a narrow screen's drawer stays open)
 export function activateDoc(doc, { background = false } = {}) {
-  const prev = S.active;
   S.active = doc;
   for (const d of S.docs) { d.el.hidden = d !== doc; d.tab.classList.toggle('active', d === doc); }
-  placeSplit(doc, prev);   // (the other pane's document shown beside it, #1619)
+  placeSplit(doc);   // (on its side, the other side's document shown beside it, #1619, #1652)
   doc.onActivate?.();
   $('status-pos').textContent = '';
   if (!keepView && !background) drawerGiveWay();   // a narrow screen: the drawer gives way to the document (#266)
@@ -420,7 +419,7 @@ export async function closeDoc(doc) {
   doc.destroy?.();
   doc.el.remove(); doc.tab.remove();
   S.docs = S.docs.filter(d => d !== doc);
-  const other = splitClosed(doc);   // (the other pane's document in front, #1619)
+  const other = splitClosed(doc);   // (its side's next document in front, #1619, #1652)
   if (S.active === doc) { const last = other || S.docs[S.docs.length - 1]; if (last) activateDoc(last); else S.active = null; }
   saveViewState();
   return true;
@@ -897,6 +896,7 @@ async function boot() {
   document.querySelectorAll('.ico-inline[data-icon]').forEach(e => { e.innerHTML = icons[e.dataset.icon] || ''; });
   setupMenus();
   setupToolbar();
+  mountSplit();   // (the Split button, #1652)
   splitter($('v-split'), $('left'), { dir: 'h', min: 180, max: 700, storageKey: 'xl.leftW' });
   splitter($('left-split'), $('proc-panel'), { dir: 'v', min: 80, max: 900, invert: true, storageKey: 'xl.procH' });
   splitter($('h-split'), $('console-wrap'), { dir: 'v', min: 60, max: 700, invert: true, storageKey: 'xl.consoleH' });

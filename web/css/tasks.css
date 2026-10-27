@@ -80,10 +80,10 @@ html[data-layout="tasks"] #task-doc:not([hidden]) { display: inline-flex; align-
 #task-doc .task-doc-model:empty { display: none; }
 
 /* ------------------------------------------------------------------ the current task's documents only */
-html[data-layout="tasks"][data-task="edit"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="edit"]),
-html[data-layout="tasks"][data-task="sim"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="sim"]),
-html[data-layout="tasks"][data-task="emu"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="emu"]),
-html[data-layout="tasks"][data-task="impl"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="impl"]) { display: none !important; }
+html[data-layout="tasks"][data-task="edit"] :is(#workspace > .doc, #doc-tabs .tab):not([data-task="edit"]),
+html[data-layout="tasks"][data-task="sim"] :is(#workspace > .doc, #doc-tabs .tab):not([data-task="sim"]),
+html[data-layout="tasks"][data-task="emu"] :is(#workspace > .doc, #doc-tabs .tab):not([data-task="emu"]),
+html[data-layout="tasks"][data-task="impl"] :is(#workspace > .doc, #doc-tabs .tab):not([data-task="impl"]) { display: none !important; }
 /* a task with no document: what it does and its action */
 html[data-layout="tasks"] #task-empty:not([hidden]) { display: flex; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 24px; color: var(--m-muted); text-align: center; }

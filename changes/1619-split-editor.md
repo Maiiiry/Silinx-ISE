@@ -1,9 +1,3 @@
-In short:
-
-- **Two documents side by side:** a drawing or a C source and its generated HDL, or any two open documents, in two
-  panes of the workspace with a divider between them: *Show Generated HDL Beside* and *Open to the Side* (a tab's
-  right-click menu, the View menu); the HDL follows the drawing as it is edited.
-
 In detail:
 
 - **Split editor (#1619):** web/js/split-view.js. A document's tab (its right-click menu) and the View menu: *Open to
