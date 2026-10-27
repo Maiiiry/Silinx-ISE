@@ -275,12 +275,29 @@ own, in tiles none of the measured slices is in; the base's outputs AMUX … DMU
 nets and the incomplete settings; `-force` writes them anyway).
 
 - **Measured now**: CLKINV (CLK_B one bit), CEUSED and SRUSED (one bit each, cleared when unused), every
-  `*OUTMUX` option (O6 one bit, O5 none, A5Q, XOR, CY, F7 / F8, a SLICEM's MC31: one or two bits), the flip-flops'
+  `*OUTMUX` option (O6 one bit, A5Q, XOR, CY, F7 / F8, a SLICEM's MC31: one or two bits; O5 none without a 5-input
+  LUT, two bits with one: below), the flip-flops'
   sources AX … DX on a SLICEL or SLICEM, a SLICEM's ADI1MUX = AX, BDI1MUX = BX, CDI1MUX = CX, WEMUX = CE, WA7USED and
   WA8USED (frame 2). The settings measured without nets are the same.
 - **Still no bits**: the outputs used (`*USED`: the routing's), the carry (CARRY4, CYINIT, `*CY0`, PRECYINIT,
   COUTUSED), F7 / F8, the 5-input flip-flops (ISE wants a net on their D) and the DI muxes' other options (their
   default): the next round's base has the carry chain, F7 / F8 and the 5-input flip-flops in use.
+
+### The carry, F7 / F8 and the 5-input flip-flops (#725, S6-C, 2026-10-28)
+
+`gen-slice6.mjs --full`: the designs with nets, their base also with the 5-input LUTs (O5 = A1 * A2) and flip-flops
+(the outputs AMUX … DMUX on A5Q … D5Q) and, on a SLICEL or SLICEM, the carry chain (CARRY4 from CYINITGND,
+PRECYINIT 0, every CY0 on O5, COUTUSED) and F7AMUX, F7BMUX, F8MUX. `ana-slice6.mjs --full`:
+`db/xc6slx16-slice-full.json`. Three designs, 7 minutes.
+
+- **The carry**: `*CY0 = O5` one bit per LUT (A 54, B 48, C 14, D 8 of frame 4 or 5), AX none; PRECYINIT 0 none, 1
+  bit 52, AX bit 49; COUTUSED off (the chain unused) clears the four CY0 bits. CARRY4, CYINITGND / CYINITVCC and
+  F7AMUX / F7BMUX / F8MUX have no bits of their own (their use shows in the muxes that take them).
+- **The outputs**: A5Q bit 60, O6 63, O5 61 and 63 (with a 5-input LUT), XOR 62, CY 61 and 62, F7 61 (and A5Q's
+  60): the same for B … D at their bits.
+- **The 5-input flip-flops**: SRINIT1 a bit each, in frames before the slice's (a SLICEL's or SLICEM's one before,
+  a SLICEX's six or seven); nothing else of their own.
+- What remains without bits is the routing's (`*USED`, the pins' nets) or a default.
 
 ## The order of the work
 

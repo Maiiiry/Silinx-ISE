@@ -8,9 +8,11 @@
 // With --nets every pin of the measured slices has a net (unrouted): the inputs (CLK, CE, SR, AX … DX, a SLICEM's
 // WE and AI … DI) from a driver slice's outputs, each output to a sink slice of its own (LUT inputs), drivers and
 // sinks in tiles of their own; the base's outputs AMUX … DMUX then on O6: the settings of the pins.
-//   node research/s6/gen-slice6.mjs [--nets] <out dir> [part …]      (default the XC6SLX16)
+// With --full (and the nets) the base also has the 5-input LUTs (O5 = A1 * A2) and flip-flops (on AMUX … DMUX), and a
+// SLICEL's or SLICEM's carry chain (CARRY4 from GND, every CY0 on O5) and F7 / F8: the settings these need.
+//   node research/s6/gen-slice6.mjs [--nets | --full] <out dir> [part …]      (default the XC6SLX16)
 // <part>.slice<kind>.xdl and <part>.slice<kind>.json ({ slice: variant name }, 'BASE' the two bases); with --nets
-// <part>.nets<kind>.xdl / .json.
+// <part>.nets<kind>.xdl / .json, with --full <part>.full<kind>.xdl / .json.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,15 +22,25 @@ import { LUTS, lutSlices } from './gen-lutmap6.mjs';
 const TYPE = { X: 'SLICEX', L: 'SLICEL', M: 'SLICEM' };
 const EQN = '(A1*A2)';
 
-/** The base slice's settings: [[element, BEL name, value]] (nets: the outputs AMUX … DMUX on O6). */
-export function baseSettings({ nets = false } = {}) {
+/**
+ * The base slice's settings: [[element, BEL name, value]] (nets: the outputs AMUX … DMUX on O6; full: on the 5-input
+ * flip-flops, with the 5-input LUTs, and a SLICEL's or SLICEM's carry chain and F7 / F8).
+ */
+export function baseSettings({ nets = false, full = false, kind = 'L' } = {}) {
   const out = [];
   for (const p of LUTS) {
     out.push([`${p}6LUT`, `s.${p}6`, `#LUT:O6=${EQN}`], [`${p}FF`, `s.${p}FF`, '#FF'], [`${p}FFMUX`, '', 'O6'],
       [`${p}FFSRINIT`, '', 'SRINIT0'], [`${p}USED`, '', '0']);
-    if (nets) out.push([`${p}OUTMUX`, '', 'O6']);
+    if (full) {
+      out.push([`${p}5LUT`, `s.${p}5`, `#LUT:O5=${EQN}`], [`${p}5FF`, `s.${p}5FF`, ''], [`${p}5FFSRINIT`, '', 'SRINIT0'], [`${p}OUTMUX`, '', `${p}5Q`]);
+      if (kind !== 'X') out.push([`${p}CY0`, '', 'O5']);
+    } else if (nets) out.push([`${p}OUTMUX`, '', 'O6']);
   }
   out.push(['CLKINV', '', 'CLK'], ['SYNC_ATTR', '', 'SYNC'], ['CEUSED', '', '0'], ['SRUSED', '', '0']);
+  if (full && kind !== 'X') {
+    out.push(['CARRY4', 's.CARRY4', ''], ['CYINITGND', 's.CYINITGND', ''], ['PRECYINIT', '', '0'], ['COUTUSED', '', '0'],
+      ['F7AMUX', 's.F7AMUX', ''], ['F7BMUX', 's.F7BMUX', ''], ['F8MUX', 's.F8MUX', '']);
+  }
   return out;
 }
 
@@ -42,10 +54,10 @@ export function sliceVariants(def, opts = {}) {
   const replace = (e, s) => base.map(b => (b[0] === e ? s : b));
   for (const [e, { bel, cfg }] of Object.entries(def)) {
     if (/^[A-D]6LUT$/.test(e)) continue;
-    if (/^[A-D]5LUT$/.test(e)) { put(`${e}=#LUT`, [...base, [e, `s.${e}`, `#LUT:O5=${EQN}`]]); continue; }
     const b = has.get(e);
     if (b) put(`${e}=#OFF`, base.filter(s => s !== b));
-    if (bel && !cfg.length) { put(e, [...base, [e, `s.${e}`, '']]); continue; }
+    if (/^[A-D]5LUT$/.test(e)) { if (!b) put(`${e}=#LUT`, [...base, [e, `s.${e}`, `#LUT:O5=${EQN}`]]); continue; }
+    if (bel && !cfg.length) { if (!b) put(e, [...base, [e, `s.${e}`, '']]); continue; }
     for (const v of cfg) {
       if (b && b[2] === v) continue;
       const s = [e, bel ? `s.${e}` : '', v];
@@ -90,12 +102,19 @@ export function harnessNets(kind, cells, driver, sinks) {
   return out.join('');
 }
 
-/** A kind's design: { xdl, manifest: { slice: variant } }, the base first and last (nets: the pins' nets). */
-export function sliceDesign(part, slices, kind, def, { nets = false } = {}) {
-  const vs = sliceVariants(def, { nets }), at = oneSlicePerTile(slices, kind);
+/** The designs' names by their options: slice, nets, full. */
+export const designName = ({ nets = false, full = false } = {}) => (full ? 'full' : nets ? 'nets' : 'slice');
+
+/**
+ * A kind's design: { xdl, manifest: { slice: variant } }, the base first and last (nets: the pins' nets; full: the
+ * base with the 5-input LUTs and flip-flops, the carry and F7 / F8, and the nets).
+ */
+export function sliceDesign(part, slices, kind, def, { nets = false, full = false } = {}) {
+  if (full) nets = true;
+  const opts = { nets, full, kind }, vs = sliceVariants(def, opts), at = oneSlicePerTile(slices, kind);
   if (at.length < vs.length + 2) throw new Error(`${part}: ${at.length} ${TYPE[kind]} tiles for ${vs.length + 2} slices`);
-  const base = { name: 'BASE', settings: baseSettings({ nets }) }, list = [base, ...vs, base];
-  const out = [`design "${nets ? 'nets' : 'slice'}${kind}" ${part} v3.2 ,\n  cfg "";\n`], manifest = {};
+  const base = { name: 'BASE', settings: baseSettings(opts) }, list = [base, ...vs, base];
+  const out = [`design "${designName(opts)}${kind}" ${part} v3.2 ,\n  cfg "";\n`], manifest = {};
   const cells = list.map((v, i) => { const s = at[i]; out.push(sliceXdl(s, v.settings)); manifest[s.name] = v.name; return s; });
   if (nets) {
     // the driver and the sinks: whole tiles none of the cells is in, from the end of the part
@@ -109,15 +128,15 @@ export function sliceDesign(part, slices, kind, def, { nets = false } = {}) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2), nets = args[0] === '--nets';
-  const [out, ...parts] = nets ? args.slice(1) : args;
-  if (!out) { console.error('usage: node research/s6/gen-slice6.mjs [--nets] <out dir> [part …]'); process.exit(1); }
+  const args = process.argv.slice(2), opts = { nets: args[0] === '--nets', full: args[0] === '--full' };
+  const [out, ...parts] = opts.nets || opts.full ? args.slice(1) : args;
+  if (!out) { console.error('usage: node research/s6/gen-slice6.mjs [--nets | --full] <out dir> [part …]'); process.exit(1); }
   const defs = JSON.parse(fs.readFileSync(new URL('./measured/prim-defs.json', import.meta.url), 'utf8'));
   fs.mkdirSync(out, { recursive: true });
   for (const part of parts.length ? parts : ['xc6slx16csg324-3']) {
     const slices = lutSlices(s6Device(part).sites), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2');
     for (const kind of Object.keys(TYPE)) {
-      const { xdl, manifest } = sliceDesign(part, slices, kind, defs[TYPE[kind]], { nets }), name = `${p}.${nets ? 'nets' : 'slice'}${kind}`;
+      const { xdl, manifest } = sliceDesign(part, slices, kind, defs[TYPE[kind]], opts), name = `${p}.${designName(opts)}${kind}`;
       fs.writeFileSync(path.join(out, `${name}.xdl`), xdl);
       fs.writeFileSync(path.join(out, `${name}.json`), JSON.stringify(manifest));
       console.log(`${name}: ${Object.keys(manifest).length} slices`);
