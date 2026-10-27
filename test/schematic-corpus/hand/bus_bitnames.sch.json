@@ -1,0 +1,291 @@
+{
+ "version": 4,
+ "name": "bus_bitnames",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "slice",
+   "x": 360,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_1",
+   "params": {
+    "msb": 0,
+    "lsb": 0
+   }
+  },
+  {
+   "id": "S2",
+   "type": "buf",
+   "x": 620,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_2",
+   "params": {
+    "width": 1
+   }
+  },
+  {
+   "id": "S3",
+   "type": "slice",
+   "x": 880,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_3",
+   "params": {
+    "msb": 3,
+    "lsb": 3
+   }
+  },
+  {
+   "id": "S4",
+   "type": "inv",
+   "x": 1140,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_4",
+   "params": {
+    "width": 1
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 120,
+     "y": 80
+    },
+    {
+     "x": 140,
+     "y": 80
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 1560,
+     "y": 80
+    },
+    {
+     "x": 1540,
+     "y": 80
+    }
+   ]
+  },
+  {
+   "id": "W6",
+   "points": [
+    {
+     "x": 1560,
+     "y": 140
+    },
+    {
+     "x": 1540,
+     "y": 140
+    }
+   ]
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 360,
+     "y": 90
+    },
+    {
+     "x": 340,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W9",
+   "points": [
+    {
+     "x": 400,
+     "y": 90
+    },
+    {
+     "x": 420,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W11",
+   "points": [
+    {
+     "x": 620,
+     "y": 90
+    },
+    {
+     "x": 600,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W13",
+   "points": [
+    {
+     "x": 680,
+     "y": 90
+    },
+    {
+     "x": 700,
+     "y": 90
+    }
+   ]
+  },
+  {
+   "id": "W15",
+   "points": [
+    {
+     "x": 880,
+     "y": 90
+    },
+    {
+     "x": 860,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W17",
+   "points": [
+    {
+     "x": 920,
+     "y": 90
+    },
+    {
+     "x": 940,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W19",
+   "points": [
+    {
+     "x": 1140,
+     "y": 90
+    },
+    {
+     "x": 1120,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W21",
+   "points": [
+    {
+     "x": 1200,
+     "y": 90
+    },
+    {
+     "x": 1220,
+     "y": 90
+    }
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "id": "L8",
+   "x": 340,
+   "y": 90,
+   "net": "a"
+  },
+  {
+   "id": "L10",
+   "x": 420,
+   "y": 90,
+   "net": "a(0)"
+  },
+  {
+   "id": "L12",
+   "x": 600,
+   "y": 90,
+   "net": "a(0)"
+  },
+  {
+   "id": "L14",
+   "x": 700,
+   "y": 90,
+   "net": "y"
+  },
+  {
+   "id": "L16",
+   "x": 860,
+   "y": 90,
+   "net": "a"
+  },
+  {
+   "id": "L18",
+   "x": 940,
+   "y": 90,
+   "net": "a(3)"
+  },
+  {
+   "id": "L20",
+   "x": 1120,
+   "y": 90,
+   "net": "a(3)"
+  },
+  {
+   "id": "L22",
+   "x": 1220,
+   "y": 90,
+   "net": "z"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 4,
+   "x": 120,
+   "y": 80
+  },
+  {
+   "id": "P3",
+   "name": "y",
+   "dir": "out",
+   "width": 1,
+   "x": 1560,
+   "y": 80
+  },
+  {
+   "id": "P5",
+   "name": "z",
+   "dir": "out",
+   "width": 1,
+   "x": 1560,
+   "y": 140
+  }
+ ],
+ "description": "ISE's way of tapping a bus: the tap's wire named a(0), the bit it takes (#1688).",
+ "generatedFile": "bus_bitnames.vhd"
+}

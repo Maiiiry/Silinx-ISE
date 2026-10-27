@@ -1,0 +1,116 @@
+{
+ "version": 4,
+ "name": "tap_reversed",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "slice",
+   "x": 360,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_1",
+   "params": {
+    "msb": 1,
+    "lsb": 2
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 120,
+     "y": 80
+    },
+    {
+     "x": 140,
+     "y": 80
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 1560,
+     "y": 80
+    },
+    {
+     "x": 1540,
+     "y": 80
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W5",
+   "points": [
+    {
+     "x": 360,
+     "y": 90
+    },
+    {
+     "x": 340,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 400,
+     "y": 90
+    },
+    {
+     "x": 420,
+     "y": 90
+    }
+   ],
+   "bus": true
+  }
+ ],
+ "labels": [
+  {
+   "id": "L6",
+   "x": 340,
+   "y": 90,
+   "net": "a"
+  },
+  {
+   "id": "L8",
+   "x": 420,
+   "y": 90,
+   "net": "y"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 4,
+   "x": 120,
+   "y": 80
+  },
+  {
+   "id": "P3",
+   "name": "y",
+   "dir": "out",
+   "width": 2,
+   "x": 1560,
+   "y": 80
+  }
+ ],
+ "description": "A tap with its MSB below its LSB, MSB 1 and LSB 2 (#1691).",
+ "generatedFile": "tap_reversed.vhd"
+}

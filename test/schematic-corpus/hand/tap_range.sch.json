@@ -1,0 +1,114 @@
+{
+ "version": 4,
+ "name": "tap_range",
+ "lang": "vhdl",
+ "sheet": {
+  "w": 1700,
+  "h": 1100
+ },
+ "symbols": [
+  {
+   "id": "S1",
+   "type": "slice",
+   "x": 360,
+   "y": 80,
+   "rot": 0,
+   "mirror": false,
+   "name": "XLXI_1",
+   "params": {
+    "msb": 5,
+    "lsb": 5
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W2",
+   "points": [
+    {
+     "x": 120,
+     "y": 80
+    },
+    {
+     "x": 140,
+     "y": 80
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W4",
+   "points": [
+    {
+     "x": 1560,
+     "y": 80
+    },
+    {
+     "x": 1540,
+     "y": 80
+    }
+   ]
+  },
+  {
+   "id": "W5",
+   "points": [
+    {
+     "x": 360,
+     "y": 90
+    },
+    {
+     "x": 340,
+     "y": 90
+    }
+   ],
+   "bus": true
+  },
+  {
+   "id": "W7",
+   "points": [
+    {
+     "x": 400,
+     "y": 90
+    },
+    {
+     "x": 420,
+     "y": 90
+    }
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "id": "L6",
+   "x": 340,
+   "y": 90,
+   "net": "a"
+  },
+  {
+   "id": "L8",
+   "x": 420,
+   "y": 90,
+   "net": "y"
+  }
+ ],
+ "ports": [
+  {
+   "id": "P1",
+   "name": "a",
+   "dir": "in",
+   "width": 4,
+   "x": 120,
+   "y": 80
+  },
+  {
+   "id": "P3",
+   "name": "y",
+   "dir": "out",
+   "width": 1,
+   "x": 1560,
+   "y": 80
+  }
+ ],
+ "description": "A tap of bit 5 of a 4-bit bus (#1690).",
+ "generatedFile": "tap_range.vhd"
+}
