@@ -100,7 +100,7 @@
  "bus_taps": {
   "load": "pass",
   "check": "pass",
-  "hdl": "fail: vhdl: bus_taps.vhd:27: Type error near a ; current type std_logic_vector; expected type std_logic",
+  "hdl": "pass",
   "sim": "pass",
   "ise": "pass",
   "synth": "pass",
