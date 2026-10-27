@@ -39,7 +39,7 @@ uiTest('#405 schematic editor parts: the toolbar, the palette, Select All and De
   const doc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
   // ---- the toolbar: its buttons in order, Undo / Redo right after the drawing tools between separators (#1696)
   assert.deepEqual(await ev((ed) => [...document.querySelectorAll(`${ed} .se-toolbar [data-act]`)].map((b) => b.dataset.act)),
-    ['select', 'wire', 'net', 'io', 'undo', 'redo', 'rotate', 'mirror', 'delete', 'beautify', 'zin', 'zout', 'fit', 'info', 'check', 'sim']);
+    ['select', 'wire', 'net', 'io', 'undo', 'redo', 'rotate', 'mirror', 'delete', 'rewire', 'relayout', 'zin', 'zout', 'fit', 'info', 'check', 'sim']);
   assert.deepEqual(await ev((ed) => [...document.querySelector(`${ed} .se-toolbar`).children].slice(3, 9).map((e) => e.dataset.act || (e.classList.contains('se-sep') ? '|' : e.className))),
     ['io', '|', 'undo', 'redo', '|', 'rotate']);
   // the zooms (the view): Zoom In scales the drawing by 1.25, Fit back
