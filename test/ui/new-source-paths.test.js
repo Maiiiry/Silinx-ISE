@@ -26,6 +26,7 @@ const TYPES = {
   'Implementation Constraints File': { pages: ['File Name and Location', 'Summary'], file: 'constraints/NAME.ucf' },
   'Memory Initialization File (.mem)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.mem' },
   'C Function (HLS)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.c' },   // (#1531)
+  'C++ Function (HLS)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.cpp' },   // (#1590)
 };
 const NAMES = Object.keys(TYPES);
 
@@ -109,7 +110,7 @@ uiTest('New Source: after another type, every page of the type selected last for
     for (let i = 2; i <= pages.length; i++) { await forward(page, pages[i - 1]); await expectPage(page, b, i, `${a} → ${b}, page ${i}`); }
     for (let i = pages.length - 1; i >= 0; i--) { await back(page, i ? pages[i - 1] : 'Select Source Type'); await expectPage(page, b, i, `${a} → ${b}, back to ${i}`); }
     for (let i = 1; i <= pages.length; i++) await forward(page, pages[i - 1]);
-    if (pages.at(-1) === 'Summary') assert.match(await page.eval(() => document.querySelector('.dlg-overlay .code-box').textContent), new RegExp(`Source Type: ${b.replace(/[()./]/g, '\\$&')}`), `${b}: the summary`);
+    if (pages.at(-1) === 'Summary') assert.match(await page.eval(() => document.querySelector('.dlg-overlay .code-box').textContent), new RegExp(`Source Type: ${b.replace(/[()./+]/g, '\\$&')}`), `${b}: the summary`);
     await page.dialogButton('Finish');
     await page.waitNoDialog();
     const file = TYPES[b].file.replace('NAME', name);

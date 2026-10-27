@@ -157,3 +157,14 @@ test('#1590 C++ templates, auto and the range for: what is not supported said', 
   assert.deepEqual(errs('#include <iostream>\nint g(int n) {\n  std::cout << std::setw(n) << n;\n  return n;\n}\n').slice(0, 1), ['3 setw takes a constant']);
   assert.deepEqual(errs('template <int P> void f(int a[4]) {\n  for (int i = 0; i < 4; i++) {\n#pragma HLS if (P == Q) PIPELINE\n    a[i] = 0;\n  }\n}\nvoid g(int a[4]) { f<1>(a); }\n').slice(0, 1), ['3 #pragma HLS if (1 == Q): its condition is not a constant']);
 });
+
+test('#1590 New Source ▸ C++ Function (HLS): its template simulated (its test bench\'s output) and co-simulated in VHDL and Verilog, no warning', async () => {
+  const { cppTemplate } = await import('../web/js/c-templates.js');
+  const src = cppTemplate('adder4');
+  const sim = simulateC(src, { file: 'adder4.cpp' });
+  assert.deepEqual([sim.error, sim.diagnostics, sim.output, sim.exitCode], [null, [], '9 + 8 = 17 (carry 1)\n', 0]);
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'adder4.cpp', lang });
+    assert.deepEqual([r.errors, r.pass, r.gen.diagnostics], [[], true, []]);
+  }
+});

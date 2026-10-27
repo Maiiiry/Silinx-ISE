@@ -642,7 +642,7 @@ PT_PATTERNS.push(
 );
 // New Source types, Module Wizard and Schematic Wizard (web/js/modwizard.js, core/modgen.js)
 Object.assign(PT, {
-  'Module (HDL)': 'Módulo (HDL)', 'C Function (HLS)': 'Função C (HLS)', 'Generated from the C': 'Gerado a partir do C',
+  'Module (HDL)': 'Módulo (HDL)', 'C Function (HLS)': 'Função C (HLS)', 'C++ Function (HLS)': 'Função C++ (HLS)', 'Generated from the C': 'Gerado a partir do C',
   'View State Machine (ASM)': 'Ver Máquina de Estados (ASM)', 'Read-only, the state machine made from': 'Só de leitura, a máquina de estados feita de', 'The state machine made from the C (read-only)': 'A máquina de estados feita do C (só de leitura)',
   'Read-only · drag the background to pan · wheel to zoom · click a box to see it': 'Só de leitura · arrastar o fundo para deslocar · roda para ampliar · clicar numa caixa para a ver',
   'View C Model': 'Ver Modelo C',
