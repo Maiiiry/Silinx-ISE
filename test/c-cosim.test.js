@@ -112,3 +112,17 @@ test('#1597 a source of several files: the top function in its own file with its
     assert.deepEqual(r.gen.diagnostics, []);
   }
 });
+
+test('#1604 a pointer written under a condition, then read: where the condition does not hold, the caller\'s value (an input, ap_ovld), combinational and sequential', () => {
+  const comb = '#include <stdio.h>\nvoid f(int c, int *y) {\n  if (c) *y = 5;\n  *y = *y + 1;\n}\nint main(void) { int y = 10; f(0, &y); printf("%d\\n", y); y = 10; f(1, &y); printf("%d\\n", y); return 0; }\n';
+  const seq = '#include <stdio.h>\nvoid f(int c, int n, int *y) {\n  if (c) *y = 5;\n  for (int k = 0; k < n; k++) {\n#pragma HLS LOOP_TRIPCOUNT max=4\n    *y = *y + 1;\n  }\n}\nint main(void) { int y = 10; f(0, 2, &y); printf("%d\\n", y); y = 10; f(1, 3, &y); printf("%d\\n", y); return 0; }\n';
+  for (const [src, out] of [[comb, '11\n6\n'], [seq, '12\n8\n']]) {
+    for (const lang of ['vhdl', 'verilog']) {
+      const r = cosimulate(src, { file: 'p.c', lang });
+      assert.equal(r.output, out);
+      assert.deepEqual(r.errors, []);
+      assert.equal(r.pass, true, lang);
+      assert.deepEqual(r.gen.ports.filter((p) => p.param === 'y').map((p) => p.name), ['y_i', 'y_o', 'y_o_ap_vld']);
+    }
+  }
+});
