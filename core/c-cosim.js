@@ -1,7 +1,9 @@
 // Silinx C (#1528): C/RTL co-simulation, as Vitis HLS's: the test bench's calls of the top function (the C simulation,
 // core/c-interp.js) replayed on the generated HDL (core/c-hdl.js) in Silinx's simulator, a combinational module's
 // inputs set one call at a time, a sequential one's through its block protocol (ap_start, then ap_done); each
-// result compared with the C's: ap_return, a pointer output (taken when its _ap_vld is 1), a read-write pointer.
+// result compared with the C's: ap_return, a pointer output (taken when its _ap_vld is 1), a read-write pointer, an
+// array argument's memory (ap_memory: a memory in the test bench, its values before each call the C's, after it
+// compared, #1527).
 // Isomorphic ES module: no DOM and no Node APIs.
 //
 //   cosimulate(source, { file, lang, maxCycles }) ->
@@ -21,24 +23,32 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
   const seq = !!port('ap_clk');
   const L = ['module silinx_cosim_tb;', '  integer cyc, bad = 0;'];
   if (seq) L.push('  reg ap_clk = 0, ap_rst = 1, ap_start = 0;');
-  for (const p of gen.ports) if (!['ap_clk', 'ap_rst', 'ap_start'].includes(p.name)) L.push(`  ${p.dir === 'in' ? 'reg' : 'wire'} ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name};`);
+  for (const p of gen.ports) if (!['ap_clk', 'ap_rst', 'ap_start'].includes(p.name)) L.push(p.role === 'mem' && p.dir === 'in' ? `  wire [${p.w - 1}:0] ${p.name};` : `  ${p.dir === 'in' ? 'reg' : 'wire'} ${p.w > 1 ? `[${p.w - 1}:0] ` : ''}${p.name};`);
   const outs = gen.ports.filter((p) => p.dir === 'out' && p.role === 'arg');
   for (const o of outs) L.push(`  reg [${o.w - 1}:0] cap_${o.name}; reg got_${o.name};`);
+  const mems = gen.memories || [];
+  for (const x of mems) {
+    L.push(`  reg [${x.w - 1}:0] mem_${x.name} [0:${x.n - 1}];`);
+    if (x.read) L.push(`  reg [${x.w - 1}:0] q_${x.name};`, `  assign ${x.name}_q0 = q_${x.name};`);
+  }
   L.push(`  ${gen.top} dut(${gen.ports.map((p) => `.${p.name}(${p.name})`).join(', ')});`);
   if (seq) {
     L.push('  always #5 ap_clk = ~ap_clk;', '  always @(posedge ap_clk) begin');
     for (const o of outs) if (port(`${o.name}_ap_vld`)) L.push(`    if (${o.name}_ap_vld) begin cap_${o.name} <= ${o.name}; got_${o.name} <= 1; end`);
+    // (a memory: one port, the value read on _q0 the cycle after its address; an address outside it: x)
+    for (const x of mems) L.push(`    if (${x.name}_ce0) begin${x.written ? ` if (${x.name}_we0 && ${x.name}_address0 < ${x.n}) mem_${x.name}[${x.name}_address0] <= ${x.name}_d0;` : ''}${x.read ? ` q_${x.name} <= ${x.name}_address0 < ${x.n} ? mem_${x.name}[${x.name}_address0] : ${x.w}'bx;` : ''} end`);
     L.push('  end');
   }
   L.push('  initial begin');
   if (seq) L.push('    #12 ap_rst = 0;');
   else if (port('ap_start')) L.push('    ap_start = 1;');
-  const shown = [port('ap_return') ? 'ap_return' : null, ...outs.flatMap((o) => (seq || port(`${o.name}_ap_vld`) ? [seq ? `cap_${o.name}` : o.name, seq ? `got_${o.name}` : `${o.name}_ap_vld`] : [o.name, "1'b1"])), seq ? 'cyc' : null].filter(Boolean);
+  const shown = [port('ap_return') ? 'ap_return' : null, ...outs.flatMap((o) => (seq || port(`${o.name}_ap_vld`) ? [seq ? `cap_${o.name}` : o.name, seq ? `got_${o.name}` : `${o.name}_ap_vld`] : [o.name, "1'b1"])),
+    ...mems.filter((x) => x.written).flatMap((x) => Array.from({ length: x.n }, (_, k) => `mem_${x.name}[${k}]`)), seq ? 'cyc' : null].filter(Boolean);
   for (const c of calls) {
-    const asg = gen.ports.filter((p) => p.dir === 'in' && p.param).map((p) => {
+    const asg = gen.ports.filter((p) => p.dir === 'in' && p.param && p.role !== 'mem').map((p) => {
       const v = p.name.endsWith('_i') && c.ptrIn[p.param] !== undefined ? c.ptrIn[p.param] : (c.args[p.param] ?? c.ptrIn[p.param] ?? 0n);
       return `${p.name} = ${hex(v, p.w)};`;
-    }).join(' ');
+    }).concat(mems.flatMap((x) => (c.memIn[x.name] || []).map((v, k) => `mem_${x.name}[${k}] = ${hex(v, x.w)};`))).join(' ');
     if (seq) {
       L.push('    if (!ap_idle) bad = bad + 1;', `    ${asg} ${outs.map((o) => `got_${o.name} = 0;`).join(' ')} ap_start = 1; cyc = 0;`, '    @(posedge ap_clk); #1 ap_start = 0;');
       L.push(`    while (!ap_done && cyc < ${maxCycles}) begin @(posedge ap_clk); #1 cyc = cyc + 1; end`, '    if (!ap_ready) bad = bad + 1;', '    @(posedge ap_clk); #1;');
@@ -77,6 +87,11 @@ export function cosimulate(source, { file = 'input.c', lang = 'vhdl', maxCycles 
       const before = c.ptrIn[o.param] === undefined ? null : c.ptrIn[o.param] & mask(o.w);
       if (vld === 1n) { if (val !== exp) say(o.name, exp, val); }
       else if (o.name.endsWith('_o') ? exp !== before : before !== null && exp !== before) say(`${o.name}_ap_vld`, 1n, vld);
+    }
+    for (const x of gen.memories || []) {
+      if (!x.written) continue;
+      const exp = c.memOut[x.name] || [];
+      for (let k = 0; k < x.n; k++) { const got = row[q++], e = (exp[k] ?? 0n) & mask(x.w); if (got !== e) say(`${x.name}[${k}]`, e, got); }
     }
     if (tb.seq) cycles.push(Number(row[q] ?? 0n));
   });

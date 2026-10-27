@@ -199,7 +199,7 @@ void apx(ap_uint<8> a, ap_uint<8> b, ap_int<4> c, ap_uint<9> *sum, ap_int<9> *di
   }
 });
 
-test('C to HDL: what is not combinational is a sequential module (#1526): a loop whose count depends on the inputs, static and global variables; what is not supported yet is said: division by a non-constant or a non-power of 2, array arguments', () => {
+test('C to HDL: what is not combinational is a sequential module (#1526): a loop whose count depends on the inputs, static and global variables; what is not supported yet is said: division by a non-constant or a non-power of 2; array arguments are sequential (ap_memory)', () => {
   const msgs = (src) => cToHdl(src).diagnostics.map((d) => `${d.line}:${d.col} ${d.message}`);
   const seq = (src) => { const r = cToHdl(src); return [r.ok, r.sequential, r.diagnostics.length]; };
   assert.deepEqual(msgs('int f(int n) {\n  int s = 0;\n  for (int i = 0; i < n; i++) s += i;\n  return s;\n}'),
@@ -210,7 +210,7 @@ test('C to HDL: what is not combinational is a sequential module (#1526): a loop
   assert.deepEqual(seq('int f(int a) { return a + 1; }'), [true, false, 0]);
   assert.deepEqual(msgs('int f(int a, int b) { return a / b; }'), ['1:32 a division by a value that is not a constant is not supported yet (#1526)']);
   assert.deepEqual(msgs('int f(int a) { return a / 3; }'), ['1:25 a division by 3 (not a power of 2) is not supported yet (#1526)']);
-  assert.deepEqual(msgs('int f(int a[4]) { return a[0]; }'), ["1:7 the array argument 'a': array arguments (ap_memory) are not supported yet (#1527)"]);
+  assert.deepEqual(seq('int f(int a[4]) { return a[0]; }'), [true, true, 0]);   // (ap_memory, #1527)
   // constants divide at any value (folded)
   assert.deepEqual(msgs('int f(int a) { return a + 100 / 3 + 7 % 3; }'), []);
 });

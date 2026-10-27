@@ -11,8 +11,13 @@ function nodesOf(m) {
   const roots = [];
   for (const st of m.states) { roots.push(st.next, ...st.updates.values()); }
   for (const r of m.regs) if (r.latch != null) roots.push(r.latch);
+  for (const o of m.outputs.values()) if (o.node != null) roots.push(o.node);
+  for (const x of m.mems || []) roots.push(...[x.addr, x.ce, x.we, x.d].filter((id) => id != null));
   return m.graph.needed(roots);
 }
+// (a memory inside the module: 2^aw words, its initial values, the rest 0)
+const depth = (x) => 2 ** x.aw;
+const words = (x) => Array.from({ length: depth(x) }, (_, k) => x.init?.[k] ?? 0n);
 
 export function vhdlSeq(name, src, ports, m) {
   const g = m.graph, nodes = nodesOf(m), SW = m.stateT.w;
@@ -27,8 +32,20 @@ export function vhdlSeq(name, src, ports, m) {
   L.push(`  signal ap_CS_fsm : unsigned(${SW - 1} downto 0);`);
   for (const r of regs) L.push(`  signal ${r.sig} : ${ty(r)};`);
   for (const n of nodes) L.push(`  signal ${sig(n)} : ${ty(n)};`);
+  for (const x of m.mems || []) {
+    L.push(`  type ap_m_${x.name}_t is array (0 to ${depth(x) - 1}) of std_logic_vector(${x.t.w - 1} downto 0);`);
+    const init = x.init ? ` := (${words(x).map((v, k) => `${k} => "${bin(v, x.t.w)}"`).join(', ')})` : '';
+    L.push(`  signal ap_m_${x.name} : ap_m_${x.name}_t${init};`, `  signal ap_m_${x.name}_q0 : ${ty(x.t)};`);
+  }
   L.push('begin');
   vhdlNodes(nodes, g, L);
+  for (const x of m.mems || []) {
+    // (a block RAM's port: written when we, read the cycle after the address)
+    const a = `to_integer(${sig(g.get(x.addr))})`;
+    L.push('  process (ap_clk)', '  begin', '    if rising_edge(ap_clk) then', `      if ${sig(g.get(x.ce))} = "1" then`);
+    if (x.we != null) L.push(`        if ${sig(g.get(x.we))} = "1" then`, `          ap_m_${x.name}(${a}) <= std_logic_vector(${sig(g.get(x.d))});`, '        end if;');
+    L.push(`        ap_m_${x.name}_q0 <= ${x.t.s ? 'signed' : 'unsigned'}(ap_m_${x.name}(${a}));`, '      end if;', '    end if;', '  end process;');
+  }
   L.push('  process (ap_clk)', '  begin', '    if rising_edge(ap_clk) then', "      if ap_rst = '1' then", `        ap_CS_fsm <= ${S(m.idle)};`);
   for (const r of regs) L.push(`        ${r.sig} <= "${bin(r.reset, r.w)}";`);
   L.push('      else');
@@ -44,8 +61,8 @@ export function vhdlSeq(name, src, ports, m) {
   L.push('        else', `          ap_CS_fsm <= ${S(m.idle)};`, '        end if;', '      end if;', '    end if;', '  end process;');
   L.push(`  ap_done <= '1' when ap_CS_fsm = ${S(m.done)} else '0';`, `  ap_ready <= '1' when ap_CS_fsm = ${S(m.done)} else '0';`, `  ap_idle <= '1' when ap_CS_fsm = ${S(m.idle)} else '0';`);
   for (const [p, o] of m.outputs) {
-    const r = byName.get(o.reg), port = ports.find((x) => x.name === p);
-    L.push(`  ${p} <= ${port.w === 1 ? `${r.sig}(0)` : `std_logic_vector(${r.sig})`};`);
+    const v = o.node != null ? sig(g.get(o.node)) : byName.get(o.reg).sig, port = ports.find((x) => x.name === p);
+    L.push(`  ${p} <= ${port.w === 1 ? `${v}(0)` : `std_logic_vector(${v})`};`);
   }
   L.push('end behav;', '');
   return L.join('\n');
@@ -61,7 +78,17 @@ export function verilogSeq(name, src, ports, m) {
   L.push(');', `  reg [${SW - 1}:0] ap_CS_fsm;`);
   for (const r of regs) L.push(`  reg ${r.s ? 'signed ' : ''}[${r.w - 1}:0] ${r.sig};`);
   for (const n of nodes) L.push(`  wire ${n.s ? 'signed ' : ''}[${n.w - 1}:0] ${sig(n)};`);
+  for (const x of m.mems || []) {
+    L.push(`  reg [${x.t.w - 1}:0] ap_m_${x.name} [0:${depth(x) - 1}];`, `  reg ${x.t.s ? 'signed ' : ''}[${x.t.w - 1}:0] ap_m_${x.name}_q0;`);
+    if (x.init) L.push('  initial begin', ...words(x).map((v, k) => `    ap_m_${x.name}[${k}] = ${x.t.w}'b${bin(v, x.t.w)};`), '  end');
+  }
   verilogNodes(nodes, g, L);
+  for (const x of m.mems || []) {
+    const a = sig(g.get(x.addr));
+    L.push(`  always @(posedge ap_clk) if (${sig(g.get(x.ce))}) begin`);
+    if (x.we != null) L.push(`    if (${sig(g.get(x.we))}) ap_m_${x.name}[${a}] <= ${sig(g.get(x.d))};`);
+    L.push(`    ap_m_${x.name}_q0 <= ap_m_${x.name}[${a}];`, '  end');
+  }
   L.push('  always @(posedge ap_clk) begin', '    if (ap_rst) begin', `      ap_CS_fsm <= ${S(m.idle)};`);
   for (const r of regs) L.push(`      ${r.sig} <= ${r.w}'b${bin(r.reset, r.w)};`);
   L.push('    end else begin');
@@ -76,7 +103,7 @@ export function verilogSeq(name, src, ports, m) {
   }
   L.push(`        default: ap_CS_fsm <= ${S(m.idle)};`, '      endcase', '    end', '  end');
   L.push(`  assign ap_done = ap_CS_fsm == ${S(m.done)};`, `  assign ap_ready = ap_CS_fsm == ${S(m.done)};`, `  assign ap_idle = ap_CS_fsm == ${S(m.idle)};`);
-  for (const [p, o] of m.outputs) L.push(`  assign ${p} = ${byName.get(o.reg).sig};`);
+  for (const [p, o] of m.outputs) L.push(`  assign ${p} = ${o.node != null ? sig(g.get(o.node)) : byName.get(o.reg).sig};`);
   L.push('endmodule', '');
   return L.join('\n');
 }

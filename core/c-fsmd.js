@@ -14,6 +14,7 @@
 import { Flow, Stop } from './c-dataflow.js';
 import { BOOL, typeOf } from './c-types.js';
 import { constValue } from './c-check.js';
+import { memMethods, MEM_MIN } from './c-mem.js';
 
 export function fsmd(checked) {
   return new SeqFlow(checked).runSeq();
@@ -79,7 +80,10 @@ class SeqFlow extends Flow {
       let cur = mk(lp);
       const entry = cur;
       for (const s of list) {
-        if (!hasLoop(s)) { cur.stmts.push(s); continue; }
+        const mem = this.hasMem(s);
+        if (!hasLoop(s) && !mem) { cur.stmts.push(s); continue; }
+        // (a memory's accesses: their states, #1527)
+        if (!hasLoop(s) && ['expr', 'decl', 'return'].includes(s.kind)) { cur = this.lowerMem(s, cur, mk, lp); continue; }
         if (s.kind === 'block') {
           const join = mk(lp);
           const e = seq(s.items, join, lp);
@@ -88,10 +92,12 @@ class SeqFlow extends Flow {
           continue;
         }
         if (s.kind === 'if') {
+          const c = this.hoistCond(s.cond, cur, mk, lp);
+          cur = c.cur;
           const join = mk(lp);
           const t = seq([s.then], join, lp);
           const f = s.else ? seq([s.else], join, lp) : join;
-          cur.term = { cond: s.cond, t, f };
+          cur.term = { cond: c.e, t, f };
           cur = join;
           continue;
         }
@@ -102,16 +108,20 @@ class SeqFlow extends Flow {
           const contTo = s.kind === 'do' ? head : (step || head);
           const L = { exit, cont: contTo };
           const body = seq([s.body], s.kind === 'do' ? head : (step || head), L);
-          if (s.kind === 'for' && s.init) cur.stmts.push(s.init);
+          if (s.kind === 'for' && s.init) { if (this.hasMem(s.init)) cur = this.lowerMem(s.init, cur, mk, lp); else cur.stmts.push(s.init); }
           cur.term = { goto: s.kind === 'do' ? body : head };
-          const cond = s.kind === 'for' ? s.cond : s.cond;
-          head.term = cond ? { cond, t: body, f: exit, loopHead: s } : { goto: body };
+          const hc = s.cond ? this.hoistCond(s.cond, head, mk, lp) : { e: null, cur: head };
+          hc.cur.term = hc.e ? { cond: hc.e, t: body, f: exit, loopHead: s } : { goto: body };
           if (s.kind === 'do') head.loopHead = s;
-          if (step) { step.stmts.push({ kind: 'expr', e: s.step, loc: s.loc }); step.term = { goto: head }; }
+          if (step) {
+            const se = { kind: 'expr', e: s.step, loc: s.loc };
+            const last = this.hasMem(se) ? this.lowerMem(se, step, mk, lp) : (step.stmts.push(se), step);
+            last.term = { goto: head };
+          }
           cur = exit;
           continue;
         }
-        this.error(s.loc, `a '${s.kind}' with a loop in it is not supported yet in a sequential module`);
+        this.error(s.loc, hasLoop(s) ? `a '${s.kind}' with a loop in it is not supported yet in a sequential module` : `a '${s.kind}' that accesses a memory is not supported yet in a sequential module (write the access as a statement of its own before it)`);
       }
       cur.term = after ? { goto: after } : { done: true };
       return entry;
@@ -166,7 +176,8 @@ class SeqFlow extends Flow {
     // the arguments: read at the start of a call (latched), a pointer's value its register
     for (const pa of fn.params) {
       const t = pa.type;
-      if (t.kind === 'array' || (t.kind === 'ptr' && t.to.kind === 'array')) this.error(pa.loc, `the array argument '${pa.name}': array arguments (ap_memory) are not supported yet (#1527)`);
+      if (t.kind === 'ptr' && t.to.kind === 'array') this.error(pa.loc, `the argument '${pa.name}': a pointer to an array is not supported: write it as an array, ${pa.name}[N]`);
+      if (t.kind === 'array') { this.slots.set(pa.name, this.memSlot({ ...pa, const: !!t.of.const }, { ext: true })); continue; }
       if (t.kind === 'ptr') {
         const et = typeOf(t.to);
         if (!et) this.error(pa.loc, `the argument '${pa.name}' is not an integer pointer`);
@@ -183,18 +194,21 @@ class SeqFlow extends Flow {
     }
     // the locals (statics: their initial value at the reset), the globals written
     for (const v of decls) this.slots.set(v.name, this.regSlot(v));
-    for (const [name, gv] of this.globals) if (!gv.const) this.slots.set(name, this.regSlot({ ...gv, static: true }));
+    for (const [name, gv] of this.globals) {
+      if (!gv.const) this.slots.set(name, this.regSlot({ ...gv, static: true }));
+      else if (gv.type.kind === 'array' && this.arrayLength(gv) > MEM_MIN) this.slots.set(name, this.memSlot(gv));   // (a ROM)
+    }
     if (this.retType) this.retReg = this.reg('ap_return_reg', this.retType);
   }
   regSlot(v) {
     const t = v.type;
     const init = (e) => (e ? constValue(e, this.consts()) : 0n);
     if (t.kind === 'array') {
+      if (this.arrayLength(v) > MEM_MIN) return this.memSlot(v);
       const et = typeOf(t.of);
       if (!et) this.error(v.loc, `'${v.name}': only arrays of integers (one dimension) are supported yet`);
       const n = t.length ?? (v.init?.kind === 'init' ? v.init.items.length : null);
       if (!n) this.error(v.loc, `'${v.name}': an array needs its size`);
-      if (n > 64) this.error(v.loc, `'${v.name}': an array of more than 64 elements (a memory) is not supported yet (#1527)`);
       const regs = Array.from({ length: n }, (_, k) => this.reg(`${v.name}_${k}`, et, v.static && v.init?.kind === 'init' ? (init(v.init.items[k]) ?? 0n) : 0n));
       if (v.static && v.init?.kind === 'init' && v.init.items.some((x) => constValue(x, this.consts()) === null)) this.error(v.loc, `the static '${v.name}': its initial values must be constants`);
       return { kind: 'array', t: et, regs, elems: null, name: v.name };
@@ -205,6 +219,7 @@ class SeqFlow extends Flow {
     if (v.static && v.init) { reset = init(v.init); if (reset === null) this.error(v.loc, `the static '${v.name}': its initial value must be a constant`); }
     return { kind: 'var', t: et, reg: this.reg(v.name, et, reset), name: v.name, static: !!v.static };
   }
+  arrayLength(v) { return Number(v.type.length ?? (v.init?.kind === 'init' ? v.init.items.length : 0)); }
   /** A goto-only block with no statement is skipped (its predecessors go where it goes). */
   thread() {
     const target = (b) => { const seen = new Set(); while (b && !b.stmts.length && b.term?.goto && !seen.has(b)) { seen.add(b); b = b.term.goto; } return b; };
@@ -232,7 +247,7 @@ class SeqFlow extends Flow {
   // ------------------------------------------------------------------ each block, symbolically
   declare(v, g) {
     const slot = this.slots.get(v.name);
-    if (!v.init || v.static) return;   // (a static is initialized once, at the reset)
+    if (!v.init || v.static || slot.kind === 'mem') return;   // (a static is initialized once, at the reset; a memory holds its values)
     if (slot.kind === 'array') {
       if (v.init.kind !== 'init') this.error(v.loc, `'${v.name}': an array is initialized with { … }`);
       v.init.items.forEach((x, k) => { if (k < slot.elems.length) slot.elems[k] = this.mux(g, this.conv(this.expr(x, g), slot.t).id, slot.elems[k], slot.t); });
@@ -241,6 +256,7 @@ class SeqFlow extends Flow {
     slot.val = this.mux(g, this.conv(this.expr(v.init, g), slot.t).id, slot.val, slot.t);
   }
   loop(s) { this.error(s.loc, 'internal: a loop inside a block'); }
+  stmt(s, base) { return s && /^mem(read|write|latch)$/.test(s.kind) ? this.memStmt(s, base) : super.stmt(s, base); }
   runBlocks() {
     const st = (n) => this.g.const(n, this.stateT);
     this.states = [];
@@ -254,6 +270,7 @@ class SeqFlow extends Flow {
       const loopRec = b.loop ? { brk: this.F, cont: this.F } : null;
       this.frame = { fn: this.fn, returned: this.F, ret: this.retReg ? this.regNode(this.retReg) : null, rt: this.retType, loops: loopRec ? [loopRec] : [] };
       this.scopes = [this.slots];
+      this.access = new Map();
       for (const s of b.stmts) this.stmt(s, this.T);
       // the next state: after a return, done; a break, its loop's exit; a continue, its loop's next iteration; else
       // the block's own end
@@ -280,8 +297,9 @@ class SeqFlow extends Flow {
         }
       }
       if (this.retReg && this.frame.ret !== this.regNode(this.retReg)) updates.set(this.retReg.name, this.frame.ret);
-      this.states.push({ id: b.num, updates, next, line: firstLine(b.stmts) });
+      this.states.push({ id: b.num, updates, next, line: firstLine(b.stmts), access: this.access });
     }
+    this.mems = this.memPorts(this.states);
   }
   // the outputs read before they are written: a pointer read and written takes its input at the start of a call
   readOut(o) {
@@ -304,6 +322,16 @@ class SeqFlow extends Flow {
     const ports = [], outputs = new Map();
     for (const pa of this.fn.params) {
       const o = this.outs.get(pa.name);
+      const mem = this.mems?.find((x) => x.ext && x.name === pa.name);
+      if (mem) {
+        // ap_memory: the address and its enable, the write's enable and data, the value read
+        const p = (sfx, dir, w, node) => { ports.push({ name: `${pa.name}${sfx}`, dir, w, s: false, role: 'mem', param: pa.name }); if (node != null) outputs.set(`${pa.name}${sfx}`, { node }); };
+        p('_address0', 'out', mem.aw, mem.addr);
+        p('_ce0', 'out', 1, mem.ce);
+        if (mem.written) { p('_we0', 'out', 1, mem.we); p('_d0', 'out', mem.t.w, mem.d); }
+        if (mem.read) p('_q0', 'in', mem.t.w, null);
+        continue;
+      }
       if (!o) {
         const i = this.inputs.get(pa.name);
         if (i) ports.push({ name: pa.name, dir: 'in', w: i.t.w, s: i.t.s, role: 'arg', param: pa.name });
@@ -325,7 +353,9 @@ class SeqFlow extends Flow {
     if (this.retReg) { ports.push({ name: 'ap_return', dir: 'out', w: this.retType.w, s: this.retType.s, role: 'return' }); outputs.set('ap_return', { reg: this.retReg.name }); }
     return {
       graph: this.g, regs: [...(this.regs?.values() || [])], states: this.states || [], entry: this.entry?.num ?? 1, idle: 0, done: this.doneNum ?? 1,
-      stateT: this.stateT, ports, outputs, ctrl: 'ap_ctrl_hs', diagnostics: this.diags,
+      stateT: this.stateT, ports, outputs, ctrl: 'ap_ctrl_hs', diagnostics: this.diags, mems: (this.mems || []).filter((x) => !x.ext),
+      extMems: (this.mems || []).filter((x) => x.ext).map((x) => ({ name: x.name, n: x.n, w: x.t.w, s: x.t.s, aw: x.aw, read: x.read, written: x.written })),
     };
   }
 }
+Object.assign(SeqFlow.prototype, memMethods);

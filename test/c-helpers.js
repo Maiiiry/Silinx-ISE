@@ -49,3 +49,15 @@ export function runC(src, top, ins, outs, ret, vectors) {
   return out;
 }
 
+
+/** A whole program's output and exit code, compiled with cc (-fsigned-char -fwrapv). */
+export function compiledRun(src) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-cr-'));
+  try {
+    fs.writeFileSync(path.join(dir, 't.c'), src);
+    const exe = path.join(dir, process.platform === 'win32' ? 't.exe' : 't');
+    execFileSync(CC, ['-std=c99', '-w', '-fsigned-char', '-fwrapv', '-O0', '-o', exe, path.join(dir, 't.c')]);
+    try { return { output: execFileSync(exe, { encoding: 'utf8' }), exitCode: 0 }; }
+    catch (e) { return { output: e.stdout, exitCode: e.status }; }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}

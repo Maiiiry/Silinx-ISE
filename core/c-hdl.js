@@ -35,7 +35,7 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
   for (const n of [checked.top, ...fn.params.map((p) => p.name)]) {
     if (isReservedWord(n)) diagnostics.push({ file, line: fn.loc.line, col: fn.loc.col, message: `'${n}' is a reserved word of VHDL or Verilog: it is named ${n}_r in the module`, severity: 'warning' });
   }
-  for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = rn(node.port.name);
+  for (const node of df.graph.nodes) if (node.op === 'in') node.port.name = node.port.param ? rn(node.port.param) + node.port.suffix : rn(node.port.name);
   df.outputs = new Map([...df.outputs].map(([k, v]) => [rn(k.replace(/(_o)?(_ap_vld)?$/, '')) + k.slice(k.replace(/(_o)?(_ap_vld)?$/, '').length), v]));
   const ctrl = df.seq
     ? [{ name: 'ap_clk', dir: 'in', w: 1 }, { name: 'ap_rst', dir: 'in', w: 1 }, { name: 'ap_start', dir: 'in', w: 1 }, { name: 'ap_done', dir: 'out', w: 1 }, { name: 'ap_idle', dir: 'out', w: 1 }, { name: 'ap_ready', dir: 'out', w: 1 }]
@@ -47,7 +47,7 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl' } = {}) {
   const name = rn(checked.top);
   const src = file.split('/').pop();
   const hdl = df.seq ? (lang === 'vhdl' ? vhdlSeq : verilogSeq)(name, src, ports, df) : (lang === 'vhdl' ? vhdl : verilog)(name, src, ports, df);
-  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0 };
+  return { ok: true, hdl, top: name, ports, diagnostics, sequential: !!df.seq, states: df.seq ? df.states.length + 2 : 0, memories: df.seq ? df.extMems : [] };
 }
 
 /** The nodes to write: those the outputs need. */
