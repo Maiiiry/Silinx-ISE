@@ -5,7 +5,7 @@ import { bitpos } from './interp.js';
 
 /** { S, fnOf, fnTexts, take } of hdlToC (G: its fields by signal, isArr, fail, hex, id, name and the expressions). */
 export function mountStmts(G) {
-  const { field, isArr, fail, hex, id, name, E, W, SG, ext, dynSlice } = G;
+  const { field, isArr, fail, hex, id, name, E, W, SG, ext, idx, dynSlice } = G;
 
   // ---------------- statements: the C of a process's body; a signal written into nx (the next values), a variable now
   let lines = [];
@@ -49,7 +49,7 @@ export function mountStmts(G) {
         let lo, w;
         if (L.k === 'bit') {
           if (L.index.k !== 'c') {
-            const i = `ap_s(${E(L.index, ctx)}, ${W(L.index)})`;
+            const i = idx(L.index, ctx);
             lo = L.base.t.desc ? `(${i} - (${L.base.t.right}))` : `((${L.base.t.right}) - ${i})`;
           } else lo = bitpos(L.base.t, Number(L.index.val.v));
           w = 1;
@@ -60,12 +60,20 @@ export function mountStmts(G) {
           lo = `(${d.p1} < ${d.p2} ? ${d.p1} : ${d.p2})`; w = L.t.w;
         }
         const m = `ap_m(~0ULL, ${w})`;
-        return { w, set: (v, nb) => { const t = b.base(nb); const upd = `(${t} & ~(${m} << ${lo})) | (ap_m(${v}, ${w}) << ${lo})`; return b.local ? b.set(`ap_m(${upd}, ${b.w})`) : nb ? `${t} = ap_m(${upd}, ${b.w});` : `s->${t.slice(3)} = nx->${t.slice(3)} = ap_m(${upd}, ${b.w});`; } };
+        // (a position known at run time: written only inside the value, as the simulator does, #1530)
+        const dyn = typeof lo !== 'number';
+        const at = dyn ? 'ap_b' : lo;
+        return { w, set: (v, nb) => {
+          const t = b.base(nb);
+          const upd = `(${t} & ~(${m} << ${at})) | (ap_m(${v}, ${w}) << ${at})`;
+          const st = b.local ? b.set(`ap_m(${upd}, ${b.w})`) : nb ? `${t} = ap_m(${upd}, ${b.w});` : `s->${t.slice(3)} = nx->${t.slice(3)} = ap_m(${upd}, ${b.w});`;
+          return dyn ? `{ int64_t ap_b = ${lo}; if (ap_b >= 0 && ap_b + ${w} <= ${b.w}) ${st} }` : st;
+        } };
       }
       case 'elem': {
         const a = L.base;
         if (a.k !== 'sig' || !isArr(a.sig)) fail('an element of an array that is not a signal', L);
-        const f = field.get(a.sig), i = `(ap_s(${E(L.index, ctx)}, ${W(L.index)}) - (${a.sig.t.lo ?? 0}))`;
+        const f = field.get(a.sig), i = `(${idx(L.index, ctx)} - (${a.sig.t.lo ?? 0}))`;
         return { w: a.sig.t.elem.w, set: (v, nb) => `{ int64_t ap_i = ${i}; if ((uint64_t)ap_i < ${a.sig.t.len}) ${nb ? `nx->${f}[ap_i]` : `s->${f}[ap_i] = nx->${f}[ap_i]`} = ${v}; }`, whole: true };
       }
       case 'cat': {

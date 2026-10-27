@@ -34,6 +34,8 @@ export function mountExprs(G) {
       default: return !!n.t?.s;
     }
   };
+  // (an index, a bound: its value with its own sign, as the simulator reads it: a 3-bit k[2:0] of 7 is 7, #1530)
+  const idx = (n, ctx) => (SG(n) ? `ap_s(${E(n, ctx)}, ${W(n)})` : `(int64_t)${E(n, ctx)}`);
   // (the values are kept at their width: to the same width, as they are)
   const ext = (n, ctx, to, s) => { const w = W(n); const x = E(n, ctx); return w === to ? x : `ap_x(${x}, ${w}, ${to}, ${s ? 1 : 0})`; };
   const sv = (n, ctx) => (n.sig === G.clock() && ctx.clockedPhase ? '1' : `s->${field.get(n.sig)}`);
@@ -51,7 +53,7 @@ export function mountExprs(G) {
       case 'bit': {
         const b = E(n.base, ctx);
         if (n.index.k === 'c') return `((${b} >> ${bitpos(n.base.t, Number(n.index.val.v))}) & 1)`;
-        const i = `ap_s(${E(n.index, ctx)}, ${W(n.index)})`;
+        const i = idx(n.index, ctx);
         const p = n.base.t.desc ? `(${i} - (${n.base.t.right}))` : `((${n.base.t.right}) - ${i})`;
         return `((uint64_t)${p} < ${W(n.base)} ? (${b} >> ${p}) & 1 : 0)`;
       }
@@ -73,7 +75,7 @@ export function mountExprs(G) {
       case 'elem': {
         const a = n.base;
         if (a.k !== 'sig' || !isArr(a.sig)) fail('an element of an array that is not a signal', n);
-        const i = `(ap_s(${E(n.index, ctx)}, ${W(n.index)}) - (${a.sig.t.lo ?? 0}))`;
+        const i = `(${idx(n.index, ctx)} - (${a.sig.t.lo ?? 0}))`;
         return `((uint64_t)${i} < ${a.sig.t.len} ? s->${field.get(a.sig)}[${i}] : 0)`;
       }
       case 'cat': {
@@ -169,14 +171,14 @@ export function mountExprs(G) {
   // (a part-select's lowest bit: Verilog's [start +: w] / [start -: w], at run time a C expression)
   function psLo(t, st, w, dir) { const b = dir === '+' ? st + w - 1 : st - w + 1; return Math.min(bitpos(t, st), bitpos(t, b)); }
   function psLoRun(t, start, w, dir, ctx) {
-    const i = `ap_s(${E(start, ctx)}, ${W(start)})`;
+    const i = idx(start, ctx);
     const b = dir === '+' ? `(${i} + ${w - 1})` : `(${i} - ${w - 1})`;
     const pos = (x) => (t.desc ? `(${x} - (${t.right}))` : `((${t.right}) - ${x})`);
     return `(${pos(i)} < ${pos(b)} ? ${pos(i)} : ${pos(b)})`;
   }
   function dynSlice(t, l, r, ctx) {
-    const pos = (x) => { const i = `ap_s(${E(x, ctx)}, ${W(x)})`; return t.desc ? `(${i} - (${t.right}))` : `((${t.right}) - ${i})`; };
+    const pos = (x) => { const i = idx(x, ctx); return t.desc ? `(${i} - (${t.right}))` : `((${t.right}) - ${i})`; };
     return { p1: pos(l), p2: pos(r) };
   }
-  return { E, W, SG, ext, dynSlice, psLo, psLoRun };
+  return { E, W, SG, ext, idx, dynSlice, psLo, psLoRun };
 }
