@@ -1,4 +1,4 @@
-// Silinx C++ (#1590): the C++ of a .cpp source that Silinx C reads, as tokens: a namespace's braces and `using`
+// Silinx HLS (#1590): the C++ of a .cpp source that Silinx HLS reads, as tokens: a namespace's braces and `using`
 // dropped (its names the file's), a qualified name its last part (std::cout is cout, N::f is f), nullptr 0, constexpr
 // const, static_cast<T>(e) / const_cast<T>(e) a cast (T)(e), static_assert(…) dropped, the C++ headers C's
 // (<cstdint> is <stdint.h>). Then core/cpp-tree.js: references, std::cout. Isomorphic ES module.

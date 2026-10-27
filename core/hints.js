@@ -395,7 +395,7 @@ export const HINTS = [
     pt: { explain: "'$1' é um inteiro sem gama (range), por isso a síntese constrói-o com 32 bits mesmo que só conte até poucos valores (lógica desperdiçada, contadores mais lentos).",
       fix: "Dê-lhe a gama de que realmente precisa, p. ex. 'signal $1 : integer range 0 to 99;' (7 bits), ou use unsigned(6 downto 0)." },
   },
-  // ======================================================================= Silinx C (#1524)
+  // ======================================================================= Silinx HLS (#1524)
   ...C_HINTS,
 ];
 

@@ -1,4 +1,4 @@
-// Silinx C (#1598): the C library of the C simulation's test bench (core/c-interp.js's Machine): printf and its kin, the
+// Silinx HLS (#1598): the C library of the C simulation's test bench (core/c-interp.js's Machine): printf and its kin, the
 // files of stdio.h in memory (fopen / fprintf / fscanf / fgets / feof / fclose: the design's data files readable, those
 // written kept), system("diff [--brief] [-w | -b] a b") comparing two of them as diff does, exit, abs. What AMD's Vitis
 // HLS examples' test benches use: they write their results to a file and compare it with a golden one. Isomorphic.

@@ -1,4 +1,4 @@
-// UI (#1524): Silinx C in the app: a .c file opens in the editor with C's highlighting and its checks' messages as
+// UI (#1524): Silinx HLS in the app: a .c file opens in the editor with C's highlighting and its checks' messages as
 // lint marks; Check Syntax (the editor's button, its menu) logs the top function and lists the errors and warnings,
 // each with its plain-language help (English, Portuguese); a correct file passes with its warning. Both interfaces.
 import { before, after } from 'node:test';
@@ -17,14 +17,14 @@ void adder(ap_uint<8> a, ap_uint<8> b, ap_uint<9> *sum) {
   *sum = a + b;
 }
 `;
-const BAD = `#include <stdlib.h>
+const BAD = `#include <unistd.h>
 int f(int n) {
   int *p = malloc(4);
   return n ? f(n - 1) : 0;
 }
 `;
 
-uiTest('#1524 Silinx C: a .c file in the editor (C highlighting, the checks as lint marks), Check Syntax with the top function, the errors and their help; Portuguese', E, async (page) => {
+uiTest('#1524 Silinx HLS: a .c file in the editor (C highlighting, the checks as lint marks), Check Syntax with the top function, the errors and their help; Portuguese', E, async (page) => {
   await makeProject(env, { name: 'CPj', files: { 'src/adder.c': GOOD, 'src/bad.c': BAD } });
   await page.openProject('CPj');
   await page.showMessages();
@@ -38,7 +38,7 @@ uiTest('#1524 Silinx C: a .c file in the editor (C highlighting, the checks as l
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
   await page.waitConsole(/Process "Check Syntax" completed successfully with 1 warning\(s\)/);
   const log = await page.consoleText();
-  assert.match(log, /Analyzing Silinx C file "src\/adder\.c"/);
+  assert.match(log, /Analyzing Silinx HLS file "src\/adder\.c"/);
   assert.match(log, /Top function: adder/);
   assert.match(log, /WARNING:SilinxC - "src\/adder\.c" Line 4: printf is ignored by synthesis \(it only prints in C simulation\)/);
   // the bad file: its errors, each with its help, the editor marking them
@@ -51,10 +51,10 @@ uiTest('#1524 Silinx C: a .c file in the editor (C highlighting, the checks as l
   const errs = () => page.eval(() => [...document.querySelectorAll('#console-errors .diag')].map((d) => ({ text: d.textContent, hint: d.parentElement.querySelector(`.diag-hint`)?.dataset.hint || d.nextElementSibling?.dataset?.hint || null })));
   const e = await errs();
   assert.deepEqual(e.map((x) => /Line (\d+): (.*?)(?:$|\s{2})/.exec(x.text)?.slice(1, 3).join(' ').replace(/[▸▾].*$/, '').trim()).map((s) => s.slice(0, 60)), [
-    "1 the header 'stdlib.h' is not one of Silinx C's (ap_int.h, std",
-    '2 recursion is not possible in hardware (Silinx C, as Vitis HLS',
-    "3 'p': a pointer variable is not possible in Silinx C (pointers ",
-    '3 malloc: dynamic memory is not possible in hardware (Silinx C,',
+    "1 the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, std",
+    '2 recursion is not possible in hardware (Silinx HLS, as Vitis HLS',
+    "3 'p': a pointer variable is not possible in Silinx HLS (pointers ",
+    '3 malloc: dynamic memory is not possible in hardware (Silinx HLS,',
   ].map((s) => s.slice(0, 60)));
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#console-errors .diag-hint')].map((x) => x.dataset.hint)), ['c-header', 'c-recursion', 'c-pointer-variable', 'c-dynamic-memory']);
   // in Portuguese: the help

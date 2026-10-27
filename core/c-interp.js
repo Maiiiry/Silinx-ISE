@@ -1,4 +1,4 @@
-// Silinx C (#1528): the C simulation: a C source's main() (its test bench) run by an interpreter of Silinx C, as Vitis
+// Silinx HLS (#1528): the C simulation: a C source's main() (its test bench) run by an interpreter of Silinx HLS, as Vitis
 // HLS's "C simulation" runs it compiled: printf's output, main()'s return value, and each call of the top function
 // with its arguments and results (what C/RTL co-simulation replays on the generated HDL, core/c-cosim.js).
 // Isomorphic ES module: no DOM and no Node APIs.

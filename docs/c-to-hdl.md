@@ -1,17 +1,17 @@
-# C to HDL: Silinx C (high-level synthesis)
+# Silinx HLS: C and C++ to HDL (high-level synthesis)
 
 A C function as a design source: Silinx turns it into a VHDL or Verilog module, as AMD's **Vitis HLS**
 (formerly Vivado HLS, user guide UG1399) does for AMD's newer parts. The C file is the module's base;
 its HDL is generated from it, read-only, as a drawing's is. The plan and its phases: issue #1532.
 
-Silinx C is a **subset of what Vitis HLS accepts**: a source Silinx takes also goes through Vitis HLS
+Silinx HLS is a **subset of what Vitis HLS accepts**: a source Silinx takes also goes through Vitis HLS
 (as C++), with the same ports and the same behaviour at them. Vitis HLS does not target the
 Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* below).
 
 ## The source
 
 - A `.c` file in C99, plus Vitis HLS's arbitrary precision integers (`#include "ap_int.h"`):
-  `ap_int<W>` and `ap_uint<W>`, `W` from 1 to 1024. They are the only C++ syntax Silinx C accepts.
+  `ap_int<W>` and `ap_uint<W>`, `W` from 1 to 1024. They are the only C++ syntax Silinx HLS accepts.
 - Known headers: `ap_int.h`, `stdint.h`, `stdbool.h`, `stdio.h` (for `printf` in test benches,
   ignored by synthesis), `hls_stream.h` is refused (not yet).
 - The **top function**: the one named by `#pragma HLS TOP name=…`, else the file's last function
@@ -151,7 +151,7 @@ the inputs, calls `top_step` (or `top_eval`) and reads the outputs, as Silinx's 
   Verilog) on the same calls: the same outputs, call by call.
 - **Synthesis**: the generated HDL through ISE with no warnings, and through the Silinx toolchain on
   every supported device.
-- **In the app**: C simulation (Silinx's interpreter of Silinx C runs `main()`) and C/RTL
+- **In the app**: C simulation (Silinx's interpreter of Silinx HLS runs `main()`) and C/RTL
   co-simulation (the test bench's calls drive the generated HDL) — phase 5 (#1528).
 
 ## The phases

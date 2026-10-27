@@ -25,15 +25,15 @@ const SOURCE_TYPES = [
   { id: 'tb', label: 'Test Bench', ico: 'vhdl', ext: null, dir: 'sim', wiz: 'testbench' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
   { id: 'mem', label: 'Memory Initialization File (.mem)', ico: 'file', ext: '.mem', dir: 'src' },
-  { id: 'c', label: 'C Function (HLS)', ico: 'file', ext: '.c', dir: 'src' },   // (Silinx C, compatible with Vitis HLS: #1531)
+  { id: 'c', label: 'C Function (HLS)', ico: 'file', ext: '.c', dir: 'src' },   // (Silinx HLS, compatible with Vitis HLS: #1531)
   // not in the list any more; newSourceWizard({ type: 'vhdl-pkg' }) still creates one
   { id: 'vhdl-pkg', label: 'VHDL Package', ico: 'vhdl', ext: '.vhd', dir: 'src', hidden: true },
 ];
 
-/** A new C source (Silinx C, docs/c-to-hdl.md): its top function, its ports explained, a test bench (#1531). */
+/** A new C source (Silinx HLS, docs/c-to-hdl.md): its top function, its ports explained, a test bench (#1531). */
 export function cTemplate(name) {
   return [
-    `// ${name}: a C function made into hardware by Silinx (Silinx C, compatible with AMD's Vitis HLS).`,
+    `// ${name}: a C function made into hardware by Silinx HLS (compatible with AMD's Vitis HLS).`,
     '// The top function becomes a module: an argument passed by value is an input port, a pointer argument',
     '// written is an output port (with its _ap_vld), the returned value is ap_return; ap_start, ap_done,',
     '// ap_idle and ap_ready start a call and say when it is done. See docs/c-to-hdl.md.',

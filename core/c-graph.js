@@ -1,4 +1,4 @@
-// Silinx C (#1525): the graph of a combinational C function: each node an operation on fixed-width integers, shared
+// Silinx HLS (#1525): the graph of a combinational C function: each node an operation on fixed-width integers, shared
 // when the same (constant folded, hash-consed), as core/c-dataflow.js builds it and core/c-hdl.js writes it out.
 // Isomorphic ES module: no DOM and no Node APIs.
 //

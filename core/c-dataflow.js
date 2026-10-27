@@ -1,4 +1,4 @@
-// Silinx C (#1525): a combinational C function as a graph (core/c-graph.js), by running it symbolically: each value
+// Silinx HLS (#1525): a combinational C function as a graph (core/c-graph.js), by running it symbolically: each value
 // a node of the graph; the loops (constant bounds) unrolled; an 'if' a multiplexer of what its branches assign; a
 // 'return', 'break' or 'continue' a condition under which the statements after it do nothing; the functions called
 // inlined. Isomorphic ES module: no DOM and no Node APIs.

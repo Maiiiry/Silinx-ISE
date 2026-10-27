@@ -1,4 +1,4 @@
-// Silinx C, the C simulation (#1528): core/c-interp.js and core/c-interp-expr.js. Each program's main() is run by the
+// Silinx HLS, the C simulation (#1528): core/c-interp.js and core/c-interp-expr.js. Each program's main() is run by the
 // interpreter and compiled with the host's cc (-fsigned-char -fwrapv): the same output, character by character, and
 // the same exit code. Also: the calls of the top function recorded (what co-simulation replays), and the run
 // stopped with its place on a division by zero, an index outside an array, an endless loop. ap_int / ap_uint: values

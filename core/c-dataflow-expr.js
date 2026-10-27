@@ -1,4 +1,4 @@
-// Silinx C (#1525): the expressions of core/c-dataflow.js's symbolic run (its methods, mixed into its Flow): each
+// Silinx HLS (#1525): the expressions of core/c-dataflow.js's symbolic run (its methods, mixed into its Flow): each
 // C expression a value { id, t } of the graph, with C's and ap_int's arithmetic (core/c-types.js); the assignments
 // guarded by the condition under which they run. Isomorphic ES module: no DOM and no Node APIs.
 import { BOOL, INT, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType } from './c-types.js';

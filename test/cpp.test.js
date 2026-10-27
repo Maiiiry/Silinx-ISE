@@ -1,4 +1,4 @@
-// Silinx C++ (#1590, its first part): core/cpp-lex.js and core/cpp-tree.js. A .cpp source's C++ that Silinx reads:
+// Silinx HLS (#1590, its first part): core/cpp-lex.js and core/cpp-tree.js. A .cpp source's C++ that Silinx reads:
 // namespaces and using, qualified names, constexpr, nullptr, static_cast, static_assert, true / false, the C++
 // headers of C's, reference parameters (the ports of pointers, as Vitis HLS makes them), std::cout. Each program
 // against the host's C++ compiler (the same output and exit code), co-simulated in VHDL and Verilog; what is not

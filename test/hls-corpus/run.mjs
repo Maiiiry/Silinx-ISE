@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The HLS corpus (#1597): AMD's Vitis HLS Introductory Examples (manifest.json, pinned) through Silinx C's C simulation
+// The HLS corpus (#1597): AMD's Vitis HLS Introductory Examples (manifest.json, pinned) through Silinx HLS's C simulation
 // (the example's own test bench: its exit code 0), C synthesis (VHDL and Verilog) and C/RTL co-simulation, each
 // design's results compared with expected.json. Not part of npm test: it needs the network once (the sources fetched
 // into .cache/ by scripts/fetch-design-corpus.mjs, never committed).

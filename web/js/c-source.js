@@ -1,4 +1,4 @@
-// Silinx C in the app (#1531): a C source is a module of the project whose HDL is made in memory from its top function
+// Silinx HLS in the app (#1531): a C source is a module of the project whose HDL is made in memory from its top function
 // (core/view-hdl.js); its Design row has the C as its base and its HDL, generated from it, shown read-only here.
 import { h } from './dom.js';
 import { S, findDoc, closeDoc, openDoc, openFile } from './app.js';

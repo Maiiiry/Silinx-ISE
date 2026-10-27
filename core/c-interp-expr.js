@@ -1,4 +1,4 @@
-// Silinx C (#1528): the expressions of the C simulation (core/c-interp.js's methods, mixed into its Machine): C's and
+// Silinx HLS (#1528): the expressions of the C simulation (core/c-interp.js's methods, mixed into its Machine): C's and
 // ap_int's arithmetic on BigInt values (core/c-types.js), pointers to variables and array elements, printf.
 // Isomorphic ES module: no DOM and no Node APIs.
 import { INT, BOOL, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType, wrap } from './c-types.js';

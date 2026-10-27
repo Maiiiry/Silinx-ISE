@@ -1,4 +1,4 @@
-// Silinx C (#1526): a sequential C function as a finite state machine with a datapath (FSMD). The function's code is
+// Silinx HLS (#1526): a sequential C function as a finite state machine with a datapath (FSMD). The function's code is
 // cut into basic blocks (what runs with no jump: its ifs and switches with no loop in them included), one state of the
 // machine each, run in one clock cycle; its loops, the ifs with a loop in them, break, continue and return choose
 // the next state. Its variables are registers (a static or a global keeping its value between calls); a block is run
