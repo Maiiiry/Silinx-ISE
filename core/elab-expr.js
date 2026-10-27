@@ -366,6 +366,13 @@ export function sliceNode(E, base, leftE, rightE, loc, dir) {
     }
     const p1 = bitpos(base.t, V.toNum(left.val)), p2 = bitpos(base.t, V.toNum(right.val));
     const lo = Math.min(p1, p2), w = Math.abs(p1 - p2) + 1;
+    // a slice against its signal's direction (#1692): VHDL `a(1 to 2)` of a (3 downto 0) (a slice keeps its prefix's
+    // direction), Verilog `a[1:2]` of a [3:0] (a part-select in the vector's order); XST refuses both
+    if (base.k === 'sig' && p1 < p2) {
+      const l = V.toNum(left.val), r = V.toNum(right.val), d = base.t.desc ? 'downto' : 'to';
+      diag(E, E.lang === 'vhdl' ? `slice ${l} ${dir || (l > r ? 'downto' : 'to')} ${r} of '${base.name}' against its direction (${base.t.left} ${d} ${base.t.right})`
+        : `part-select [${l}:${r}] of '${base.name}' in the opposite order of its range [${base.t.left}:${base.t.right}]`, loc);
+    }
     if (lo < 0 || lo + w > base.t.w) diag(E, `slice out of range for '${base.name || 'expression'}'`, loc, 'warning');
     // (Verilog: a part-select is unsigned, even of a signed vector; VHDL: a slice keeps the type)
     return { k: 'slice', base, lo, t: { ...vecT(w, base.t.kind === 'logic' && E.lang === 'vhdl' ? base.t.s : false), ...(base.t.mark ? { mark: base.t.mark } : {}) } };

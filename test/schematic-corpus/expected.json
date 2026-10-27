@@ -1275,9 +1275,9 @@
  "tap_reversed": {
   "load": "pass",
   "check": "pass",
-  "hdl": "pass",
+  "hdl": "fail: vhdl: tap_reversed.vhd:16: slice 1 to 2 of 'a' against its direction (3 downto 0)",
   "sim": "skip: no reference",
-  "ise": "pass",
+  "ise": "mismatch: the reference does not elaborate: tap_reversed.vhd:16 slice 1 to 2 of 'a' against its direction (3 downto 0)",
   "synth": "pass",
   "flow": "complete",
   "quality": {
@@ -1291,12 +1291,6 @@
    "xc3s1200efg320-4": "complete"
   },
   "warnings": {
-   "hdl": [
-    "verilog: tap_reversed.v:6: Input <a<0>> is never used.",
-    "verilog: tap_reversed.v:6: Input <a<3>> is never used.",
-    "vhdl: tap_reversed.vhd:9: Input <a<0>> is never used.",
-    "vhdl: tap_reversed.vhd:9: Input <a<3>> is never used."
-   ],
    "ise": [
     "export: ISE symbols not in the Xilinx library: xl_slice4_1_2 — add the returned HDL (.vhd) and .sym files to the ISE project"
    ]

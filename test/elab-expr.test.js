@@ -85,3 +85,21 @@ end;`;
     }, `a = ${a}`);
   });
 });
+
+// #1692: a constant slice against its signal's direction is an error, as XST makes it: VHDL `a(1 to 2)` of a
+// (3 downto 0), `b(2 downto 1)` of b (0 to 3); Verilog `a[1:2]` of [3:0], `b[2:1]` of [0:3]. In the signal's
+// direction, a bit, a VHDL null slice: none
+test('#1692 a slice in the opposite direction of its vector: an error in VHDL and Verilog; in its direction, none', async () => {
+  const { compile, elaborate } = await import('../core/compile.js');
+  const msgs = (path, text, top) => { const lib = compile([{ path, text }]); const d = elaborate(lib, top); return [...lib.errors, ...d.diags].map((x) => `${x.severity}: ${x.line} ${x.message}`); };
+  assert.deepEqual(msgs('e.vhd', `library ieee; use ieee.std_logic_1164.all;
+entity e is port (a : in std_logic_vector(3 downto 0); b : in std_logic_vector(0 to 3); y, z, w, v : out std_logic_vector(1 downto 0); q : out std_logic); end e;
+architecture rtl of e is begin
+  y <= a(1 to 2); z <= a(2 downto 1); w <= b(1 to 2); v <= b(2 downto 1); q <= a(1);
+end rtl;`, 'e'), ["error: 4 slice 1 to 2 of 'a' against its direction (3 downto 0)", "error: 4 slice 2 downto 1 of 'b' against its direction (0 to 3)"]);
+  assert.deepEqual(msgs('n.vhd', `library ieee; use ieee.std_logic_1164.all;
+entity n is port (a : in std_logic_vector(3 downto 0); y : out std_logic_vector(3 downto 0)); end n;
+architecture rtl of n is begin y <= a(0 to -1) & a; end rtl;`, 'n'), [], 'a null slice');
+  assert.deepEqual(msgs('m.v', 'module m(input [3:0] a, input [0:3] b, output [1:0] y, z, w, v, output q);\n  assign y = a[1:2]; assign z = a[2:1]; assign w = b[1:2]; assign v = b[2:1]; assign q = a[1];\nendmodule', 'm'),
+    ["error: 2 part-select [1:2] of 'a' in the opposite order of its range [3:0]", "error: 2 part-select [2:1] of 'b' in the opposite order of its range [0:3]"]);
+});
