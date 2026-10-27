@@ -93,6 +93,10 @@ class SeqFlow extends Flow {
       let cur = mk(lp);
       const entry = cur;
       for (let s of list) {
+        // (a labelled statement: the statement, its label the loop's name in the report, #1601)
+        let label = null;
+        while (s?.kind === 'label') { label = s.name; s = s.stmt; }
+        if (label && (s.kind === 'for' || s.kind === 'while' || s.kind === 'do')) s = { ...s, label };
         const mem = this.hasMem(s);
         if (!hasLoop(s) && !mem) { cur.stmts.push(s); continue; }
         // (a memory's accesses: their states, #1527)
@@ -318,7 +322,7 @@ class SeqFlow extends Flow {
   /** The record of a loop for the report: its line, its count (checkC's), what its pragmas made. */
   loopInfo(s) {
     const c = this.c.loops.find((l) => l.loc.line === s.loc.line && l.loc.col === s.loc.col) || { trip: null, max: null };
-    const info = { line: s.loc.line, trip: c.trip, max: c.max, unroll: null, pipeline: null, blocks: [], loc: s.loc };
+    const info = { line: s.loc.line, name: s.label || null, trip: c.trip, max: c.max, unroll: null, pipeline: null, blocks: [], loc: s.loc };
     (this.loopReport ||= []).push(info);
     return info;
   }
@@ -329,7 +333,7 @@ class SeqFlow extends Flow {
       if (l.pipeline && l.notPipelined) this.warn(l.loc, `#pragma HLS PIPELINE II=${l.pipeline}: II=${ii} made (${l.notPipelined})`);
       else if (l.pipeline && ii > l.pipeline) this.warn(l.loc, `#pragma HLS PIPELINE II=${l.pipeline}: II=${ii} made`);
       const n = l.trip ?? l.max;
-      return { line: l.line, trip: l.trip, max: l.max, unroll: l.unroll, pipeline: l.pipeline, ii, cycles: n === null ? null : l.unroll === 'whole' ? 0 : Math.ceil(n / (typeof l.unroll === 'number' ? l.unroll : 1)) * ii + 1 };
+      return { line: l.line, ...(l.name ? { name: l.name } : {}), trip: l.trip, max: l.max, unroll: l.unroll, pipeline: l.pipeline, ii, cycles: n === null ? null : l.unroll === 'whole' ? 0 : Math.ceil(n / (typeof l.unroll === 'number' ? l.unroll : 1)) * ii + 1 };
     });
   }
   stmt(s, base) { return s && /^mem(read|write|latch)$/.test(s.kind) ? this.memStmt(s, base) : super.stmt(s, base); }

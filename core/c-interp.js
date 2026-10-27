@@ -12,6 +12,7 @@
 import { checkC, constValue } from './c-check.js';
 import { typeOf } from './c-types.js';
 import { exprMethods, convert } from './c-interp-expr.js';
+import { libMethods, Exit } from './c-interp-lib.js';
 
 export const MAX_STEPS = 20_000_000;
 
@@ -19,14 +20,16 @@ class Halt extends Error { constructor(loc, message) { super(message); this.loc 
 class Return { constructor(value) { this.value = value; } }
 const BREAK = Symbol('break'), CONTINUE = Symbol('continue');
 
-export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entry = 'main', headers = null, top = null } = {}) {
+// (files: the test bench's data files, { path: text }, read by fopen; its run's written files in the result's files, #1598)
+export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entry = 'main', headers = null, top = null, files = null } = {}) {
   const checked = checkC(source, file, { headers, top });
   // (a test bench with no function to synthesize still runs)
   const errors = checked.diagnostics.filter((d) => d.severity === 'error' && !/^no function to synthesize/.test(d.message));
   if (errors.length) return { ok: false, output: '', exitCode: null, calls: [], error: null, steps: 0, top: checked.top, diagnostics: checked.diagnostics };
   const m = new Machine(checked, maxSteps);
+  m.files = files || headers || {};
   const r = m.run(entry);
-  return { ...r, top: checked.top, diagnostics: checked.diagnostics };
+  return { ...r, top: checked.top, diagnostics: checked.diagnostics, files: Object.fromEntries(m.fs) };
 }
 
 class Machine {
@@ -38,6 +41,9 @@ class Machine {
     this.calls = [];
     this.frames = [];
     this.globals = new Map();
+    this.fs = new Map();
+    // (stdio's streams: stdout and stderr in the output, stdin empty)
+    for (const [n, std] of [['stdout', 'out'], ['stderr', 'out'], ['stdin', 'in']]) this.globals.set(n, { isFile: true, fh: std === 'in' ? { name: 'stdin', text: '', pos: 0, w: false } : { std }, t: { w: 32, s: true } });
   }
   tick(n) { if (++this.steps > this.maxSteps) throw new Halt(n?.loc, `the C simulation stopped after ${this.maxSteps.toLocaleString('en')} steps (an endless loop?)`); }
   fail(n, message) { throw new Halt(n?.loc, message); }
@@ -70,6 +76,7 @@ class Machine {
       if (v.init?.kind === 'str') [...v.init.value].forEach((ch, k) => { if (k < n) arr[k].v = BigInt(ch.charCodeAt(0)); });
       return { t: et, arr, dims };
     }
+    if (t.kind === 'ptr' && t.to.kind === 'struct' && t.to.name === 'FILE') return { isFile: true, fh: v.init ? this.eval(v.init).fh ?? null : null, t: { w: 32, s: true } };
     if (t.kind === 'ptr') {
       const c = { t: typeOf(t.to), ref: null };
       if (v.init) { const p = this.eval(v.init); c.ref = p.ptr || (p.arr ? this.elemRef(p.arr, 0, p.t) : null); }
@@ -93,6 +100,7 @@ class Machine {
       const r = this.invoke(fn, []);
       return { ok: true, output: this.out.join(''), exitCode: r ? Number(convert(r.v ?? 0n, { w: 32, s: true })) : 0, calls: this.calls, error: null, steps: this.steps };
     } catch (e) {
+      if (e instanceof Exit) return { ok: true, output: this.out.join(''), exitCode: e.code, calls: this.calls, error: null, steps: this.steps };
       if (!(e instanceof Halt)) throw e;
       return { ok: false, output: this.out.join(''), exitCode: null, calls: this.calls, error: { line: e.loc?.line || 1, col: e.loc?.col || 1, message: e.message }, steps: this.steps };
     }
@@ -152,22 +160,6 @@ class Machine {
       return null;
     } finally { this.frames.pop(); }
   }
-  library(name, e) {
-    if (name === 'printf' || name === 'fprintf') {
-      const args = e.args.map((a) => this.eval(a));
-      const at = name === 'fprintf' ? 1 : 0;
-      const fmt = args[at]?.str;
-      if (fmt === undefined) this.fail(e, `${name}: its format must be a string`);
-      const s = this.format(fmt, args.slice(at + 1), e);
-      this.out.push(s);
-      return { v: BigInt(s.length), t: { w: 32, s: true } };
-    }
-    if (name === 'puts') { const a = this.eval(e.args[0]); this.out.push(`${a.str ?? ''}\n`); return { v: 0n, t: { w: 32, s: true } }; }
-    if (name === 'putchar') { const a = this.eval(e.args[0]); this.out.push(String.fromCharCode(Number(this.intOf(a, e) & 255n))); return a; }
-    this.fail(e, `${name}() cannot be run in Silinx's C simulation`);
-    return null;
-  }
-
   // ------------------------------------------------------------------ statements: undefined, a Return, BREAK, CONTINUE
   stmt(s) {
     if (!s) return undefined;
@@ -197,6 +189,7 @@ class Machine {
       case 'for': case 'while': case 'do': return this.loop(s);
       case 'switch': return this.switchStmt(s);
       case 'pragma': case 'empty': case 'case': case 'default': return undefined;
+      case 'label': return this.stmt(s.stmt);   // (#1601)
       default: this.fail(s, `'${s.kind}' cannot be simulated`);
     }
     return undefined;
@@ -237,4 +230,4 @@ class Machine {
     return undefined;
   }
 }
-Object.assign(Machine.prototype, exprMethods);
+Object.assign(Machine.prototype, exprMethods, libMethods);

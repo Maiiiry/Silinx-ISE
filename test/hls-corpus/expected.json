@@ -109,7 +109,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: hamming_window.h:19: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 30: the function 'round' is not declared"
   },
   "interface-memory-ecc-flags": {
     "csim": "skip",
@@ -224,18 +224,26 @@
     "reason": "C++ (#1590)"
   },
   "migration-python-scripts": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 1,
+      "max": 1,
+      "avg": 1
+    },
+    "reason": null
   },
   "migration-vitis-unified-cli": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 1,
+      "max": 1,
+      "avg": 1
+    },
+    "reason": null
   },
   "misc-initialization-and-reset-static-array-rom": {
     "csim": "skip",
@@ -249,7 +257,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: malloc_removed_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 120: 'out_accum': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)"
   },
   "misc-rtl-as-blackbox": {
     "csim": "skip",
@@ -298,7 +306,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: pointer_arith_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 24: '*' reads a pointer parameter (Silinx C: pointers only as arguments)"
   },
   "modeling-pointers-multiple-pointers": {
     "csim": "fail",
@@ -312,21 +320,21 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: pointer_cast_native_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 112: 'ptr': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)"
   },
   "modeling-pointers-stream-better": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
     "latency": null,
-    "reason": "C simulation: pointer_stream_better_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": null
   },
   "modeling-pointers-stream-good": {
     "csim": "fail",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: pointer_stream_good_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 23: pointer arithmetic is not possible in Silinx C: index the array instead"
   },
   "modeling-pointers-using-double": {
     "csim": "fail",
@@ -382,7 +390,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: fp_mul_pow2_test.c:17: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"
+    "reason": "C simulation: 27: '.fp_num' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
   },
   "modeling-using-vectors": {
     "csim": "skip",

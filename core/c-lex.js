@@ -13,7 +13,10 @@
 // defined()), #pragma; its macros are expanded in the tokens.
 
 // the headers Silinx C knows (docs/c-to-hdl.md); hls_stream.h and the others refused
-export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h']);
+export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
+// the macros of the standard headers a test bench uses (#1598)
+const HEADER_MACROS = { 'stdio.h': { EOF: '(-1)', NULL: '0' }, 'stdlib.h': { NULL: '0', EXIT_SUCCESS: '0', EXIT_FAILURE: '1', RAND_MAX: '2147483647' }, 'stddef.h': { NULL: '0' },
+  'limits.h': { CHAR_BIT: '8', INT_MAX: '2147483647', INT_MIN: '(-2147483647 - 1)', UINT_MAX: '4294967295u', SHRT_MAX: '32767', UCHAR_MAX: '255' } };
 
 const PUNCT = ['<<=', '>>=', '...', '->', '++', '--', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=',
   '&=', '|=', '^=', '::', '##'];
@@ -279,7 +282,8 @@ export function lex(source, file = 'input.c', { headers = null } = {}) {
           continue;
         }
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: streams are not supported yet'
-          : `the header '${m[1]}' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)`);
+          : `the header '${m[1]}' is not one of Silinx C's (${[...KNOWN_HEADERS].join(', ')})`);
+        for (const [k, v] of Object.entries(HEADER_MACROS[m[1]] || {})) if (!macros.has(k)) macros.set(k, { params: null, body: scan(v, line, bad).map((t) => ({ ...t, line })) });
         continue;
       }
       if (dir === 'define') {

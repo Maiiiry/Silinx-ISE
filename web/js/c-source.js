@@ -127,7 +127,7 @@ export async function runCReport(path) {
     for (const l of rep.loops) {
       const made = [l.unroll === 'whole' ? 'unrolled' : l.unroll ? `unrolled by ${l.unroll}` : null, l.pipeline ? `pipelined, II=${l.pipeline} asked` : null].filter(Boolean).join(', ');
       const count = l.trip !== null ? `${l.trip} iterations` : l.max !== null ? `up to ${l.max} iterations` : 'iterations unknown';
-      L.push(`  line ${String(l.line).padEnd(4)} ${count}; ${l.unroll === 'whole' ? 'in the state it is in' : `II=${l.ii}`}${l.cycles !== null ? `, ${l.cycles} cycles` : ''}${made ? `; ${made}` : ''}`);
+      L.push(`  ${l.name ? `${l.name} (line ${l.line})` : `line ${String(l.line).padEnd(4)}`} ${count}; ${l.unroll === 'whole' ? 'in the state it is in' : `II=${l.ii}`}${l.cycles !== null ? `, ${l.cycles} cycles` : ''}${made ? `; ${made}` : ''}`);
     }
   }
   for (const l of L) log(l);

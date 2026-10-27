@@ -22,7 +22,7 @@ export function runDesign(design, texts, { maxCycles = 100000 } = {}) {
   if (design.language !== 'c') { r.reason = 'C++ (#1590)'; return r; }
   const { unit, headers } = unitOf(design, texts);
   const opts = { file: 'unit.c', headers, top: design.top };
-  const sim = simulateC(unit, opts);
+  const sim = simulateC(unit, { ...opts, files: texts });
   r.csim = sim.ok && sim.exitCode === 0 ? 'pass' : 'fail';
   if (r.csim === 'fail') r.reason ||= `C simulation: ${sim.error ? `${sim.error.line}: ${sim.error.message}` : sim.ok ? `main() returned ${sim.exitCode}` : why(first(sim.diagnostics))}`;
   const gens = ['vhdl', 'verilog'].map((lang) => cToHdl(unit, { ...opts, lang }));
