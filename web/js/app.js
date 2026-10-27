@@ -3,7 +3,7 @@ import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, splitter, toast } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, typeText } from './editor.js';
-import { cRunButtons, isC } from './c-source.js';
+import { cRunButtons, isC, openCHdl } from './c-source.js';
 import { compile, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import * as wiz from './wizards.js';
@@ -33,6 +33,7 @@ import { renameSymbolIn } from './rename.js';
 import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
 import { prefKey } from './prefs.js';
 import { keepCursor, keptCursor } from './doc-cursor.js';
+import { placeSplit, restoreSplit, splitClosed, splitItems, splitKeys } from './split-view.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -320,6 +321,7 @@ function docTab(doc) {
       { label: 'Close', action: () => closeDoc(doc) },
       { label: 'Close Others', action: () => S.docs.filter(d => d !== doc).forEach(closeDoc) },
       { label: 'Close All', action: () => [...S.docs].forEach(closeDoc) },
+      ...splitItems(doc),   // (two documents side by side, #1619)
     ], e.clientX, e.clientY);
   });
   longPressMenu(tab);
@@ -350,8 +352,10 @@ export function openDoc(spec) {
 
 // background: opened with the project, not by the user (a narrow screen's drawer stays open)
 export function activateDoc(doc, { background = false } = {}) {
+  const prev = S.active;
   S.active = doc;
   for (const d of S.docs) { d.el.hidden = d !== doc; d.tab.classList.toggle('active', d === doc); }
+  placeSplit(doc, prev);   // (the other pane's document shown beside it, #1619)
   doc.onActivate?.();
   $('status-pos').textContent = '';
   if (!keepView && !background) drawerGiveWay();   // a narrow screen: the drawer gives way to the document (#266)
@@ -416,7 +420,8 @@ export async function closeDoc(doc) {
   doc.destroy?.();
   doc.el.remove(); doc.tab.remove();
   S.docs = S.docs.filter(d => d !== doc);
-  if (S.active === doc) { const last = S.docs[S.docs.length - 1]; if (last) activateDoc(last); else S.active = null; }
+  const other = splitClosed(doc);   // (the other pane's document in front, #1619)
+  if (S.active === doc) { const last = other || S.docs[S.docs.length - 1]; if (last) activateDoc(last); else S.active = null; }
   saveViewState();
   return true;
 }
@@ -435,6 +440,7 @@ const REOPEN = [
   [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^pn:(.+)$/, p => inProject(p) && openPetri(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m, { task: null })],
   [/^isim:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && runSimulation(mod, model || undefined)],
   [/^emulator:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && openEmulator(mod, { model: model || null })],
+  [/^chdl:(.+)$/, p => inProject(p) && openCHdl(p)],   // (a C source's HDL, beside it: #1619)
   [/^summary$/, () => openSummary()], [/^pins$/, () => S.project.top && openPinPlanner()], [/^impact$/, () => openImpact()],
 ];
 // a module of the project, and its netlist model when one is asked for (no message when it is gone)
@@ -452,11 +458,11 @@ export async function closeAllDocs() {
   try { for (const d of [...S.docs]) if (!await closeDoc(d)) return false; } finally { keepView = false; }
   return true;
 }
-function saveViewState() {
+export function saveViewState() {
   if (keepView || !S.project) return;
   const open = S.docs.filter(d => d.project === S.project.name && REOPEN.some(([re]) => re.test(reopenKey(d)))).map(reopenKey);
   const active = S.active && reopenKey(S.active);
-  const state = { open, active: open.includes(active) ? active : null, page: S.leftPage || null, view: S.view };
+  const state = { open, active: open.includes(active) ? active : null, page: S.leftPage || null, view: S.view, split: splitKeys(reopenKey, open) };
   try { localStorage.setItem(VIEW_KEY(S.project.name), JSON.stringify(state)); } catch { /* storage unavailable */ }
 }
 function savedViewState(name) {
@@ -475,6 +481,7 @@ export async function restoreViewState(name) {
       if (!re) continue;
       try { await open(...re.exec(id).slice(1)); } catch { /* a document that cannot open any more */ }
     }
+    restoreSplit(v.split, k => S.docs.find(d => reopenKey(d) === k));
     const active = v.active && S.docs.find(d => reopenKey(d) === v.active);
     if (active) activateDoc(active);
   } finally { keepView = false; }

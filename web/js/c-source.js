@@ -26,7 +26,10 @@ export async function openCHdl(path) {
       const host = h('div', { class: 'editor-host' });
       el.append(bar, host);
       d.editor = createEditor(host, { text: src?.text || '', lang, path: name, readOnly: true });
-      return { lang, destroy: () => d.editor.destroy() };
+      // (the C saved: its HDL made again, shown here, e.g. beside the C, #1619)
+      const follow = () => { const t = S.sources.find((s) => s.view && s.path === path)?.text; if (t != null && t !== d.editor.getValue()) d.editor.setValue(t); };
+      addEventListener('silinx:design-changed', follow);
+      return { lang, destroy: () => { removeEventListener('silinx:design-changed', follow); d.editor.destroy(); } };
     },
   });
 }
