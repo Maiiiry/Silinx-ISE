@@ -202,7 +202,7 @@ void v() { return 1; }`), [
     "11:11 error: 'other' takes 2 argument(s), not 1",
     "11:22 error: the function 'nope' is not declared",
     "11:32 error: 'q' is not declared",
-    "12:9 error: '.foo' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)",
+    "12:9 error: '.foo' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)",
     "13:3 error: 'top' returns a value: 'return' needs one",
     "15:12 error: 'v' returns nothing (void): 'return' with no value",
   ]);
