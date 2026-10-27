@@ -27,7 +27,7 @@ import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
 import { BLOCK_MARK, blockMarkOf, declaredIn, generateHdl, isBlockSymbol } from './schdoc-hdl.js';
 import { mergeNetWires } from './schdoc-place.js';
 import { normalizeCurve, splitCurve } from './schcurve.js';
-import { widenMuxes } from './schdoc-upgrade.js';
+import { moveTaps, widenMuxes } from './schdoc-upgrade.js';
 import { symbolDiff } from './schdoc-modsym.js';
 import {
   modulesFromLibrary, schematicFromHdl
@@ -63,7 +63,9 @@ export const GRID = 10;
 // they connected in their middle: a pin, a marker, a wire end or a bend on them)
 // 4 (#1136): the multiplexers as wide as the DEMUX (a document of version 3 has them widened, their outputs'
 // connections moved with them: core/schdoc-upgrade.js)
-export const DOC_VERSION = 4;
+// 5 (#1726): the bus tap drawn as ISE's, its input on its bus a grid step from its output's line (a document of
+// version 4 has what met its input taken there: core/schdoc-upgrade.js)
+export const DOC_VERSION = 5;
 
 export const snap = v => Math.round(v / GRID) * GRID;
 export const r10 = v => Math.ceil(v / GRID) * GRID;
@@ -81,6 +83,7 @@ export function normalizeDoc(d, { modules } = {}) {
   const before301 = !(+doc.version >= 2);
   const before678 = !(+doc.version >= 3);
   const before1136 = !(+doc.version >= 4);
+  const before1726 = !(+doc.version >= 5);
   doc.version = DOC_VERSION;
   doc.name = String(doc.name || 'schematic');
   doc.lang = doc.lang === 'verilog' ? 'verilog' : 'vhdl';
@@ -136,6 +139,7 @@ export function normalizeDoc(d, { modules } = {}) {
   const mods = normModules(modules);
   const stays2 = before678 && doc.symbols.some(s => symbolDef(s, mods).missing);
   if (before1136 && !stays2) widenMuxes(doc, mods);
+  if (before1726 && !stays2) moveTaps(doc, mods);
   if (before678) {
     joinOnWires(doc, mods);
     if (stays2) doc.version = 2;

@@ -754,6 +754,7 @@ export function importIseSch(xmlText, opts = {}) {
     return false;
   };
   const onForeignWire = (x, y, key) => (segH.get(y) || []).some(([lo, hi, k]) => k !== key && x >= lo && x <= hi) || (segV.get(x) || []).some(([lo, hi, k]) => k !== key && y >= lo && y <= hi);
+  const onOwnWire = (x, y, key) => (segH.get(y) || []).some(([lo, hi, k]) => k === key && x >= lo && x <= hi) || (segV.get(x) || []).some(([lo, hi, k]) => k === key && y >= lo && y <= hi);
   const pinFree = (x, y, key) => !onForeignWire(x, y, key) && !foreignAt(x, y, key);
   const parked = [];
   for (const M of macros) {
@@ -764,7 +765,14 @@ export function importIseSch(xmlText, opts = {}) {
     const valid = (dx, dy) => allPins.every(p => pinFree(p.x + dx, p.y + dy, p.key));
     const score = (dx, dy) => tgt.reduce((n, q) => n + (q.e.E[0] + dx === q.T[0] && q.e.E[1] + dy === q.T[1] ? 1 : 0), 0);
     let base = null;
-    if (tgt.length) {
+    // a bus tap (#1726: its input a grid step across from its output's line): its output on ISE's bit wire, its input
+    // then on its bus a step along it, where the bus runs on
+    const tapIn = M.tap ? tgt.find(q => q.e.pin === 'I') : null, tapOut = M.tap ? tgt.find(q => q.e.pin === 'O') : null;
+    if (tapIn && tapOut) {
+      const dx = tapOut.T[0] - tapOut.e.E[0], dy = tapOut.T[1] - tapOut.e.E[1];
+      if (valid(dx, dy) && onOwnWire(tapIn.e.E[0] + dx, tapIn.e.E[1] + dy, tapIn.e.key)) base = { dx, dy };
+    }
+    if (base) { /* placed */ } else if (tgt.length) {
       const cands = [];
       for (const { e, T } of tgt) cands.push([T[0] - e.E[0], T[1] - e.E[1]]);
       const ranked = cands.map(([dx, dy]) => ({ dx, dy, sc: score(dx, dy) })).sort((x, y) => y.sc - x.sc);
@@ -787,7 +795,8 @@ export function importIseSch(xmlText, opts = {}) {
       if (!valid(base.dx, base.dy)) for (let r = 1; r <= 6 && !valid(base.dx, base.dy); r++) for (const [ox, oy] of [[r, 0], [-r, 0], [0, r], [0, -r]]) if (valid(base.dx + ox * 10, base.dy + oy * 10)) { base = { dx: base.dx + ox * 10, dy: base.dy + oy * 10 }; break; }
     }
     shiftMacro(M, base.dx, base.dy);
-    for (const { e, T } of tgt) e.T = T;
+    // (a tap's input on its own bus: no wire to the bus's point, the bus joined there)
+    for (const { e, T } of tgt) e.T = M.tap && e.pin === 'I' && onOwnWire(e.E[0], e.E[1], e.key) ? [...e.E] : T;
     for (const s of M.syms) { syms.push(s); for (const p of pinsOf(s)) occAdd(p.x, p.y, pinKey.get(`${s.id}/${p.name}`)); }
   }
   for (const M of parked) syms.push(...M.syms);

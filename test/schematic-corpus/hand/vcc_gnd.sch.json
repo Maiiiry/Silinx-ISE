@@ -1,5 +1,5 @@
 {
- "version": 4,
+ "version": 5,
  "name": "vcc_gnd",
  "lang": "vhdl",
  "sheet": {
@@ -226,11 +226,11 @@
     },
     {
      "x": 140,
-     "y": 340
+     "y": 330
     },
     {
      "x": 210,
-     "y": 340
+     "y": 330
     }
    ],
    "bus": true

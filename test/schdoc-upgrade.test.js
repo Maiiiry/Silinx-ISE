@@ -143,3 +143,38 @@ test('#1136 copy and paste: a multiplexer pasted as copied (the clipboard says i
   const n2 = netlist(into2), o = n2.pinNet.get(`${into2.symbols[0].id}/O`);
   assert.ok(o?.endpoints.some((e) => e.kind === 'port'));
 });
+
+// #1726: a schematic of version 4 brought to version 5: its bus taps drawn as ISE's, their input I a grid step from their
+// output's line (local (0, 0); it was (0, 10), in line with O). The tap and its output stay; what met its old input
+// follows: a bus wire coming along the move has its end moved, one coming across gets a bus wire to the new input.
+test('#1726 a schematic of before: its bus taps\' inputs moved, turned and mirrored, every pin on its net, the HDL the same', () => {
+  for (const [rot, mirror] of ORIENTS) {
+    for (const along of [false, true]) {
+      const tap = { id: 'T', type: 'slice', x: 400, y: 300, rot, mirror, name: 'U1', params: { msb: 2, lsb: 1 } };
+      // the tap of before: I at (0, 10) and O at (40, 10) in its 40 x 20 box
+      const old = { w: 40, h: 20 };
+      const i = place(tap, old, 0, 10), o = place(tap, old, 40, 10), [dx, dy] = turned(tap, 'W'), [ex, ey] = turned(tap, 'E');
+      // the bus to I: straight in along the lead, or (along) arriving across it, along the way the input moves
+      const iNew = place(tap, old, 0, 0), mv = [Math.sign(iNew.x - i.x), Math.sign(iNew.y - i.y)];
+      const far = along ? { x: i.x + 60 * mv[0], y: i.y + 60 * mv[1] } : { x: i.x + 40 * dx, y: i.y + 40 * dy };
+      const oFar = { x: o.x + 40 * ex, y: o.y + 40 * ey };
+      const d4 = { version: 4, name: 'taps', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, symbols: [tap],
+        wires: [{ id: 'WB', points: [far, i], bus: true }, { id: 'WO', points: [o, oFar], bus: true }], labels: [],
+        ports: [{ id: 'PA', name: 'a', dir: 'in', width: 4, x: far.x, y: far.y }, { id: 'PY', name: 'y', dir: 'out', width: 2, x: oFar.x, y: oFar.y }] };
+      const d = normalizeDoc(d4), where = `rot ${rot}${mirror ? ' mirrored' : ''}${along ? ', its bus along the move' : ''}`;
+      assert.equal(d.version, DOC_VERSION);
+      const pins = Object.fromEntries(symbolPins(d.symbols[0], {}).map((p) => [p.name, p]));
+      assert.deepEqual([d.symbols[0].x, d.symbols[0].y, pins.O.x, pins.O.y], [400, 300, o.x, o.y], `${where}: the tap and its output stay`);
+      assert.deepEqual([pins.I.x, pins.I.y], [iNew.x, iNew.y], where);
+      const nl = netlist(d);
+      assert.deepEqual(nl.diagnostics, [], where);
+      assert.equal(nl.pinNet.get('T/I'), nl.portNet.get('PA'), `${where}: on its bus`);
+      assert.equal(nl.pinNet.get('T/O'), nl.portNet.get('PY'), where);
+      // along: the bus's end moved (no wire added); across: a bus wire from the old place to the new input
+      assert.equal(d.wires.length, along ? 2 : 3, where);
+      if (!along) assert.deepEqual(d.wires[2], { id: 'W3', points: [i, iNew], bus: true }, where);
+      assert.match(generateHdl(d).code, /y <= a\(2 downto 1\);/, where);
+      assert.deepEqual(normalizeDoc(d), d, `${where}: converted once`);
+    }
+  }
+});
