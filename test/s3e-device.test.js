@@ -27,7 +27,7 @@ import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
-import { tileCandidates, siteCandidates, censusCandidates, ioCandidates } from '../research/s3e-device/candidates.mjs';
+import { tileCandidates, siteCandidates, censusCandidates, ioCandidates, leftCandidates } from '../research/s3e-device/candidates.mjs';
 import { bram, mult, pads, inputs, padDefaults } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { deviceSites } from '../core/fpga/place.js';
@@ -426,6 +426,20 @@ test('ioCandidates: an I/O tile\'s PIPs from the database\'s features, in the ti
   const obs = { pips: [{ tile: 'LIOIS_X0Y5', from: 'E2BEG0', to: 'IOIS_F1_B0' }, { tile: 'CLB_X1Y5', from: 'F1_B0', to: 'X0' }] };
   const c = ioCandidates(obs, tilesDb, t => tileXY(t).prefix).map(p => `${p.tile} ${p.from}->${p.to}`).sort();
   assert.deepEqual(c, ['LIOIS_X0Y5 IOIS_F1_B0->X0', 'LIOIS_X0Y5 IOIS_I0->OMUX3']);
+});
+
+test('leftCandidates: the I/O candidates a round\'s untestable joins need: the PIPs into their I/O ends and one step back (#3, round 7)', () => {
+  const pips = [
+    { tile: 'BIOIS_X7Y0', from: 'IOIS_I0', to: 'N6BEG1' },     // into an untestable join's I/O end
+    { tile: 'BIOIS_X7Y0', from: 'OMUX3', to: 'IOIS_I0' },      // into that PIP's from-wire (one step back)
+    { tile: 'BIOIS_X7Y0', from: 'E2BEG0', to: 'OMUX3' },       // two steps back: not asked
+    { tile: 'BIOIS_X9Y0', from: 'IOIS_I0', to: 'N6BEG1' },     // the same wires in another tile: not asked
+  ];
+  // (the CLB end of a join is no I/O wire: nothing into it is asked)
+  const untestable = [['BIOIS_X7Y0/N6BEG1', 'CLB_X7Y1/N6MID1']];
+  assert.deepEqual(leftCandidates(pips, untestable), pips.slice(0, 2));
+  assert.deepEqual(leftCandidates(pips, [['CLB_X1Y1/X0', 'CLB_X2Y1/F1_B0']]), []);
+  assert.deepEqual(leftCandidates(pips, []), []);
 });
 
 test('testSources: the observed IOB inputs and block-RAM outputs; another package\'s inputs; the unbonded IOB sites of a tile with none (#3, round 8)', () => {
