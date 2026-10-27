@@ -1,4 +1,4 @@
-// Silinx C, C/RTL co-simulation (#1528): core/c-cosim.js. The test bench's calls of the top function replayed on the
+// Silinx HLS, C/RTL co-simulation (#1528): core/c-cosim.js. The test bench's calls of the top function replayed on the
 // generated VHDL and Verilog (a combinational module, a sequential one through ap_ctrl_hs) and compared with the C's
 // results: a pass with its latency; an HDL that differs reported call by call and port by port; a test bench that does
 // not call the top, or a C simulation that fails, said.

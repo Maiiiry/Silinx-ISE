@@ -355,7 +355,7 @@ export async function checkFileSyntax(path) {
   await saveAll();
   log(`\nStarted : "Check Syntax" of ${path}.\n`, 'hdr');
   const cFile = isC(path);
-  log(cFile ? `Analyzing Silinx C file "${path}"` : `${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
+  log(cFile ? `Analyzing Silinx HLS file "${path}"` : `${/\.vhdl?$/i.test(path) ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${path}" into library work`);
   const info = [];
   const diags = cFile ? await cDiagnostics(path, info) : hdlDiagnostics(path, null, info);
   for (const l of info) log(l);
@@ -368,7 +368,7 @@ export async function checkFileSyntax(path) {
   return true;
 }
 
-// Silinx C (#1524): the checks of a C source (core/c-check.js), its top function said
+// Silinx HLS (#1524): the checks of a C source (core/c-check.js), its top function said
 async function cDiagnostics(path, info) {
   const text = await api.readFile(S.project.name, path);
   const r = checkC(text, path);

@@ -1,4 +1,4 @@
-// Helpers of the Silinx C tests (test/c-hdl.test.js, test/c-seq.test.js): the host's C compiler (the reference),
+// Helpers of the Silinx HLS tests (test/c-hdl.test.js, test/c-seq.test.js): the host's C compiler (the reference),
 // edge and random input values, and a C program's outputs on vectors.
 import fs from 'node:fs';
 import os from 'node:os';

@@ -1,4 +1,4 @@
-// Silinx C (#1575): a sequential C function's machine (core/c-fsmd.js) as an ASM chart (core/asm.js's model), to be
+// Silinx HLS (#1575): a sequential C function's machine (core/c-fsmd.js) as an ASM chart (core/asm.js's model), to be
 // read: the block protocol's IDLE (ap_idle; ap_start: the arguments read) and DONE (ap_done, ap_ready); a state per
 // block of the C, its statements its register transfers (in the C's order, as the C writes them), its ifs decision
 // boxes and the statements under them conditional output boxes, a return, break or continue its exit to the state

@@ -1,4 +1,4 @@
-// Silinx C (#1528): C/RTL co-simulation, as Vitis HLS's: the test bench's calls of the top function (the C simulation,
+// Silinx HLS (#1528): C/RTL co-simulation, as Vitis HLS's: the test bench's calls of the top function (the C simulation,
 // core/c-interp.js) replayed on the generated HDL (core/c-hdl.js) in Silinx's simulator, a combinational module's
 // inputs set one call at a time, a sequential one's through its block protocol (ap_start, then ap_done); each
 // result compared with the C's: ap_return, a pointer output (taken when its _ap_vld is 1), a read-write pointer, an

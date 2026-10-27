@@ -1,4 +1,4 @@
-// Silinx C++ (#1590): hls::stream. Its C simulation (a queue: read, write, empty, the operators >> and <<, by
+// Silinx HLS (#1590): hls::stream. Its C simulation (a queue: read, write, empty, the operators >> and <<, by
 // reference) against the host's C++ compiler with a stream of its own (std::queue) as hls_stream.h; its synthesis as
 // Vitis HLS's ap_fifo (the ports, their order); its co-simulation in VHDL and Verilog with FIFOs in the test bench that
 // are empty and full now and then (the module's waits); a wrong value written reported; what is not supported said.

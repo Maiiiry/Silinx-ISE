@@ -1,4 +1,4 @@
-// Silinx C (#1524): the preprocessor and lexer (core/c-lex.js), the parser (core/c-parse.js), the checks
+// Silinx HLS (#1524): the preprocessor and lexer (core/c-lex.js), the parser (core/c-parse.js), the checks
 // (core/c-check.js) and the help of their messages (core/hints-c.js): valid sources, sources with errors and the
 // exact messages, positions included.
 import { test } from 'node:test';
@@ -55,7 +55,7 @@ test('lex: pragmas (HLS parsed, others dropped with a warning); headers known an
   assert.deepEqual(r.includes.map((i) => [i.name, i.system]), [['ap_int.h', false], ['unistd.h', true], ['hls_stream.h', true]]);
   assert.deepEqual(r.pragmas.map((p) => [p.name, p.args]), [['PIPELINE', { ii: '2', rewind: true }], ['INTERFACE', { mode: 'ap_vld', port: 'y' }]]);
   assert.deepEqual(r.errors.map((e) => `${e.line} ${e.severity}: ${e.message}`), [
-    "2 error: the header 'unistd.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)",
+    "2 error: the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)",
     '3 error: hls_stream.h: hls::stream is C++: write the source as a .cpp file',
     '5 warning: #pragma GCC optimize is ignored (only #pragma HLS)',
     '11 error: #endif with no #if',
@@ -140,13 +140,13 @@ int main() { ap_uint<12> r; top(1, 2, &r); printf("%d\\n", (int)r); return 0; }`
   // the TOP pragma chooses another function; main (the test bench) is never the top
   assert.equal(checkC('int a(int x) { return x; }\nint b(int y) { return y; }\n#pragma HLS TOP name=a\n').top, 'a');
   assert.equal(checkC('int a(int x) { return x; }\nint main() { return a(1); }').top, 'a');
-  assert.deepEqual(msgs('int main() { return 0; }'), ['1:1 error: no function to synthesize: Silinx C makes the top function into a module (main() is the test bench)']);
+  assert.deepEqual(msgs('int main() { return 0; }'), ['1:1 error: no function to synthesize: Silinx HLS makes the top function into a module (main() is the test bench)']);
 });
 
 test('checkC: what cannot be synthesized (UG1399): recursion, dynamic memory, system calls, pointers, floating point, structures, goto, unbounded loops, undefined behaviour', () => {
-  assert.deepEqual(msgs('int f(int n) { return n ? f(n - 1) : 0; }'), ['1:5 error: recursion is not possible in hardware (Silinx C, as Vitis HLS): f → f']);
+  assert.deepEqual(msgs('int f(int n) { return n ? f(n - 1) : 0; }'), ['1:5 error: recursion is not possible in hardware (Silinx HLS, as Vitis HLS): f → f']);
   assert.deepEqual(msgs('int g(int n);\nint f(int n) { return g(n); }\nint g(int n) { return f(n); }\nint top(int x) { return f(x); }'),
-    ['2:5 error: recursion is not possible in hardware (Silinx C, as Vitis HLS): f → g → f']);
+    ['2:5 error: recursion is not possible in hardware (Silinx HLS, as Vitis HLS): f → g → f']);
   assert.deepEqual(msgs(`#include <stdio.h>
 int top(int *p, int n) {
   int *q = 0;
@@ -161,17 +161,17 @@ int top(int *p, int n) {
 out:
   return p[0] + *(p + 1) + n / 0 + (n << -1);
 }`), [
-    "3:8 error: 'q': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)",
-    "4:9 error: 'x': floating point (float) is not supported in Silinx C yet: use integers or ap_int<W>",
-    '4:13 error: floating point (1.5) is not supported in Silinx C yet',
+    "3:8 error: 'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
+    "4:9 error: 'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>",
+    '4:13 error: floating point (1.5) is not supported in Silinx HLS yet',
     "6:3 error: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it",
     '7:3 warning: printf is ignored by synthesis (it only prints in C simulation)',
-    "8:8 error: 'm': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)",
-    '8:12 error: malloc: dynamic memory is not possible in hardware (Silinx C, as Vitis HLS: fixed sizes; use an array)',
-    '9:3 error: exit is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)',
-    "10:24 error: 's': structures (struct pt) are not supported in Silinx C yet",
-    "11:3 error: 'goto' is not supported in Silinx C (use loops, 'break' and 'continue')",
-    '13:21 error: pointer arithmetic is not possible in Silinx C: index the array instead',
+    "8:8 error: 'm': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)",
+    '8:12 error: malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)',
+    '9:3 error: exit is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)',
+    "10:24 error: 's': structures (struct pt) are not supported in Silinx HLS yet",
+    "11:3 error: 'goto' is not supported in Silinx HLS (use loops, 'break' and 'continue')",
+    '13:21 error: pointer arithmetic is not possible in Silinx HLS: index the array instead',
     '13:30 error: division by zero',
     '13:39 error: a shift by a negative amount (-1) is undefined in C',
   ]);
@@ -199,26 +199,26 @@ void v() { return 1; }`), [
     '6:14 error: the width of ap_uint<0> must be from 1 to 1024',
     '7:17 error: the width of ap_uint<2000> must be from 1 to 1024',
     '9:13 error: the width of ap_int<…> must be a constant',
-    '10:7 error: the size of an array must be a constant (Silinx C: fixed sizes)',
+    '10:7 error: the size of an array must be a constant (Silinx HLS: fixed sizes)',
     "11:11 error: 'other' takes 2 argument(s), not 1",
     "11:22 error: the function 'nope' is not declared",
     "11:32 error: 'q' is not declared",
-    "12:9 error: '.foo' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)",
+    "12:9 error: '.foo' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)",
     "13:3 error: 'top' returns a value: 'return' needs one",
     "15:12 error: 'v' returns nothing (void): 'return' with no value",
   ]);
 });
 
-test('hints: the main messages of Silinx C have their help in English and in Portuguese', () => {
+test('hints: the main messages of Silinx HLS have their help in English and in Portuguese', () => {
   for (const [msg, id] of [
-    ['recursion is not possible in hardware (Silinx C, as Vitis HLS): f → f', 'c-recursion'],
-    ['malloc: dynamic memory is not possible in hardware (Silinx C, as Vitis HLS: fixed sizes; use an array)', 'c-dynamic-memory'],
-    ['exit is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)', 'c-system-call'],
-    ["'q': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)", 'c-pointer-variable'],
-    ['pointer arithmetic is not possible in Silinx C: index the array instead', 'c-pointer-arithmetic'],
-    ["'x': floating point (float) is not supported in Silinx C yet: use integers or ap_int<W>", 'c-float'],
+    ['recursion is not possible in hardware (Silinx HLS, as Vitis HLS): f → f', 'c-recursion'],
+    ['malloc: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)', 'c-dynamic-memory'],
+    ['exit is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)', 'c-system-call'],
+    ["'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)", 'c-pointer-variable'],
+    ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
+    ["'x': floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>", 'c-float'],
     ["the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it", 'c-loop-bound'],
-    ["the header 'unistd.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)", 'c-header'],
+    ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
   ]) {
     const h = hintFor({ message: msg });
@@ -234,9 +234,25 @@ test('#1597 lex: the project\'s own headers read in place (their macros the sour
     'fir.c': '#include "fir.h"\nint fir(data_t x) { return x * N; }\n',
   };
   const r = lex('#include "fir.h"\n#include "fir.h"\n#include "types.h"\n#include "src/fir.c"\nint main(void) { return fir(N); }\n#include "nope.h"\n', 'tb.c', { headers });
-  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"]);
+  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"]);
   const text = r.tokens.filter((t) => t.t !== 'eof').map((t) => t.v).join(' ');
   assert.equal(text, 'typedef short data_t ; int fir ( data_t x ) ; int fir ( data_t x ) { return x * 4 ; } int main ( void ) { return fir ( 4 ) ; }');
   // (the tokens of a header carry its name)
   assert.deepEqual([...new Set(r.tokens.map((t) => t.file).filter(Boolean))], ['types.h', 'fir.h', 'fir.c']);
+});
+
+test('the flow is named Silinx HLS: its messages, help, interface and docs (#1613)', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const dirs = ['core', 'web/js', 'docs'];
+  const old = [];
+  for (const d of dirs) {
+    for (const f of readdirSync(new URL(`../${d}/`, import.meta.url))) {
+      if (!/\.(js|md)$/.test(f)) continue;
+      const text = readFileSync(new URL(`../${d}/${f}`, import.meta.url), 'utf8');
+      if (/Silinx C\b/.test(text)) old.push(`${d}/${f}`);
+    }
+  }
+  assert.deepEqual(old, []);
+  assert.ok(msgs('float f(float x) { return x; }').some((m) => /not supported in Silinx HLS yet/.test(m)));
+  assert.match(hintFor({ message: 'floating point (float) is not supported in Silinx HLS yet: use integers or ap_int<W>' }).pt.explain, /o Silinx HLS trabalha com inteiros/);
 });

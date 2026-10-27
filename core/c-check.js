@@ -1,4 +1,4 @@
-// Silinx C (docs/c-to-hdl.md, #1524): the checks of a parsed C source: names and calls, the top function, and
+// Silinx HLS (docs/c-to-hdl.md, #1524): the checks of a parsed C source: names and calls, the top function, and
 // what can be synthesized (UG1399's rules: the whole functionality in the top function and what it calls, no
 // system calls, fixed or bounded sizes, unambiguous constructs, no visible undefined behaviour).
 // Isomorphic ES module: no DOM and no Node APIs.
@@ -15,14 +15,14 @@
 import { parse } from './c-parse.js';
 import { checkPragmas } from './c-pragma.js';
 
-// the library calls Silinx C refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
+// the library calls Silinx HLS refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
   'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy', 'assert']);
 const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
 const STREAMS = new Set(['stdout', 'stderr', 'stdin']);
 const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush']);
-// the member functions of ap_int / ap_uint Silinx C knows
-// the member functions of hls::stream Silinx C++ knows (#1590)
+// the member functions of ap_int / ap_uint Silinx HLS knows
+// the member functions of hls::stream Silinx HLS knows (#1590)
 const STREAM_MEMBERS = new Set(['read', 'write', 'empty', 'full', 'read_nb', 'write_nb', 'size']);
 const AP_MEMBERS = new Set(['range', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
 export const MAX_AP_WIDTH = 1024;
@@ -91,7 +91,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
       typeOk(t.of, loc);
       if (t.size) {
         const n = constValue(t.size, consts);
-        if (n === null) report(loc, 'the size of an array must be a constant (Silinx C: fixed sizes)');
+        if (n === null) report(loc, 'the size of an array must be a constant (Silinx HLS: fixed sizes)');
         else if (n < 1n) report(loc, 'the size of an array must be 1 or more');
         else t.length = Number(n);
       }
@@ -111,7 +111,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
   if (top && !funcs.get(top)?.body) { report(topPragma?.loc, `the top function '${top}' is not defined`); top = null; }
   if (!top && opts.top && funcs.get(opts.top)?.body) top = opts.top;
   if (!top) top = [...ast.items].reverse().find((it) => it.kind === 'func' && it.body && it.name !== 'main')?.name || null;
-  if (!top && !diags.some((d) => d.severity === 'error')) report({ line: 1, col: 1 }, 'no function to synthesize: Silinx C makes the top function into a module (main() is the test bench)');
+  if (!top && !diags.some((d) => d.severity === 'error')) report({ line: 1, col: 1 }, 'no function to synthesize: Silinx HLS makes the top function into a module (main() is the test bench)');
 
   // ---------------------------------------------------------------- the call graph: what is synthesized
   const calls = new Map();   // name -> Set of the functions it calls
@@ -141,7 +141,7 @@ export function checkC(source, file = 'input.c', opts = {}) {
   };
   if (top) {
     const c = cycle(top, []);
-    if (c) report(funcs.get(c[0]).loc, `recursion is not possible in hardware (Silinx C, as Vitis HLS): ${c.join(' → ')}`);
+    if (c) report(funcs.get(c[0]).loc, `recursion is not possible in hardware (Silinx HLS, as Vitis HLS): ${c.join(' → ')}`);
   }
 
   // ---------------------------------------------------------------- each function: names, calls, constructs
@@ -170,11 +170,11 @@ function checkFunction(f, ctx) {
   const lookup = (name) => { for (let k = scopes.length - 1; k >= 0; k--) if (scopes[k].has(name)) return scopes[k].get(name); return globals.has(name) ? { kind: 'global', type: globals.get(name).type } : null; };
   function typeHw(t, loc, what) {
     if (!t) return;
-    if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx C yet: use integers or ap_int<W>`);
-    else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx C yet`);
+    if (t.kind === 'float') report(loc, `${what}: floating point (${t.name}) is not supported in Silinx HLS yet: use integers or ap_int<W>`);
+    else if (t.kind === 'struct') report(loc, `${what}: structures (${t.name}) are not supported in Silinx HLS yet`);
     else if (t.kind === 'array') typeHw(t.of, loc, what);
     else if (t.kind === 'ptr') {
-      if (t.to.kind === 'ptr') report(loc, `${what}: a pointer to a pointer is not possible (Silinx C: pointers only to arguments)`);
+      if (t.to.kind === 'ptr') report(loc, `${what}: a pointer to a pointer is not possible (Silinx HLS: pointers only to arguments)`);
       else typeHw(t.to, loc, what);
     }
   }
@@ -185,7 +185,7 @@ function checkFunction(f, ctx) {
     if (hw) {
       typeHw(v.type, v.loc, `'${v.name}'`);
       if (v.type.kind === 'stream') report(v.loc, `'${v.name}': a stream inside the module (a FIFO between its parts, DATAFLOW) is not supported yet: a stream is an argument (ap_fifo)`);
-      if (v.type.kind === 'ptr') report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index)`);
+      if (v.type.kind === 'ptr') report(v.loc, `'${v.name}': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)`);
       if (v.type.kind === 'array' && !v.type.length && !v.init) report(v.loc, `'${v.name}': an array needs its size`);
     }
     if (v.init) expr(v.init);
@@ -206,25 +206,25 @@ function checkFunction(f, ctx) {
     if (!e) return;
     switch (e.kind) {
       case 'num': case 'chr': return;
-      case 'float': if (hw) report(e.loc, `floating point (${e.text}) is not supported in Silinx C yet`); return;
+      case 'float': if (hw) report(e.loc, `floating point (${e.text}) is not supported in Silinx HLS yet`); return;
       case 'str': if (hw && !how.printf) report(e.loc, 'a string is only possible in printf (ignored by synthesis)'); return;
       case 'init': for (const x of e.items) expr(x); return;
       case 'id':
         // (stdio's streams: the test bench's; in synthesized code only in fprintf, ignored)
         if (STREAMS.has(e.name) && !lookup(e.name)) return;
         if (!lookup(e.name) && !funcs.has(e.name)) report(e.loc, `'${e.name}' is not declared`);
-        else if (hw && !how.call && funcs.has(e.name) && !lookup(e.name)) report(e.loc, `a function as a value is not possible (Silinx C, as Vitis HLS: no function pointers)`);
+        else if (hw && !how.call && funcs.has(e.name) && !lookup(e.name)) report(e.loc, `a function as a value is not possible (Silinx HLS, as Vitis HLS: no function pointers)`);
         return;
       case 'unary':
         if (e.op === '&') {
-          if (hw && !how.arg) report(e.loc, "'&' only to pass a variable to a function's pointer parameter (Silinx C: no pointer variables)");
+          if (hw && !how.arg) report(e.loc, "'&' only to pass a variable to a function's pointer parameter (Silinx HLS: no pointer variables)");
           if (e.e.kind !== 'id' && e.e.kind !== 'index') report(e.loc, "'&' takes a variable");
         }
-        if (e.op === '*' && hw && !isPtr(e.e) && !(e.e.kind === 'binary' && (isPtr(e.e.l) || isPtr(e.e.r)))) report(e.loc, "'*' reads a pointer parameter (Silinx C: pointers only as arguments)");
+        if (e.op === '*' && hw && !isPtr(e.e) && !(e.e.kind === 'binary' && (isPtr(e.e.l) || isPtr(e.e.r)))) report(e.loc, "'*' reads a pointer parameter (Silinx HLS: pointers only as arguments)");
         expr(e.e); return;
       case 'postfix': expr(e.e); return;
       case 'binary':
-        if (hw && (e.op === '+' || e.op === '-') && (isPtr(e.l) || isPtr(e.r))) report(e.loc, 'pointer arithmetic is not possible in Silinx C: index the array instead');
+        if (hw && (e.op === '+' || e.op === '-') && (isPtr(e.l) || isPtr(e.r))) report(e.loc, 'pointer arithmetic is not possible in Silinx HLS: index the array instead');
         if (e.op === '/' || e.op === '%') { const d = constValue(e.r, consts); if (d === 0n) report(e.loc, 'division by zero'); }
         if (e.op === '<<' || e.op === '>>') { const s = constValue(e.r, consts); if (s !== null && s < 0n) report(e.loc, `a shift by a negative amount (${s}) is undefined in C`); }
         expr(e.l); expr(e.r); return;
@@ -235,15 +235,15 @@ function checkFunction(f, ctx) {
       case 'cast':
         typeOk(e.type, e.loc);
         if (hw) {
-          if (e.type.kind === 'ptr' || isPtr(e.e)) report(e.loc, 'a cast of a pointer is not possible in Silinx C');
+          if (e.type.kind === 'ptr' || isPtr(e.e)) report(e.loc, 'a cast of a pointer is not possible in Silinx HLS');
           typeHw(e.type, e.loc, 'a cast');
         }
         expr(e.e); return;
       case 'sizeof': if (e.e) expr(e.e); return;
       case 'member':
-        if (e.arrow) report(e.loc, `'->' : structures are not supported in Silinx C yet`);
-        else if (isStream(e.e)) { if (!STREAM_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function of hls::stream Silinx C++ knows (${[...STREAM_MEMBERS].join(', ')})`); }
-        else if (e.name !== 'range' && !AP_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function Silinx C knows (ap_int / ap_uint: ${[...AP_MEMBERS].join(', ')})`);
+        if (e.arrow) report(e.loc, `'->' : structures are not supported in Silinx HLS yet`);
+        else if (isStream(e.e)) { if (!STREAM_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function of hls::stream Silinx HLS knows (${[...STREAM_MEMBERS].join(', ')})`); }
+        else if (e.name !== 'range' && !AP_MEMBERS.has(e.name)) report(e.loc, `'.${e.name}' is not a member function Silinx HLS knows (ap_int / ap_uint: ${[...AP_MEMBERS].join(', ')})`);
         expr(e.e); return;
       case 'call': return call(e);
       default: return;
@@ -255,7 +255,7 @@ function checkFunction(f, ctx) {
       for (const a of e.args) expr(a);
       return;
     }
-    if (e.callee.kind !== 'id') { report(e.loc, 'a call of a function by its name only (Silinx C: no function pointers)'); return; }
+    if (e.callee.kind !== 'id') { report(e.loc, 'a call of a function by its name only (Silinx HLS: no function pointers)'); return; }
     const name = e.callee.name;
     const fn = funcs.get(name);
     if (fn) {
@@ -271,8 +271,8 @@ function checkFunction(f, ctx) {
     }
     if (REFUSED.has(name)) {
       if (hw) report(e.loc, name === 'malloc' || name === 'calloc' || name === 'realloc' || name === 'free'
-        ? `${name}: dynamic memory is not possible in hardware (Silinx C, as Vitis HLS: fixed sizes; use an array)`
-        : `${name} is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)`);
+        ? `${name}: dynamic memory is not possible in hardware (Silinx HLS, as Vitis HLS: fixed sizes; use an array)`
+        : `${name} is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS)`);
       for (const a of e.args) expr(a, { printf: true });
       return;
     }
@@ -348,7 +348,7 @@ function checkFunction(f, ctx) {
         if (s.e) { if (f.ret.kind === 'void') report(s.loc, `'${f.name}' returns nothing (void): 'return' with no value`); expr(s.e); }
         else if (f.ret.kind !== 'void' && f.name !== 'main') report(s.loc, `'${f.name}' returns a value: 'return' needs one`);
         return;
-      case 'goto': if (hw) report(s.loc, "'goto' is not supported in Silinx C (use loops, 'break' and 'continue')"); return;
+      case 'goto': if (hw) report(s.loc, "'goto' is not supported in Silinx HLS (use loops, 'break' and 'continue')"); return;
       // (a label names the statement after it, a loop's name as Vitis HLS reports it, #1601; goto is refused)
       case 'label': stmt(s.stmt); return;
       case 'for': case 'while': case 'do': {

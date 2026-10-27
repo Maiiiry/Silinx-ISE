@@ -1,4 +1,4 @@
-// The reference of the Silinx C tests for ap_int / ap_uint (#1588): AMD's open ap_int.h (Xilinx/HLS_arbitrary_Precision_Types,
+// The reference of the Silinx HLS tests for ap_int / ap_uint (#1588): AMD's open ap_int.h (Xilinx/HLS_arbitrary_Precision_Types,
 // Apache-2.0), at a fixed commit, each header checked against its git blob hash, fetched once into the machine's temporary
 // folder (never into the repository); a program compiled with it by the host's C++ compiler. With no C++ compiler or
 // no network, the tests that need it are skipped and say why.

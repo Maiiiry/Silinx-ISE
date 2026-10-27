@@ -1,4 +1,4 @@
-// Silinx C++ (#1590): an hls::stream argument of a sequential module (core/c-fsmd.js): Vitis HLS's ap_fifo interface,
+// Silinx HLS (#1590): an hls::stream argument of a sequential module (core/c-fsmd.js): Vitis HLS's ap_fifo interface,
 // a FIFO outside the module (first-word fall-through): read, <s>_dout, <s>_empty_n, <s>_read (the value taken in the
 // cycle _read is 1); written, <s>_din, <s>_full_n, <s>_write. Each access a state of its own that waits while the FIFO
 // is empty (a read) or full (a write); the value read kept in a register. s.empty() and s.full() read _empty_n and

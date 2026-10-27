@@ -1,4 +1,4 @@
-// Silinx C (#1527): the memories of a sequential module (core/c-fsmd.js). An array argument is a memory outside the
+// Silinx HLS (#1527): the memories of a sequential module (core/c-fsmd.js). An array argument is a memory outside the
 // module, Vitis HLS's ap_memory interface (<arg>_address0, _ce0, _we0, _d0, _q0: one port, a read's value on _q0 the
 // cycle after its address); a local, static or constant array of more than MEM_MIN elements is a memory inside the
 // module with the same port, a block RAM's (its contents its initial values: a ROM when it is never written).

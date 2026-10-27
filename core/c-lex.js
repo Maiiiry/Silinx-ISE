@@ -1,4 +1,4 @@
-// Silinx C (docs/c-to-hdl.md, #1524): the preprocessor and the lexer of a C source.
+// Silinx HLS (docs/c-to-hdl.md, #1524): the preprocessor and the lexer of a C source.
 // Isomorphic ES module: no DOM and no Node APIs.
 //
 //   lex(source, file) -> { tokens, pragmas, includes, errors }
@@ -8,11 +8,11 @@
 //               args { II: '1' }); other pragmas (not HLS) are dropped with a warning
 //     includes: [{ name, system, line }]: the headers named
 //     errors:   [{ file, line, col, message, severity }]
-// The preprocessor knows #include (the headers of Silinx C), #define (constants and macros of one
+// The preprocessor knows #include (the headers of Silinx HLS), #define (constants and macros of one
 // expression), #undef, #if / #ifdef / #ifndef / #elif / #else / #endif (integer constant expressions with
 // defined()), #pragma; its macros are expanded in the tokens.
 
-// the headers Silinx C knows (docs/c-to-hdl.md); hls_stream.h and the others refused
+// the headers Silinx HLS knows (docs/c-to-hdl.md); hls_stream.h and the others refused
 import { cppTokens, CPP_HEADERS, isCpp } from './cpp-lex.js';
 
 export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
@@ -291,7 +291,7 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
         }
         if (cpp && m[1] === 'hls_stream.h') continue;   // (hls::stream: C++'s, #1590)
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: hls::stream is C++: write the source as a .cpp file'
-          : `the header '${m[1]}' is not one of Silinx C's (${[...KNOWN_HEADERS].join(', ')})`);
+          : `the header '${m[1]}' is not one of Silinx HLS's (${[...KNOWN_HEADERS].join(', ')})`);
         for (const [k, v] of Object.entries(HEADER_MACROS[m[1]] || {})) if (!macros.has(k)) macros.set(k, { params: null, body: scan(v, line, bad).map((t) => ({ ...t, line })) });
         continue;
       }

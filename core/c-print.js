@@ -1,4 +1,4 @@
-// Silinx C (#1575): a parsed C expression or simple statement back to text, as it would be written (parentheses where
+// Silinx HLS (#1575): a parsed C expression or simple statement back to text, as it would be written (parentheses where
 // the operators' precedence needs them), for the state machine's ASM chart (core/c-asm.js). Isomorphic ES module.
 //
 //   exprText(e) -> 'a + b * (c - 1)'      stmtText(s) -> 'x = a[i] + 1' (a decl: 'int x = 3')

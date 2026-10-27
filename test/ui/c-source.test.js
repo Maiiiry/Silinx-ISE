@@ -1,4 +1,4 @@
-// UI (#1531): a C source in the project (Silinx C): its HDL made in memory from its top function, so that it is a
+// UI (#1531): a C source in the project (Silinx HLS): its HDL made in memory from its top function, so that it is a
 // module of the project as a drawing without an HDL file is (#177): its Design row (the C the base, its HDL
 // generated, read-only), the top, the RTL schematic, its HDL made again when the C is saved; New Source ▸ C Function
 // (HLS) makes one from a template; Portuguese; both interfaces. No warnings.
@@ -24,7 +24,7 @@ const row = (page, name) => page.eval((n) => {
   return r ? { badges: [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`), meta: r.querySelector('.meta')?.textContent } : null;
 }, name);
 
-uiTest('#1531 Silinx C: a .c file a module of the project (its Design row, its HDL generated and read-only, the top, the RTL schematic, made again on a save); New Source ▸ C Function (HLS); Portuguese', E, async (page) => {
+uiTest('#1531 Silinx HLS: a .c file a module of the project (its Design row, its HDL generated and read-only, the top, the RTL schematic, made again on a save); New Source ▸ C Function (HLS); Portuguese', E, async (page) => {
   await makeProject(env, { name: 'CMod', top: '', files: { 'src/mac.c': SRC } });
   await page.openProject('CMod');
   await page.leftTab('design');

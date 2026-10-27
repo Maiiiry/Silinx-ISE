@@ -1,4 +1,4 @@
-// Silinx C, sequential C to HDL (#1526): core/c-fsmd.js and core/c-hdl-seq.js. The reference is the C compiled with
+// Silinx HLS, sequential C to HDL (#1526): core/c-fsmd.js and core/c-hdl-seq.js. The reference is the C compiled with
 // the host's cc (test/c-helpers.js), called on edge and random inputs in sequence (its statics kept between calls);
 // the generated VHDL and Verilog are driven through Vitis HLS's ap_ctrl_hs protocol (ap_start, then ap_done) by a test
 // bench in Silinx's simulator, the same calls in the same order: the same ap_return, the same pointer outputs (taken

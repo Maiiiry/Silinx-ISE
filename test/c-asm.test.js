@@ -1,4 +1,4 @@
-// Silinx C, the state machine as an ASM chart (#1575): core/c-asm.js (and core/c-print.js, the C written back). A
+// Silinx HLS, the state machine as an ASM chart (#1575): core/c-asm.js (and core/c-print.js, the C written back). A
 // sequential function's chart: the protocol's IDLE and DONE, a state per block of the C with its statements, its ifs
 // decision boxes and the statements under them conditional outputs, a return / break / continue its jump, a memory's
 // accesses; each state of the machine (core/c-fsmd.js) one state of the chart; laid out (every box placed). A

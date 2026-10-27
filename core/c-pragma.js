@@ -1,4 +1,4 @@
-// Silinx C (#1529): the HLS pragmas. Which Silinx makes, where each applies (a loop's in its body: PIPELINE, UNROLL,
+// Silinx HLS (#1529): the HLS pragmas. Which Silinx makes, where each applies (a loop's in its body: PIPELINE, UNROLL,
 // LOOP_TRIPCOUNT; a function's: INLINE, INTERFACE, ARRAY_PARTITION of its arrays), and the warnings of those it
 // accepts and ignores (Vitis HLS's others). The loops' transformations a sequential module makes of them
 // (core/c-fsmd.js): UNROLL factor=N, N copies of the body an iteration. Isomorphic ES module: no DOM and no Node APIs.

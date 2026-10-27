@@ -1,4 +1,4 @@
-// Silinx C (docs/c-to-hdl.md, #1524): the parser of a C source into its syntax tree.
+// Silinx HLS (docs/c-to-hdl.md, #1524): the parser of a C source into its syntax tree.
 // Isomorphic ES module: no DOM and no Node APIs.
 //
 //   parse(source, file) -> { file, items, pragmas, includes, errors }
@@ -22,7 +22,7 @@ import { lex, numText } from './c-lex.js';
 import { cppTree } from './cpp-tree.js';
 import { isCpp } from './cpp-lex.js';
 
-// the type names of C and of stdint.h, as Silinx C knows them (docs/c-to-hdl.md: widths, signedness)
+// the type names of C and of stdint.h, as Silinx HLS knows them (docs/c-to-hdl.md: widths, signedness)
 export const STDINT = {
   int8_t: [8, true], int16_t: [16, true], int32_t: [32, true], int64_t: [64, true],
   uint8_t: [8, false], uint16_t: [16, false], uint32_t: [32, false], uint64_t: [64, false],
@@ -156,7 +156,7 @@ function exprParser(T, typedefs, cpp = false) {
     if (cpp && at('&&')) fail('an rvalue reference (&&) is not supported');
     if (cpp && at('&')) { S.p++; type = { kind: 'ptr', to: type, ref: true }; }
     let name = null, nameTok = toks[S.p];
-    if (at('(') && toks[S.p + 1]?.v === '*') fail('function pointers are not supported (Silinx C, as Vitis HLS: no function pointers)');
+    if (at('(') && toks[S.p + 1]?.v === '*') fail('function pointers are not supported (Silinx HLS, as Vitis HLS: no function pointers)');
     if (toks[S.p].t === 'id' && !KEYWORDS.has(toks[S.p].v)) { nameTok = toks[S.p]; name = toks[S.p++].v; }
     else if (!abstract) fail(`a name expected, not '${show(toks[S.p])}'`);
     let params = null;

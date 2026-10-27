@@ -1,4 +1,4 @@
-// Silinx C, the HLS pragmas (#1529): core/c-pragma.js with core/c-fsmd.js. A loop's PIPELINE (an iteration a state),
+// Silinx HLS, the HLS pragmas (#1529): core/c-pragma.js with core/c-fsmd.js. A loop's PIPELINE (an iteration a state),
 // UNROLL (whole: the loop in the state it is in; factor=N: N iterations a state), ARRAY_PARTITION complete (an
 // array's elements registers): the cycles each makes, measured by co-simulation in VHDL and Verilog (a pass, the
 // C's results) and given by the report; the warnings of what is accepted and ignored, the errors of what is wrong.

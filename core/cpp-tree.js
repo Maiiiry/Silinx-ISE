@@ -1,4 +1,4 @@
-// Silinx C++ (#1590): the C++ of a .cpp source that Silinx C reads, on its tree (after core/cpp-lex.js's tokens): a
+// Silinx HLS (#1590): the C++ of a .cpp source that Silinx HLS reads, on its tree (after core/cpp-lex.js's tokens): a
 // reference parameter (int &x) a pointer whose uses are *x and whose arguments are &a (the same ports as a pointer's,
 // as Vitis HLS makes them); `cout << a << " " << b << endl;` (cerr too) printf's output. Isomorphic ES module.
 //

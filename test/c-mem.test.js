@@ -1,4 +1,4 @@
-// Silinx C, arrays and memories (#1527): core/c-mem.js with core/c-fsmd.js. An array argument is Vitis HLS's
+// Silinx HLS, arrays and memories (#1527): core/c-mem.js with core/c-fsmd.js. An array argument is Vitis HLS's
 // ap_memory (its ports, their widths and order); a large local, static or global array a memory inside the module
 // (a block RAM's: VHDL's array signal, Verilog's reg array), a constant one a ROM. Each design: its test bench run
 // by the C simulation and compiled with cc (the same output), and co-simulated in VHDL and Verilog (the memory

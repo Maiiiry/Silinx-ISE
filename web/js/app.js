@@ -502,7 +502,7 @@ export async function openFile(path, line, col, { task } = {}) {
     try { text = await api.readFile(pj, path); }
     catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
     if (S.project?.name !== pj) return;   // another project opened during the read: not its file (#1231)
-    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : isC(path) ? 'c' : 'text';   // (c: Silinx C, #1524; C++ too, #1590)
+    const lang = /\.(vhd|vhdl)$/i.test(path) ? 'vhdl' : /\.(v|vh|sv)$/i.test(path) ? 'verilog' : /\.ucf$/i.test(path) ? 'ucf' : isC(path) ? 'c' : 'text';   // (c: Silinx HLS, #1524; C++ too, #1590)
     doc = openDoc({
       id, path, task, title: path.split('/').pop(), tooltip: path, icon: lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'file',
       create(el, d) {
@@ -593,7 +593,7 @@ export async function openFile(path, line, col, { task } = {}) {
             edit ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,
             hdl ? '-' : null,
             hdl ? { label: 'Check Syntax', action: () => checkFileSyntax(path) } : null,
-            lang === 'c' ? { label: 'Check Syntax', action: () => checkFileSyntax(path) } : null,   // (Silinx C, #1524)
+            lang === 'c' ? { label: 'Check Syntax', action: () => checkFileSyntax(path) } : null,   // (Silinx HLS, #1524)
             lang === 'ucf' ? '-' : null,
             lang === 'ucf' ? { label: 'Check Syntax', action: () => checkUcfFile(path) } : null,
             lang === 'ucf' ? { label: 'I/O Pin Planning', action: () => openPinPlanner() } : null,

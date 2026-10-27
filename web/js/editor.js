@@ -166,7 +166,7 @@ const ucf = {
 };
 const LANGUAGES = {};
 const languageOf = lang => {
-  const mode = { vhdl, verilog, ucf, c }[lang];   // (c: Silinx C, #1524)
+  const mode = { vhdl, verilog, ucf, c }[lang];   // (c: Silinx HLS, #1524)
   return mode ? (LANGUAGES[lang] ??= StreamLanguage.define(mode)) : [];
 };
 
@@ -201,7 +201,7 @@ const flashField = StateField.define({
 // the texts of the editor's own panels (search, go to line, folding), in the interface's language
 const phrases = () => (getLanguage() === 'pt' ? EDITOR_PHRASES_PT : {});
 
-/** The parse of a source for the lint and the symbols: VHDL, Verilog, or Silinx C (its checks' messages as the parse
+/** The parse of a source for the lint and the symbols: VHDL, Verilog, or Silinx HLS (its checks' messages as the parse
  *  errors, #1524). */
 function parseSource(lang, text, path) {
   if (lang === 'c') return { units: [], errors: checkC(text, path).diagnostics };

@@ -1,4 +1,4 @@
-// Silinx C (docs/c-to-hdl.md, #1525): the integer types and their arithmetic: C's integer promotions and usual
+// Silinx HLS (docs/c-to-hdl.md, #1525): the integer types and their arithmetic: C's integer promotions and usual
 // arithmetic conversions, and Vitis HLS's ap_int<W> / ap_uint<W> results (wide enough for any value of their operands).
 // Isomorphic ES module: no DOM and no Node APIs.
 //
