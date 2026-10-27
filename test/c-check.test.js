@@ -51,13 +51,13 @@ int no;
 });
 
 test('lex: pragmas (HLS parsed, others dropped with a warning); headers known and refused; directives with errors', () => {
-  const r = lex('#include "ap_int.h"\n#include <stdlib.h>\n#include <hls_stream.h>\n#pragma HLS PIPELINE II=2 rewind\n#pragma once\n#pragma HLS INTERFACE mode=ap_vld port=y\n#if 1\n#else\n#else\n#endif\n#endif\n#foo\n#if 1\n');
+  const r = lex('#include "ap_int.h"\n#include <stdlib.h>\n#include <hls_stream.h>\n#pragma HLS PIPELINE II=2 rewind\n#pragma GCC optimize\n#pragma HLS INTERFACE mode=ap_vld port=y\n#if 1\n#else\n#else\n#endif\n#endif\n#foo\n#if 1\n');
   assert.deepEqual(r.includes.map((i) => [i.name, i.system]), [['ap_int.h', false], ['stdlib.h', true], ['hls_stream.h', true]]);
   assert.deepEqual(r.pragmas.map((p) => [p.name, p.args]), [['PIPELINE', { ii: '2', rewind: true }], ['INTERFACE', { mode: 'ap_vld', port: 'y' }]]);
   assert.deepEqual(r.errors.map((e) => `${e.line} ${e.severity}: ${e.message}`), [
     "2 error: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)",
     '3 error: hls_stream.h: streams are not supported yet',
-    '5 warning: #pragma once is ignored (only #pragma HLS)',
+    '5 warning: #pragma GCC optimize is ignored (only #pragma HLS)',
     '11 error: #endif with no #if',
     '12 error: #foo is not supported',
     '13 error: #if with no #endif',
@@ -226,4 +226,18 @@ test('hints: the main messages of Silinx C have their help in English and in Por
     assert.equal(h?.id, id, msg);
     for (const l of ['en', 'pt']) assert.ok(h[l].explain && h[l].fix && !/\$\d/.test(h[l].explain + h[l].fix), `${id} ${l}`);
   }
+});
+
+test('#1597 lex: the project\'s own headers read in place (their macros the source\'s; include guards, #pragma once; a header in a folder by its name); one not given refused', () => {
+  const headers = {
+    'fir.h': '#ifndef FIR_H\n#define FIR_H\n#define N 4\n#include "types.h"\nint fir(data_t x);\n#endif\n',
+    'types.h': '#pragma once\ntypedef short data_t;\n',
+    'fir.c': '#include "fir.h"\nint fir(data_t x) { return x * N; }\n',
+  };
+  const r = lex('#include "fir.h"\n#include "fir.h"\n#include "types.h"\n#include "src/fir.c"\nint main(void) { return fir(N); }\n#include "nope.h"\n', 'tb.c', { headers });
+  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"]);
+  const text = r.tokens.filter((t) => t.t !== 'eof').map((t) => t.v).join(' ');
+  assert.equal(text, 'typedef short data_t ; int fir ( data_t x ) ; int fir ( data_t x ) { return x * 4 ; } int main ( void ) { return fir ( 4 ) ; }');
+  // (the tokens of a header carry its name)
+  assert.deepEqual([...new Set(r.tokens.map((t) => t.file).filter(Boolean))], ['types.h', 'fir.h', 'src/fir.c']);
 });

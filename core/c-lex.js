@@ -217,15 +217,25 @@ function readPragma(rest) {
 }
 
 // ---------------------------------------------------------------- the preprocessor
-export function lex(source, file = 'input.c') {
+// (headers: the project's own, { 'name.h': text }, #include "name.h" reads them in place, #1597; their macros the
+// source's; #pragma once and include guards as C's)
+export function lex(source, file = 'input.c', { headers = null } = {}) {
   const errors = [];
-  const bad = [];
-  const lines = logicalLines(source, bad);
   const tokens = [], pragmas = [], includes = [];
   const macros = new Map();
+  const once = new Set();
+  const lines = run(source, file, 0);
+  const last = lines.at(-1);
+  tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
+  return { tokens, pragmas, includes, errors };
+
+  function run(src, fname, depth) {
+  const bad = [];
+  const lines = logicalLines(src, bad);
   const cond = [];   // [{ on, done, line }]: the #if stack (on: this branch taken; done: one branch taken)
   const live = () => cond.every((c) => c.on);
-  const err = (line, col, message, severity = 'error') => errors.push({ file, line, col, message, severity });
+  const err = (line, col, message, severity = 'error') => errors.push({ file: fname, line, col, message, severity });
+  const own = (t) => (fname === file ? t : { ...t, file: fname });
   for (const { text, line, pos } of lines) {
     const scanned = [];
     const place = (t) => ({ ...t, line: pos[t.col - 1]?.line ?? line, col: pos[t.col - 1]?.col ?? t.col });
@@ -254,6 +264,12 @@ export function lex(source, file = 'input.c') {
         const m = /^[<"]([^>"]+)[>"]/.exec(rest.trim());
         if (!m) { e('#include names a header: #include "ap_int.h" or #include <stdint.h>'); continue; }
         includes.push({ name: m[1], system: rest.trim()[0] === '<', line });
+        const own0 = headers && !KNOWN_HEADERS.has(m[1]) ? headers[m[1]] ?? headers[m[1].split('/').pop()] : undefined;
+        if (own0 !== undefined) {
+          if (depth > 16) e(`#include "${m[1]}": headers included too deep (a header including itself?)`);
+          else if (!once.has(m[1])) run(own0, m[1], depth + 1);
+          continue;
+        }
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: streams are not supported yet'
           : `the header '${m[1]}' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)`);
         continue;
@@ -268,10 +284,11 @@ export function lex(source, file = 'input.c') {
       }
       if (dir === 'undef') { macros.delete(rest.trim()); continue; }
       if (dir === 'pragma') {
+        if (rest.trim() === 'once') { once.add(fname); continue; }
         const p = readPragma(rest);
         if (!p) { e(`#pragma ${rest.trim()} is ignored (only #pragma HLS)`, 'warning'); continue; }
         pragmas.push({ ...p, line });
-        tokens.push({ t: 'pragma', v: p, line, col });
+        tokens.push(own({ t: 'pragma', v: p, line, col }));
         continue;
       }
       if (dir === 'error') { e(`#error ${rest.trim()}`); continue; }
@@ -283,11 +300,10 @@ export function lex(source, file = 'input.c') {
     const lineBad = [];
     for (const t of scan(text, line, lineBad)) scanned.push(place(t));
     for (const b of lineBad) bad.push({ ...b, ...place({ col: b.col }) });
-    tokens.push(...expand(scanned, macros, (m) => err(line, scanned[0]?.col || 1, m)));
+    tokens.push(...expand(scanned, macros, (m) => err(line, scanned[0]?.col || 1, m)).map(own));
   }
   for (const c of cond) err(c.line, 1, '#if with no #endif');
   for (const b of bad) err(b.line, b.col, b.message);
-  const last = lines.at(-1);
-  tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
-  return { tokens, pragmas, includes, errors };
+  return lines;
+  }
 }

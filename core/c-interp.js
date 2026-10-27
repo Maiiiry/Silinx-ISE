@@ -19,8 +19,8 @@ class Halt extends Error { constructor(loc, message) { super(message); this.loc 
 class Return { constructor(value) { this.value = value; } }
 const BREAK = Symbol('break'), CONTINUE = Symbol('continue');
 
-export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entry = 'main' } = {}) {
-  const checked = checkC(source, file);
+export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entry = 'main', headers = null, top = null } = {}) {
+  const checked = checkC(source, file, { headers, top });
   // (a test bench with no function to synthesize still runs)
   const errors = checked.diagnostics.filter((d) => d.severity === 'error' && !/^no function to synthesize/.test(d.message));
   if (errors.length) return { ok: false, output: '', exitCode: null, calls: [], error: null, steps: 0, top: checked.top, diagnostics: checked.diagnostics };
