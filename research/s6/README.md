@@ -263,8 +263,24 @@ base's: `db/xc6slx16-slice.json`. Three designs, 3½ minutes.
   SLICEM's AFFSRINIT one before).
 - **No bits without nets**: CLKINV, CEUSED, SRUSED, the outputs used (`*USED`), the other `*OUTMUX` options, the
   carry (CARRY4, `*CY0`, PRECYINIT, COUTUSED), F7 / F8, the 5-input LUTs and flip-flops, a SLICEM's DI muxes, WEMUX,
-  WA7USED / WA8USED: they are written when a net uses the pin (as on the Spartan-3E). The next round puts nets on
-  them.
+  WA7USED / WA8USED: they are written when a net uses the pin (as on the Spartan-3E): measured with nets
+  below.
+
+### The slice settings with nets (#725, S6-C, 2026-10-28)
+
+`gen-slice6.mjs --nets`: the same designs with a net (unrouted) on every pin of the measured slices: the inputs (CLK,
+CE, SR, AX … DX, a SLICEM's WE and AI … DI) from a driver slice's outputs, each slice's outputs to a sink slice of its
+own, in tiles none of the measured slices is in; the base's outputs AMUX … DMUX on O6 (`*OUTMUX = O6`).
+`ana-slice6.mjs --nets`: `db/xc6slx16-slice-nets.json`. Three designs, 7½ minutes (ISE's DRC reports the unrouted
+nets and the incomplete settings; `-force` writes them anyway).
+
+- **Measured now**: CLKINV (CLK_B one bit), CEUSED and SRUSED (one bit each, cleared when unused), every
+  `*OUTMUX` option (O6 one bit, O5 none, A5Q, XOR, CY, F7 / F8, a SLICEM's MC31: one or two bits), the flip-flops'
+  sources AX … DX on a SLICEL or SLICEM, a SLICEM's ADI1MUX = AX, BDI1MUX = BX, CDI1MUX = CX, WEMUX = CE, WA7USED and
+  WA8USED (frame 2). The settings measured without nets are the same.
+- **Still no bits**: the outputs used (`*USED`: the routing's), the carry (CARRY4, CYINIT, `*CY0`, PRECYINIT,
+  COUTUSED), F7 / F8, the 5-input flip-flops (ISE wants a net on their D) and the DI muxes' other options (their
+  default): the next round's base has the carry chain, F7 / F8 and the 5-input flip-flops in use.
 
 ## The order of the work
 
