@@ -1,0 +1,199 @@
+# Separating the Silinx toolchain from the IDE
+
+The plan for [#1651](https://github.com/pmnmalo/Silinx-ISE/issues/1651): the Silinx toolchain (Yosys in
+WebAssembly, then Silinx's pack, place, route, timing, DRC and bitgen, with the device data) becomes a
+package that works without the IDE, as a library and a command line, and the IDE uses it like any other user.
+This document is the analysis (October 2026, version 15.18.4) and the steps, each an issue of its own. No code
+has moved yet.
+
+## 1. What the toolchain is
+
+The flow is `runOpenFlow(spec, io)` in `core/open-flow-core.js`. It already runs the same way in Node
+(`server/open-flow-run.js`, a process of its own, files on disk) and in the browser
+(`web/js/open-flow-worker.js`, a Web Worker, files in memory): everything outside the flow comes through
+`io` (the sources, the UCF, the device, the bit database, Yosys, the files written). That interface is where the
+separation starts.
+
+### The modules
+
+| Part | Files | Lines | KB | Tests that cover it |
+|---|---|---|---|---|
+| Netlist (Yosys JSON in) `core/fpga/netlist.js` | 1 | 128 | 6 | `test/fpga-netlist.test.js`, `test/ucf.test.js` |
+| Pack `core/fpga/pack.js`, `pack-*.js` | 14 | 2024 | 118 | `test/fpga-pack.test.js`, `test/pack-parts.test.js`, `test/iob-*.test.js` |
+| Place `core/fpga/place.js`, `place-*.js`, `replicate.js` | 10 | 1690 | 105 | `test/fpga-place.test.js`, `test/place-parts.test.js`, `test/fpga-replicate.test.js`, `test/fpga-hard.test.js` |
+| Route `core/fpga/route.js`, `route-*.js` | 5 | 1069 | 59 | `test/fpga-route.test.js`, `test/route-parts.test.js`, `test/fpga-place-route.test.js` |
+| Timing (trce-like) `core/fpga/timing.js`, `timing-*.js` | 3 | 1226 | 72 | `test/fpga-timing.test.js`, `test/timing-parts.test.js` |
+| Bitstream and bit database `core/fpga/bitgen.js`, `bitstream.js`, `bitdb.js`, `bitdb-node.js`, `lut.js` | 5 | 1030 | 59 | `test/fpga-bitgen.test.js`, `test/fpga-bitstream.test.js`, `test/fpga-lut.test.js`, `test/s3e-devices.test.js` |
+| Device description `core/fpga/device.js`, `device-node.js` | 2 | 545 | 28 | `test/fpga-device.test.js`, `test/s3e-device.test.js`, `test/open-toolchain.test.js` |
+| Spartan-6 (in development, #1) `core/fpga/s6/` | 15 | 2475 | 140 | `test/s6-*.test.js` |
+| Synthesis (Yosys WASM, FSM, carry chains, LUT resynthesis) `core/synth-open*.js`, `core/carry-chain.js`, `core/synth-fsm.js`, `core/lut-resynth.js` | 9 | 2610 | 164 | `test/synth-open*.test.js`, `test/synth-fsm.test.js`, `test/synth-abc9.test.js`, `test/carry-*.test.js`, `test/lut-resynth.test.js`, `test/yosys-*.test.js` |
+| The flow and its reports `core/open-flow-core.js`, `open-flow-models.js`, `open-flow-reports.js`, `open-steps.js` | 4 | 633 | 45 | `test/open-flow*.test.js`, `test/open-steps.test.js` |
+| Formats `core/xdl.js`, `core/ucf.js` | 2 | 1029 | 55 | `test/xdl.test.js`, `test/ucf.test.js` |
+| Parts and resources `core/resources.js`, `resource-check.js`, `family.js`, `power.js` | 4 | 764 | 46 | `test/resources.test.js`, `test/resource-check.test.js`, `test/power.test.js` |
+
+About 75 files and 15 700 lines, 64 unit test files. The routing graphs are checked against ISE by DRC; the DRC
+is ISE's (the oracle), the toolchain's own checks are `checkRouting` (`core/fpga/route.js`) and the resource
+check.
+
+Around it, outside the toolchain: the technology view (`core/fpga/techview.js`, which draws with the schematic
+model and elkjs: it belongs to the IDE although it lives in `core/fpga/`), the UI tests
+(`test/ui/open-toolchain.test.js`, `test/ui/synth-open.test.js`, `test/ui/summary.test.js`,
+`test/ui/fpgaview.test.js`), and the corpora: the design corpus (`test/designs-corpus/run.mjs`,
+`test/designs-corpus.test.js`), the Yosys test designs (`test/corpus/`).
+
+### The oracle and the workflows
+
+- `npm run check:open-flow` (`scripts/check-open-flow.mjs`): the open flow's `.bit` against ISE's, byte for
+  byte, and ISE's DRC; it runs the research command line `research/s3e-route/open-flow.mjs`.
+- The ISE workflow (nightly, `ise.yml`) and the quality comparison (weekly, `quality.yml`,
+  `test/designs-corpus/compare-ise.mjs`) on the self-hosted runner.
+- The Yosys update (`yosys-update.yml`, `scripts/yosys-update-report.mjs`): the open flow's size and speed with
+  the new Yosys against the base's.
+- The research that builds the data: `research/s3e-bitstream/` (the bit database), `research/s3e-device/` and
+  `research/s3e-route/build-device.mjs` (the device descriptions), `research/s6/`. They import the toolchain;
+  the application never imports research (`test/layering.test.js`, #407).
+
+### The data
+
+| Data | Where | Size |
+|---|---|---|
+| Routing graphs, Spartan-3E (4 parts) | `core/fpga/devices/*.json.gz` | 8.3 MB |
+| Routing graphs, Spartan-6 (2 parts) | `core/fpga/devices/*.json.gz` | 4.3 MB |
+| Bit database (Spartan-3E) | `research/s3e-bitstream/db/` (22 files) | 4.9 MB |
+| Yosys in WebAssembly | `@yowasp/yosys` (npm, pinned) | 76 MB installed, 69 MB of it `yosys.core.wasm` |
+
+The graphs ship for the supported parts only; other parts are built by each user from their own ISE
+(`~/.silinx/devices`). No ISE file or raw output is in the repository, and none will be in the package.
+
+## 2. The coupling
+
+### What the toolchain imports from the rest of core/
+
+| Import | From | What it is | Plan |
+|---|---|---|---|
+| `core/compile.js` (parsers, elaborator) and `core/unisim.js` (`primitiveSources`) | `open-flow-core.js`, `open-flow-models.js` | the HDL front end: VHDL / Verilog to the elaborated design | a hook the IDE gives the flow (step 4) |
+| `core/synth-verilog.js` (`toVerilog`), and `gateAssignments` on the elaborated design | `synth-open.js` | the elaborated design as one flat Verilog module for Yosys | split: the front end gives the flat Verilog, the toolchain synthesises it (step 3) |
+| `core/sim-model.js` (and through it `sdf.js`, `netlist-hier.js`, the simulator) | `open-flow-models.js` | the post-synthesis / post-PAR simulation models (netgen) | a hook (step 4) |
+| `core/schdoc.js`, `core/netlist-hier.js`, elkjs | `core/fpga/techview.js` | the technology view | the view leaves `core/fpga/` (step 2) |
+
+Transitively these few imports pull in 60 other modules of `core/` (19 000 lines: the VHDL and Verilog parsers,
+the elaborator, the interpreter, the schematic model). Cut at those four places, the toolchain imports nothing
+from the IDE. It imports neither `core/version.js` nor `core/third-party.js` nor the i18n.
+
+### What imports the toolchain
+
+- **server/**: `open-flow.js` (the processes, the devices, the bit database), `open-flow-run.js` (the flow's
+  process), `impl-routes.js` (the FPGA view's data), and `devices.js`, `ise.js`, `programmer.js`,
+  `projects.js`, `xise.js` (for `core/family.js`, `core/ucf.js`, `core/resources.js`); `bin/silinx-ise.js`
+  (its `ucf` command).
+- **web/js** (by absolute URL, `/core/…`, served by `server/server.js`, bundled by the standalone build):
+  `open-flow-worker.js` (the flow, the device, the bit database, Yosys), `open-flow-browser.js`,
+  `yosys-worker.js`, `summary.js`, `fpgaview-details.js`, `pinplanner.js`, `pins-check.js`, the wizards and
+  `device-change.js` (resources, UCF, families), `api-local.js` (XDL).
+- **core/** (the IDE's): `sim-model.js` (timing, netlist, techview), `auto-pins.js` and `adept.js` (UCF,
+  families), `primitives.js`, `prim-templates.js`, `symdocs.js` (resources).
+- **scripts/**: `measure-power.mjs`; `build-standalone.mjs` (the data's paths); `check-open-flow.mjs`.
+- **The HLS flow** goes through the HDL it generates and the project's processes: it imports no toolchain
+  module.
+- **Tests**: 99 test files import the toolchain directly, 88 of them unit tests; research: 89 scripts.
+
+### The shared helpers
+
+- **Go with the toolchain, the IDE imports them from it**: `core/xdl.js` and `core/ucf.js` (formats),
+  `core/resources.js` and `core/family.js` (the parts' resources and families: the toolchain's data, used by
+  the IDE's palettes and wizards), `core/open-steps.js` (the steps' names).
+- **Stay in the IDE**: the HDL front end, `core/unisim.js`, `core/sim-model.js`, `core/sdf.js`,
+  `core/netlist-hier.js`, the technology view, the i18n, the version.
+- **A contract to keep**: the flow's log lines and warnings are English; the IDE translates some of them
+  (`web/js/i18n.js`) and its tests assert them. A changed message is then a change of the package's API.
+
+### Licence and notices
+
+Everything is AGPL-3.0-only with the elkjs permission, copyright Pedro Maló, and Pedro is the only author of
+the code (the bots' commits are dependency updates). The toolchain does not use elkjs (only the technology
+view does, which stays in the IDE), so the elkjs permission is not needed for the package. Its one third-party
+component is Yosys (YoWASP, ISC, with Yosys's own dependencies' notices). The package needs a NOTICE and a
+THIRD-PARTY-NOTICES of its own; the IDE's keep listing Yosys while it bundles it in the standalone edition.
+The bit database and the routing graphs are facts measured by observation (`docs/OPEN-TOOLCHAIN.md`): their
+licence can be decided apart from the code's (Project X-Ray publishes its database under CC0).
+
+## 3. How to separate it
+
+### The options
+
+| | A separate repository now | A package in this repository (npm workspace) | git subtree |
+|---|---|---|---|
+| The boundary | enforced by the repositories | enforced by a test (no import of internals) and the package's own `package.json` | as a separate repository |
+| A toolchain fix | a PR there, a release, a version update here (Dependabot): 3 steps | one PR | a PR here, then a subtree push |
+| related-tests, the release CI | duplicated; a change of both needs two runs | unchanged (the package's tests are files of this repository) | as today here, a second CI there |
+| Pages, the standalone build, the release zip | the assets from the npm package | the assets from the package's folder (each tag's build reads its own paths) | as today |
+| Dependabot, the Yosys update | Yosys's PRs go there; the comparison moves there | unchanged (one lock file; the workflow reads the package's `package.json`) | duplicated |
+| The ISE oracle on the self-hosted runner | a second runner registration (a user's repository has per-repository runners) and its window (#482) | unchanged | duplicated |
+| The device graphs | in the npm package (12 MB) | in the package's folder | in both |
+| History | kept with `git filter-repo` | kept (`git mv`) | duplicated, and merges in a linear-history `main` |
+
+### Recommendation
+
+**First a package in this repository (an npm workspace), then, when its API is stable, its own repository.**
+The workspace is the necessary first half of #1651 anyway: the boundary, the API, the command line and the
+moved tests have to exist before a repository of its own can work. It costs nothing to CI, Pages, the runner
+or the release, while the synthesis-quality and Spartan-6 work goes on in `core/fpga/` every day. The second
+half (filter-repo into a new repository, its CI, runner and releases; the IDE then depends on the published
+version) is #1651 itself, decided when the package has been stable for a while. git subtree is not
+recommended: it duplicates everything and does not fit a protected `main` with a linear history.
+
+### The steps
+
+Each step is a pull request (or a few) that changes no behaviour, as CLAUDE.md's splitting rules (#405) ask:
+the code moves as it is, the old modules re-export what moved, the importers stay as they are until the step
+that changes them, the moved modules are checked against `main`'s on the corpus. Steps 1 to 5 change nothing
+in the layout and can start now; step 6 needs the package's name.
+
+1. **A boundary test** ([#1672](https://github.com/pmnmalo/Silinx-ISE/issues/1672)): the toolchain's
+   modules, and the modules of the IDE they may import today (the four above), listed in a test; a new import
+   across fails, and the list only shrinks (as `test/code-size.test.js`).
+2. **The technology view out of `core/fpga/`** ([#1673](https://github.com/pmnmalo/Silinx-ISE/issues/1673)):
+   `core/fpga/techview.js` moves to `core/`, the old path re-exporting.
+3. **Synthesis from flat Verilog** ([#1674](https://github.com/pmnmalo/Silinx-ISE/issues/1674)):
+   `synthesizeOpen(design)` becomes the front end (`toVerilog`, the gate count) followed by a synthesis of the
+   flat Verilog; `synthesizeOpen` keeps its signature. The same netlists on the corpus.
+4. **The flow's front end and simulation models as hooks**
+   ([#1675](https://github.com/pmnmalo/Silinx-ISE/issues/1675)): `runOpenFlow` gets the HDL front end and the
+   simulation models through `io`; a wrapper in the IDE gives them, so `server/open-flow-run.js` and
+   `web/js/open-flow-worker.js` run as before. After it the boundary test's list is empty.
+5. **The bit database out of research/** ([#1676](https://github.com/pmnmalo/Silinx-ISE/issues/1676)): the
+   data the application ships moves next to the graphs; research re-exports its path (`test/layering.test.js`);
+   the standalone build and the related tests' data map (#772) follow.
+6. **The workspace package** ([#1677](https://github.com/pmnmalo/Silinx-ISE/issues/1677)): `packages/<name>/`
+   with its `package.json` (private until publishing is decided), the root's `workspaces`; `core/fpga/` (the
+   Spartan-6 part, the graphs and the bit database included) and the toolchain's modules of `core/` move there
+   as they are, in a few PRs; every old path re-exports, the server serves the package to the browser, the
+   standalone build and the release zip take it. Done in agreement with the sessions working in `core/fpga/`
+   (a move conflicts with every open change there).
+7. **The public API** ([#1678](https://github.com/pmnmalo/Silinx-ISE/issues/1678)): the package's entry
+   (`exports`): netlist and UCF in, `.bit`, XDL and the reports out, the devices and bit databases, the flow
+   with its `io`; the IDE's importers switch to it, the re-exporting shims go, and the boundary test then says
+   that the IDE imports nothing but the API.
+8. **The command line** ([#1679](https://github.com/pmnmalo/Silinx-ISE/issues/1679)): `silinx-fpga build`,
+   from `research/s3e-route/open-flow.mjs`, and a README with a blinky for the Basys2. A new feature with its
+   tests.
+9. **Its tests, oracle and research with it** ([#1680](https://github.com/pmnmalo/Silinx-ISE/issues/1680)):
+   the 64 unit test files, `check:open-flow`, the data-building research; the test globs, the shards,
+   related-tests and the workflows (ISE, Quality, Yosys update) follow.
+10. **Licence, notices, versioning and publishing**
+    ([#1681](https://github.com/pmnmalo/Silinx-ISE/issues/1681)): once Pedro has decided (below): the package's
+    LICENSE, NOTICE and THIRD-PARTY-NOTICES, its changelog fragments and version, a publishing workflow.
+11. **Its own repository** ([#1651](https://github.com/pmnmalo/Silinx-ISE/issues/1651)): when decided.
+
+## 4. To decide (Pedro)
+
+- **The name**: of the package and of a later repository (for example `silinx-fpga`, `@silinx/fpga`,
+  `spartan3e-toolchain`); an npm scope needs an npm organisation.
+- **The licence of the package**: AGPL-3.0-only as today (simplest; as the only author Pedro can still
+  relicense later), or LGPL-3.0 / MPL-2.0 (a library others can link), or permissive (MIT, Apache-2.0, ISC
+  like Yosys). And the data's (the bit database, the graphs): the code's, or CC0 / CC-BY as Project X-Ray.
+- **npm publishing**: whether, when (only from its own repository, or already from this one), and with
+  provenance; the package carries 12 MB of graphs and the bit database, and depends on Yosys (76 MB).
+- **Versioning**: its own semver (0.x until the API is stable) with its own changelog, or the IDE's version.
+- **The front end**: the package takes flat Verilog or a Yosys netlist; VHDL needs Silinx's front end (the
+  parsers and the elaborator, 19 000 lines), which stays in the IDE unless it becomes a package of its own too.
