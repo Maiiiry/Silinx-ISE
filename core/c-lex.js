@@ -14,6 +14,9 @@
 
 // the headers Silinx HLS knows (docs/c-to-hdl.md); hls_stream.h and the others refused
 import { cppTokens, CPP_HEADERS, isCpp } from './cpp-lex.js';
+import { readPragma } from './c-pragma.js';
+import { cppTemplates } from './cpp-template.js';
+import { cppSugar } from './cpp-sugar.js';
 
 export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
 // the macros of the standard headers a test bench uses (#1598)
@@ -211,16 +214,6 @@ function expand(toks, macros, err, active = new Set()) {
   return out;
 }
 
-// ---------------------------------------------------------------- the pragmas
-/** `#pragma HLS NAME key=value key` -> { name, args, text }; null if not an HLS pragma. */
-function readPragma(rest) {
-  const m = /^\s*HLS\s+(\w+)\s*(.*)$/i.exec(rest);
-  if (!m) return null;
-  const args = {};
-  for (const a of m[2].matchAll(/(\w+)\s*(?:=\s*("[^"]*"|[^\s,]+))?/g)) args[a[1].toLowerCase()] = a[2] === undefined ? true : a[2].replace(/^"|"$/g, '');
-  return { name: m[1].toUpperCase(), args, text: rest.trim() };
-}
-
 // ---------------------------------------------------------------- the preprocessor
 /** The header an #include names, as C finds it: beside the file including it, as named, else by its name alone. */
 function headerKey(headers, from, name) {
@@ -243,7 +236,8 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
   const last = lines.at(-1);
   tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
   const streams = new Map();
-  if (cpp) return { tokens: cppTokens(tokens, (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' }), streams), pragmas, includes, errors, streams };
+  const report = (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' });
+  if (cpp) return { tokens: cppTokens(cppSugar(cppTemplates(tokens, report), report), report, streams), pragmas, includes, errors, streams };
   return { tokens, pragmas, includes, errors };
 
   function run(src, fname, depth) {
@@ -306,7 +300,10 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
       if (dir === 'undef') { macros.delete(rest.trim()); continue; }
       if (dir === 'pragma') {
         if (rest.trim() === 'once') { once.add(fname); continue; }
-        const p = readPragma(rest);
+        // (its macros expanded, as Vitis HLS's: factor=N, if (OPT == 1); C++'s true and false kept)
+        const uses = (rest.match(/\b[A-Za-z_]\w*\b/g) || []).some((w) => macros.has(w) && w !== 'true' && w !== 'false');
+        const p = readPragma(uses ? expand(scan(rest, line, []), new Map([...macros].filter(([k]) => k !== 'true' && k !== 'false')), () => {})
+          .map((t) => (t.t === 'str' ? JSON.stringify(t.v) : t.t === 'chr' ? String(t.v) : t.v)).join(' ') : rest);
         if (!p) { e(`#pragma ${rest.trim()} is ignored (only #pragma HLS)`, 'warning'); continue; }
         pragmas.push({ ...p, line });
         tokens.push(own({ t: 'pragma', v: p, line, col }));

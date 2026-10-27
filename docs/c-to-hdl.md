@@ -11,9 +11,12 @@ Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* bel
 ## The source
 
 - A `.c` file in C99, plus Vitis HLS's arbitrary precision integers (`#include "ap_int.h"`):
-  `ap_int<W>` and `ap_uint<W>`, `W` from 1 to 1024. They are the only C++ syntax Silinx HLS accepts.
-- Known headers: `ap_int.h`, `stdint.h`, `stdbool.h`, `stdio.h` (for `printf` in test benches,
-  ignored by synthesis), `hls_stream.h` is refused (not yet).
+  `ap_int<W>` and `ap_uint<W>`, `W` from 1 to 1024; or a `.cpp` file in the C++ Vitis HLS synthesizes
+  (see *C++* below).
+- Known headers: `ap_int.h`, `stdint.h`, `stdbool.h`, `stdio.h`, `stdlib.h`, `string.h`, `math.h`,
+  `stddef.h`, `limits.h` (the library for test benches, ignored by synthesis); in C++ their `<c…>` names,
+  `<iostream>`, `<fstream>`, `<iomanip>` and `hls_stream.h`. The project's own headers (`#include "x.h"`)
+  are read in place.
 - The **top function**: the one named by `#pragma HLS TOP name=…`, else the file's last function
   that is not `main`. The other functions are inlined into it. `main()` is the test bench (C
   simulation, C/RTL co-simulation); it is never synthesized.
@@ -46,6 +49,33 @@ is accepted on arguments and has no effect (as in Vitis HLS's default).
 - Shifts by a negative or a too large amount, division by zero and reading an uninitialised
   variable are undefined behaviour: refused where Silinx can see it, else their result is not
   specified.
+
+## C++ (`.cpp` sources)
+
+The C above, plus the C++ Vitis HLS synthesizes (#1590). Each construct becomes C before the checks,
+so its hardware is the C's:
+
+- `namespace` and `using` (the names are the file's), qualified names (`std::cout`, `N::f`), `using T = …`,
+  `constexpr`, `nullptr`, `static_cast` / `const_cast`, `static_assert`, `bool` / `true` / `false`.
+- **References** as arguments (`int &y`): a pointer's ports (`y`, `y_ap_vld`; read and written `y_i`, `y_o`,
+  `y_o_ap_vld`), as Vitis HLS makes them.
+- **Templates**: function and class templates with integer and type parameters, their defaults, explicit
+  specializations (`template <> struct S<1> { … }`), a type deduced from a call's arguments (from the type they
+  are declared with). Each list of arguments is an instance with a name of its own (`adder<1, 4>` is
+  `adder_1_4`), so `template <int K>` gives one copy, and one set of statics, per `K`. In an instance a pragma
+  may use a parameter (`factor=N`), and `#pragma HLS if (cond) …` is kept only when `cond` holds.
+- **Classes of static members** (a class template's too): their functions, constants and types are named by
+  the class (`S::f`). A class with data members or methods (a `struct` value) is not supported yet.
+- `auto x = e;` (the type `e` is declared with) and the **range for** over an array (`for (auto &x : a)`); over
+  an array argument it is refused, as C++ does (the argument is a pointer).
+- **`hls::stream<T>`** arguments: the `ap_fifo` interface (`_dout`, `_empty_n`, `_read`; `_din`, `_full_n`,
+  `_write`), each access a state of its own that waits while the FIFO is empty or full.
+- Test benches: `std::cout` / `cerr` (with `<iomanip>`'s `setw`, `left` / `right`, `setfill('0')`, `hex` /
+  `oct` / `dec`), `ofstream` / `ifstream` (files in memory), `>>` and `<<` on streams.
+- Macros are expanded in pragmas (`#define F 4` … `#pragma HLS UNROLL factor=F`), as Vitis HLS does.
+
+Not synthesizable, as in Vitis HLS: `new` / `delete`, exceptions, RTTI, virtual functions, recursion, the STL
+(but the headers above). Not yet: `struct` values, `ap_fixed`, floating point.
 
 ## What can be synthesized (UG1399's rules)
 
