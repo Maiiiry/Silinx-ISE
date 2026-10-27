@@ -390,6 +390,8 @@ export function parse(source, file = 'input.c', opts = {}) {
   const lx = lex(source, file, opts);
   const errors = [...lx.errors];
   const typedefs = new Map(Object.entries(STDINT).map(([n, [bits, signed]]) => [n, { kind: 'int', name: n, bits, signed }]));
+  typedefs.set('FILE', { kind: 'struct', name: 'FILE' });   // (stdio's, for the test bench's files, #1598)
+  typedefs.set('size_t', { kind: 'int', name: 'size_t', bits: 32, signed: false });
   const T = tokenTools(lx.tokens, file, errors);
   const { toks, S, at, loc, recover, Stop } = T;
   const E = exprParser(T, typedefs);

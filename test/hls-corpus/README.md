@@ -41,7 +41,7 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-memory-burst-rw | C++ | skip | skip | skip | - | C++ (#1590) |
-| interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: hamming_window.h:19: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 30: the function 'round' is not declared |
 | interface-memory-ecc-flags | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-memory-lmem-2rw | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | skip | skip | skip | - | C++ (#1590) |
@@ -58,16 +58,16 @@ Not part of `npm test` (it needs the network once).
 | interface-streaming-using-array-of-streams | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-streaming-using-axi-stream-with-side-channel-data | C++ | skip | skip | skip | - | C++ (#1590) |
 | interface-streaming-using-axi-stream-with-struct | C++ | skip | skip | skip | - | C++ (#1590) |
-| migration-python-scripts | C | fail | fail | skip | - | C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
-| migration-vitis-unified-cli | C | fail | fail | skip | - | C simulation: pointer_basic_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| migration-python-scripts | C | pass | pass | pass | 1 |  |
+| migration-vitis-unified-cli | C | pass | pass | pass | 1 |  |
 | misc-initialization-and-reset-static-array-rom | C++ | skip | skip | skip | - | C++ (#1590) |
-| misc-malloc-removed | C | fail | fail | skip | - | C simulation: malloc_removed_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| misc-malloc-removed | C | fail | fail | skip | - | C simulation: 120: 'out_accum': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index) |
 | misc-rtl-as-blackbox | C++ | skip | skip | skip | - | C++ (#1590) |
-| modeling-pointers-basic-arithmetic | C | fail | fail | skip | - | C simulation: pointer_arith_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| modeling-pointers-basic-arithmetic | C | fail | fail | skip | - | C simulation: 24: '*' reads a pointer parameter (Silinx C: pointers only as arguments) |
 | modeling-pointers-multiple-pointers | C | fail | fail | skip | - | C simulation: 23: 'ptr': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index) |
-| modeling-pointers-native-casts | C | fail | fail | skip | - | C simulation: pointer_cast_native_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
-| modeling-pointers-stream-better | C | fail | fail | skip | - | C simulation: pointer_stream_better_test.c:109: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
-| modeling-pointers-stream-good | C | fail | fail | skip | - | C simulation: pointer_stream_good_test.c:16: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| modeling-pointers-native-casts | C | fail | fail | skip | - | C simulation: 112: 'ptr': a pointer variable is not possible in Silinx C (pointers only as arguments; use an array index) |
+| modeling-pointers-stream-better | C | pass | pass | pass | - |  |
+| modeling-pointers-stream-good | C | fail | fail | skip | - | C simulation: 23: pointer arithmetic is not possible in Silinx C: index the array instead |
 | modeling-pointers-using-double | C | fail | fail | skip | - | C simulation: 19: the parameter 'flagPtr': a pointer to a pointer is not possible (Silinx C: pointers only to arguments) |
 | modeling-conditional-control-of-pragmas-using-defines | C++ | skip | skip | skip | - | C++ (#1590) |
 | modeling-conditional-control-of-pragmas-using-template-function | C++ | skip | skip | skip | - | C++ (#1590) |
@@ -80,7 +80,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-using-array-stencil-2d | C++ | skip | skip | skip | - | C++ (#1590) |
 | modeling-using-cpp-templates | C++ | skip | skip | skip | - | C++ (#1590) |
 | modeling-using-fixed-point | C++ | skip | skip | skip | - | C++ (#1590) |
-| modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: fp_mul_pow2_test.c:17: the header 'math.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h) |
+| modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: 27: '.fp_num' is not a member function Silinx C knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
 | modeling-using-vectors | C++ | skip | skip | skip | - | C++ (#1590) |
 | modeling-variable-bound-loops | C++ | skip | skip | skip | - | C++ (#1590) |
 | pipelining-functions-function-instantiate | C++ | skip | skip | skip | - | C++ (#1590) |
@@ -100,5 +100,5 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | skip | skip | skip | - | C++ (#1590) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | skip | skip | skip | - | C++ (#1590) |
 
-73 designs: 0 through co-simulation.
+73 designs: 3 through co-simulation.
 <!-- /results -->

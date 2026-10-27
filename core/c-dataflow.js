@@ -199,6 +199,7 @@ export class Flow {
       case 'for': case 'while': case 'do': return this.loop(s, base);
       case 'switch': return this.switchStmt(s, base);
       case 'pragma': case 'empty': return;
+      case 'label': return this.stmt(s.stmt, base);   // (#1601)
       default: this.error(s.loc, `'${s.kind}' is not supported here`);
     }
   }

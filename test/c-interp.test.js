@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { simulateC } from '../core/c-interp.js';
+import { cToHdl } from '../core/c-hdl.js';
 import { CC, noCC, values, rng } from './c-helpers.js';
 import { apIntHeaders, runWithApInt } from './ap-int-ref.js';
 
@@ -145,4 +146,68 @@ test('#1588 C simulation against AMD\'s ap_int.h: every operator (arithmetic, bi
   const sim = simulateC(src, { file: 't.c' });
   assert.equal(sim.error, null, JSON.stringify(sim.error));
   assert.deepEqual(sim.output.split('\n'), runWithApInt(src, AP.dir).split('\n'));
+});
+
+test('#1598 the test bench\'s C library against cc: files written, read back (fscanf, fgets, feof), a golden file compared with system("diff …"), stderr, exit, abs, the headers\' macros', { skip: noCC }, () => {
+  const src = `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+int f(int a) { return a * 3 - 7; }
+int main() {
+  FILE *fp = fopen("result.dat", "w");
+  if (fp == NULL) return 9;
+  for (int i = 0; i < 6; i++) fprintf(fp, "%d %x\\n", f(i), i * 17);
+  fclose(fp);
+  fp = fopen("result.dat", "r");
+  int a, b, s = 0, n = 0;
+  while (fscanf(fp, "%d %x", &a, &b) == 2) { s += a + b; n++; }
+  fclose(fp);
+  printf("n=%d s=%d abs=%d max=%d\\n", n, s, abs(-41), INT_MAX);
+  char line[32];
+  fp = fopen("golden.dat", "r");
+  int lines = 0;
+  while (fgets(line, 32, fp) != NULL) { lines++; printf("[%c]", line[0]); }
+  printf(" %d %d\\n", lines, feof(fp) != 0);
+  fclose(fp);
+  fprintf(stderr, "");
+  int same = system("diff --brief -w result.dat golden.dat");
+  printf("same=%d none=%d\\n", same == 0, fopen("nope.dat", "r") == NULL);
+  if (same != 0) exit(3);
+  return EXIT_SUCCESS;
+}
+`;
+  const golden = '-7  0\n-4 11\n-1 22\n2 33\n 5 44\n8 55\n';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-tb-'));
+  try {
+    fs.writeFileSync(path.join(dir, 't.c'), src);
+    fs.writeFileSync(path.join(dir, 'golden.dat'), golden);
+    execFileSync(CC, ['-std=c99', '-w', '-o', path.join(dir, 't'), path.join(dir, 't.c')]);
+    let ref;
+    try { ref = { output: execFileSync(path.join(dir, 't'), { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }), exitCode: 0 }; } catch (e) { ref = { output: e.stdout, exitCode: e.status }; }
+    const sim = simulateC(src, { file: 't.c', files: { 'data/golden.dat': golden } });
+    assert.equal(sim.error, null);
+    assert.equal(sim.output, ref.output);
+    assert.equal(sim.exitCode, ref.exitCode);
+    assert.equal(sim.exitCode, 0);
+    assert.equal(sim.files['result.dat'], fs.readFileSync(path.join(dir, 'result.dat'), 'utf8'));
+    // a golden file that differs: diff says so, exit(3)
+    const bad = simulateC(src, { file: 't.c', files: { 'golden.dat': golden.replace('55', '56') } });
+    assert.deepEqual([bad.exitCode, /Files result\.dat and golden\.dat differ\nsame=0 none=1\n$/.test(bad.output)], [3, true]);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  // what the test bench's library does not run: said
+  const err = (s) => simulateC(s, { file: 't.c' }).error?.message;
+  assert.equal(err('#include <stdlib.h>\nint main() { return system("ls"); }'), 'system("ls") cannot be run in Silinx\'s C simulation (only diff)');
+  assert.equal(err('#include <stdio.h>\nint main() { FILE *f = fopen("x", "r"); fprintf(f, "a"); return 0; }'), 'fprintf: its file is not open (NULL)');
+});
+
+test('#1601 a labelled loop: synthesized and simulated as without its label, named in the report', () => {
+  const src = 'int f(int n) {\n  int s = 0;\n  sum_loop: for (int i = 0; i < n; i++) {\n#pragma HLS LOOP_TRIPCOUNT max=8\n    s += i;\n  }\n  return s;\n}\nint main() { return f(5) == 10 ? 0 : 1; }\n';
+  const sim = simulateC(src, { file: 'l.c' });
+  assert.deepEqual([sim.error, sim.exitCode, sim.diagnostics], [null, 0, []]);
+  const g = cToHdl(src, { file: 'l.c' });
+  assert.deepEqual(g.diagnostics, []);
+  assert.deepEqual(g.report.loops.map((l) => [l.name, l.line]), [['sum_loop', 3]]);
+  // a combinational function's labelled loop: unrolled as any other
+  assert.deepEqual(cToHdl('int g(int a) {\n  int s = 0;\n  acc: for (int i = 0; i < 4; i++) s += a;\n  return s;\n}\n').diagnostics, []);
 });

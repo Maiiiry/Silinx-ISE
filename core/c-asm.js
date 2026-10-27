@@ -61,6 +61,7 @@ function chart(top, m, lang) {
       switch (x.kind) {
         case 'pragma': case 'empty': return;
         case 'block': x.items.forEach(walk); return;
+        case 'label': walk(x.stmt); return;
         case 'if': {
           const d = node({ type: 'decision', cond: exprText(x.cond) });
           for (const p of pending) edge(p.from, d, p.port);

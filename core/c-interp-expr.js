@@ -22,6 +22,7 @@ export const exprMethods = {
       case 'str': return { str: e.value };
       case 'id': {
         const c = this.lookup(e.name, e);
+        if (c.isFile) return { fh: c.fh, v: c.fh ? 1n : 0n, t: c.t };   // (a FILE *: 0 when NULL, #1598)
         if (c.arr) return { arr: c.arr, t: c.t, dims: c.dims };
         if (c.ref) return { ptr: c.ref, t: c.t };
         return { v: c.v, t: c.t };
@@ -145,6 +146,7 @@ export const exprMethods = {
     if (e.kind === 'id') {
       const c = this.lookup(e.name, e);
       if (c.arr) this.fail(e, `'${e.name}' is an array: give an index`);
+      if (c.isFile) return { get: () => ({ fh: c.fh, v: c.fh ? 1n : 0n, t: c.t }), set: (x) => { c.fh = x.fh ?? null; }, t: c.t };
       if (c.ref) return { get: () => ({ ptr: c.ref, t: c.t }), set: (x) => { if (!x.ptr) this.fail(e, `'${e.name}' is a pointer`); c.ref = x.ptr; }, t: c.t };
       return { get: () => ({ v: c.v, t: c.t }), set: (x) => { c.v = convert(this.intOf(x, e), c.t); }, t: c.t };
     }

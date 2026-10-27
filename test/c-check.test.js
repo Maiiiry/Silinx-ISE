@@ -51,11 +51,11 @@ int no;
 });
 
 test('lex: pragmas (HLS parsed, others dropped with a warning); headers known and refused; directives with errors', () => {
-  const r = lex('#include "ap_int.h"\n#include <stdlib.h>\n#include <hls_stream.h>\n#pragma HLS PIPELINE II=2 rewind\n#pragma GCC optimize\n#pragma HLS INTERFACE mode=ap_vld port=y\n#if 1\n#else\n#else\n#endif\n#endif\n#foo\n#if 1\n');
-  assert.deepEqual(r.includes.map((i) => [i.name, i.system]), [['ap_int.h', false], ['stdlib.h', true], ['hls_stream.h', true]]);
+  const r = lex('#include "ap_int.h"\n#include <unistd.h>\n#include <hls_stream.h>\n#pragma HLS PIPELINE II=2 rewind\n#pragma GCC optimize\n#pragma HLS INTERFACE mode=ap_vld port=y\n#if 1\n#else\n#else\n#endif\n#endif\n#foo\n#if 1\n');
+  assert.deepEqual(r.includes.map((i) => [i.name, i.system]), [['ap_int.h', false], ['unistd.h', true], ['hls_stream.h', true]]);
   assert.deepEqual(r.pragmas.map((p) => [p.name, p.args]), [['PIPELINE', { ii: '2', rewind: true }], ['INTERFACE', { mode: 'ap_vld', port: 'y' }]]);
   assert.deepEqual(r.errors.map((e) => `${e.line} ${e.severity}: ${e.message}`), [
-    "2 error: the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)",
+    "2 error: the header 'unistd.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)",
     '3 error: hls_stream.h: streams are not supported yet',
     '5 warning: #pragma GCC optimize is ignored (only #pragma HLS)',
     '11 error: #endif with no #if',
@@ -171,7 +171,6 @@ out:
     '9:3 error: exit is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)',
     "10:24 error: 's': structures (struct pt) are not supported in Silinx C yet",
     "11:3 error: 'goto' is not supported in Silinx C (use loops, 'break' and 'continue')",
-    "12:1 error: labels are not supported in Silinx C ('out:')",
     '13:21 error: pointer arithmetic is not possible in Silinx C: index the array instead',
     '13:30 error: division by zero',
     '13:39 error: a shift by a negative amount (-1) is undefined in C',
@@ -219,7 +218,7 @@ test('hints: the main messages of Silinx C have their help in English and in Por
     ['pointer arithmetic is not possible in Silinx C: index the array instead', 'c-pointer-arithmetic'],
     ["'x': floating point (float) is not supported in Silinx C yet: use integers or ap_int<W>", 'c-float'],
     ["the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it", 'c-loop-bound'],
-    ["the header 'stdlib.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)", 'c-header'],
+    ["the header 'unistd.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
   ]) {
     const h = hintFor({ message: msg });
@@ -235,7 +234,7 @@ test('#1597 lex: the project\'s own headers read in place (their macros the sour
     'fir.c': '#include "fir.h"\nint fir(data_t x) { return x * N; }\n',
   };
   const r = lex('#include "fir.h"\n#include "fir.h"\n#include "types.h"\n#include "src/fir.c"\nint main(void) { return fir(N); }\n#include "nope.h"\n', 'tb.c', { headers });
-  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h)"]);
+  assert.deepEqual(r.errors.map((e) => `${e.file} ${e.line}: ${e.message}`), ["tb.c 6: the header 'nope.h' is not one of Silinx C's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h)"]);
   const text = r.tokens.filter((t) => t.t !== 'eof').map((t) => t.v).join(' ');
   assert.equal(text, 'typedef short data_t ; int fir ( data_t x ) ; int fir ( data_t x ) { return x * 4 ; } int main ( void ) { return fir ( 4 ) ; }');
   // (the tokens of a header carry its name)

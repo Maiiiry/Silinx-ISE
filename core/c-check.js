@@ -19,6 +19,8 @@ import { checkPragmas } from './c-pragma.js';
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
   'fread', 'fwrite', 'fgets', 'fscanf', 'scanf', 'getchar', 'system', 'memcpy', 'memset', 'strlen', 'strcpy', 'assert']);
 const IGNORED = new Set(['printf', 'fprintf', 'puts', 'putchar']);
+const STREAMS = new Set(['stdout', 'stderr', 'stdin']);
+const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc', 'fflush']);
 // the member functions of ap_int / ap_uint Silinx C knows
 const AP_MEMBERS = new Set(['range', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
 export const MAX_AP_WIDTH = 1024;
@@ -199,6 +201,8 @@ function checkFunction(f, ctx) {
       case 'str': if (hw && !how.printf) report(e.loc, 'a string is only possible in printf (ignored by synthesis)'); return;
       case 'init': for (const x of e.items) expr(x); return;
       case 'id':
+        // (stdio's streams: the test bench's; in synthesized code only in fprintf, ignored)
+        if (STREAMS.has(e.name) && !lookup(e.name)) return;
         if (!lookup(e.name) && !funcs.has(e.name)) report(e.loc, `'${e.name}' is not declared`);
         else if (hw && !how.call && funcs.has(e.name) && !lookup(e.name)) report(e.loc, `a function as a value is not possible (Silinx C, as Vitis HLS: no function pointers)`);
         return;
@@ -259,6 +263,12 @@ function checkFunction(f, ctx) {
       if (hw) report(e.loc, name === 'malloc' || name === 'calloc' || name === 'realloc' || name === 'free'
         ? `${name}: dynamic memory is not possible in hardware (Silinx C, as Vitis HLS: fixed sizes; use an array)`
         : `${name} is a system call: not possible in the synthesized code (Silinx C, as Vitis HLS)`);
+      for (const a of e.args) expr(a, { printf: true });
+      return;
+    }
+    // (the rest of the test bench's C library, core/c-interp-lib.js, #1598)
+    if (TB_LIB.has(name) && !lookup(name)) {
+      if (hw) report(e.loc, `${name}() runs in the C simulation only (the test bench), not in the synthesized code`);
       for (const a of e.args) expr(a, { printf: true });
       return;
     }
@@ -329,7 +339,8 @@ function checkFunction(f, ctx) {
         else if (f.ret.kind !== 'void' && f.name !== 'main') report(s.loc, `'${f.name}' returns a value: 'return' needs one`);
         return;
       case 'goto': if (hw) report(s.loc, "'goto' is not supported in Silinx C (use loops, 'break' and 'continue')"); return;
-      case 'label': if (hw) report(s.loc, `labels are not supported in Silinx C ('${s.name}:')`); stmt(s.stmt); return;
+      // (a label names the statement after it, a loop's name as Vitis HLS reports it, #1601; goto is refused)
+      case 'label': stmt(s.stmt); return;
       case 'for': case 'while': case 'do': {
         scopes.push(new Map());
         if (s.kind === 'for') { if (s.init) stmt(s.init); if (s.cond) expr(s.cond); if (s.step) expr(s.step); }
