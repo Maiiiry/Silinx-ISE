@@ -50,12 +50,15 @@ uiTest('#1524 Silinx HLS: a .c file in the editor (C highlighting, the checks as
   await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
   const errs = () => page.eval(() => [...document.querySelectorAll('#console-errors .diag')].map((d) => ({ text: d.textContent, hint: d.parentElement.querySelector(`.diag-hint`)?.dataset.hint || d.nextElementSibling?.dataset?.hint || null })));
   const e = await errs();
-  assert.deepEqual(e.map((x) => /Line (\d+): (.*?)(?:$|\s{2})/.exec(x.text)?.slice(1, 3).join(' ').replace(/[▸▾].*$/, '').trim()).map((s) => s.slice(0, 60)), [
+  const lines = e.map((x) => /Line (\d+): (.*?)(?:$|\s{2})/.exec(x.text)?.slice(1, 3).join(' ').replace(/[▸▾].*$/, '').trim());
+  assert.deepEqual(lines.map((s) => s.slice(0, 60)), [
     "1 the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, std",
     '2 recursion is not possible in hardware (Silinx HLS, as Vitis HLS',
-    "3 'p': a pointer variable is not possible in Silinx HLS (pointers ",
+    "3 the pointer 'p': set to something other than an array, &x, &a[i] or a + i: not supported yet",
     '3 malloc: dynamic memory is not possible in hardware (Silinx HLS,',
   ].map((s) => s.slice(0, 60)));
+  // the local pointer's error (core/c-pointer.js since #1599, #1723): its whole message
+  assert.equal(lines[2], "3 the pointer 'p': set to something other than an array, &x, &a[i] or a + i: not supported yet");
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#console-errors .diag-hint')].map((x) => x.dataset.hint)), ['c-header', 'c-recursion', 'c-pointer-variable', 'c-dynamic-memory']);
   // in Portuguese: the help
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
