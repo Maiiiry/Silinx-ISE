@@ -34,7 +34,10 @@ Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* bel
 | `int8_t` … `int64_t`, `uint8_t` … `uint64_t` | as named | |
 | `ap_int<W>` / `ap_uint<W>` | W | yes / no |
 
-No floating point, no `ap_fixed` (refused with a message; a later phase). `const` is kept; `volatile`
+No floating point in hardware, no `ap_fixed` (refused with a message; a later phase). The test bench may use
+`float` and `double` (#1641): C's arithmetic and conversions, `math.h`, `printf`'s `%f` `%e` `%g` printed exactly as C's
+library prints them, C++'s `cout` of a double (6 significant digits, or as `fixed`, `scientific`, `setprecision` set
+the stream), `ap_int`'s `to_double()`. `const` is kept; `volatile`
 is accepted on arguments and has no effect (as in Vitis HLS's default).
 
 ### Arithmetic

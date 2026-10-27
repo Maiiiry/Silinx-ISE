@@ -3,6 +3,7 @@
 // written kept), system("diff [--brief] [-w | -b] a b") comparing two of them as diff does, exit, abs. What AMD's Vitis
 // HLS examples' test benches use: they write their results to a file and compare it with a golden one. Isomorphic.
 import { convert } from './c-interp-expr.js';
+import { MATH, F64, F32 } from './c-float.js';
 
 const INT = { w: 32, s: true };
 const num = (v) => ({ v: BigInt(v), t: INT });
@@ -28,9 +29,9 @@ export const libMethods = {
         const at = name === 'fprintf' ? 1 : 0;
         const fmt = args[at]?.str;
         if (fmt === undefined) this.fail(e, `${name}: its format must be a string`);
-        const s = this.format(fmt, args.slice(at + 1), e);
         const fh = name === 'fprintf' ? args[0].fh : { std: 'out' };
         if (!fh) this.fail(e, 'fprintf: its file is not open (NULL)');
+        const s = this.format(fmt, args.slice(at + 1), e, fh);
         this.write(fh, s, e);
         return num(s.length);
       }
@@ -67,10 +68,24 @@ export const libMethods = {
         const [c] = A();
         return num(this.system(c.str ?? '', e));
       }
-      case 'exit': { const [c] = A(); throw new Exit(Number(convert(this.intOf(c, e), INT))); }
-      case 'abs': case 'labs': case 'llabs': { const [x] = A(); const v = this.intOf(x, e); return { v: v < 0n ? -v : v, t: x.t }; }
+      case 'exit': { const [c] = A(); throw new Exit(Number(this.as(c, INT, e))); }
+      case 'abs': case 'labs': case 'llabs': {
+        const [x] = A();
+        if (x.t?.fl) return { v: Math.abs(x.v), t: x.t };   // (C++'s std::abs of a double)
+        const v = this.intOf(x, e);
+        return { v: v < 0n ? -v : v, t: x.t };
+      }
       case 'fflush': return num(0);
-      default: this.fail(e, `${name}() cannot be run in Silinx's C simulation`);
+      default: {
+        // math.h's (core/c-float.js): on doubles, a float's (sqrtf, …) in float
+        const m = MATH[name];
+        if (!m) this.fail(e, `${name}() cannot be run in Silinx's C simulation`);
+        const xs = A();
+        if (xs.length !== m.n) this.fail(e, `${name}() takes ${m.n} argument(s)`);
+        const r = m.f(...xs.map((x) => Number(x.v ?? this.intOf(x, e))));
+        if (m.int) return { v: BigInt(r), t: { w: 64, s: true, ap: false } };
+        return { v: name.endsWith('f') && name !== 'modf' ? Math.fround(r) : r, t: name.endsWith('f') ? F32 : F64 };
+      }
     }
     return null;
   },

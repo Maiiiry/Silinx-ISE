@@ -66,13 +66,13 @@ class Machine {
       let at = t;
       for (; at.kind === 'array'; at = at.of) dims.push(at.length ?? (at === t && v.init?.kind === 'init' ? v.init.items.length : 0));
       const et = typeOf(at);
-      if (!et) this.fail(v, `'${v.name}': only arrays of integers can be simulated`);
+      if (!et) this.fail(v, `'${v.name}': only arrays of numbers can be simulated`);
       const n = dims.reduce((a, b) => a * b, 1);
-      const arr = Array.from({ length: n }, () => ({ v: 0n }));
+      const arr = Array.from({ length: n }, () => ({ v: et.fl ? 0 : 0n }));
       const flat = [];
       const walk = (x) => { if (x?.kind === 'init') x.items.forEach(walk); else flat.push(x); };
       if (v.init?.kind === 'init') walk(v.init);
-      flat.forEach((x, k) => { if (k < n && x) arr[k].v = convert(this.intOf(this.eval(x), x), et); });
+      flat.forEach((x, k) => { if (k < n && x) arr[k].v = this.as(this.eval(x), et, x); });
       if (v.init?.kind === 'str') [...v.init.value].forEach((ch, k) => { if (k < n) arr[k].v = BigInt(ch.charCodeAt(0)); });
       return { t: et, arr, dims };
     }
@@ -84,12 +84,12 @@ class Machine {
       return c;
     }
     const et = typeOf(t);
-    if (!et) this.fail(v, `'${v.name}' is not an integer: it cannot be simulated`);
-    return { t: et, v: v.init ? convert(this.intOf(this.eval(v.init), v.init), et) : 0n };
+    if (!et) this.fail(v, `'${v.name}' is not a number: it cannot be simulated`);
+    return { t: et, v: v.init ? this.as(this.eval(v.init), et, v.init) : et.fl ? 0 : 0n };
   }
   elemRef(arr, index, t) {
     const cell = arr[index];
-    return { get: () => ({ v: cell.v, t }), set: (x) => { cell.v = convert(this.intOf(x), t); }, t, arr, index };
+    return { get: () => ({ v: cell.v, t }), set: (x) => { cell.v = this.as(x, t); }, t, arr, index };
   }
 
   run(entry) {
@@ -134,7 +134,7 @@ class Machine {
         if (a.fifo) { rec.streamIn[pa.name] = a.fifo.q.map((c) => c); a.fifo.log = { reads: 0, writes: [] }; return; }
         if (a.arr) rec.memIn[pa.name] = a.arr.map((c) => c.v);
         if (a.ptr) rec.ptrIn[pa.name] = a.ptr.get().v;
-        else if (!a.arr) rec.args[pa.name] = convert(this.intOf(a, e), typeOf(pa.type));
+        else if (!a.arr) rec.args[pa.name] = this.as(a, typeOf(pa.type), e);
       });
     }
     const r = this.invoke(fn, args, e);
@@ -158,13 +158,13 @@ class Machine {
       if (a.fifo) scope.set(pa.name, { t: a.t, fifo: a.fifo });
       else if (a.arr) scope.set(pa.name, { t: a.t, arr: a.arr });
       else if (a.ptr) scope.set(pa.name, { t: a.t, ref: a.ptr });
-      else { const t = typeOf(pa.type); scope.set(pa.name, { t, v: convert(this.intOf(a, at), t) }); }
+      else { const t = typeOf(pa.type); scope.set(pa.name, { t, v: this.as(a, t, at) }); }
     });
     this.frames.push({ fn, scopes: [scope] });
     try {
       for (const s of fn.body.items) {
         const r = this.stmt(s);
-        if (r instanceof Return) return r.value && fn.ret.kind !== 'void' ? { v: convert(this.intOf(r.value, s), typeOf(fn.ret)), t: typeOf(fn.ret) } : null;
+        if (r instanceof Return) return r.value && fn.ret.kind !== 'void' ? { v: this.as(r.value, typeOf(fn.ret), s), t: typeOf(fn.ret) } : null;
       }
       return null;
     } finally { this.frames.pop(); }

@@ -14,6 +14,7 @@
 // test bench, checked for names and calls only.
 import { parse } from './c-parse.js';
 import { checkPragmas } from './c-pragma.js';
+import { MATH } from './c-float.js';
 
 // the library calls Silinx HLS refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
@@ -24,7 +25,7 @@ const TB_LIB = new Set(['abs', 'labs', 'llabs', 'feof', 'fputs', 'fputc', 'putc'
 // the member functions of ap_int / ap_uint Silinx HLS knows
 // the member functions of hls::stream Silinx HLS knows (#1590)
 const STREAM_MEMBERS = new Set(['read', 'write', 'empty', 'full', 'read_nb', 'write_nb', 'size']);
-const AP_MEMBERS = new Set(['range', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
+const AP_MEMBERS = new Set(['range', 'to_double', 'to_float', 'to_int', 'to_uint', 'to_long', 'to_ulong', 'to_int64', 'to_uint64', 'length', 'and_reduce', 'or_reduce', 'xor_reduce']);
 export const MAX_AP_WIDTH = 1024;
 
 /** The value of a constant expression (numbers, the constants known, C's operators), or null if it is not one. */
@@ -279,6 +280,12 @@ function checkFunction(f, ctx) {
     // (the rest of the test bench's C library, core/c-interp-lib.js, #1598)
     if (TB_LIB.has(name) && !lookup(name)) {
       if (hw) report(e.loc, `${name}() runs in the C simulation only (the test bench), not in the synthesized code`);
+      for (const a of e.args) expr(a, { printf: true });
+      return;
+    }
+    // (math.h's: the test bench's, core/c-float.js; floating point is not in hardware yet)
+    if (MATH[name] && !lookup(name)) {
+      if (hw) report(e.loc, `${name}: floating point is not supported in Silinx HLS yet (the test bench only)`);
       for (const a of e.args) expr(a, { printf: true });
       return;
     }

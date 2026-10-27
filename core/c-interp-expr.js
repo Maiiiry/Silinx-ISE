@@ -2,14 +2,20 @@
 // ap_int's arithmetic on BigInt values (core/c-types.js), pointers to variables and array elements, printf.
 // Isomorphic ES module: no DOM and no Node APIs.
 import { INT, BOOL, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType, wrap } from './c-types.js';
+import { F64, F32, fmtFloat } from './c-float.js';
 
 const CMP = { '==': (a, b) => a === b, '!=': (a, b) => a !== b, '<': (a, b) => a < b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '>=': (a, b) => a >= b };
 
-/** v as a value of type t: C's conversion (to bool: 0 or 1; else the bits of the width, read signed or not). */
+/** v (a BigInt, or a number: a float's) as a value of type t: C's conversion (to bool: 0 or 1; to an integer: the
+ *  bits of the width, read signed or not, a float's value truncated toward zero; to a float: the nearest). */
 export function convert(v, t) {
+  if (t.fl) { const x = typeof v === 'number' ? v : Number(v); return t.fl === 32 ? Math.fround(x) : x; }
   if (t.bool) return v ? 1n : 0n;
+  if (typeof v === 'number') v = Number.isFinite(v) ? BigInt(Math.trunc(v)) : 0n;
   return wrap(v, t);
 }
+/** The common type of a float and another operand (C: double over float over the integers). */
+const floatOf = (a, b) => (a.fl === 64 || b.fl === 64 ? F64 : F32);
 const num = (v, t) => ({ v: convert(v, t), t });
 
 export const exprMethods = {
@@ -19,6 +25,7 @@ export const exprMethods = {
     switch (e.kind) {
       case 'num': return num(e.value, literalType(e.value, { unsigned: e.unsigned, long: e.long, decimal: !/^0/.test(e.text) || e.text === '0' }));
       case 'chr': return num(e.value, INT);
+      case 'float': return num(Number(e.text.replace(/[fFlL]$/, '')), /[fF]$/.test(e.text) ? F32 : F64);
       case 'str': return { str: e.value };
       case 'id': {
         const c = this.lookup(e.name, e);
@@ -49,7 +56,7 @@ export const exprMethods = {
         const other = this.typeOfExpr(c ? e.b : e.a);
         const x = a || b;
         if (x.ptr || x.arr || !other) return x;
-        const t = compareType(x.t, other);
+        const t = x.t.fl || other.fl ? floatOf(x.t, other) : compareType(x.t, other);
         return num(x.v, t);
       }
       case 'comma': this.eval(e.l); return this.eval(e.r);
@@ -57,7 +64,7 @@ export const exprMethods = {
         const t = typeOf(e.type);
         const x = this.eval(e.e);
         if (!t) return x;
-        return num(this.intOf(x, e), t);
+        return num(x.v ?? this.intOf(x, e), t);
       }
       case 'call': return this.call(e);
       case 'index': {
@@ -77,23 +84,28 @@ export const exprMethods = {
   /** The type of an expression without running it (for ?:'s common type), or null. */
   typeOfExpr(e) {
     if (e.kind === 'num') return literalType(e.value, { unsigned: e.unsigned, long: e.long });
+    if (e.kind === 'float') return /[fF]$/.test(e.text) ? F32 : F64;
     if (e.kind === 'id') { const c = this.find(e.name); return c && !c.arr && !c.ref ? c.t : null; }
     if (e.kind === 'cast') return typeOf(e.type);
     return null;
   },
   intOf(x, e) {
+    if (typeof x.v === 'number') return Number.isFinite(x.v) ? BigInt(Math.trunc(x.v)) : 0n;
     if (x.v !== undefined) return x.v;
     this.fail(e, 'an integer expected here (not a pointer or an array)');
     return 0n;
   },
-  truth(x) { return x.ptr ? true : this.intOf(x) !== 0n; },
+  truth(x) { return x.ptr ? true : typeof x.v === 'number' ? x.v !== 0 : this.intOf(x) !== 0n; },
+  /** x as a value of type t (C's conversion; a float's kept as a number). */
+  as(x, t, e) { return convert(x.v ?? this.intOf(x, e), t); },
   unary(e) {
     switch (e.op) {
       case '!': return num(this.truth(this.eval(e.e)) ? 0n : 1n, INT);
       case '-': case '+': case '~': {
         const x = this.eval(e.e);
+        if (x.t?.fl) { if (e.op === '~') this.fail(e, "'~' of a floating-point value"); return num(e.op === '-' ? -x.v : x.v, x.t); }
         const t = unaryType(e.op, x.t);
-        const v = convert(this.intOf(x, e), t);
+        const v = this.as(x, t, e);
         return num(e.op === '-' ? -v : e.op === '~' ? ~v : v, t);
       }
       case '*': { const p = this.eval(e.e); if (!p.ptr) this.fail(e, "'*' of something that is not a pointer"); return p.ptr.get(); }
@@ -111,14 +123,23 @@ export const exprMethods = {
     if (e.op === '&&') return num(this.truth(this.eval(e.l)) && this.truth(this.eval(e.r)) ? 1n : 0n, INT);
     if (e.op === '||') return num(this.truth(this.eval(e.l)) || this.truth(this.eval(e.r)) ? 1n : 0n, INT);
     const l = this.eval(e.l), r = this.eval(e.r);
+    if (CMP[e.op] && (l.t?.fl || r.t?.fl)) return num(CMP[e.op](Number(l.v ?? this.intOf(l, e)), Number(r.v ?? this.intOf(r, e))) ? 1n : 0n, INT);
     if (CMP[e.op]) {
       const t = compareType(l.t, r.t);
-      return num(CMP[e.op](convert(this.intOf(l, e), t), convert(this.intOf(r, e), t)) ? 1n : 0n, INT);
+      return num(CMP[e.op](this.as(l, t, e), this.as(r, t, e)) ? 1n : 0n, INT);
     }
     return this.arith(e.op, l, r, e);
   },
   /** l op r with C's / ap_int's arithmetic: + - * / % & | ^ << >> */
   arith(op, l, r, e) {
+    if (l.t?.fl || r.t?.fl) {
+      // (floating point: in double, or float when neither is a double)
+      const t = floatOf(l.t.fl ? l.t : {}, r.t.fl ? r.t : {});
+      const a = Number(l.v ?? this.intOf(l, e)), b = Number(r.v ?? this.intOf(r, e));
+      const F = { '+': a + b, '-': a - b, '*': a * b, '/': a / b };
+      if (!(op in F)) this.fail(e, `the operator '${op}' of a floating-point value`);
+      return num(F[op], t);
+    }
     const a0 = this.intOf(l, e), b0 = this.intOf(r, e);
     if (op === '<<' || op === '>>') {
       const t = shiftType(l.t);
@@ -147,7 +168,7 @@ export const exprMethods = {
   streamOp(f, name, e) {
     const B = (b) => num(b ? 1n : 0n, INT);
     const take = () => { const v = f.q.shift(); if (f.log) f.log.reads++; return num(v, f.t); };
-    const put = (x) => { const v = convert(this.intOf(x, e), f.t); f.q.push(v); f.log?.writes.push(v); };
+    const put = (x) => { const v = this.as(x, f.t, e); f.q.push(v); f.log?.writes.push(v); };
     switch (name) {
       case 'read': {
         if (!f.q.length) this.fail(e, `the stream '${f.name}' is read while empty`);
@@ -175,7 +196,7 @@ export const exprMethods = {
       if (c.arr) this.fail(e, `'${e.name}' is an array: give an index`);
       if (c.isFile) return { get: () => ({ fh: c.fh, v: c.fh ? 1n : 0n, t: c.t }), set: (x) => { c.fh = x.fh ?? null; }, t: c.t };
       if (c.ref) return { get: () => ({ ptr: c.ref, t: c.t }), set: (x) => { if (!x.ptr) this.fail(e, `'${e.name}' is a pointer`); c.ref = x.ptr; }, t: c.t };
-      return { get: () => ({ v: c.v, t: c.t }), set: (x) => { c.v = convert(this.intOf(x, e), c.t); }, t: c.t };
+      return { get: () => ({ v: c.v, t: c.t }), set: (x) => { c.v = this.as(x, c.t, e); }, t: c.t };
     }
     if (e.kind === 'unary' && e.op === '*') { const p = this.eval(e.e); if (!p.ptr) this.fail(e, "'*' of something that is not a pointer"); return p.ptr; }
     if (e.kind === 'index') return this.indexRef(e);
@@ -195,14 +216,14 @@ export const exprMethods = {
     if (base.arr) {
       if (i < 0 || i >= base.arr.length) this.fail(e, `the index ${i} is outside the array (0 to ${base.arr.length - 1})`);
       const cell = base.arr[i];
-      return { get: () => ({ v: cell.v, t: base.t }), set: (x) => { cell.v = convert(this.intOf(x, e), base.t); }, t: base.t, cell, arr: base.arr, index: i };
+      return { get: () => ({ v: cell.v, t: base.t }), set: (x) => { cell.v = this.as(x, base.t, e); }, t: base.t, cell, arr: base.arr, index: i };
     }
     if (base.ptr) {
       if (base.ptr.arr) {
         const k = base.ptr.index + i;
         if (k < 0 || k >= base.ptr.arr.length) this.fail(e, `the index ${i} is outside the array the pointer points into`);
         const cell = base.ptr.arr[k];
-        return { get: () => ({ v: cell.v, t: base.t }), set: (x) => { cell.v = convert(this.intOf(x, e), base.t); }, t: base.t, cell, arr: base.ptr.arr, index: k };
+        return { get: () => ({ v: cell.v, t: base.t }), set: (x) => { cell.v = this.as(x, base.t, e); }, t: base.t, cell, arr: base.ptr.arr, index: k };
       }
       if (i !== 0) this.fail(e, `a pointer to one value: only [0]`);
       return base.ptr;
@@ -223,27 +244,51 @@ export const exprMethods = {
     };
   },
   /** printf's formatting: %[flags][width][.precision][length]conversion (d i u x X o c s p %). */
-  format(fmt, args, e) {
+  format(fmt, args, e, fh = null) {
     let k = 0, out = '';
+    // (a C++ stream's state, its manipulators', core/cpp-tree.js: %{…})
+    const key = fh?.std ?? fh?.name ?? 'out';
+    const st = (this.streamState ||= new Map()).get(key) || { float: 'g', prec: undefined, base: 'd', left: false, zero: false };
+    this.streamState.set(key, st);
     const next = () => { if (k >= args.length) this.fail(e, 'printf: fewer arguments than its format asks for'); return args[k++]; };
-    const re = /%([-+ 0#]*)(\*|\d+)?(?:\.(\*|\d+))?(hh|h|ll|l|z|j)?([diuxXocsp%])/g;
+    // (and C++'s cout of a value, %…v with its stream's format: core/cpp-tree.js)
+    const re = /%\{(\w+)\}|%([-+ 0#]*)(\*|\d+)?(?:\.(\*|\d+))?(hh|h|ll|l|z|j|L)?([diuxXocspfFeEgG%v])/g;
     let last = 0, m;
     while ((m = re.exec(fmt))) {
       out += fmt.slice(last, m.index);
       last = re.lastIndex;
-      let [, flags, width, prec, len, conv] = m;
+      if (m[1]) {
+        const d = m[1];
+        if (d === 'prec') st.prec = Number(this.intOf(next(), e));
+        else if (d === 'fixed' || d === 'scientific' || d === 'defaultfloat') st.float = { fixed: 'f', scientific: 'e', defaultfloat: 'g' }[d];
+        else if (d === 'hex' || d === 'oct' || d === 'dec') st.base = d[0] === 'h' ? 'x' : d[0] === 'o' ? 'o' : 'd';
+        else if (d === 'left' || d === 'right') st.left = d === 'left';
+        else if (d === 'fill0' || d === 'fill') st.zero = d === 'fill0';
+        continue;
+      }
+      let [, , flags, width, prec, len, conv] = m;
       if (conv === '%') { out += '%'; continue; }
+      if (conv === 'v') {
+        // (padded with the stream's fill, before the sign too: C++'s right, its default)
+        const s = this.streamText(next(), st, e), fill = st.zero ? '0' : ' ';
+        out += width ? (st.left ? s.padEnd(Number(width), fill) : s.padStart(Number(width), fill)) : s;
+        continue;
+      }
       if (width === '*') width = String(this.intOf(next(), e));
       if (prec === '*') prec = String(this.intOf(next(), e));
       const a = next();
       let s;
       if (conv === 's') { s = a.str ?? ''; if (prec !== undefined) s = s.slice(0, Number(prec)); }
-      else if (conv === 'c') s = String.fromCharCode(Number(convert(this.intOf(a, e), { w: 8, s: false })));
+      else if ('fFeEgG'.includes(conv)) {
+        s = fmtFloat(conv, Number(a.v ?? this.intOf(a, e)), prec === undefined ? undefined : Number(prec), flags);
+        if (flags.includes('0') && !flags.includes('-') && width && /^[-+ ]?\d/.test(s)) { const sg = /^[-+ ]/.test(s) ? s[0] : ''; s = sg + s.slice(sg.length).padStart(Number(width) - sg.length, '0'); }
+      }
+      else if (conv === 'c') s = String.fromCharCode(Number(this.as(a, { w: 8, s: false }, e)));
       else if (conv === 'p') s = '0x1';
       else {
         const w = len === 'hh' ? 8 : len === 'h' ? 16 : len === 'l' || len === 'll' || len === 'z' || len === 'j' ? 64 : 32;
         const signed = conv === 'd' || conv === 'i';
-        let v = convert(this.intOf(a, e), { w, s: signed });
+        let v = this.as(a, { w, s: signed }, e);
         const neg = v < 0n;
         if (neg) v = -v;
         s = v.toString(conv === 'o' ? 8 : conv === 'x' || conv === 'X' ? 16 : 10);
@@ -260,6 +305,19 @@ export const exprMethods = {
     }
     return out + fmt.slice(last);
   },
+  /** C++'s `stream << value` (core/cpp-tree.js's %v), as its stream's state st says: a string; a char (an 8-bit C
+   *  integer) its character; an integer in its base; a float as its float field (g: precision significant digits, 6
+   *  by default; f: fixed; e: scientific). */
+  streamText(a, st, e) {
+    if (a.str !== undefined) return a.str;
+    if (a.t?.fl) return fmtFloat(st.float, a.v, st.prec, '');
+    const v = this.intOf(a, e);
+    if (a.t && a.t.w === 8 && !a.t.ap && !a.t.bool) return String.fromCharCode(Number(v & 255n));
+    const base = st.base === 'x' ? 16 : st.base === 'o' ? 8 : 10;
+    // (hex and octal of a negative C integer: its bits, as C++ prints them)
+    const u = base !== 10 && v < 0n ? v & ((1n << BigInt(a.t?.w || 64)) - 1n) : v;
+    return u < 0n ? `-${(-u).toString(base)}` : u.toString(base);
+  },
   member(e) {
     const m = e.callee;
     const x = this.eval(m.e);
@@ -272,6 +330,8 @@ export const exprMethods = {
         if (lo < 0 || hi >= x.t.w || hi < lo) this.fail(e, `.range(${hi}, ${lo}) is outside the ${x.t.w} bits of this value`);
         return num((u() >> BigInt(lo)) & ((1n << BigInt(hi - lo + 1)) - 1n), { w: hi - lo + 1, s: false, ap: true });
       }
+      case 'to_double': return num(x.v, F64);
+      case 'to_float': return num(x.v, F32);
       case 'to_int': return num(x.v, INT);
       case 'to_uint': return num(x.v, { w: 32, s: false, ap: false });
       case 'to_long': case 'to_int64': return num(x.v, { w: 64, s: true, ap: false });

@@ -46,7 +46,8 @@ function scan(text, line, bad) {
       let j = i;
       if (/^0[xX]/.test(text.slice(i))) { j += 2; while (j < text.length && /[0-9a-fA-F']/.test(text[j])) j++; }
       else if (/^0[bB]/.test(text.slice(i))) { j += 2; while (j < text.length && /[01']/.test(text[j])) j++; }
-      else while (j < text.length && /[0-9.eE']/.test(text[j])) j++;
+      // (a decimal: its fraction and exponent, 1.5e-3)
+      else while (j < text.length && (/[0-9.eE']/.test(text[j]) || (/[-+]/.test(text[j]) && /[eE]/.test(text[j - 1])))) j++;
       while (j < text.length && /[uUlLfF]/.test(text[j])) j++;
       out.push({ t: 'num', v: text.slice(i, j), col }); i = j; continue;
     }

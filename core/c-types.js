@@ -3,6 +3,7 @@
 // Isomorphic ES module: no DOM and no Node APIs.
 //
 // A type is { w, s, ap }: its width in bits, signed or not, an ap_int / ap_uint or a C type. bool is { w: 1, s: false }.
+import { floatType } from './c-float.js';
 
 export const INT = Object.freeze({ w: 32, s: true, ap: false });
 export const UINT = Object.freeze({ w: 32, s: false, ap: false });
@@ -10,6 +11,7 @@ export const BOOL = Object.freeze({ w: 1, s: false, ap: false, bool: true });
 
 /** The type of a parsed Type (core/c-parse.js) of an integer, else null. */
 export function typeOf(t) {
+  if (t?.kind === 'float') return floatType(t);   // (the C simulation's: core/c-float.js; refused in hardware)
   if (!t || t.kind !== 'int' || !t.bits) return null;
   return t.name === 'bool' ? BOOL : { w: t.bits, s: !!t.signed, ap: !!t.ap };
 }
