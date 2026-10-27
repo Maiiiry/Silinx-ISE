@@ -51,6 +51,11 @@ uiTest('#1193 a truth table\'s schematic: "Read-only, generated from …" at the
       curved: !!tb.querySelector('.se-curved')?.getClientRects().length };
   });
   assert.deepEqual(bar, { text: 'Read-only, generated from maj.tt.json', last: true, above: false, curved: true });
+  // the editing tools hidden (Undo / Redo among them, after Add I/O Marker since #1696): no separator first, doubled or last
+  const shown = await page.eval(() => [...document.querySelector('.doc:not([hidden]) .se-toolbar').children].filter((e) => e.getClientRects().length)
+    .map((e) => (e.classList.contains('se-sep') ? '|' : e.dataset.act || e.className.split(' ')[0])));
+  assert.ok(!['undo', 'redo', 'rotate'].some((a) => shown.includes(a)), shown.join(' '));
+  assert.ok(shown[0] !== '|' && !shown.some((e, i) => e === '|' && shown[i + 1] === '|'), shown.join(' '));
   // Curved wires: the wires drawn as curves, the schematic (generated) not changed
   // (the curves: paths with Bézier segments; the hop-overs' paths are arcs)
   const curves = () => page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) svg .wire .wline')].filter((l) => /[CQ]/.test(l.getAttribute('d') || '')).length);
