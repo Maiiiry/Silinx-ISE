@@ -17,9 +17,12 @@ import { cppTokens, CPP_HEADERS, isCpp } from './cpp-lex.js';
 import { CPP_OWN_HEADERS } from './cpp-headers.js';
 import { readPragma } from './c-pragma.js';
 import { cppTemplates } from './cpp-template.js';
+import { cppStl } from './cpp-stl.js';
 import { cppSugar } from './cpp-sugar.js';
 import { cStructs } from './c-struct.js';
 
+// (C++'s headers of a test bench whose names core/cpp-lex.js makes C: std::vector, generate / fill, the random engines, #1734)
+const TB_HEADERS = new Set(['vector', 'algorithm', 'random']);
 export const KNOWN_HEADERS = new Set(['ap_int.h', 'ap_fixed.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h', 'assert.h']);
 // the macros of the standard headers a test bench uses (#1598)
 const HEADER_MACROS = { 'stdio.h': { EOF: '(-1)', NULL: '0' }, 'stdbool.h': { true: '1', false: '0' }, 'stdlib.h': { NULL: '0', EXIT_SUCCESS: '0', EXIT_FAILURE: '1', RAND_MAX: '2147483647' }, 'stddef.h': { NULL: '0' },
@@ -241,7 +244,8 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
   const streams = new Map();
   const report = (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' });
   if (cpp) {
-    const st = cStructs(cppSugar(cppTemplates(tokens, report), report), report, true);
+    // (a test bench's std::vector, generate / fill, <random> first: C tokens, core/cpp-stl.js, #1734)
+    const st = cStructs(cppSugar(cppTemplates(cppStl(tokens, report), report), report), report, true);
     return { tokens: cppTokens(st.tokens, report, streams), pragmas, includes, errors, streams, structArgs: st.structArgs };
   }
   const st = cStructs(tokens, report, false);
@@ -291,6 +295,9 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
           continue;
         }
         if (cpp && (m[1] === 'hls_stream.h' || m[1] === 'hls_task.h')) continue;   // (hls::stream, hls::task: C++'s, #1590, #1721)
+        // (a test bench's std::vector, <algorithm>, <random>: core/cpp-stl.js, #1734; their stdlib.h's macros, as libstdc++'s
+        // headers bring them, EXIT_FAILURE)
+        if (cpp && TB_HEADERS.has(m[1])) { for (const [k, v] of Object.entries(HEADER_MACROS['stdlib.h'])) if (!macros.has(k)) macros.set(k, { params: null, body: scan(v, line, bad).map((t) => ({ ...t, line })) }); continue; }
         // (a header Silinx HLS writes itself: core/cpp-headers.js, #1662)
         if (cpp && CPP_OWN_HEADERS[m[1]]) { if (!once.has(`<${m[1]}>`)) run(CPP_OWN_HEADERS[m[1]], `<${m[1]}>`, depth + 1); continue; }
         if (!KNOWN_HEADERS.has(m[1])) e(m[1] === 'hls_stream.h' ? 'hls_stream.h: hls::stream is C++: write the source as a .cpp file'

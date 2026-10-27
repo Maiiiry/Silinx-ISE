@@ -197,7 +197,7 @@ void v() { return 1; }`), [
     '6:14 error: the width of ap_uint<0> must be from 1 to 1024',
     '7:17 error: the width of ap_uint<2000> must be from 1 to 1024',
     '9:13 error: the width of ap_int<…> must be a constant',
-    '10:7 error: the size of an array must be a constant (Silinx HLS: fixed sizes)',
+    // (int arr[n]; in 'top', not synthesized (the top is v): a test bench's array, its size known when it runs, #1734)
     "11:11 error: 'other' takes 2 argument(s), not 1",
     "11:22 error: the function 'nope' is not declared",
     "11:32 error: 'q' is not declared",
