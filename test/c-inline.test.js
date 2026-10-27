@@ -129,3 +129,11 @@ test('#1632 calls inlined: what is not supported said', () => {
   assert.deepEqual(errs(`${g}int f(int a[8], int n) {\n  return n > 2 && g(a) > 3;\n}\n`), ["7 'g' is called where it may not run (after && / || / ?:): call it as a statement of its own"]);
   assert.deepEqual(errs('int h(int a[8], int x) {\n  switch (x) { case 1: return a[0]; default: break; }\n  for (int i = 0; i < 8; i++) x += a[i];\n  return x;\n}\nint f(int a[8], int n) {\n  return h(a, n);\n}\n'), ["2 a return inside a 'switch' of 'h', which is inlined: not supported yet"]);
 });
+
+test('#1637 a call inlined: the callee\'s locals have names of their own (one named as the variable the caller passes does not hide it)', () => {
+  const src = '#include <stdio.h>\nvoid twice(int a[4], int *m) {\n  int m2 = 0;\n  for (int i = 0; i < 4; i++) m2 += a[i];\n  *m = 2 * m2;\n}\nint top(int a[4]) {\n  int m2;\n  twice(a, &m2);\n  return m2 + 1;\n}\nint main(void) { int a[4] = {1, 2, 3, 4}; printf("%d\\n", top(a)); return 0; }\n';
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'm.c', lang });
+    assert.deepEqual([r.errors, r.output, r.pass, r.gen.diagnostics], [[], '21\n', true, []]);
+  }
+});

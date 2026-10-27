@@ -152,7 +152,10 @@ export function inlineCalls(fn, funcs, report) {
     }
     const own = statics.get(f.name);
     // the body: its names bound (a local shadowing a parameter: its own), its statics dropped, its returns
-    const body = bind(clone(f.body), alias, own);
+    // (its locals: names of their own, so none hides a variable of the caller's an argument names, #1637)
+    const locals = new Map();
+    walk(f.body, (n) => { if (n.kind === 'decl') for (const v of n.vars) if (!v.static) locals.set(v.name, `${v.name}_l${k}`); return undefined; });
+    const body = bind(clone(f.body), alias, own, locals);
     const ret = f.ret.kind === 'void' ? null : into;
     const lowered = returns(body.items, ret, k, f);
     if (lowered.flag) items.push({ kind: 'decl', vars: [{ kind: 'var', name: lowered.flag, type: { kind: 'int', name: 'bool', bits: 1, signed: false }, init: { kind: 'num', value: 0n, text: '0', loc: call.loc }, loc: call.loc }], loc: call.loc });
@@ -161,20 +164,20 @@ export function inlineCalls(fn, funcs, report) {
   }
 
   /** The callee's body with its parameters bound and its statics renamed. */
-  function bind(body, alias, own) {
-    const shadow = new Set();
+  function bind(body, alias, own, locals) {
     const mapped = map(body, (n) => {
       if (n.kind === 'decl') {
-        const vars = n.vars.filter((v) => !v.static);
-        for (const v of vars) if (alias.has(v.name)) shadow.add(v.name);
-        if (vars.length < n.vars.length) return vars.length ? { ...n, vars: vars.map((v) => ({ ...v, init: v.init && bind(v.init, alias, own) })) } : { kind: 'empty', loc: n.loc };
-        return undefined;
+        const vars = n.vars.filter((v) => !v.static).map((v) => ({ ...v, name: locals.get(v.name) ?? v.name, init: v.init && bind(v.init, alias, own, locals) }));
+        return vars.length ? { ...n, vars } : { kind: 'empty', loc: n.loc };
       }
-      if (n.kind === 'unary' && n.op === '*' && n.e.kind === 'id' && alias.get(n.e.name)?.ptr && !shadow.has(n.e.name)) return clone(alias.get(n.e.name).ptr);
-      if (n.kind === 'index' && n.e.kind === 'id' && alias.get(n.e.name)?.ptr && !shadow.has(n.e.name)) return { ...n, e: clone(alias.get(n.e.name).arg), i: bind(n.i, alias, own) };
+      // (a local named as a parameter hides it)
+      const param = (x) => x.kind === 'id' && !locals.has(x.name) && alias.get(x.name);
+      if (n.kind === 'unary' && n.op === '*' && param(n.e)?.ptr) return clone(alias.get(n.e.name).ptr);
+      if (n.kind === 'index' && param(n.e)?.ptr) return { ...n, e: clone(alias.get(n.e.name).arg), i: bind(n.i, alias, own, locals) };
       if (n.kind !== 'id') return undefined;
+      if (locals.has(n.name)) return { ...n, name: locals.get(n.name) };
       if (own.has(n.name)) return { ...n, name: own.get(n.name) };
-      const a = shadow.has(n.name) ? null : alias.get(n.name);
+      const a = alias.get(n.name);
       if (!a) return undefined;
       if (a.val) return { ...n, name: a.val };
       if (a.arr) return clone(a.arr);
