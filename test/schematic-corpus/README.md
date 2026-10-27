@@ -108,8 +108,8 @@ memory limits (`skip: too large`).
 | full_adder | hand | pass | pass | pass | pass | pass | pass (2 / 0) | complete | 1 |
 | curved_hops | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete |  |
 | bus_bitnames | hand | pass | fail: invalid net name 'a(0)' | fail: vhdl: bus_bitnames.vhd:16: expected ':' but found '(' | mismatch: vhdl: does not elaborate: bus_bitnames.vhd:16 expected ':' but found '(' | mismatch: the reference does not elaborate: bus_bitnames.vhd:16 expected ':' but found '(' | fail: bus_bitnames.vhd:16 expected ':' but found '(' | xc3s100ecp132-4: fail: the design has errors | 2 |
-| bus_offset | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete | 1 |
-| tap_range | hand | pass | pass | pass | skip: no reference | mismatch: the reference's simulation: the simulation stopped (error) | pass (0 / 0) | complete | 5 |
+| bus_offset | hand | pass | pass | pass | pass | pass | pass (0 / 0) | complete | 2 |
+| tap_range | hand | pass | fail: bus tap XLXI_1 takes bit 5, outside its bus 'a' (3 downto 0) | pass | skip: no reference | mismatch: the reference's simulation: the simulation stopped (error) | pass (0 / 0) | complete | 8 |
 | tap_reversed | hand | pass | fail: bus tap XLXI_1: its MSB (1) is below its LSB (2): a bus tap takes the bits MSB downto LSB | fail: vhdl: tap_reversed.vhd:16: slice 1 to 2 of 'a' against its direction (3 downto 0) | skip: no reference | mismatch: the reference does not elaborate: tap_reversed.vhd:16 slice 1 to 2 of 'a' against its direction (3 downto 0) | pass (0 / 0) | complete | 4 |
 | ise-MyAND2b4 | ise | pass | pass | pass | pass | pass | pass (4 / 0) | complete |  |
 | ise-Mux4to1b4 | ise | pass | pass | pass | pass | pass | pass (8 / 0) | complete |  |

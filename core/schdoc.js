@@ -422,6 +422,17 @@ export function netlist(docIn, { modules = {} } = {}) {
     const s = symById.get(t.sym);
     diags.push({ severity: 'error', message: `bus tap ${s.name} is the wrong way round: its output O (${t.width} bit${t.width > 1 ? 's' : ''}) touches the ${bus.width}-bit bus '${bus.name}' and is not connected to it; the bus goes to its input I`, ref: { kind: 'symbol', id: s.id, pin: 'O' }, x: t.x, y: t.y, net: bus.name });
   }
+  // a bus tap of bits its bus does not have (#1690; one the wrong way round has its own error)
+  const reversed = new Set(wrongWay.map(([t]) => t.sym));
+  for (const s of doc.symbols) {
+    if (s.type !== 'slice' || reversed.has(s.id)) continue;
+    const bus = pinNet.get(`${s.id}/I`), ms = int(s.params.msb, 0), ls = int(s.params.lsb, 0);
+    if (!bus || bus.endpoints.length + bus.wires.length + bus.labels.length <= 1) continue;
+    // (its bits by the bus's indices: d(7:4)'s, #1689; else from 0)
+    const top = bus.range?.msb ?? bus.width - 1, bottom = bus.range?.lsb ?? 0;
+    if (Math.max(ms, ls) <= top && Math.min(ms, ls) >= bottom) continue;
+    diags.push({ severity: 'error', message: `bus tap ${s.name} takes bit${ms === ls ? ` ${ms}` : `s ${ms}..${ls}`}, outside its bus '${bus.name}' (${top > bottom ? `${top} downto ${bottom}` : `one bit, ${bottom}`})`, ref: { kind: 'symbol', id: s.id, pin: 'I' }, x: s.x, y: s.y, net: bus.name });
+  }
   // unconnected pins
   for (const s of doc.symbols) {
     for (const p of defs.get(s.id).pins) {
