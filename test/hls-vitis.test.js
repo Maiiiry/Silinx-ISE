@@ -120,9 +120,9 @@ test('#1624 a design compared: Silinx\'s ports (cToHdl) against a Vitis report w
   const r = compareDesign(vitis, silinx);
   assert.equal(r.ports.same, true);
   assert.equal(compareDesign({ ...vitis, ports: [] }, silinx).ports, null);
-  const t = vitisTable({ designs: [{ name: 'f' }, { name: 'not-run' }] }, { f: r, g: { ...r, vitis: { ...vitis, csim: 'fail', loops: [] }, ports: comparePorts(silinx.ports.slice(1), vitis.ports) } }, { image: 'xilinx/vitis-hls:2025.1' });
+  const t = vitisTable({ designs: [{ name: 'f' }, { name: 'not-run' }] }, { f: r, g: { ...r, vitis: { ...vitis, csim: 'fail', loops: [] }, ports: comparePorts(silinx.ports.slice(1), vitis.ports) } }, { image: 'xilinx/vitis-hls:2025.2' });
   const lines = t.split('\n');
-  assert.equal(lines[0], `Vitis HLS (xilinx/vitis-hls:2025.1, ${PART}) against Silinx HLS: the C simulation, the ports, the latency (cycles) and the loops' II (Vitis's pipelined loops).`);
+  assert.equal(lines[0], `Vitis HLS (xilinx/vitis-hls:2025.2, ${PART}) against Silinx HLS: the C simulation, the ports, the latency (cycles) and the loops' II (Vitis's pipelined loops).`);
   assert.deepEqual(lines.filter((l) => l.startsWith('| f ')), ['| f | pass / pass | pass / pass | same | 0 / 1-2 | VITIS_LOOP_3_1 1 / 2 |']);
   assert.ok(!t.includes('not-run'));
   assert.equal(lines.at(-1), '2 designs: 1 through Vitis\'s C simulation, 1 with Silinx\'s ports the same as Vitis\'s.');
