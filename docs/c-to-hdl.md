@@ -115,10 +115,16 @@ other side effect in it; the index of a memory has no side effect; a memory is a
 | `TOP name=` | the top function |
 | `INTERFACE ap_ctrl_none / ap_ctrl_hs port=return` | the block protocol |
 | `INTERFACE ap_none / ap_vld / ap_ovld / ap_memory port=` | the argument's interface |
-| `INLINE` / `INLINE off` | every function is inlined (`off` is accepted, with a note) |
+| `INLINE` / `INLINE off` | every function is inlined (`off` is ignored, with a warning) |
 | `LOOP_TRIPCOUNT min= max=` | the bound of a loop whose count depends on the inputs |
-| `UNROLL [factor=]`, `PIPELINE [II=]`, `ARRAY_PARTITION` | phase 6 (#1529); accepted and ignored with a warning before |
-| `DATAFLOW`, `STREAM`, AXI interfaces (`s_axilite`, `m_axi`, `axis`) | ignored with a warning |
+| `PIPELINE [II=]` (in a loop's body) | a sequential module's loop: an iteration a state (II=1: its condition, body and step in one clock cycle); a loop that accesses a memory, has a loop or a `continue` in it keeps its states, a warning saying the II made |
+| `UNROLL` / `UNROLL factor=N` (in a loop's body) | whole: a loop of constant count run in the state it is in (no state of its own); `factor=N`: N iterations a state. A combinational module's loops are all unrolled |
+| `ARRAY_PARTITION variable= type=complete` | the array's elements registers, whatever its size (not a memory); `block` / `cyclic` ignored with a warning |
+| `DATAFLOW`, `STREAM`, `LATENCY`, `BIND_OP`, `BIND_STORAGE`, `DEPENDENCE`, `LOOP_FLATTEN`, … and AXI interfaces (`s_axilite`, `m_axi`, `axis`) | accepted and ignored, with a warning; an unknown pragma: a warning |
+
+A loop's pragma is its body's first statements; one elsewhere is ignored with a warning (a function's `PIPELINE`
+too). The generation's report (`cToHdl(…).report`) gives a sequential module's states, register bits, memories
+and, for each loop, what its pragmas made: its II (states an iteration) and its cycles.
 
 ## Checking it
 

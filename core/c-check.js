@@ -13,6 +13,7 @@
 // The synthesized code is the top function and the functions it calls; main() and what only it calls are the
 // test bench, checked for names and calls only.
 import { parse } from './c-parse.js';
+import { checkPragmas } from './c-pragma.js';
 
 // the library calls Silinx C refuses in synthesized code (UG1399: no system calls), and the ones it ignores there
 const REFUSED = new Set(['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'rand', 'srand', 'time', 'clock', 'fopen', 'fclose',
@@ -143,6 +144,8 @@ export function checkC(source, file = 'input.c') {
     const hw = synth.has(f.name);
     checkFunction(f, { hw, funcs, globals, consts, report, loops, typeOk });
   }
+  // the HLS pragmas of the synthesized functions (#1529)
+  checkPragmas(ast, new Map([...funcs].filter(([n]) => synth.has(n))), report);
   diags.sort((a, b) => a.line - b.line || a.col - b.col);
   return { ast, top, funcs, loops, diagnostics: diags, ok: !diags.some((d) => d.severity === 'error') };
 }

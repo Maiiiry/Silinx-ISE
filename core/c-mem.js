@@ -27,6 +27,8 @@ export const memMethods = {
       if (v.init.kind !== 'init') this.error(v.loc, `'${v.name}': an array is initialized with { … }`);
       init = v.init.items.map((x) => { const c = constValue(x, this.consts()); if (c === null) this.error(x.loc || v.loc, `'${v.name}': a memory's initial values must be constants`); return c; });
     }
+    // (a static or a global with no initial values: zeros, as C)
+    if (!init && !ext && v.static) init = [];
     return { kind: 'mem', name: v.name, t: et, n: Number(n), aw: clog2(Number(n)), ext, init, rom: !!v.const, static: !!v.static, read: false, written: false, loc: v.loc, reads: 0 };
   },
   isMem(e) { return e?.kind === 'index' && e.e.kind === 'id' && this.slots.get(e.e.name)?.kind === 'mem'; },
