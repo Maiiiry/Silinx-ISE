@@ -76,6 +76,11 @@ export const libMethods = {
         return { v: v < 0n ? -v : v, t: x.t };
       }
       case 'fflush': return num(0);
+      case 'assert': { const [c] = A(); if (!this.truth(c)) this.fail(e, 'assertion failed'); return num(0); }
+      // (rand: a linear congruential generator of 31 bits (RAND_MAX's), its seed srand's; its values are not the host
+      // library's)
+      case 'srand': { const [x] = A(); this.seed = this.intOf(x, e) & 0x7fffffffn; return num(0); }
+      case 'rand': { this.seed = ((this.seed ?? 1n) * 1103515245n + 12345n) & 0x7fffffffn; return num(this.seed); }
       default: {
         // math.h's (core/c-float.js): on doubles, a float's (sqrtf, …) in float
         const m = MATH[name];

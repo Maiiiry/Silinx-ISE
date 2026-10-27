@@ -125,6 +125,16 @@ export function declType(toks, name) {
   }
   return null;
 }
+/** The type a typedef names (typedef T name;) in toks, or null. */
+function typedefOf(toks, name) {
+  for (let i = toks.length - 1; i > 0; i--) {
+    if (!isId(toks[i], name) || !op(toks[i + 1], ';')) continue;
+    let j = i - 1;
+    while (j >= 0 && !op(toks[j], ';') && !op(toks[j], '{') && !op(toks[j], '}') && !isId(toks[j], 'typedef')) j--;
+    if (isId(toks[j], 'typedef')) return toks.slice(j + 1, i);
+  }
+  return null;
+}
 /** The type of an argument: its first name's declared type (a literal: int), or null. */
 function argType(arg, before) {
   if (arg.length === 1 && arg[0].t === 'num') return [{ ...arg[0], t: 'id', v: /[lL]{2}$/.test(arg[0].v) ? 'long long' : 'int' }];
@@ -135,6 +145,38 @@ const mangle = (a) => (a.value !== undefined ? (a.value < 0n ? `m${-a.value}` : 
   : a.type.map((t) => (op(t, '*') ? 'p' : String(t.v))).join('_').replace(/\W+/g, '_').replace(/_+$/, ''));
 
 // ---------------------------------------------------------------- templates
+/** A type parameter from the call: the argument of the first parameter declared with it. */
+function deduce(tpl, pname, callArgs, before) {
+  const d = tpl.primary;
+  const params = splitTop(d.toks.slice(d.paren + 1, closing(d.toks, d.paren)));
+  for (let i = 0; i < params.length && i < callArgs.length; i++) {
+    const ty = params[i].slice(0, -1).filter((t) => !(t.t === 'id' && QUALS.has(t.v)) && !op(t, '&'));
+    if (ty.length === 1 && isId(ty[0], pname)) return argType(callArgs[i], before);
+  }
+  return null;
+}
+/** An integer parameter from the call: the argument's type's (ap_ufixed<W2, IW2> &r given an ap_ufixed<16, 8>: W2
+ *  is 16), a typedef's name read through it. */
+function deduceValue(tpl, pname, callArgs, before) {
+  const d = tpl.primary;
+  const params = splitTop(d.toks.slice(d.paren + 1, closing(d.toks, d.paren)));
+  for (let i = 0; i < params.length && i < callArgs.length; i++) {
+    const ty = params[i].filter((t) => !(t.t === 'id' && QUALS.has(t.v)) && !op(t, '&'));
+    const lt = ty.findIndex((t) => op(t, '<'));
+    if (lt < 1) continue;
+    const mine = splitTop(ty.slice(lt + 1, closing(ty, lt)));
+    const k = mine.findIndex((m) => m.length === 1 && isId(m[0], pname));
+    if (k < 0) continue;
+    let at = argType(callArgs[i], before);
+    // (a typedef's name: its type)
+    for (let n = 0; at && at.length === 1 && n < 8; n++) at = typedefOf(before, at[0].v) || at;
+    const alt = at ? at.findIndex((t) => op(t, '<')) : -1;
+    if (alt < 1 || at[alt - 1].v !== ty[lt - 1].v) continue;
+    const theirs = splitTop(at.slice(alt + 1, closing(at, alt)));
+    if (theirs[k]) return theirs[k];
+  }
+  return null;
+}
 export function cppTemplates(input, report) {
   const templates = new Map();   // name -> { name, params, kind, primary, specs, at, insts, scope, loc }
   const classes = new Map();     // a class of static members (an instance's too): name -> Map(member -> its name)
@@ -223,6 +265,7 @@ export function cppTemplates(input, report) {
       let a = given[i];
       if (!a && !p.type && p.def) a = p.def;
       if (!a && p.type && callArgs && tpl.primary?.kind === 'func') a = deduce(tpl, p.name, callArgs, before);
+      if (!a && !p.type && callArgs && tpl.primary?.kind === 'func') a = deduceValue(tpl, p.name, callArgs, before);
       if (!a && p.type && p.def) a = p.def;
       if (!a) { report(at, `the template '${tpl.name}': its parameter '${p.name}' is not given (write ${tpl.name}<…>)`); return null; }
       if (p.type) vals.push({ type: a });
@@ -241,16 +284,6 @@ export function cppTemplates(input, report) {
       else work.push({ tpl, key, vals, name, at });
     }
     return tpl.insts.get(key);
-  };
-  /** A type parameter from the call: the argument of the first parameter declared with it. */
-  const deduce = (tpl, pname, callArgs, before) => {
-    const d = tpl.primary;
-    const params = splitTop(d.toks.slice(d.paren + 1, closing(d.toks, d.paren)));
-    for (let i = 0; i < params.length && i < callArgs.length; i++) {
-      const ty = params[i].slice(0, -1).filter((t) => !(t.t === 'id' && QUALS.has(t.v)) && !op(t, '&'));
-      if (ty.length === 1 && isId(ty[0], pname)) return argType(callArgs[i], before);
-    }
-    return null;
   };
   /** A class's members: its static functions, constants and types named by it, its member templates registered. */
   const classBody = (name, toks, env, at, out, shown = name) => {

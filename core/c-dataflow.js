@@ -48,7 +48,10 @@ export class Flow {
   // ------------------------------------------------------------------ values: { id, t }
   v(id, t) { return { id, t }; }
   // (to bool: 0 or 1, as C converts: any value other than 0 is 1, #1528)
-  conv(x, t) { return t.bool ? this.v(this.bool(x), t) : this.v(this.g.add('ext', [x.id], t), t); }
+  conv(x, t) {
+    if (t.fx || x.t?.fx || x.fconst !== undefined) return this.fxConv(x, t);   // (ap_fixed, core/c-dataflow-fixed.js)
+    return t.bool ? this.v(this.bool(x), t) : this.v(this.g.add('ext', [x.id], t), t);
+  }
   bool(x) {
     if (x.t.w === 1 && !x.t.s) return x.id;
     return this.g.add('ne', [x.id, this.g.const(0, x.t)], BOOL);
@@ -280,7 +283,8 @@ export class Flow {
 
 // the expressions are in a module of their own (core/c-dataflow-expr.js), mixed into Flow
 import { exprMethods } from './c-dataflow-expr.js';
-Object.assign(Flow.prototype, exprMethods);
+import { fixedMethods } from './c-dataflow-fixed.js';
+Object.assign(Flow.prototype, exprMethods, fixedMethods);
 
 // ---------------------------------------------------------------------- the ports
 Flow.prototype.finish = function finish(fn) {

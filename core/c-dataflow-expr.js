@@ -17,6 +17,7 @@ export const exprMethods = {
         return this.v(this.g.const(e.value, t), t);
       }
       case 'chr': return this.v(this.g.const(e.value, INT), INT);
+      case 'float': return this.floatConst(e);   // (an ap_fixed's value only, core/c-dataflow-fixed.js)
       case 'id': return this.read(this.lookup(e.name, e.loc), e);
       case 'unary': return this.unary(e, g);
       case 'postfix': {
@@ -32,7 +33,7 @@ export const exprMethods = {
       case 'cond': {
         const c = this.bool(this.expr(e.c, g));
         const a = this.expr(e.a, this.and(g, c)), b = this.expr(e.b, this.and(g, this.not(c)));
-        const t = compareType(a.t, b.t);
+        const t = a.t.fx ? a.t : b.t.fx ? b.t : compareType(a.t, b.t);
         return this.v(this.mux(c, this.conv(a, t).id, this.conv(b, t).id, t), t);
       }
       case 'comma': this.expr(e.l, g); return this.expr(e.r, g);
@@ -50,6 +51,14 @@ export const exprMethods = {
       case 'member': this.error(e.loc, `'.${e.name}' is a member function: call it`); break;
       default: this.error(e.loc, `this expression is not supported in a combinational module yet`);
     }
+    return null;
+  },
+  /** The type of an lvalue (a variable, *pointer, an array's element) without reading it. */
+  typeOfLvalue(l) {
+    if (l.kind === 'id') { const s = this.lookup(l.name, l.loc); return s.t ?? s.out?.t ?? s.slot?.t; }
+    if (l.kind === 'unary' && l.op === '*' && l.e.kind === 'id') { const s = this.lookup(l.e.name, l.loc); return s.out?.t ?? s.slot?.t ?? s.t; }
+    if (l.kind === 'index' && l.e.kind === 'id') return this.lookup(l.e.name, l.loc).t;
+    this.error(l.loc, 'this cannot be assigned (a variable, an array element or *pointer)');
     return null;
   },
   read(slot, e) {
@@ -76,7 +85,9 @@ export const exprMethods = {
     switch (e.op) {
       case '!': return this.v(this.not(this.bool(this.expr(e.e, g))), BOOL);
       case '-': case '+': case '~': {
+        if (e.op === '-' && e.e.kind === 'float') return this.floatConst(e.e, true);
         const x = this.expr(e.e, g);
+        if (x.t.fx) return this.fxUnary(e.op, x);
         const t = unaryType(e.op, x.t);
         const c = this.conv(x, t);
         if (e.op === '+') return c;
@@ -105,6 +116,7 @@ export const exprMethods = {
       return this.v(e.op === '&&' ? this.and(l, r) : this.or(l, r), BOOL);
     }
     const l = this.expr(e.l, g), r = this.expr(e.r, g);
+    if (CMP[e.op] && (l.t.fx || r.t.fx)) return this.fxCompare(e.op, l, r);
     if (CMP[e.op]) {
       const t = compareType(l.t, r.t);
       return this.v(this.g.add(CMP[e.op], [this.conv(l, t).id, this.conv(r, t).id], BOOL), BOOL);
@@ -113,6 +125,7 @@ export const exprMethods = {
   },
   /** l op r with C's / ap_int's arithmetic: + - * / % & | ^ << >> */
   arith(op, l, r, e) {
+    if (l.t.fx || r.t.fx || l.fconst !== undefined || r.fconst !== undefined) return this.fxArith(op, l, r, e);
     if (op === '<<' || op === '>>') {
       const t = shiftType(l.t);
       const x = this.conv(l, t);
@@ -184,6 +197,25 @@ export const exprMethods = {
         return nv;
       }
     }
+    // x.range(hi, lo) = v: those bits of x (its whole width: v's bits, x not read)
+    if (l.kind === 'call' && l.callee.kind === 'member' && l.callee.name === 'range' && l.args.length === 2) {
+      const [hi, lo] = l.args.map((a) => constValue(a, this.consts()));
+      if (hi === null || lo === null) this.error(l.loc, '.range(hi, lo) takes two constants');
+      const H = Number(hi), Lo = Number(lo);
+      const bt = this.typeOfLvalue(l.callee.e);
+      if (Lo < 0 || H >= bt.w || H < Lo) this.error(l.loc, `.range(${H}, ${Lo}) is outside the ${bt.w} bits of this value`);
+      const raw = { w: bt.w, s: false };
+      const part = this.g.add('shl', [this.g.add('ext', [this.conv(val, { w: H - Lo + 1, s: false, ap: true }).id], raw), this.g.const(Lo, { w: 32, s: false })], raw);
+      let bits = part;
+      if (H - Lo + 1 < bt.w) {
+        const old = this.g.add('ext', [this.expr(l.callee.e, g).id], raw);
+        const keep = ((1n << BigInt(bt.w)) - 1n) ^ (((1n << BigInt(H - Lo + 1)) - 1n) << BigInt(Lo));
+        bits = this.g.add('or', [this.g.add('and', [old, this.g.const(keep, raw)], raw), part], raw);
+      }
+      // (its bits as a value of its own type: stored as they are)
+      this.store(l.callee.e, this.v(this.g.add('ext', [bits], { w: bt.w, s: bt.s }), bt), g);
+      return val;
+    }
     this.error(l.loc, 'this cannot be assigned (a variable, an array element or *pointer)');
     return null;
   },
@@ -253,7 +285,7 @@ export const exprMethods = {
     if (e.callee.kind === 'member') return this.member(e, g);
     const name = e.callee.name;
     const fn = this.c.funcs.get(name);
-    if (!fn) { if (['printf', 'fprintf', 'puts', 'putchar'].includes(name)) return this.v(this.g.const(0, INT), INT); this.error(e.loc, `the function '${name}' cannot be called here`); }
+    if (!fn) { if (['printf', 'fprintf', 'puts', 'putchar', 'assert'].includes(name)) return this.v(this.g.const(0, INT), INT); this.error(e.loc, `the function '${name}' cannot be called here`); }
     if (!fn.body) this.error(e.loc, `'${name}' is declared but not defined`);   // (#1605)
     const scope = new Map();
     fn.params.forEach((pa, k) => {
@@ -293,8 +325,11 @@ export const exprMethods = {
         const [hi, lo] = args.map(Number);
         if (lo < 0 || hi >= x.t.w || hi < lo) this.error(e.loc, `.range(${hi}, ${lo}) is outside the ${x.t.w} bits of this value`);
         const t = { w: hi - lo + 1, s: false, ap: true };
-        return this.v(this.g.add('slice', [x.id], t, { hi, lo }), t);
+        const r = this.v(this.g.add('slice', [x.id], t, { hi, lo }), t);
+        // (an ap_fixed's range: in an expression an unsigned long long, AMD's af_range_ref's conversion)
+        return x.t.fx ? this.conv(r, { w: 64, s: false, ap: false }) : r;
       }
+      case 'to_double': case 'to_float': this.error(e.loc, `'.${m.name}()' is floating point: not in hardware (the test bench only)`); break;
       case 'to_int': return this.conv(x, INT);
       case 'to_uint': return this.conv(x, { w: 32, s: false, ap: false });
       case 'to_long': case 'to_int64': return this.conv(x, { w: 64, s: true, ap: false });

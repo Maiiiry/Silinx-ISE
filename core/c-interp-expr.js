@@ -224,6 +224,16 @@ export const exprMethods = {
     }
     if (e.kind === 'unary' && e.op === '*') { const p = this.eval(e.e); if (!p.ptr) this.fail(e, "'*' of something that is not a pointer"); return p.ptr; }
     if (e.kind === 'index') return this.indexRef(e);
+    // x.range(hi, lo) = v: those bits of x
+    if (e.kind === 'call' && e.callee.kind === 'member' && e.callee.name === 'range' && e.args.length === 2) {
+      const base = this.lvalue(e.callee.e);
+      const [hi, lo] = e.args.map((a) => Number(this.intOf(this.eval(a), a)));
+      if (lo < 0 || hi < lo || hi >= base.t.w) this.fail(e, `.range(${hi}, ${lo}) is outside the ${base.t.w} bits of this value`);
+      const m = ((1n << BigInt(hi - lo + 1)) - 1n) << BigInt(lo);
+      const t = { w: hi - lo + 1, s: false, ap: true };
+      const raw = () => base.get().v & ((1n << BigInt(base.t.w)) - 1n);
+      return { get: () => ({ v: (raw() & m) >> BigInt(lo), t }), set: (x) => { const v = (raw() & ~m) | ((this.as(x, t, e) << BigInt(lo)) & m); base.set({ v: convert(v, { w: base.t.w, s: base.t.s }), t: base.t }); }, t };   // (its bits, in its own type)
+    }
     this.fail(e, 'this cannot be assigned');
     return null;
   },
@@ -353,7 +363,8 @@ export const exprMethods = {
       case 'range': {
         const [hi, lo] = args;
         if (lo < 0 || hi >= x.t.w || hi < lo) this.fail(e, `.range(${hi}, ${lo}) is outside the ${x.t.w} bits of this value`);
-        return num((u() >> BigInt(lo)) & ((1n << BigInt(hi - lo + 1)) - 1n), { w: hi - lo + 1, s: false, ap: true });
+        // (an ap_fixed's range: in an expression an unsigned long long, AMD's af_range_ref's conversion)
+        return num((u() >> BigInt(lo)) & ((1n << BigInt(hi - lo + 1)) - 1n), x.t.fx ? { w: 64, s: false, ap: false } : { w: hi - lo + 1, s: false, ap: true });
       }
       case 'to_double': return num(x.t.fx ? fixedToDouble(x) : x.v, F64);
       case 'to_float': return num(x.t.fx ? fixedToDouble(x) : x.v, F32);

@@ -92,7 +92,9 @@ test('C++\'s cout of doubles (6 significant digits), fixed / scientific / defaul
 
 test('floating point in hardware: still refused (the test bench only)', () => {
   assert.deepEqual(errs('#include <math.h>\nint f(int x) {\n  return (int)sqrt(x);\n}\n'), ['3 sqrt: floating point is not supported in Silinx HLS yet (the test bench only)']);
-  assert.deepEqual(errs('int f(int x) {\n  double d = x * 0.5;\n  return d;\n}\n'), ["2 'd': floating point (double) is not supported in Silinx HLS yet: use integers or ap_int<W>", '2 floating point (0.5) is not supported in Silinx HLS yet']);
+  assert.deepEqual(errs('int f(int x) {\n  double d = x * 0.5;\n  return d;\n}\n'), ["2 'd': floating point (double) is not supported in Silinx HLS yet: use integers or ap_int<W>"]);
+  // (a double constant: only as an ap_fixed's value, #1643)
+  assert.deepEqual(errs('int f(int x) {\n  return x * 0.5;\n}\n'), ["2 floating point is not supported in Silinx HLS yet: a double constant only as an ap_fixed's value"]);
   const run = (src) => simulateC(src, { file: 't.c' }).error?.message;
   assert.equal(run('int f(int x) { return x; }\nint main(void) { double d = 2.5; int k = (int)(d % 2); return k; }\n'), "the operator '%' of a floating-point value");
 });
