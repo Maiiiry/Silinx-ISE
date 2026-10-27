@@ -17,6 +17,7 @@ import { cppTokens, CPP_HEADERS, isCpp } from './cpp-lex.js';
 import { readPragma } from './c-pragma.js';
 import { cppTemplates } from './cpp-template.js';
 import { cppSugar } from './cpp-sugar.js';
+import { cStructs } from './c-struct.js';
 
 export const KNOWN_HEADERS = new Set(['ap_int.h', 'stdint.h', 'stdbool.h', 'stdio.h', 'stdlib.h', 'string.h', 'math.h', 'stddef.h', 'limits.h']);
 // the macros of the standard headers a test bench uses (#1598)
@@ -237,8 +238,12 @@ export function lex(source, file = 'input.c', { headers = null, cpp = isCpp(file
   tokens.push({ t: 'eof', v: '', line: last ? last.line + 1 : 1, col: 1 });
   const streams = new Map();
   const report = (t, m) => errors.push({ file: t.file || file, line: t.line, col: t.col, message: m, severity: 'error' });
-  if (cpp) return { tokens: cppTokens(cppSugar(cppTemplates(tokens, report), report), report, streams), pragmas, includes, errors, streams };
-  return { tokens, pragmas, includes, errors };
+  if (cpp) {
+    const st = cStructs(cppSugar(cppTemplates(tokens, report), report), report, true);
+    return { tokens: cppTokens(st.tokens, report, streams), pragmas, includes, errors, streams, structArgs: st.structArgs };
+  }
+  const st = cStructs(tokens, report, false);
+  return { tokens: st.tokens, pragmas, includes, errors, structArgs: st.structArgs };
 
   function run(src, fname, depth) {
   const bad = [];

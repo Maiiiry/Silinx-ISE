@@ -176,6 +176,7 @@ export function cppTemplates(input, report) {
       if (op(toks[j], '<') && j > k) { const e = closing(toks, j); if (e > 0) { j = e + 1; continue; } }
       j++;
     }
+    if (!toks[j]) return { kind: 'var', end: toks.length - 1 };
     let nameAt = j - 1, args = null;
     if (op(toks[nameAt], '>')) {
       // f<1>(…): a function's explicit specialization
@@ -337,7 +338,7 @@ export function cppTemplates(input, report) {
       if (t.t === 'pragma') { out.push(...pragmaIf(env.size ? pragmaSubst(t, env) : t)); continue; }
       if (t.t === 'id' && env.has(t.v)) { toks.splice(k, 1, ...subst([t], env)); k--; continue; }
       // a class of static members: struct S { static int f(…) { … } };
-      if ((isId(t, 'struct') || isId(t, 'class')) && isId(toks[k + 1]) && op(toks[k + 2], '{') && !op(toks[k - 1], '(')) {
+      if ((isId(t, 'struct') || isId(t, 'class')) && isId(toks[k + 1]) && op(toks[k + 2], '{') && !op(toks[k - 1], '(') && !isId(toks[k - 1], 'enum')) {
         const d = declaration(toks, k);
         const inner = toks.slice(d.body[0] + 1, d.body[1]);
         if (onlyStatic(inner)) { classBody(d.name, inner, env, t, out); k = d.end; continue; }

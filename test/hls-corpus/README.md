@@ -34,12 +34,12 @@ Not part of `npm test` (it needs the network once).
 | dsp-fft-interface-stream-float-ssr2 | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | dsp-fft-logicore-fft-float-ssr | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | dsp-fir-decimator | C++ | fail | fail | skip | - | C simulation: fir_top.h:18: the header 'ap_fixed.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
-| interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | fail | fail | skip | - | C simulation: 20: ';' expected after the statement, not 'arr' |
-| interface-aggregation-disaggregation-aggregation-of-nested-structs | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'S' |
-| interface-aggregation-disaggregation-aggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'A' |
-| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 20: the parameter 'd': structures (struct A) are not supported in Silinx HLS yet |
-| interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'A' |
-| interface-aggregation-disaggregation-struct-ii-issue | C++ | fail | fail | skip | - | C simulation: 20: ';' expected after the statement, not 'a_in' |
+| interface-aggregation-disaggregation-aggregation-of-m-axi-ports | C++ | fail | fail | skip | - | C simulation: 26: 'A' is not declared |
+| interface-aggregation-disaggregation-aggregation-of-nested-structs | C++ | pass | pass | pass | 83 |  |
+| interface-aggregation-disaggregation-aggregation-of-struct | C++ | pass | pass | pass | 183 |  |
+| interface-aggregation-disaggregation-auto-disaggregation-of-struct | C++ | fail | fail | skip | - | C simulation: 22: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
+| interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
+| interface-aggregation-disaggregation-struct-ii-issue | C++ | fail | fail | skip | - | C simulation: example.cpp:23: the pointer to a struct 'a_in' indexed: write the parameter as an array, a_in[N] |
 | interface-memory-burst-rw | C++ | fail | fail | skip | - | C simulation: vadd_test.cpp:16: the header 'vector' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 30: the function 'round' is not declared |
 | interface-memory-ecc-flags | C++ | pass | fail | skip | - | C synthesis: 25: 'sfunc1' has a loop and is called from 'ecc_flags': a function with a loop called by another is not supported yet (write the loop in 'ecc_flags') |
@@ -80,7 +80,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | modeling-using-cpp-templates | C++ | pass | pass | pass | - |  |
 | modeling-using-fixed-point | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'dout_t' |
-| modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: 27: '.fp_num' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce) |
+| modeling-using-float-and-double | C | fail | fail | skip | - | C simulation: fp_mul_pow2.c:29: 'bexp' is not a member of float_num_t |
 | modeling-using-vectors | C++ | fail | fail | skip | - | C simulation: example.h:20: the header 'hls_vector.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | modeling-variable-bound-loops | C++ | fail | fail | skip | - | C simulation: 26: the number of iterations of this loop is not known: give its bound (a 'for' from a constant to a constant, its variable not changed in its body), or #pragma HLS LOOP_TRIPCOUNT max=N in it |
 | pipelining-functions-function-instantiate | C++ | pass | pass | pass | - |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | fail | fail | skip | - | C simulation: test.h:17: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | fail | fail | skip | - | C simulation: test.h:19: the header 'hls_task.h' is not one of Silinx HLS's (ap_int.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h) |
 
-73 designs: 13 through co-simulation.
+73 designs: 16 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

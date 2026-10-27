@@ -65,7 +65,7 @@ so its hardware is the C's:
   `adder_1_4`), so `template <int K>` gives one copy, and one set of statics, per `K`. In an instance a pragma
   may use a parameter (`factor=N`), and `#pragma HLS if (cond) …` is kept only when `cond` holds.
 - **Classes of static members** (a class template's too): their functions, constants and types are named by
-  the class (`S::f`). A class with data members or methods (a `struct` value) is not supported yet.
+  the class (`S::f`). A class with methods or constructors is not supported yet.
 - `auto x = e;` (the type `e` is declared with) and the **range for** over an array (`for (auto &x : a)`); over
   an array argument it is refused, as C++ does (the argument is a pointer).
 - **`hls::stream<T>`** arguments: the `ap_fifo` interface (`_dout`, `_empty_n`, `_read`; `_din`, `_full_n`,
@@ -75,7 +75,26 @@ so its hardware is the C's:
 - Macros are expanded in pragmas (`#define F 4` … `#pragma HLS UNROLL factor=F`), as Vitis HLS does.
 
 Not synthesizable, as in Vitis HLS: `new` / `delete`, exceptions, RTTI, virtual functions, recursion, the STL
-(but the headers above). Not yet: `struct` values, `ap_fixed`, floating point.
+(but the headers above). Not yet: methods and constructors, `ap_fixed`, floating point.
+
+## Structs and enums (C and C++)
+
+A struct is **disaggregated**, as Vitis HLS does with the structs inside the code: each member is a variable of
+its own, named by the variable and the member (`p.x` is `p_x`, `line[2].a.b` is `line_a_b[2]`); an array of
+structs is an array per member; a member array of an array of structs is one array of both sizes (`a[i].v[j]` is
+`a_v[i * 4 + j]`). So each member is a register, or a memory when its array is large, of its own.
+
+- Definitions: `struct S { … };`, `typedef struct { … } S;`, `class` (its data members); nested structs, member
+  arrays, members' default values (`int n = 0;`).
+- Uses: members (`.`, `->`), whole structs copied (`a = b;`, `S c = d;`), initializer lists (`{ … }`, nested or
+  not, the missing members zero), passed to functions by value, by reference (`S &`, `const S &`) or by address
+  (`S *`), arrays of structs passed whole, returned by a function (its call a statement: `x = f(…);` or
+  `S x = f(…);`).
+- `enum` and `enum class`: their constants are constants, the type an `int`.
+- The top function's struct arguments and result: **one port per member** for now, with a warning. Vitis HLS
+  aggregates them into one port (#1628).
+- Not possible: unions, pointers in a struct, a pointer to a struct as a variable, bit fields (`ap_uint<W>`
+  instead). Not yet: methods, constructors, base classes.
 
 ## What can be synthesized (UG1399's rules)
 

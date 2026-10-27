@@ -162,7 +162,7 @@ function checkFunction(f, ctx) {
   const { hw, funcs, globals, consts, report, loops, typeOk } = ctx;
   const scopes = [new Map()];
   for (const pa of f.params) {
-    if (!pa.name) report(pa.loc, `a parameter of '${f.name}' has no name`);
+    if (!pa.name) { if (f.name !== 'main') report(pa.loc, `a parameter of '${f.name}' has no name`); continue; }   // (main(int, char **), C++)
     else scopes[0].set(pa.name, { kind: 'param', type: pa.type });
     if (hw) typeHw(pa.type, pa.loc, `the parameter '${pa.name}'`);
   }
