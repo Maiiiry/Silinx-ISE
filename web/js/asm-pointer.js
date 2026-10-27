@@ -11,7 +11,7 @@ export function mountAsmPointer(ctx) {
   const {
     M, addNode, applyView, commit, connect, copySel, deleteSelection, drag, drawTarget, fit, fitted, flash, gOverlay,
     nextCaseLabel, nodeById, paste, print, redo, render, renderInspector, root, rubber, sel, selSection, snapV,
-    spaceDown, svg, toWorld, uid, undo, updateToolbar, view, zoomAt, zoomBy, setDrag, setSel, setFitted, setSpaceDown
+    spaceDown, svg, toWorld, uid, undo, updateToolbar, view, zoomAt, zoomBy, readOnly, setDrag, setSel, setFitted, setSpaceDown
   } = ctx;
 
   // ---------------------------------------------------------------------------- pointer interaction
@@ -31,7 +31,7 @@ export function mountAsmPointer(ctx) {
     const sel0 = sel();
     if (ev.button === 1 || spaceDown()) {
       setDrag({ mode: 'pan', start, tx: view().tx, ty: view().ty });
-    } else if (portEl && nodeEl) {
+    } else if (portEl && nodeEl && !readOnly) {
       setDrag({ mode: 'connect', start, from: nodeEl.dataset.node, port: portEl.dataset.port });
       svg.classList.add('connecting');
     } else if (nodeEl) {
@@ -44,6 +44,7 @@ export function mountAsmPointer(ctx) {
         return;
       }
       if (!sel().nodes.has(id)) { setSel({ nodes: new Set([id]), edge: null }); render(); renderInspector(); updateToolbar(); }
+      if (readOnly) { setDrag(null); return; }   // (selected, not moved)
       setDrag({ mode: 'move', start, sel0, orig: new Map([...sel().nodes].map((nid) => { const n = nodeById(nid); return [nid, { x: n.x, y: n.y }]; })), moved: false });
     } else if (edgeEl) {
       setSel({ nodes: new Set(), edge: edgeEl.dataset.edge });

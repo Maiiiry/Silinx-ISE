@@ -43,7 +43,7 @@ export function viewHdl(path, text, { modules = {}, linked = null, lang = 'vhdl'
 function cHdl(path, text, lang) {
   const r = cToHdl(String(text ?? ''), { file: path, lang: lang === 'verilog' ? 'verilog' : 'vhdl' });
   const errors = r.diagnostics.filter((d) => d.severity === 'error').map((d) => `${path}: line ${d.line}: ${d.message}`);
-  return { path, lang: lang === 'verilog' ? 'verilog' : 'vhdl', text: r.ok ? r.hdl : '', module: r.top, errors };
+  return { path, lang: lang === 'verilog' ? 'verilog' : 'vhdl', text: r.ok ? r.hdl : '', module: r.top, errors, sequential: !!r.sequential };
 }
 
 function drawnHdl(path, m, modules) {

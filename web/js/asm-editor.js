@@ -129,7 +129,17 @@ export function pathD(pts, r = 7) {
 
 // ================================================================================ editor
 
-export function mountAsmEditor(container, { model, onChange } = {}) {
+// (readOnly: a chart to read, a C function's machine, #1575: moved about, zoomed, its boxes selected and their
+// properties shown; nothing edited, not validated, no code of its own)
+function readOnlyChrome({ root, toolbar, hide, hint }) {
+  root.classList.add('asm-readonly');
+  // (the tools that change the chart, the language and encoding, Validate, Code and the problems: hidden)
+  for (const g of [...toolbar.querySelectorAll('.asm-add, .asm-danger'), ...hide,
+    ...[...toolbar.querySelectorAll('.asm-btn')].filter((b) => /^(Arrange|✓ Validate)$/.test(b.textContent.trim()))]) g.hidden = true;
+  hint.textContent = 'Read-only · drag the background to pan · wheel to zoom · click a box to see it';
+}
+const lockSide = (readOnly, side) => { if (readOnly) for (const x of side.querySelectorAll('input, textarea, select, button')) x.disabled = true; };
+export function mountAsmEditor(container, { model, onChange, readOnly = false } = {}) {
   const uid = `asm${++instanceCounter}`;
   let M = normalizeModel(model || newModel('fsm', 'vhdl'));
   let sel = { nodes: new Set(), edge: null };
@@ -249,6 +259,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
   status.append(statusInfo, statusMsg);
 
   root.append(toolbar, h('div', { class: 'asm-body' }, mainCol, side), status);
+  if (readOnly) readOnlyChrome({ root, toolbar, hide: [undoBtn, redoBtn, snapBtn, langSel, encSel, codeBtn, probSection], hint });
 
   // ---------------------------------------------------------------------------- model ops (asm-ops.js)
   const {
@@ -261,6 +272,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
 
   // ---------------------------------------------------------------------------- history
   function commit(key) {
+    if (readOnly) { M = JSON.parse(hist[0]); render(); renderInspector(); return; }   // (nothing changes)
     const snapStr = JSON.stringify(M);
     if (snapStr !== hist[hi]) {
       const now = Date.now();
@@ -318,7 +330,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
 
   // ---------------------------------------------------------------------------- validation & code
   function runValidate() {
-    if (destroyed) return;
+    if (destroyed || readOnly) return;
     try { diags = validate(M); } catch (e) { diags = [{ severity: 'error', message: `Internal error: ${e.message}` }]; }
     probList.innerHTML = '';
     const ne = diags.filter((d) => d.severity === 'error').length;
@@ -367,8 +379,10 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
   }
 
   // ---------------------------------------------------------------------------- inspector (asm-inspector.js)
-  const { renderInspector, renderMachine } = mountInspector({ M: () => M, sel: () => sel, selSection, machineBody, btn, nodeById, caseExits,
+  const insp = mountInspector({ M: () => M, sel: () => sel, selSection, machineBody, btn, nodeById, caseExits,
     caseWidth, commit, deleteSelection });
+  const renderInspector = (...a) => { insp.renderInspector(...a); lockSide(readOnly, side); };
+  const renderMachine = (...a) => { insp.renderMachine(...a); lockSide(readOnly, side); };
 
   // ---------------------------------------------------------------------------- layout (asm-layout.js)
   const { autoArrange } = mountAsmLayout({
@@ -380,7 +394,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     M: () => M, addNode, applyView, commit, connect, copySel, deleteSelection, drag: () => drag, drawTarget, fit,
     fitted: () => fitted, flash, gOverlay, nextCaseLabel, nodeById, paste, print, redo, render, renderInspector, root,
     rubber, sel: () => sel, selSection, snapV, spaceDown: () => spaceDown, svg, toWorld, uid, undo, updateToolbar,
-    view: () => view, zoomAt, zoomBy, setDrag: (v) => { drag = v; }, setSel: (v) => { sel = v; },
+    view: () => view, zoomAt, zoomBy, readOnly, setDrag: (v) => { drag = v; }, setSel: (v) => { sel = v; },
     setFitted: (v) => { fitted = v; }, setSpaceDown: (v) => { spaceDown = v; }
   });
 

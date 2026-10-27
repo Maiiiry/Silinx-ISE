@@ -18,7 +18,7 @@ import { checkFileSyntax, checkSyntax, markStale, renderProcesses, saveAll } fro
 import { openSchematic, runSimulation } from './viewers.js';
 import { renameDialog } from './rename.js';
 import { openWizardModule, wizardLabelOf } from './wizard-modules.js';
-import { cBadges, isC } from './c-source.js';
+import { cBadges, cSequential, isC } from './c-source.js';
 
 const $ = id => document.getElementById(id);
 // the Tasks interface (#799): one tree, no views: the design (as the Implementation view shows it); the test
@@ -165,7 +165,7 @@ export function moduleBadges(name) {
   const drawn = /\.(sch|asm|tt|fsm|pn)\.json$/.test(info.file) ? info.file : null;
   const sch = drawn || viewOfModule(info.name, info.file);
   const wz = !sch ? wizardLabelOf(info.file) : null;
-  if (isC(info.file)) return [{ text: 'C', base: true }, { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog' }];   // (#1531)
+  if (isC(info.file)) return [{ text: 'C', base: true }, ...(cSequential(info.file) ? [{ text: 'ASM' }] : []), { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog' }];   // (#1531, #1575)
   return [sch ? { text: viewBadge(sch), base: true } : null, isTt(sch) ? { text: 'Schematic' } : null, wz ? { text: wz, base: true } : null,
     drawn ? null : { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog', base: !sch && !wz }].filter(Boolean);
 }

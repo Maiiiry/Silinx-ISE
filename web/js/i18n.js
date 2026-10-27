@@ -637,6 +637,8 @@ PT_PATTERNS.push(
 // New Source types, Module Wizard and Schematic Wizard (web/js/modwizard.js, core/modgen.js)
 Object.assign(PT, {
   'Module (HDL)': 'Módulo (HDL)', 'C Function (HLS)': 'Função C (HLS)', 'Generated from the C': 'Gerado a partir do C',
+  'View State Machine (ASM)': 'Ver Máquina de Estados (ASM)', 'Read-only, the state machine made from': 'Só de leitura, a máquina de estados feita de', 'The state machine made from the C (read-only)': 'A máquina de estados feita do C (só de leitura)',
+  'Read-only · drag the background to pan · wheel to zoom · click a box to see it': 'Só de leitura · arrastar o fundo para deslocar · roda para ampliar · clicar numa caixa para a ver',
   'C Synthesis (HLS)': 'Síntese de C (HLS)', 'View/Edit C Source': 'Ver/Editar Fonte C', 'View C Synthesis Report': 'Ver Relatório da Síntese de C', 'View Generated HDL': 'Ver HDL Gerado',
   'C Simulation': 'Simulação de C', 'C/RTL Co-simulation': 'Co-simulação C/RTL', 'Run the test bench, main()': 'Correr o test bench, main()', "Replay main()'s calls of the top function on its HDL and compare": 'Repetir no seu HDL as chamadas que main() faz à função de topo, e comparar',
   // New Source's types (#975; Schematic and Petri Net: their own entries)
