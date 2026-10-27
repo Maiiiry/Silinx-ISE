@@ -20,7 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
-import { observationDesigns, implemented, GENERATORS } from '../research/s3e-device/measure.mjs';
+import { observationDesigns, implemented, GENERATORS, tileLists } from '../research/s3e-device/measure.mjs';
 import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
@@ -1060,4 +1060,18 @@ test('measure designs: every observation design of a part in one folder, sized t
     assert.equal(r.missing.length, names.length - 2);
     assert.ok(!r.missing.includes('bram') && r.missing.includes('pads'));
   } finally { fs.rmSync(dir, { recursive: true }); }
+});
+
+test('measure tiles: the switch-box tiles seen or found by the probe, the CLBs among them, as the XC3S250E\'s list (#3)', () => {
+  const k = fs.readFileSync(path.join(DATA_DIR, 'switch-tiles.txt'), 'utf8').trim().split('\n');
+  // seen in ISE's routes, or a PIP the probe accepted there (overlapping, out of order): the XC3S250E's list, once each
+  const yes = k.slice(400).reverse().map(tile => ({ tile, from: 'W2END4', to: 'W2BEG4' }));
+  const r = tileLists(k.slice(0, 500), yes);
+  assert.deepEqual(r.switchTiles, k);
+  assert.equal(r.clbTiles.length, 612);
+  assert.ok(r.clbTiles.every(t => /^CLB_X\d+Y\d+$/.test(t)));
+  // in code-unit order (CLB_X10… before CLB_X2…), as the committed file
+  assert.deepEqual(tileLists(['CLB_X2Y1', 'BIOIS_X3Y0'], [{ tile: 'CLB_X10Y1' }, { tile: 'CLB_X2Y1' }]),
+    { switchTiles: ['BIOIS_X3Y0', 'CLB_X10Y1', 'CLB_X2Y1'], clbTiles: ['CLB_X10Y1', 'CLB_X2Y1'] });
+  assert.deepEqual(tileLists([], []), { switchTiles: [], clbTiles: [] });
 });
