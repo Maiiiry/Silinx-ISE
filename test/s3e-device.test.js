@@ -20,6 +20,7 @@ import { carryDesign } from '../research/s3e-device/gen-obscarry.mjs';
 import { sliceDesign } from '../research/s3e-device/gen-obsslice.mjs';
 import { muxDesign } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
+import { observationDesigns, implemented, GENERATORS } from '../research/s3e-device/measure.mjs';
 import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
 import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
@@ -27,7 +28,7 @@ import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '..
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
 import { tileCandidates, siteCandidates, censusCandidates, ioCandidates } from '../research/s3e-device/candidates.mjs';
-import { bram, mult, pads, inputs } from '../research/s3e-device/gen-obshdl.mjs';
+import { bram, mult, pads, inputs, padDefaults } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { deviceSites } from '../core/fpga/place.js';
 import { compile, elaborate } from '../core/compile.js';
@@ -452,6 +453,27 @@ test('testSources: the observed IOB inputs and block-RAM outputs; another packag
   // an observed input off the Ik_PINWIRE rule
   const off = { ...obs, pins: [{ ...obs.pins[0], wire: 'I2_PINWIRE' }] };
   assert.throws(() => testSources(off, { device: dev, joins }), /LIOIS_X0Y13 PAD146\.I on I2_PINWIRE, not I0_PINWIRE/);
+});
+
+test('gen-obshdl: the pads design sized to each part, its inout pads within the bidirectional ones (#3, the other devices)', () => {
+  const want = {
+    'xc3s100ecp132-4': { npads: 81, ninputs: 24, bonded: 83, bidir: 72 },
+    'xc3s250ecp132-4': { npads: 90, ninputs: 24, bonded: 92, bidir: 85 },
+    'xc3s500efg320-4': { npads: 230, ninputs: 53, bonded: 232, bidir: 176 },
+    'xc3s1200efg320-4': { npads: 248, ninputs: 53, bonded: 250, bidir: 194 },
+  };
+  for (const [part, w] of Object.entries(want)) {
+    const d = padDefaults(loadDeviceCache(part));
+    assert.deepEqual(d, w, part);
+    // the clock, the inputs, the inout ones: every pad of the design, and no more inout ones than bidirectional pads
+    const nb = d.npads - d.ninputs - 1;
+    assert.ok(nb <= d.bidir && d.npads + 2 === d.bonded, part);
+    const p = pads(d.npads, d.ninputs, part);
+    assert.match(p.v, new RegExp(`module top\\(input clk, input \\[${d.ninputs - 1}:0\\] i, inout \\[${nb - 1}:0\\] p\\);`), part);
+    const srcs = [{ path: 'top.v', lang: 'verilog', text: p.v }];
+    const lib = compile([...primitiveSources(srcs), ...srcs]);
+    assert.deepEqual([lib.errors, elaborate(lib, 'top').diags], [[], []], part);
+  }
 });
 
 test('gen-obshdl: every pad an input (round 8: the FT256), read by Silinx\'s front end (#3)', () => {
@@ -1015,4 +1037,27 @@ test('build-measured: the die of a part; a part with no die or no measurements r
   assert.throws(() => buildMeasured({ part: 'xc3s100ecp132-4' }), /build-measured: xc3s100e has no obs\.json\.gz in .*data[\/\\]xc3s100e$/);
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-measured-'));
   try { assert.deepEqual(measuredDies(empty), []); } finally { fs.rmSync(empty, { recursive: true }); }
+});
+
+test('measure designs: every observation design of a part in one folder, sized to it; observe names the ones ISE did not implement (#3)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-measure-test-'));
+  try {
+    const names = observationDesigns('xc3s100ecp132-4', path.join(dir, 'w'));
+    assert.deepEqual(GENERATORS, ['gen-obshdl', 'gen-obscarry', 'gen-obsslice', 'gen-obsmux', 'gen-obspins', 'gen-obspins2', 'gen-obsclk']);
+    assert.deepEqual(names, ['bram', 'mult', 'pads', 'carry-l0', 'carry-l8', 'carry-m0', 'carry-m8', 'slices', 'muxes',
+      'dcmpins', 'iobclk2-0', 'iobclk2-1', 'iobclk2-2', 'iobddr', 'multcasc', 'ramnarrow', 'ramwide',
+      'bufg-b0', 'bufg-b1', 'bufg-l0', 'bufg-l1', 'bufg-r0', 'bufg-r1', 'bufg-t0', 'bufg-t1', 'dcmpads',
+      'f8-00', 'f8-01', 'f8-10', 'f8-11', 'ramclkb', 'srlcasc', 'clk0', 'clk1', 'clk2', 'clk3', 'clk4', 'clk5']);
+    // the pads design sized to the XC3S100E-CP132 (81 of its 83 pads), not the XC3S250E's 90
+    assert.match(fs.readFileSync(path.join(dir, 'w', 'pads', 'top.v'), 'utf8'), /^\/\/ xc3s100ecp132-4: 81 pads/);
+    for (const d of names) assert.ok(fs.existsSync(path.join(dir, 'w', d, 'top.v')), d);
+    // a second run into the same folder: refused, the design named
+    assert.throws(() => observationDesigns('xc3s100ecp132-4', path.join(dir, 'w')), /^Error: measure: design bram of gen-obshdl written twice$/);
+    // implemented: a top.xdl each
+    for (const d of ['bram', 'slices']) fs.writeFileSync(path.join(dir, 'w', d, 'top.xdl'), '');
+    const r = implemented(path.join(dir, 'w'));
+    assert.deepEqual(r.done, ['bram', 'slices']);
+    assert.equal(r.missing.length, names.length - 2);
+    assert.ok(!r.missing.includes('bram') && r.missing.includes('pads'));
+  } finally { fs.rmSync(dir, { recursive: true }); }
 });

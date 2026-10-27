@@ -8,7 +8,8 @@
 //   inputs (round 8, --inputs n): n pads, every one an input into the logic (an XOR of them all into one register), for a
 //         package that bonds the pads the others leave unbonded (the XC3S250E's FT256: its I/O tiles with no pad in the
 //         CP132), placed by ISE.
-//   PART=xc3s250ecp132-4 node gen-obshdl.mjs outdir [pads=90] [inputs=24]   (folders bram, mult, pads: top.v, top.ucf)
+//   PART=xc3s250ecp132-4 node gen-obshdl.mjs outdir [pads] [inputs]   (folders bram, mult, pads: top.v, top.ucf; by default
+//                                                     padDefaults: the XC3S250E-CP132's 90 and 24)
 //   node gen-obshdl.mjs outdir --inputs 171                                 (folder inputs)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
@@ -79,6 +80,21 @@ endmodule
   return { v, ucf: '' };
 }
 
+/** The pads design's size on a device (pads()): every bonded pad but two, and enough plain inputs that the inout ones
+ *  fit the bidirectional pads (an input-only pad, IBUF / DIFFMI / DIFFSI, takes no output): { npads, ninputs, bonded,
+ *  bidir }. */
+export function padDefaults(dev) {
+  let bonded = 0, bidir = 0;
+  for (let k = 0; k < dev.tileCount; k++) dev.tileSites[k].forEach(([, b], i) => {
+    const ty = dev.templates[dev.tileTemplate[k]].sites[i].type;
+    if (b !== 1 || !/^(IOB|IBUF|DIFF[MS]I?)$/.test(ty)) return;
+    bonded++;
+    if (!/^(IBUF|DIFF[MS]I)$/.test(ty)) bidir++;
+  });
+  const npads = bonded - 2;
+  return { npads, ninputs: Math.max(24, npads - 1 - bidir), bonded, bidir };
+}
+
 /** n pads, every one an input (no register in its IOB: the XOR of them all into one register): { v, ucf }. */
 export function inputs(n, part = PART) {
   const v = `// ${part}: ${n} pads, each an input into the logic (#3 round 8, research/s3e-device gen-obshdl.mjs)
@@ -99,8 +115,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`${PART}: ${argv[ii + 1]} inputs`);
     process.exit(0);
   }
-  const [out, npads = '90', ninputs = '24'] = argv;
-  const dev = loadDeviceCache(PART);
+  const dev = loadDeviceCache(PART), def = padDefaults(dev);
+  const [out, npads = def.npads, ninputs = def.ninputs] = argv;
   for (const [name, f] of [['bram', () => bram(dev)], ['mult', () => mult(dev)], ['pads', () => pads(+npads, +ninputs)]]) {
     const { v, ucf } = f();
     fs.mkdirSync(`${out}/${name}`, { recursive: true });

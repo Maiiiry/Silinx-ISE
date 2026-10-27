@@ -26,6 +26,7 @@ showed it.
 | `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
 | `gen-obshdl.mjs` | Observation designs in HDL for ISE to implement: every block RAM's and multiplier's outputs, every pad's input (round 5) |
 | `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
+| `measure.mjs` | The XC3S250E's recipe for another die, in stages: `designs` (every observation design, sized to the part), `observe` (#3, the other devices) |
 | `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph; `score`: the tests' verdicts against the shipped graph |
 
 What the experiments produce (ISE's routed XDL and logs, the candidates, the verdicts) stays in the
@@ -1034,3 +1035,11 @@ The plan for the other three devices (issue #3, 2026-10-27): `build-measured.mjs
 description of any die of `PARTS` (the XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320, XC3S1200E-FG320) from
 `data/<die>/`, with the die's layout; the test rebuilds every die that has a folder. The XC3S250E's is the only one so
 far.
+
+### The recipe for the other dies, part 1 (2026-10-27)
+
+`measure.mjs designs` writes every observation design of a part into one folder for `impl-remote.sh` (38 on the
+XC3S100E); `measure.mjs observe` observes the ones ISE implemented and names the others. `gen-obshdl.mjs`'s pads design
+is now sized to the part (`padDefaults`: every bonded pad but two, enough plain inputs that the inout ones fit the
+bidirectional pads): 81 pads on the XC3S100E-CP132 (83 bonded), 230 and 248 on the XC3S500E / XC3S1200E-FG320; the
+XC3S250E-CP132 keeps its 90.
