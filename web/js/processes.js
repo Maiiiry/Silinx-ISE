@@ -17,6 +17,7 @@ import { isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch, openTt 
 import { inView, setTop, testBench } from './design.js';
 import { openWizardModule, wizardProcessOf } from './wizard-modules.js';
 import { openEmulator, openSchematic, openTechSchematic, runSimulation } from './viewers.js';
+import { cProcesses, isC } from './c-source.js';
 
 const $ = id => document.getElementById(id);
 
@@ -80,7 +81,10 @@ function selectionProcesses(sel, view) {
   ];
   if (sel.type !== 'module') return [{ id: 'none', label: 'No processes for the selected item', ico: 'process', disabled: true }];
   const mod = sel.module;
+  // a C module: its C simulation, co-simulation and report first (#1531)
+  const cp = isC(sel.file) ? cProcesses(sel.file) : [];
   if (view === 'sim') return [
+    ...cp,
     { id: 'isim', label: 'SSim Simulator', ico: 'sim', children: [
       { id: 'sim-check', label: 'Behavioral Check Syntax', ico: 'process', run: () => checkSyntax(mod, true) },
       { id: 'sim-run', label: 'Simulate Behavioral Model', ico: 'wave', run: () => runSimulation(mod) },
@@ -93,6 +97,7 @@ function selectionProcesses(sel, view) {
   // it, said before running when another module is selected, #223)
   const top = S.project.top || mod;
   return [
+    ...cp,
     ...(sel.sch ? [
       isAsm(sel.sch) ? { id: 'sch-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.sch) }
         : isTt(sel.sch) ? { id: 'sch-open', label: 'View/Edit Truth Table', ico: 'truthtable', run: () => openTt(sel.sch) }
