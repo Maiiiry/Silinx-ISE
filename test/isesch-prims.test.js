@@ -43,14 +43,31 @@ const CASES = {
   dsp48a1: [{ A1REG: 0, CARRYINSEL: 'CARRYIN' }], pll_base: [{ CLKFBOUT_MULT: 8, CLKOUT0_DIVIDE: 4, CLKOUT0_PHASE: '90.0' }], bufio2: [{ DIVIDE: 2, DIVIDE_BYPASS: false }],
 };
 
-// (the import's drawing of the large ones, whose pins are not in ISE's order: some net names not on a wire, #1798;
-// their nets and HDL the same)
-const KNOWN = {
-  dcm_sp: { drawing: ["net name 'p_PSDONE' is not attached to a wire"] },
-  dsp48a1: { drawing: ["net name 'p_PCOUT(47:0)' is not attached to a wire"] },
-  pll_base: { drawing: ["net name 'p_CLKOUT2' is not attached to a wire", "net name 'p_CLKOUT3' is not attached to a wire", "net name 'p_CLKOUT4' is not attached to a wire"] },
-  ramb16bwer: { drawing: ["net name 'p_DOPB(3:0)' is not attached to a wire"] },
-};
+// The drawing's faults ISE would see (#1798: the large primitives' pins are not in ISE's order): a wire along another
+// net's (sch2hdl's "net … overlaps with net …"), a wire's end or a block's pin on another net's wire, a block's pin
+// no wire of its net reaches.
+function sheetFaults(xml) {
+  const segs = [];
+  for (const m of xml.matchAll(/<branch name="([^"]+)">([\s\S]*?)<\/branch>/g))
+    for (const w of m[2].matchAll(/<wire x2="(-?\d+)" y1="(-?\d+)" y2="(-?\d+)" x1="(-?\d+)" \/>/g)) segs.push([m[1], +w[4], +w[2], +w[1], +w[3]]);
+  const on = (x, y, [, x1, y1, x2, y2]) => x >= Math.min(x1, x2) && x <= Math.max(x1, x2) && y >= Math.min(y1, y2) && y <= Math.max(y1, y2);
+  const out = new Set();
+  for (const a of segs) for (const b of segs) {
+    if (a[0] === b[0]) continue;
+    const span = (i, j) => Math.min(Math.max(a[i], a[j]), Math.max(b[i], b[j])) - Math.max(Math.min(a[i], a[j]), Math.min(b[i], b[j]));
+    if ((a[1] === a[3] && b[1] === b[3] && a[1] === b[1] && span(2, 4) > 0) || (a[2] === a[4] && b[2] === b[4] && a[2] === b[2] && span(1, 3) > 0)) out.add(`${a[0]} overlaps ${b[0]}`);
+    for (const [x, y] of [[a[1], a[2]], [a[3], a[4]]]) if (on(x, y, b)) out.add(`${a[0]}'s end on ${b[0]}`);
+  }
+  const inst = /<instance x="(-?\d+)" y="(-?\d+)" name="[^"]+" orien="R0" \/>/.exec(xml);
+  const sym = /<block symbolname="([^"]+)"/.exec(xml)[1];
+  for (const [pin, [, dx, dy]] of Object.entries(primLibPins(sym))) {
+    const x = +inst[1] + dx, y = +inst[2] + dy;
+    const net = new RegExp(`<blockpin signalname="([^"]+)" name="${pin.replace(/[()]/g, '\\$&')}" />`).exec(xml)?.[1];
+    for (const b of segs) if (b[0] !== net && on(x, y, b)) out.add(`pin ${pin} on ${b[0]}`);
+    if (net && !segs.some(b => b[0] === net && ((b[1] === x && b[2] === y) || (b[3] === x && b[4] === y)))) out.add(`pin ${pin} on no wire of ${net}`);
+  }
+  return [...out];
+}
 
 test('#1694 every device primitive of the palette has a case', () => {
   assert.deepEqual(Object.keys(CASES).sort(), Object.keys(DEVICE_PRIMITIVES).sort());
@@ -59,7 +76,6 @@ test('#1694 every device primitive of the palette has a case', () => {
 for (const [type, list] of Object.entries(CASES)) {
   for (const params of list) {
     const skip = type === 'dsp48a1' ? ['M'] : [];   // (its M and P not both used)
-    const known = KNOWN[type] || {};
     for (const lang of ['vhdl', 'verilog']) {
       test(`#1694 ${type} ${JSON.stringify(params)} (${lang}): ISE's library symbol with its attributes, read back the same`, () => {
         const doc = oneSymbol(type, params, lang, skip);
@@ -70,12 +86,13 @@ for (const [type, list] of Object.entries(CASES)) {
         assert.doesNotMatch(want.name, /^xl_/);
         assert.deepEqual(r.files, []);
         assert.deepEqual(r.warnings, []);
+        assert.deepEqual(sheetFaults(r.xml), []);
         // the attributes on the block, as ISE writes them
         const blk = r.xml.slice(r.xml.indexOf(`<block symbolname="${want.name}"`), r.xml.indexOf('</block>'));
         for (const [k, v] of want.attrs) assert.match(blk, new RegExp(`<attr value="${v}" name="${k}">\\s*<trait verilog="all:0 dp:1nosynth wsynop:1 wsynth:1" />\\s*<trait vhdl="all:0 gm:1nosynth wa:1 wd:1" />`));
-        // read back: the same symbol, its parameters, its HDL
+        // read back: the same symbol, its parameters, its HDL (every net name on its wire: no diagnostics, #1798)
         const back = importIseSch(r.xml, { name: 'top', lang });
-        assert.deepEqual(back.warnings, known.import || []);
+        assert.deepEqual(back.warnings, []);
         assert.equal(back.doc.symbols.length, 1);
         const b = back.doc.symbols[0];
         assert.equal(b.type, type);
@@ -83,7 +100,7 @@ for (const [type, list] of Object.entries(CASES)) {
         const norm = p => { const o = { ...primitiveDefaults(type), ...p }; delete o.contents; for (const g of gens) if (g.kind === 'hex') o[g.name] = BigInt(`0x${o[g.name]}`); return JSON.stringify(Object.entries(o).map(([k, v]) => [k, String(v)]).sort()); };
         assert.equal(norm(b.params), norm(params));
         const inst = (d, want) => { const g = generateHdl(d, { lang }); assert.deepEqual(g.diagnostics.map(x => x.message), want); return g.code.slice(g.code.search(/U1 : |\n[A-Z0-9_]+ (#\(|U1 \()/)); };
-        assert.equal(inst(back.doc, known.drawing || []), inst(doc, []));
+        assert.equal(inst(back.doc, []), inst(doc, []));
       });
     }
   }

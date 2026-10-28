@@ -8,6 +8,7 @@ import {
 import { LIB_GFX, LIB_TS, findModule, gfxShapes, iomarkerOrien, iseXform, lc, libPins, xaiToIseOrien } from './isesch.js';
 import { blockHdlDecls } from './isesch-blockhdl.js';
 import { primIseSymbol, primTimestamp } from './isesch-prims.js';
+import { pickOrigin, placeBlock, routeStubs, sheetRouter } from './isesch-route.js';
 
 const S_OUT = 16 / 5;                     // Silinx px -> ISE units (grid 10 -> 32, pin pitch 20 -> 64)
 const SHEET_SIZES = [[1760, 1360], [2720, 1760], [3520, 2720], [5440, 3520], [7040, 5440]];
@@ -274,7 +275,10 @@ export function exportIseSch(docIn, opts = {}) {
   const files = [];
   const blocks = [], instances = [];
   const extraWires = new Map();   // net -> [[x1,y1,x2,y2]]
-  const addExtra = (net, seg) => { let l = extraWires.get(net); if (!l) extraWires.set(net, l = []); l.push(seg); };
+  // (the drawing, for the wires added from an ISE pin to its Silinx pin: none along another net's, #1798)
+  const router = sheetRouter(doc, used, nl.portNet, X), stubs = [];
+  const addExtra = (net, seg) => { let l = extraWires.get(net); if (!l) extraWires.set(net, l = []); l.push(seg); router.addSeg(net, ...seg); };
+  const conn = net => (net && (net.endpoints.length > 1 || net.wires.length || net.labels.length || net.ports.length) ? net : null);
   const customs = new Map();      // lower name -> { name, sym, def, hdl }
   const hdlNames = new Set();
   for (const s of doc.symbols) {
@@ -342,25 +346,26 @@ export function exportIseSch(docIn, opts = {}) {
       const o = `${X(q.x) - dx},${X(q.y) - dy}`;
       cands.set(o, (cands.get(o) || 0) + (netOfPin(q.name) ? 10 : 1));
     }
+    // (the ISE pins on no other net's wire or point, #1798; a library pin the Silinx symbol has not: on none)
+    const own = pinsSheet.filter(q => localOf(q.name)).map(q => [...iseXform(orien, ...localOf(q.name)), conn(netOfPin(q.name))]);
+    if (info.lib) for (const [ip, [, x, y]] of Object.entries(libPins(iseName))) if (!pinsSheet.some(q => pinMap[q.name] === ip)) own.push([...iseXform(orien, x, y), null]);
     let origin;
-    if (cands.size) origin = [...cands].sort((a, b) => b[1] - a[1])[0][0].split(',').map(Number);
+    if (cands.size) origin = pickOrigin(router, [...cands].sort((a, b) => b[1] - a[1]).map(c => c[0].split(',').map(Number)), own);
     else { const p0 = xform(s, def, 0, def.h); origin = [X(p0.x), X(p0.y)]; }
+    placeBlock(router, origin, own);
     instances.push(`        <instance x="${origin[0]}" y="${origin[1]}" name="${xesc(s.name)}" orien="${orien}" />`);
     const bp = [];
     for (const q of pinsSheet) {
       const ip = pinMap[q.name];
       if (!ip) { if (netOfPin(q.name)) warn(`${s.name}: pin ${q.name} has no pin on ISE symbol '${iseName}'`); continue; }
       const net = netOfPin(q.name);
-      const connected = net && (net.endpoints.length > 1 || net.wires.length || net.labels.length || net.ports.length);
+      const connected = conn(net);
       bp.push(connected ? `            <blockpin signalname="${xesc(sigOf.get(net))}" name="${xesc(ip)}" />` : `            <blockpin name="${xesc(ip)}" />`);
       if (connected) {
         const l = localOf(q.name);
         const [dx, dy] = iseXform(orien, l[0], l[1]);
         const P = [origin[0] + dx, origin[1] + dy], T = [X(q.x), X(q.y)];
-        if (P[0] !== T[0] || P[1] !== T[1]) {
-          if (P[0] !== T[0] && P[1] !== T[1]) { addExtra(net, [P[0], P[1], T[0], P[1]]); addExtra(net, [T[0], P[1], T[0], T[1]]); }
-          else addExtra(net, [P[0], P[1], T[0], T[1]]);
-        }
+        if (P[0] !== T[0] || P[1] !== T[1]) stubs.push({ net, P, T });
       }
     }
     // library pins the Silinx symbol does not have (CEO/TC of counters...) stay unconnected
@@ -370,6 +375,9 @@ export function exportIseSch(docIn, opts = {}) {
       '                <trait vhdl="all:0 gm:1nosynth wa:1 wd:1" />', `                <trait valuetype="${xesc(vt)}" />`, '            </attr>']);
     blocks.push([`        <block symbolname="${xesc(iseName)}" name="${xesc(s.name)}">`, ...at, ...bp, '        </block>'].join('\n'));
   }
+
+  // (the wires from the ISE pins not where the Silinx pins are, routed once every block is placed, #1798)
+  routeStubs(router, stubs, addExtra);
 
   // ------------------------------------------------------------- HDL modules and symbols for the custom blockdefs
   for (const c of customs.values()) {
