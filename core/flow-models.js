@@ -1,15 +1,17 @@
-// Silinx toolchain - the open flow's simulation models (#405: out of runOpenFlow in core/open-flow-core.js, #120,
+// Silinx - the open flow's simulation models, the IDE's (core/open-flow-models.js until #1675: given to the flow as
+// io.simModels by core/flow-ide.js runOpenFlow; #405: out of runOpenFlow in core/open-flow-core.js, #120,
 // #121, #122, #622): the design the models are made of (the test bench's generics), the post-synthesis,
 // post-translate, post-map and post-place & route models, the board's model beside them.
 import { analyzeTiming } from './fpga/timing.js';
 import { compile, elaborate } from './compile.js';
+import { flowFrontEnd } from './synth-front.js';
 import { dutGenerics, postMapModels, postParModels, postSynthesisModels, postTranslateModels, scalarVerilog } from './sim-model.js';
 import { pack } from './fpga/pack.js';
 import { parseXdl, writeXdl } from './xdl.js';
 import { placeRouteBest } from './fpga/place-route.js';
 import { primitiveSources } from './unisim.js';
 import { readYosysJson } from './fpga/netlist.js';
-import { synthesizeOpen } from './synth-open.js';
+import { synthesizeVerilog } from './synth-open.js';
 import { StepError } from './open-flow-core.js';
 
 /** { runPostMap, runPostPar, runPostSynth, runPostTranslate } of runOpenFlow (netlist(), packed(), routedText(), synth(): its current values). */
@@ -47,12 +49,9 @@ export function mountSimModels(ctx) {
   }
   // the top synthesized with these generics, for a model
   async function synthesizeWith(generics) {
-    const srcs = io.sources();
-    const lib = compile([...primitiveSources(srcs), ...srcs]);
-    const design = elaborate(lib, top, { generics });
-    const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
-    if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
-    try { return await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high' }); } catch (e) {
+    const fe = flowFrontEnd(io.sources(), top, { generics });
+    if (fe.errors.length) throw new StepError('the design has errors', fe.errors, 'Fix them (Check Syntax shows them in the Errors tab).');
+    try { return await synthesizeVerilog(fe.input(), { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high' }); } catch (e) {
       for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
       throw new StepError(`synthesis failed: ${e.message}`);
     }

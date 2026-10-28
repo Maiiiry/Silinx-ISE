@@ -162,7 +162,10 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
 4. **The flow's front end and simulation models as hooks**
    ([#1675](https://github.com/pmnmalo/Silinx-ISE/issues/1675)): `runOpenFlow` gets the HDL front end and the
    simulation models through `io`; a wrapper in the IDE gives them, so `server/open-flow-run.js` and
-   `web/js/open-flow-worker.js` run as before. After it the boundary test's list is empty.
+   `web/js/open-flow-worker.js` run as before. After it the boundary test's list is empty. Done: `runFlow` with
+   `io.frontEnd` and `io.simModels`; `core/flow-ide.js` `runOpenFlow` gives the IDE's (`core/synth-front.js`
+   `flowFrontEnd`, `core/flow-models.js`, moved from `open-flow-models.js`); the list keeps only the old
+   paths' re-exports, which go with step 7.
 5. **The bit database out of research/** ([#1676](https://github.com/pmnmalo/Silinx-ISE/issues/1676)): the
    data the application ships moves next to the graphs; research re-exports its path (`test/layering.test.js`);
    the standalone build and the related tests' data map (#772) follow.
