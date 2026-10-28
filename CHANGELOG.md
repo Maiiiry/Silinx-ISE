@@ -3,6 +3,706 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.19.0
+
+Silinx HLS: C and C++ high-level synthesis, as Vitis HLS makes it, with its C simulation and C/RTL co-simulation;
+and a schematic editor closer to ISE's.
+
+In short:
+
+- **Silinx HLS:** a C or C++ source is a module of the project (New Source ▸ C / C++ Function (HLS)), synthesized to
+  VHDL or Verilog as Vitis HLS makes it: loops, arrays and memories, structs, pointers, templates and classes,
+  `ap_int` / `ap_fixed`, `hls::stream`, the HLS pragmas (PIPELINE, UNROLL, DATAFLOW), `hls::task`, and `float` and
+  `double` in hardware (`+ - * /`, the comparisons, `sqrt`, `floor`, `round`, `fmin`, …), exactly as the C
+  simulation computes them.
+- **C simulation and C/RTL co-simulation:** the C editor runs the test bench (`main()`), then the generated module
+  against it, in VHDL and Verilog; a sequential module's state machine is shown as an ASM chart. 47 of AMD's 73 Vitis
+  HLS introductory examples pass all three.
+- **HDL to C:** a module's C model (Processes ▸ View C Model).
+- **Schematics as in ISE:** bus taps drawn and built as ISE's, buses and bits named with their indices (`d(7:4)`,
+  `a(0)`), a wire drawn thick when it is a bus, paste where you point; Rearrange Wires and Rearrange Schematic in place
+  of Beautify; the side panels fold; Undo / Redo by the drawing tools.
+- **Two documents side by side**, each side with its own tabs (the *Split* button).
+- **ISE schematic export:** device primitives (DCM, block RAM, multipliers, BUFG…), escaped names and schematics made
+  from HDL export cleanly, with no ISE warnings.
+- **Convert to Schematic** takes more Verilog: `` `ifdef `` inside a module, vectors driven part by part, escaped port
+  names.
+- **Test designs:** New Project lists, after the examples, the designs Silinx itself is tested with.
+- Many smaller fixes: Edit Stimuli keeps the waveform view, the Design pane with no project open, and more (below).
+
+In detail:
+
+- **math.h's rounding in hardware (#1843):** `floor`, `ceil`, `trunc`, `round` (half away from zero), `fmin`, `fmax`
+  and `copysign`, and their float versions (`floorf`, …), of values that are not constants, are functions of the
+  soft-float library on the value's bits (a mask of the fraction, the carry into the exponent), so the hardware gives
+  the C simulation's bits; checked against the C simulation on the edge cases and random values and co-simulated in
+  VHDL and Verilog. In the C simulation, `fmin` and `fmax` of a NaN and a number give the number, as C's, and
+  `floorf`, `ceilf`, `truncf`, `fminf`, `fmaxf`, `copysign` and `copysignf` are known.
+- **The browser edition's Back-annotate Pin Locations UI test takes the placer's pads from its run (#1840):** as
+  #1771 did for the local server's, test/ui/standalone.test.js listed the five pads the placer chose for blinky's
+  unconstrained LEDs and switch, and failed on main since the placer chooses others (#1359). It now reads them from
+  the dialog (five different pads, none of them one the UCF gives) and checks the UCF written against them.
+- Silinx HLS: the Vitis oracle's `--collect` with no `--update` keeps the run's results on the host. It had deleted them right after fetching them, and with nothing saved the run was lost. The folder is deleted only once `--update` has written `vitis.json` and the README's table (#1826).
+- **A declaration after a definition (#1823):** in C++, a function declared again after its definition (a header that two
+  sources include) no longer takes the definition's place, so its reference parameters to streams are streams; the
+  co-simulation's test bench makes a stream the design polls (`s.empty()`, `s.full()`) empty or full only when it is.
+  AMD's auto_disaggregation_of_struct passes (47 of 73).
+- **A row of an array in the test bench (#1820):** C synthesis makes the arrays of two or more dimensions one memory
+  only in the functions made into hardware (the top and those it names): a test bench's `main()` that passes a row of a
+  two-dimensional array to the top (`sort(t[k])`) synthesizes and co-simulates again, as before #1786.
+- **hls::axis_user (#1819):** Silinx's own ap_axi_sdata.h has AMD's `AXIS_ENABLE_*` flags and `hls::axis_user<WUser,
+  EnableSignals, WId, WDest>`, an AXI4-Stream beat with no data: its user, last when `AXIS_ENABLE_LAST`, id and dest
+  (a signal not enabled, of width 0, not a member), `get_user` / `set_user`. AMD's axi_stream_custom_side_channel_data_2
+  passes (46 of 73).
+- **The bus tap's indices in its Properties (#1815):** a value that would put the MSB below the LSB is refused, the
+  field back to its value, the reason in a note (in Portuguese too); the schematic's check (#1691) stays for the
+  schematics saved before.
+- **The bus tap's label size (#1812):** its bits' label on its wire is drawn in the size of the bus widths it
+  replaced (8 px), as on the other symbols.
+- **A reference's address (#1805):** in C++, `&r` of a reference parameter `r` is the pointer it is (it was `&*r`,
+  refused as "'&' takes a variable"); AMD's using_free_running_pipeline passes its C simulation.
+- **The bus tap's label (#1800):** no width on its output; its bits with the bus's name centred on its output's wire,
+  with the widths' halo, in every orientation.
+- The ISE runner: the agent that lets the runner's user reach Docker Desktop's socket (`install.sh --docker-acl`) waits for the socket before setting its ACL, and runs every 5 minutes too. After a restart of Docker Desktop it ran while the socket was gone, the socket came back without the ACL, and the nightly's ISE job was refused Docker (#1799).
+- **The wires from an ISE library pin to the Silinx pin routed (#1798):** where a library symbol's pins are not where
+  the Silinx symbol's are (DCM_SP, the block RAMs, MULT18X18SIO, DSP48A1, PLL_BASE …), the export drew a wire across
+  then along from each ISE pin, and those of several pins ran along one another and over other pins (ISE's sch2hdl:
+  `DesignEntry:241 net … overlaps with net …`; the import back left net names off their wires). Each such wire is now
+  routed on the grid (`core/isesch-route.js`) around the drawing's wires, pins and net names of the other nets and the
+  wires routed before it: never along another net's wire, never ending or turning on one, never over another net's
+  pin or name. The block is placed where none of its pins lands on another net's wire or point.
+- **Schematic: a paste at the mouse, or in a blank place in view (#1797):** the copy is centred on the mouse
+  pointer when it is on the sheet; else it goes in the blank place of the visible part of the sheet nearest to its
+  centre, clear of the symbols, wires, markers and net names there (centred in view when none is blank), instead of
+  40 px from the original or where it was in another schematic. `core/schclip.js` `pasteOffset`.
+- **A bus tap is a connector (#1796):** a tap whose bit wire is driven by something else drives those bits of its bus
+  (`xb(3) <= X3;`); no "2 drivers" on the bit wire, no "no driver" on the bus; a bus driven by its own driver and
+  through a tap too, an error. A tap's pins no longer change an I/O marker's direction (#1109).
+- **The worktree's `.cache` links out of the repository (#1792):** a link `.cache -> ../../../.cache` (and two
+  sync copies, `.cache 2` and `.cache 3`) had been committed with the C++ templates; on the runners it dangles, and the
+  Nightly's cache restore and test fetches failed on it before any design ran. The links are removed, `.gitignore`
+  ignores `.cache` itself (`.cache/` did not match a link) and its copies, and test/repo-files.test.js fails on any
+  tracked symbolic link and on a copy named without an extension ("name 2").
+- **The critical-LUT resynthesis stage in a module of its own (#1787):** the last depth candidate of withDepth
+  (core/synth-open-depth.js), the critical LUTs made one level shallower (#652), moved as it was into
+  core/synth-open-resynth.js (`resynthStage`), called where the code was, so that a new candidate (#1360) does not take
+  `mountDepth` past the 300 lines of test/code-size.test.js (#405). No change of behaviour. Its own test:
+  test/synth-open-resynth.test.js (spi-fpga-slave's enable through Yosys, kept, the same function on every input; left
+  out without speed or resynth or past SPEED_RULE.maxLuts; a run that fails, its warning).
+- **Arrays of more dimensions (#1786):** core/c-flatten.js: an array of N x M x … elements (an argument, a local, a
+  static, a global) is one array of N*M*… words in synthesis, `a[i][j]` at `i*M + j`, its nested initializer its
+  words in order; a row of it alone (`a[i]` passed on) is said not supported yet. The C simulation gives an array
+  argument of more dimensions its dimensions (they were lost: "an index of a value that is not an array").
+- **Division and sqrt (#1783, step 4b of #1761):** core/c-softfloat.js: the division (restoring, a quotient bit a step, its
+  remainder the sticky bit) and the square root (digit by digit) of binary32 and binary64, correctly rounded, with
+  their special cases; checked against IEEE (JavaScript's / and Math.sqrt) on every pair of edge cases and the random
+  ones. core/c-dataflow-float.js: `x / y`, `sqrt`, `sqrtf` of any value the library's, `fabs`, `fabsf` the sign
+  cleared; math.h's other functions of values that are not constants are still said not made.
+- Silinx HLS: the Vitis oracle's `--filter` (`scripts/hls-vitis.mjs`) is a regular expression on the designs' names, to run a set of designs (the small ones first, alongside ISE on the runner's machine); a plain name still matches as before (#1780).
+- **Tables at synthesis (#1779, step 4a of #1761):** core/c-const-init.js: a call of a function that only writes its array
+  arguments from constants (it reads no argument, no global but a constant, calls only math.h) is run by the C
+  simulation at synthesis (core/c-interp.js's runAtSynthesis), its values the arrays' initial ones (constant: a ROM);
+  math.h's functions and a floating-point division of constants are folded (core/c-dataflow-float.js); of other
+  values they are said not made yet, by the synthesis (the check no longer refuses math.h in a synthesized function).
+  AMD's coefficient_filter and rom_lookup_table_math pass.
+- **double in synthesis (#1773, step 3 of #1761):** core/c-softfloat.js makes the binary64 library from the binary32 one's
+  source (its widths its parameters; the 106-bit product from 32-bit halves), with float <-> double; checked against
+  IEEE on every pair of edge cases and 1100 random ones. core/c-dataflow-float.js: C's usual conversions (a double
+  operand or constant a double operation), 64-bit ports and memories, a double constant converted to an integer
+  folded. The C compilers of the tests' references run with -ffp-contract=off (a * b + c rounded twice, as C's abstract
+  machine and the C simulation; clang on arm64 fuses them by default). The hint of the floating-point message now
+  says what is not made yet: a division and math.h.
+- **The Back-annotate Pin Locations UI test reads the placer's pads from its run (#1771):** test/ui/open-toolchain.test.js
+  listed the five pads the placer chose for blinky's unconstrained LEDs and switch. Since the LUT inputs' delays by pin
+  (#1359) the placer chooses others, and the test failed on main. It now reads them from the run's build/top_pins.ucf
+  (five different pads, none of them one the UCF gives) and checks the dialog, the Portuguese one and the UCF written
+  against them, so that a change of the placer no longer breaks it.
+- **float in synthesis (#1768, step 2 of #1761):** core/c-dataflow-float.js: a float value is its IEEE-754 bits (32-bit
+  ports and memories), each operation (`+ - *`, the comparisons, `?:`, `-x`, `!x`, casts to and from the integers) a
+  call of the soft-float library (#1762, now with one return per function so that its loops unroll in any module),
+  inlined where it is; a double constant converted to a float is its value, in an operation it must be written as a
+  float (`0.5f`), or be held exactly in a comparison. The co-simulation gives and compares the C simulation's floats as
+  their bits. Double, a float division and `math.h` are said not made yet. The hint of the message says so.
+- **Escaped names in an ISE schematic (#1763):** ISE's names are identifiers (`[A-Za-z_][A-Za-z0-9_]*`, its
+  `sch2hdl` refuses any other), which an escaped name cannot be: the export writes it with its other characters as
+  `_`, none first nor last (`opcode_0`; it wrote `_opcode_0_`, which the import renamed again and which `sch2hdl`
+  wrote as a VHDL port), for I/O markers, nets and the pins of an HDL block's symbol (its module's ports named so
+  too), and lists them in one warning ("names written as identifiers …").
+- **A soft-float library (#1762, step 1 of #1761):** core/c-softfloat.js: IEEE-754 binary32 add, sub, mul, the
+  comparisons and the conversions to and from int / unsigned, in the C Silinx HLS synthesizes (integers, constant
+  loops), on the values' bits, rounded to nearest even with subnormals, infinities and a NaN as the C simulation's;
+  checked through the C simulation against IEEE on every pair of edge cases and 2600 random ones, and synthesized
+  and co-simulated in VHDL and Verilog. The floating point of synthesized code calls it next (#1761).
+- **Check Syntax of a C design (#1759):** the design checks of the HDL Silinx HLS makes of a C source (registers
+  synthesis trims) were said under the C file's name with the HDL's line numbers; they are no longer said.
+- **A hexadecimal constant ending in F in C (#1757):** `0xFFFF` was read as a float with the `f` suffix (4095);
+  it is an integer, its `F`s hexadecimal digits (65535).
+- **The schematic editor parts test after #1730 (#1752):** test/ui/sch-parts.test.js's toolbar order lists Rearrange
+  Wires and Rearrange Schematic instead of Beautify.
+- **Copy Drawing and Paste Drawing in the handwriting dialogs, and a corpus of real drawings (#1749):** the
+  handwritten expression, truth table and schematic dialogs (Development menu) have Copy Drawing, which puts the pad's
+  strokes on the clipboard as text (core/ink/corpus.js: the kind, the devices that drew it, what Silinx read), or
+  shows it selected when the browser does not let the page copy, and Paste Drawing, which loads a copied drawing back
+  on the pad (one step of Undo) and refuses a drawing of another kind or a text that is not one. A drawing read wrong
+  pasted into an issue, with what it should read as (`"expect"`), becomes a case of test/fixtures/ink/ (its
+  README says how); test/ink-real.test.js reads every one and fails when fewer read right than the floor of its
+  kind. Tests: test/ink-real.test.js (round trip, decoding errors, the schematic's circuit as text), test/ui/ink.test.js
+  (copy, paste, Undo, the kind refused, the text shown when copying is not allowed).
+- **Test designs as projects (#1746):** `test-designs/<name>` (listed in `core/test-designs.js`), a category of New
+  Project's templates apart from the examples (not held to their rules: no board, no ISE build). The schematics of
+  the schematic corpus (bus_taps, bus_join, gates_inverted, mux_dec, arith, flipflops, full_adder of two half
+  adders), each with a self-checking test bench of every input (the sequential one 300 cycles against a model); the
+  diagram corpus's det1011, vending and johnson16 as state diagrams, each with a test bench checking it against a
+  model written another way; C programs (gcd, popcount, fir, sort) and a C++ one (stream_sum, hls::stream), whose
+  `main()` returns 0 when right: C simulation, C synthesis to VHDL and Verilog and C/RTL co-simulation pass. The
+  server's `/api/test-designs`, the standalone edition's bundle, the MCP server's `list_examples` (the test designs
+  apart, with their kind) and `new_project_from_example` (a test design too). A new project's UCF for a board is
+  now made from the HDL of its drawings and C sources too, and its constraints folder made when missing.
+  `test/test-designs.test.js` makes each into a project and checks Check Syntax's exact warnings and its test.
+- **Split and merge channels (#1743, step 3 of #1706):** core/cpp-np-channel.js: `hls::split::round_robin<T, N, D>` and
+  `hls::merge::round_robin<T, N, D>` are FIFOs (`s.in`, `s.out[i]`; `m.in[i]`, `m.out`) and a task of their own
+  defined before the function, moving each value to its outputs in turn (a split) or from its inputs in turn (a
+  merge); `load_balance` is made as round_robin, with a warning.
+- **Arrays of streams (#1739):** core/c-stream-array.js: `hls::stream<T> s[N]` (a declaration, a parameter `s[N]` or
+  `(&s)[N]`) is N streams `s_0`…, each its own ap_fifo port or a FIFO of a DATAFLOW region; `s[k]` by a constant that
+  stream, `s[i]` by a variable the statement for each element (an `if` on the index, a declaration's variable
+  declared first); the array passed whole its elements; a pragma naming it each element's, said once; a stream's
+  name (`hls::stream<T> s("in")`) dropped. AMD's using_array_of_streams and free_running_kernel_remerge_ii4to1 pass.
+- **A test bench's C++ library (#1734):** core/cpp-stl.js: `std::vector<T> v(n)` / `v(n, x)` an array of its size
+  (`v[i]`, `v.data()`, `v.size()`; a `vector<T> &` parameter an array), `std::generate` / `std::fill` over a vector a
+  loop, `<random>`'s `default_random_engine` and `uniform_int_distribution<T>` as libstdc++ makes them (Vitis HLS's Linux
+  C simulation: minstd_rand0, the scaled draws); an array whose size is known when it runs, outside the synthesized
+  code (which keeps fixed sizes); `<vector>`, `<algorithm>`, `<random>` bring stdlib.h's macros (EXIT_FAILURE). The
+  co-simulation reads only its test bench's lines (the simulator's own, its waveform limit, left out).
+- **Schematic editor: the layout controls after the view's buttons (#1733):** the toolbar's order is now Rotate,
+  Mirror, Delete | the zooms | Symbol Info | Keep connections, Rearrange Wires, Rearrange Schematic | Curved wires…,
+  in both interfaces; a read-only schematic still hides the layout controls with no doubled separator.
+- **Beautify as two commands (#1730):** Rearrange Wires (the wires drawn again, the symbols, I/O markers and net
+  names where they are; with a selection, its wires only) and Rearrange Schematic (the whole sheet laid out again,
+  #1506), each in one undo step, their labels, tooltips and notes in Portuguese, both hidden in a read-only view.
+- **The bus tap's symbol (#1726):** its input on the bus, a diagonal entry from there to its output's line a grid
+  step aside, the bus's name and the bits taken on the output's wire from the diagonal's end outwards (beside it when
+  turned). Document version 5: a schematic of before has what met a tap's old input taken to the new one (a bus wire
+  along the move lengthened or shortened, else a bus wire added; `core/schdoc-upgrade.js`). An ISE schematic's bus tap
+  imported with its output on ISE's bit wire and its input on its bus (no extra wire). The gates example redrawn with
+  its taps on its bus, as ISE draws them.
+- **Tests: the C editor's checks test follows the local pointers' message (#1723):** `test/ui/c-check.test.js`
+  (#1524) expected the pointer error from before #1599. It now expects the local pointer's whole message,
+  "the pointer 'p': set to something other than an array, &x, &a[i] or a + i: not supported yet", with its
+  help (c-pointer-variable).
+- **hls::task (#1721, the C simulation of #1719):** core/c-interp-task.js: `hls_thread_local hls::task t(f, a…);`
+  starts a task, once, running `f` again and again while its inputs have values; the tasks run whenever the test bench
+  or the top would wait (a read of an empty stream, the end of a call of the top), each invocation atomic (one that
+  would read an empty stream undone: its streams, output and persistent values, and run again later); `f` of the
+  form `init; while (1) body` keeps its init's variables across iterations and calls. A reference to a stream of a
+  function declared before its definition is passed as the stream. Its hardware is said not made yet (#1719). AMD's
+  simple_data_driven and unique_task_regions pass their C simulation.
+- **Split view: the empty side's text and icon (#1720):** the empty side says how to bring a document there (drag
+  a tab, or Move to the Other Side in a tab's menu) instead of "Open a source on this side: from the Design panel…",
+  under the Design task's pen (48 px); the other side's documents stay as buttons. In both interfaces, English and
+  Portuguese.
+- **hls::task in hardware (#1719):** core/c-processes.js: a task of a DATAFLOW or task region is a process whose
+  `ap_start` is 1 (its machine starts again when done, its state kept across calls), its `hls_thread_local` streams
+  FIFOs; the top's `ap_done` waits for its other processes only. The co-simulation waits for the values each call
+  reads and writes, an input stream's values kept across calls (a task may read ahead: at least the C's values read).
+- **Convert to Schematic: a port of width 0 (#1717):** a VHDL port whose range is null with its generics'
+  defaults (`std_logic_vector(natural(ceil(log2(real(N))))-1 downto 0)`, N = 1) is drawn as a marker of width 1,
+  the width a saved schematic keeps, its type written as the entity has it: the schematic is saved as it was
+  made, and its HDL is the same.
+- **Convert to Schematic: compiler directives inside a module (#1716):** the module's text is read as the compiler
+  reads it (`activeVerilog`, core/schdoc-source.js): the `` `ifdef `` / `` `ifndef `` / `` `elsif `` / `` `else ``
+  branches not taken and the directive lines left out, the macros defined in the file and in the files it includes
+  deciding; an HDL block no longer keeps an `` `endif `` without its `` `ifdef `` (an always block whose header is
+  chosen by `` `ifdef ``), and a statement whose branch was not taken no longer starts the next one.
+- **Convert to Schematic: a vector driven part by part (#1715):** the HDL blocks that write one signal, each a
+  driver of its net (refused: "net 'y' has 2 drivers"), become one block holding their statements in order, with
+  their pins (a signal it writes no longer one of its inputs).
+- **Closed files (#1714):** the C simulation drops the writes to a file after its close (an `ofstream` closed in a
+  loop, as AMD's simple_fifos test bench does), as C++'s stream in its failed state; the test bench's golden file
+  then compares as it does with the C++ compiler.
+- **Schematic editor: the Symbols and Properties panels collapse and expand (#1713):** a chevron in each panel's
+  title folds it into a 24 px strip with its name down the side; a click on the strip, or the chevron, expands it.
+  Each panel's state is remembered per viewer. Under 1024 px the toolbar's ☰ Symbols / ☰ Properties stay as before.
+  New module `web/js/sch-panels.js`.
+- **DATAFLOW (#1707, step 1 of #1706):** core/c-processes.js: a DATAFLOW region of calls in the top function, each
+  callee a module of its own (core/c-hdl.js made with it as the top; a callee called twice, two instances; a pointer
+  argument the size of the array it is given); a local `hls::stream` a FIFO (its depth the STREAM pragma's,
+  `hls::stream<T, D>`'s, else 2), a local array a buffer its readers start once its writer is done; the top's
+  arguments passed to the processes; the top's `ap_ctrl_hs` over them all. The C simulation runs the calls in order,
+  the co-simulation drives the same ports and names the streams that may be too shallow when a call does not end.
+  View C Synthesis Report lists the processes, the FIFOs and the buffers. What is not supported yet is said; a region
+  of other statements is made sequential, with a warning. Two of AMD's DATAFLOW examples (simple_fifos and
+  struct_ii_issue) now run as processes.
+- **Schematic: no "Draw as bus" (#1705):** a wire is drawn from its net's width alone; the "Draw as bus" box is no
+  longer in a wire's properties nor in several wires' common properties. A schematic saved with the flag (an older
+  one, an ISE import) opens unchanged, drawn by its width.
+- **Struct initializers (#1703):** a struct initialized from another struct's members (`S v = {w.a, w.b};`, nested
+  lists, an array of structs) is accepted: the values' own struct uses are rewritten into their members' variables
+  (they were left as written, refused as "'w' is not declared").
+- **Schematic: a bus tap the wrong way round keeps the bus a bus (#1702):** a bus tap's output O on a wider bus
+  (driven by an input marker or a symbol's output, or named) is not joined to the bus's net: the bus keeps its
+  width (a counter's Q(7:0) no longer became a 1-bit net, drawn as a wire), and one error on the tap says it is
+  the wrong way round, in place of the bus's "width mismatch" and "2 drivers". A tap's O into a wider input is
+  still a width mismatch.
+- **Loops of unknown count (#1699):** a loop whose count is not known (`for (x = 0; x < width; x++)`, a `while`
+  on a value) is a state machine running until its condition is false, as Vitis HLS makes it: a warning says its
+  latency is unknown, the report's cycles unknown; `#pragma HLS LOOP_TRIPCOUNT max=` gives the report a bound. Its
+  hint says so. One more of AMD's examples through co-simulation (31 of 73).
+- **A header's constants (#1700):** a constant of a header that two sources include (`const int N = 10;`, no include
+  guard) declared again with the same value is accepted, as C++'s file-scope constants are each source's own.
+- **Convert to Schematic: escaped identifiers (#1697):** a Verilog escaped name becomes a marker, net or pin named
+  with its backslash (`\opcode[0]`); the HDL generated from a schematic writes such a name escaped in Verilog
+  (`\opcode[0] `) and as an extended identifier in VHDL (`\opcode[0]\`), so the module's instances connect by name
+  as before. A name that is not an identifier, without its backslash, is still refused.
+- **Schematic editor: Undo / Redo after Add I/O Marker (#1696):** the toolbar's Undo and Redo moved from after
+  Beautify to between Add I/O Marker and Rotate, a separator on each side, in every interface; a read-only
+  schematic still hides them with no doubled separator.
+- **An HDL block's file with the module's declarations (#1695):** an HDL block exported as an ISE symbol of its own
+  gets, in its HDL file, the module's context clause (its libraries and packages, its `` `define `` macros), its
+  generics / parameters and its declarations (constants, types, functions, localparams), and of the module's
+  signals only the block's own temporaries, each declaration whole (a signal or register of several names over
+  several lines was copied in part, a syntax error); the others are its ports. A module instanced with no ports (a
+  block of a generate not taken, read back from ISE) is written without a port map.
+- **Device primitives as ISE's library symbols (#1694):** the ISE schematic export writes a device primitive as the
+  library symbol of its UNISIM primitive (BUFG, RAMB16_S9_S18 …, at the pin positions and with the timestamps of
+  ISE 14.7's spartan3e and spartan6 libraries), its parameters as the block's attributes (a block RAM's contents as
+  its INIT_xx), instead of an `xl_bufg` symbol of its own; the import reads such a block, from Silinx or from an ISE
+  project, as the Silinx primitive with its attributes as its parameters (a BUFG or an IBUFG is no longer a plain
+  buffer). A RAMB16 with port A wider than port B, which ISE's library has not, stays a Silinx symbol. The drawing of
+  the primitives whose pins are not in ISE's order is #1798.
+- **A 1-bit bus tap into an output read back (#1693):** a tap of one bit whose output is an output marker also read
+  inside the schematic wrote `msb_int <= a(7 downto 7);` (a vector into a `std_logic`): the VHDL did not compile in
+  Check Syntax. It now takes the bit, `msb_int <= a(7);`.
+- **A slice against its vector's direction is an error (#1692):** VHDL `a(1 to 2)` of a `(3 downto 0)` and Verilog
+  `a[1:2]` of a `[3:0]` (and the reverse of ascending vectors) were taken silently, simulated as the slice the other
+  way round; XST refuses them. A VHDL null slice is still allowed.
+- **A bus tap with its MSB below its LSB (#1691):** an error on the tap (`bus tap XLXI_1: its MSB (1) is below its
+  LSB (2): a bus tap takes the bits MSB downto LSB`); before, it wrote `a(1 to 2)` / `a[1:2]` of a descending bus,
+  which neither language allows (XST refuses it).
+- **A bus tap of bits its bus does not have (#1690):** an error on the tap in the schematic's check (`bus tap XLXI_1
+  takes bit 5, outside its bus 'a' (3 downto 0)`); before, nothing was said on the drawing, and the generated HDL
+  failed in simulation.
+- **A bus named with its indices, not from 0 (#1689):** declared with them (`std_logic_vector(7 downto 4)`,
+  `wire [7:4]`; it was `(3 downto 0)`, so a tap of `d(7)` was out of range); the ISE export names it `d(7:4)` and the
+  import keeps an ISE bus's indices (an I/O marker's bus, and an ascending one, from 0 as before).
+- **Net names of bus bits (#1688):** `a(0)` was refused as an invalid net name. It now names those bits of the bus
+  `a` (an I/O marker's, or a net named `a`; a bus named by its bits only is declared from them): its own net, joined
+  by name with the same bits, written `a(0)` / `a[0]` in the HDL (read and driven); a tap whose wire is named with
+  the bits it takes writes nothing; other bits, or bits outside the bus, an error. The ISE export names them so.
+- **A schematic corpus (#1687):** `test/schematic-corpus/`, as the design, diagram and HLS corpora: 17 hand-made
+  schematics (bus taps of every kind and orientation, bus joins, net names, the library's gates, flip-flops,
+  registers, counters, multiplexers, decoders, arithmetic, VCC / GND and constants, tri-state buffers, BUFG, module
+  symbols of another schematic, curved wires and crossings), the ISE fixtures and the gates example, each with a
+  behavioural reference; and the design corpus's designs converted to schematics at run time. Each goes through the
+  document's round trip, the schematic's checks, Check Syntax of its VHDL and Verilog, their simulation against the
+  reference, the ISE export and import, Yosys and the Silinx toolchain to a `.bit` on the four Silinx-toolchain
+  devices, with each stage's exact results and warnings in `expected.json` (`npm run test:schematics`, `--update`;
+  the fast stages in `test/schematic-corpus.test.js`). What it found is in #1688–#1695 and #1697.
+- **Pointers to structs (#1684):** a pointer to structs indexed is an array of structs, its members' pointers
+  indexed (core/c-pointer.js's memories, #1599): its depth the INTERFACE pragma's, a pragma naming a struct
+  (`port=`, `variable=`) applying to each of its members and said once by its name; `auto t = p[i];` of a pointer
+  the element's type. A pointer argument passed to a function that indexes it (inlined) is a memory too; the
+  depth's warning only of the top function's.
+- **Struct copies (#1685):** a struct copied as the statement of a `for`, `if`, `while`, `else` or `do` without
+  braces is accepted; an index with a side effect (`b[i++] = a[3];`) is computed once, not once per member.
+- **The open flow's front end and simulation models as hooks (#1675):** step 4 of the toolchain's separation (#1651,
+  docs/TOOLCHAIN-SEPARATION.md). The toolchain's flow, core/open-flow-core.js `runFlow(spec, io)`, gets the HDL front
+  end (`io.frontEnd`) and the simulation models' steps (`io.simModels`) from its io; without the front end its sources
+  are the flat Verilog Yosys synthesizes (a VHDL source is an error), without the models their steps fail.
+  core/flow-ide.js `runOpenFlow` is the flow with the IDE's (core/synth-front.js `flowFrontEnd`, and the models'
+  module, moved as it is from core/open-flow-models.js to core/flow-models.js); core/open-flow-core.js still exports
+  it, so the server's runner, the browser's worker and the tests are unchanged. The toolchain imports none of the
+  IDE's modules any more but the old paths' re-exports (test/toolchain-boundary.test.js). Tests:
+  test/flow-ide.test.js (a counter through the flow without the front end, a VHDL source refused, the models' steps
+  without and with the IDE's hooks, an io's own hook); three examples through the whole flow, the models included,
+  give the same log, files and report as before. No behaviour change.
+- **Synthesis from flat Verilog (#1674):** step 3 of the toolchain's separation (#1651,
+  docs/TOOLCHAIN-SEPARATION.md). The open synthesis is split in two: the HDL front end's part, core/synth-front.js
+  `synthesisInput(design)` (the elaborated design as one flat Verilog module, its top, the front end's warnings, the
+  shift-register arrays and the gate count), and the toolchain's, core/synth-open.js `synthesizeVerilog(input)`,
+  which synthesizes a flat Verilog module with Yosys, the hints optional. `synthesizeOpen(design)` is the two in a
+  row and core/synth-open.js still exports it, so its importers are unchanged. The toolchain no longer imports
+  core/synth-verilog.js (test/toolchain-boundary.test.js). Tests: test/synth-front.test.js (the input against
+  toVerilog and the gate count, synthesizeOpen against synthesizeVerilog on blinky, a hand-written counter
+  synthesized from its Verilog alone); the seven examples at both efforts give the same netlists, warnings and logs
+  as before. No behaviour change.
+- **The technology view out of core/fpga/ (#1673):** step 2 of the toolchain's separation (#1651,
+  docs/TOOLCHAIN-SEPARATION.md). The technology view, which draws with the IDE's schematic model, moves as it is
+  from core/fpga/techview.js to core/techview.js; the old path re-exports it, so its importers (core/sim-model.js,
+  the viewers, the schematic's properties) are unchanged. The toolchain's boundary (test/toolchain-boundary.test.js)
+  loses the view's two imports of the IDE; the old path's re-export stays listed until its importers switch. Tests:
+  test/techview.test.js on the new module, and the old path's exports checked against it. No behaviour change.
+- **The toolchain's boundary as a test (#1672):** step 1 of the toolchain's separation (#1651,
+  docs/TOOLCHAIN-SEPARATION.md). test/toolchain-boundary.test.js lists the toolchain's modules (core/fpga/, the
+  open synthesis, the flow, its formats and parts) and the eight imports of the IDE they make today, each with its
+  importer (the HDL front end, the simulation models, the technology view's schematic model), and its one npm
+  package, @yowasp/yosys. A new import across the boundary fails, and an entry leaves the list once its import is
+  gone. No behaviour change.
+- **The Vitis oracle's runs detached (#1669):** `scripts/hls-vitis.mjs --detach` starts Vitis HLS in the background on the
+  runner's machine and `--collect <run>` shows its progress or fetches and compares its results, so a run of the whole
+  corpus (hours) does not depend on the developer's machine staying awake.
+- **The Vitis oracle reads Vitis HLS 2025.2's reports (#1664):** the loops of csynth.xml (an element per loop, named
+  as the loop, an inner loop inside its outer loop's) and the ports' directions (`<Dir>`) were missed.
+- **Streams of structs and ap_axi_sdata.h (#1662):** core/c-struct-stream.js: `hls::stream<S>` a stream per member
+  of `S`, written and read together (write, `<<`, `read()` in a declaration, an assignment or a return, `read(v)`,
+  `>>`, empty, full, passed to a function, named by a pragma), a warning that Vitis HLS makes one stream of them
+  (#1628); core/cpp-headers.js: Silinx HLS's own `ap_axi_sdata.h`, `ap_axis<D, U, TI, TD>` and `ap_axiu<…>` (a side
+  channel of width 0 left out). `typedef S T;` of a struct or an enum already defined; an ap type's width written as
+  a constant expression (`ap_uint<(D + 7) / 8>`). The C simulation as the C++ compiler's with AMD's ap_int.h, the
+  co-simulation in VHDL and Verilog. One more of AMD's examples through co-simulation (24 of 73).
+- **The Split button's place (#1657):** in the Tasks interface's header, between the messages' button and Maximize the
+  document (it was before the side panel's button, #1652).
+- **Division and remainder in synthesis (#1656):** core/c-dataflow-div.js: by a constant not a power of 2, a
+  multiplication by its rounded-up reciprocal and a shift (exact for every value of the dividend's width); by a
+  variable, a restoring divider; signed operands through their magnitudes, truncated toward zero as C; written with
+  + - * and comparisons only, as XST takes them. Checked against BigInt's division for every pair of 4- to 7-bit
+  operands and random 32- and 64-bit ones, and the generated VHDL and Verilog against the compiled C. Four more of
+  AMD's examples through co-simulation (23 of 73). The tests' HDL simulation helpers shared (test/c-helpers.js).
+- **Split editor with two tab groups (#1652):** web/js/split-view.js, replacing #1619's pair of documents. Each side
+  has its own tabs (in the tab bar over it) and its own document in front; a document opened goes to the side worked
+  in (the one of the document in front, or the empty side clicked). The Split button (the Tasks interface: before
+  Maximize, #1657; the modern one: the header's right end; the classic one: the toolbar's right end) and View ▸
+  Split Editor toggle the split; the right side starts empty, with the other open documents one click away. A tab
+  dragged to the other side's tabs or pane, or its menu's *Move to the Other Side*, moves it there; *Open to the Side*
+  is gone. A side whose last document closes, or *Close Split*, leaves one. The right side's documents are kept with
+  the project (#1619's kept pair is read too); a workspace under 720 px stacks the sides, each with its tabs over it;
+  the Tasks interface follows its task on each side. Tests: test/ui/split-view.test.js (both interfaces, Tasks,
+  Portuguese).
+- **The plan to separate the Silinx toolchain from the IDE (#1651):** docs/TOOLCHAIN-SEPARATION.md maps the
+  toolchain's modules, their tests and data, its coupling with the IDE in both directions and its licence, compares
+  a separate repository, an npm workspace and a git subtree, and plans `silinx-fpga` (Apache-2.0) as a workspace
+  package first, in ten steps that change no behaviour (#1672 to #1681), then in a repository of its own; and
+  the HDL front end as `silinx-hdl`, a package that stays in this repository (#1709 to #1711).
+- **Duplicate files removed (#1645):** six copies named "… 2.js" / "… 3.js" committed by mistake; test/repo-files.test.js
+  refuses a tracked file named like such a copy.
+- **ap_fixed in the C simulation (#1643):** core/c-fixed.js: `ap_fixed<W, I, Q, O>` / `ap_ufixed` values (their raw
+  bits), the types of the results as AMD's RType, the seven quantization and four overflow modes of a conversion,
+  conversions from doubles (exactly) and integers, to integers (toward zero) and doubles, comparisons as AMD's
+  ap_private compares mixed signs, shifts, `to_double()` / `to_int()`, C++'s `cout` of a value (its exact decimal
+  reduced to the stream's precision); compared with AMD's headers on a program and on random types, modes and
+  operators. C++'s `T(x)` of a typedef's name a cast. In a synthesized function: said, not synthesized yet.
+- **ap_fixed synthesized (#1643):** core/c-dataflow-fixed.js: a fixed value its raw bits; operations aligned to AMD's
+  result types, conversions with the quantization's rounding and the overflow's saturation as logic, comparisons as
+  AMD's (with a double constant: exactly), constants of doubles as an ap_fixed's value (registers and ROMs too),
+  `x.range(hi, lo) = v`, an ap_fixed's range an unsigned long long in an expression (AMD's); co-simulated on programs
+  and random functions, their C simulation AMD's.
+- **C++ (#1643):** integer template parameters deduced from an argument's type (`ap_ufixed<W, I> &x`), `double(x)` /
+  `float(x)`, `(T(x) << 2)`; `assert` (`assert.h`, `cassert`): checked by the C simulation, ignored by synthesis with a
+  warning; the test bench's `rand` / `srand`; a shift by a negative constant in a branch a constant condition never
+  runs no longer refused.
+- **Floating point in the C simulation (#1641):** core/c-float.js: float and double values, literals (`1.5e-3`, `2.0f`),
+  C's arithmetic and conversions (to an integer toward zero, to float rounded), `math.h`'s functions; `printf`'s `%f`
+  `%e` `%g` (flags, widths, precisions) exactly as C's library prints them (the double's exact value, ties to even);
+  C++'s `cout` of a double (`%g`, 6 digits) with the stream's state (`fixed`, `scientific`, `setprecision`, `hex`,
+  `left`, `setfill`) kept from one statement to the next, chars as characters, wide `ap_uint` whole; `ap_int`'s
+  `to_double()` / `to_float()`. In hardware still refused (`sqrt` named).
+- **A call inlined: the callee's locals named apart (#1637):** a local of the callee named as the variable the caller
+  passes by address (a struct returned, `S m = f(…)` with its own `m` inside) no longer hides it.
+- **A toolbar button or separator hidden is not shown (#1636):** `.tb-btn`'s `display: inline-flex` overrode the
+  `hidden` attribute, so the Undo / Redo of the read-only generated HDL were still drawn; `.tb-btn[hidden]` and
+  `.tb-sep[hidden]` are not displayed. Its UI test checks the buttons rendered, not only their attribute.
+- **Calls inlined (#1632):** core/c-inline.js: a sequential top function's calls of a function with a loop, or given
+  an array, inlined into its body before its state machine is made: its by-value parameters local variables, its
+  pointer, reference and array parameters the arguments (a memory passed to a function no longer refused), its
+  statics one register per function shared by every call, its early returns (in nested loops too) through a flag, a
+  call inside an expression made before it; a call in a loop's condition or after `&&`, `||`, `?:` and a return in
+  a `switch` said.
+- **Struct ports (#1628):** core/c-aggregate.js: a struct argument or result of the top function aggregated into one
+  port as Vitis HLS does (UG1399, the Vivado IP flow): its members in their order from the LSB, each its C size (bool
+  and char 8 bits, an `ap_int<W>` a power of 2 of bytes), the padding bits 0. Read, an input `s`; written, `s_i`,
+  `s_o` and `s_o_ap_vld` (a sequential module reads all its members at the start of a call, those not written given
+  back as they were); returned, `ap_return`. The members' ports are signals inside the module (`ap_s_…`); the
+  co-simulation packs the C's values the same way. A struct named as a reserved word is said (`in_r`). A stream or
+  an array of structs keeps a stream or a memory per member, its warning now #1668.
+- **AMD's Vitis HLS as the HLS corpus's oracle (#1624):** `scripts/hls-vitis.mjs` runs the corpus's designs through
+  Vitis HLS (C simulation, C synthesis for a small Artix-7 with the Vivado flow's interfaces, C/RTL co-simulation) in a
+  Docker image of its own on the ISE runner's machine (`scripts/vitis-hls-image/`: Vivado ML Standard, installed from
+  AMD's installer), and compares its C simulation, its RTL ports, its co-simulation, its latency and its loops' II with
+  Silinx HLS's; `--update` writes the numbers and port names (`test/hls-corpus/vitis.json`) and the corpus README's
+  table, no Vitis file.
+- **A read-write pointer named as a reserved word (#1622):** the module read `out_i` while its port was `out_r_i`;
+  the input now takes its argument's name as the other ports do, combinational and sequential.
+- **The power report shown again stays open, tested (#1621):** the UI test of a view opened again shows a text report
+  (the power report's document) twice and asserts it stays open, in front, with the new text.
+- **A document made again on opening closed itself on a second open (#1621):** a C module's HDL, its ASM chart, a
+  module's C model and the power report close the old document before opening the new one, without waiting for the
+  close; the new one found the old still there and the close then removed it. The close is awaited; a UI test clicks
+  every row kind's badges twice and double-clicks them (drawings, truth table schematic, VHDL, Verilog, C).
+- **Split editor (#1619):** web/js/split-view.js. A document's tab (its right-click menu) and the View menu: *Open to
+  the Side* (*Split Editor*), *Show Generated HDL Beside* (a schematic's, ASM chart's, state diagram's, truth table's or
+  Petri net's HDL file, a C source's HDL made in memory), *Close Split*. The document in front is the pane worked in; a
+  click in the other pane brings it to the front, a document opened takes the place of the one in front, closing either
+  leaves the other. The divider is dragged (a double-click: halves) and its place kept; the pair is kept with the
+  project's open documents (a reload comes back split; a C source's HDL now reopens too); a workspace under 720 px stacks
+  the panes. The Tasks interface splits a task's own documents (another task's document is shown alone). A C source's
+  HDL document follows the C as it is saved. Tests: test/ui/split-view.test.js (both interfaces, Tasks, Portuguese).
+- **The statics of the functions the top calls (#1618):** a register each, shared by every call of the function (as
+  C's), its initial value at the reset; the other locals of a function called from a sequential top are values inside
+  the state that runs it.
+- **Edit Stimuli: the view kept after an edit (#1616):** the stimuli run again after an edit restarted the simulation
+  (the view put at time 0) and the run then followed the simulated time to its end and moved the cursor there.
+  web/js/isim-stimuli.js puts back the view (time, zoom, Zoom to Full View, cursor) after the restart, and
+  web/js/isim-run.js's runTo takes `keepView`: the run does not follow the end nor move the cursor (Zoom to Full View
+  still shows the whole simulation). web/js/isim-view.js: the time's scrollbar, shortened by Zoom to Full View, put
+  itself at 0 and its scroll event was taken for the user's, which undid the full view; the view now records where
+  the scrollbar is after each update. For every edit: a bit, a bus value, a bit of an expanded bus, an expected
+  output, the timing (a longer simulation). Test: test/ui/stimuli.test.js (modern and classic interfaces).
+- **Silinx HLS, the name of the C / C++ to HDL flow (#1613):** high-level synthesis, as Vitis HLS; every message,
+  help text (English and Portuguese), comment and docs/c-to-hdl.md say it; the released changelog keeps the old name.
+- **The design corpus's CI run times recorded again (#1607):** the nightly's time baseline was of 2026-10-21 (38
+  designs), and it warned of syntheses 6 times slower that were not new: epfl-max 274 s, as on the nightly before
+  #1361, and it has no carry chain for #1361 to try; epfl-adder's second synthesis, kept, about 1.9 times its
+  synthesis. Recorded from the nightly of 2026-10-27 (67 designs), and epfl-max's local times.
+- **A pointer written under a condition, then read (#1604):** where the condition does not hold it reads the caller's
+  value, as C: the pointer is an input from the start (its ports `_i`, `_o`, `_o_ap_vld`, as Vitis HLS's ap_ovld), the
+  combinational flow run again so (core/c-dataflow.js, c-dataflow-expr.js); the generated HDL gave 0 there. Tests:
+  test/c-cosim.test.js (combinational and sequential, co-simulated in VHDL and Verilog).
+- **Loop labels (#1601):** a label before a statement is accepted (`sum_loop: for (…)`, as Vitis HLS names its loops;
+  goto still refused): synthesized and simulated as without it, a loop's name in the C Synthesis Report
+  (core/c-check.js, c-dataflow.js, c-fsmd.js, c-interp.js, c-asm.js, web/js/c-source.js). Tests: test/c-interp.test.js.
+- **Pointers (#1599):** core/c-pointer.js: `*(p + e)`, `*(e + p)`, `*(p - e)` are `p[e]`; a pointer argument of a
+  synthesized function indexed is an array, `ap_memory`, its depth the INTERFACE pragma's `depth=` (else 1024, a
+  warning); a local pointer set to arrays or variables of its own type (`a`, `&x`, `&a[i]`, `a + i`) and moved
+  (`p += n`, `p++`) is a register of its target (when it has several: their elements multiplexed, read only) and
+  one of its offset. A cast of a pointer to another type, a pointer passed on or compared, said. The co-simulation
+  compares the elements the C's array has (a pointer argument's memory may be deeper). A C name starting or ending
+  with '_' or with '__' a legal VHDL name in the module (`ap_r_u0_x`). Four more of AMD's examples through
+  co-simulation (28 of 73).
+- **The test bench's C library (#1598):** core/c-interp-lib.js: printf and its kin, FILE and stdio's files in memory
+  (the design's data files readable, those written kept and returned), fscanf's and fgets', system("diff [--brief]
+  [-w | -b | -B] a b") compared as diff does, exit, abs; the standard headers' macros (EOF, NULL, EXIT_SUCCESS, INT_MAX…)
+  (core/c-lex.js), FILE and size_t (core/c-parse.js), stdout / stderr and these functions in the test bench only
+  (core/c-check.js). The HLS corpus passes the examples' data files: three of AMD's examples now pass every stage.
+  Tests: test/c-interp.test.js (against cc's run with real files), test/c-check.test.js.
+- **Silinx C: a source of several files (#1597):** `#include "name.h"` reads the project's own headers in place (core/c-lex.js:
+  their macros the source's, include guards and `#pragma once` as C's); the top function can be named (`top`) where
+  no pragma names it; a unit including the top function's file and the test bench's is simulated and co-simulated
+  as one file (core/c-check.js, c-hdl.js, c-interp.js, c-cosim.js, c-asm.js). Tests: test/c-check.test.js,
+  test/c-cosim.test.js.
+- **The HLS corpus (#1597):** test/hls-corpus: AMD's Vitis HLS Introductory Examples (Apache-2.0) at a pinned commit
+  (manifest.json, written by scripts/hls-corpus-manifest.mjs from each example's hls_config.cfg; the files fetched into
+  .cache/ by scripts/fetch-design-corpus.mjs, never committed) through Silinx C's C simulation (the example's own test
+  bench), C synthesis (VHDL and Verilog) and co-simulation, compared with expected.json (`npm run test:hls`,
+  `--update`); the README's table gives each design's result and the first reason it stops (the C++ ones: #1590;
+  the C ones: their test benches' C library, #1598, and pointer variables, #1599). Tests: test/hls-corpus.test.js.
+- **The design corpus's epfl-adder: its carry-select netlist recorded (#1595):** #1361's carry-select segments make
+  the 128-bit adder 20 % faster after routing (12.98 -> 10.33 ns) for 20 % more slices (194 -> 232, 171 -> 464
+  LUTs), the trade #1361 accepted; its expectations were not recorded, and the nightly reported the size as a
+  regression.
+- **C++, a first part (#1590):** core/cpp-lex.js (C++ as tokens: a namespace's braces and using dropped, qualified names
+  their last part, constexpr, nullptr, static_cast / const_cast, static_assert, using aliases, the C++ headers C's,
+  file streams FILE *s), core/cpp-tree.js (reference parameters: their uses *x and their arguments &a; cout / cerr
+  printf; a file stream's <<, >>, open, close, eof fprintf, fscanf, fopen, fclose, feof); a .cpp file read as C++
+  (core/c-lex.js, c-parse.js), a source of the app (core/view-hdl.js, web/js/c-source.js, design.js, app.js,
+  processes.js). The HLS corpus runs the C++ examples: ten of AMD's examples now pass every stage, an exception a
+  design's failure. Tests: test/cpp.test.js (against the host's C++ compiler, co-simulated in VHDL and Verilog).
+- **true and false of stdbool.h (#1602)** are defined (they were not declared). Tests: test/cpp.test.js.
+- **A pointer written then read** in the same function crashed the C synthesis (#1603): its value is the one written.
+  Tests: test/cpp.test.js.
+- **A call of a function declared but not defined** crashed the C synthesis (#1605): said. Tests: test/hls-corpus run.
+- **C++ templates (#1590):** core/cpp-template.js: an instance per list of arguments, named by them (`f<1, 4>` is
+  `f_1_4`, a name legal in VHDL and none of the source's), defaults, explicit specializations, a type parameter
+  deduced from the call, member templates; classes of static members (their functions, constants and types named by
+  the class); a pragma's value a parameter's, `#pragma HLS if (cond)` kept when cond holds; what is not supported said
+  once (a parameter not given or not constant, a template declared but not defined, instances too deep).
+- **auto and the range for (#1590):** core/cpp-sugar.js: `auto x = e;` takes the type e is declared with (a call's
+  return type, a literal's int); `for (T x : a)` / `for (T &x : a)` over an array a loop on its index; over an array
+  argument refused, as C++.
+- **cout's manipulators and strings (#1590):** `setw`, `left` / `right`, `setfill('0')`, `hex` / `oct` / `dec`,
+  `setbase`; `fixed`, `setprecision` ignored; a string chosen by `?:`.
+- **Macros in pragmas (#1590):** expanded, as Vitis HLS does (`factor=N`, `if (OPT == 3)`), in C and C++.
+- docs/c-to-hdl.md: a C++ section.
+- **hls::stream (#1590):** core/c-parse.js (the type `hls::stream<T>`, a template's `>>`), core/c-check.js (its member
+  functions; a stream inside the module said), core/cpp-tree.js (a stream by reference is the stream; `s >> x`,
+  `s << v`), core/c-interp.js / c-interp-expr.js (a queue: read, write, empty, full, size, read_nb, write_nb; each
+  call's values in, read and written recorded; a read of an empty stream stops the run), core/c-fifo.js with
+  core/c-fsmd.js and c-mem.js (ap_fifo: a state per access that waits, the value read in a register; empty() and
+  full() the flags), core/c-cosim.js (FIFOs in the test bench, empty and full now and then); core/c-hdl.js: an
+  argument named as a reserved word (in) keeps its outputs on its renamed ports (in_r_…: a stream's, a memory's).
+  Tests: test/cpp-stream.test.js (against the C++ compiler with a stream of its own; co-simulated in VHDL and Verilog;
+  a wrong value reported; the errors).
+- **Methods and constructors (#1590):** core/cpp-method.js: a method a function of its struct taking it by
+  reference (its members, its calls of the other methods), defined in the class or outside it; constructors with
+  their initializer lists, called where the object is declared; a default constructor of constants its members'
+  initial values (a static object starts with them); `operator()`; destructors nothing. A class template with data
+  members a struct per instance. Virtual functions, other operators, static member functions of such a class,
+  methods declared but not defined, constructors of another number of arguments: said.
+- **New Source ▸ C++ Function (HLS) (#1590):** its template in web/js/c-templates.js (the C one's moved there too,
+  read by the unit tests), simulated and co-simulated in VHDL and Verilog with no warning; Portuguese "Função C++
+  (HLS)".
+- **Structs (#1590):** core/c-struct.js: a struct disaggregated as Vitis HLS does inside the code: a variable per
+  member (`p.x` is `p_x`), an array of structs an array per member, a member array of an array of structs one array
+  of both sizes; copies member by member; `{ … }` nested or not; members' defaults; passed by value, by reference or
+  by address, arrays of structs whole; returned through parameters added for it. The top function's struct
+  arguments and result: a port per member, with a warning (Vitis HLS aggregates them, #1628). Unions, pointers in a
+  struct, bit fields, pointer variables to structs: said.
+- **Enums (#1590):** their constants constants (from other enums' too), their type an int; `enum class`.
+- **C++ (#1590):** `int(x)` (a functional cast) is `(int)(x)`; `main(int, char **)` with unnamed parameters.
+- **ap_int division (#1588):** a division of ap_int / ap_uint values divides them as they are and wraps the quotient to
+  its W1 + S2 bits, as AMD's ap_int.h, in the C simulation and in the generated HDL (both operands were first made the
+  result's width, so a wider divisor wrapped: `ap_int<4>` -8 divided by `ap_uint<4>` 8 gave 1, not -1). The C
+  simulation's ap_int / ap_uint arithmetic is now tested against AMD's open ap_int.h compiled as C++: every operator,
+  widths from 1 to 32 bits, signed and unsigned, their edge values (test/ap-int-ref.js: the headers at a fixed commit,
+  checked by their git hashes, fetched into the temporary folder at test time; skipped with no C++ compiler or network).
+- **The Design pane with no project (#1585):** "No project open. Use File > New Project or File > Open Project." named
+  the File menu, gone from the modern interface. It says "No project open" with the two commands as links, in every
+  interface and in Portuguese (web/js/design.js).
+- **The ASM chart of a C module (#1575):** core/c-asm.js (the chart from core/c-fsmd.js's blocks: a state each, the
+  statements its register transfers, the ifs decision boxes, a return / break / continue its jump, a memory's accesses;
+  laid out by core/asm-layout.js), core/c-print.js (C written back from its tree), web/js/asm-editor.js and
+  asm-pointer.js (a read-only chart: moved about and zoomed, nothing edited), web/js/c-source.js and design.js (the
+  badge, the process, the document), core/view-hdl.js (whether a C module is sequential). Tests: test/c-asm.test.js,
+  test/ui/c-asm.test.js (both interfaces, Portuguese).
+- **A C module's processes (#1531):** web/js/c-source.js (`cProcesses`, `runCReport`: the report of core/c-hdl.js's
+  generation in the Console, its warnings first), web/js/processes.js (the group first, in the Implementation and the
+  Simulation views), web/js/i18n.js (Portuguese). Tests: test/ui/c-sim.test.js (both interfaces, Portuguese).
+- **HDL to C (#1530):** core/hdl-c.js, hdl-c-expr.js, hdl-c-stmt.js: an elaborated design (VHDL, Verilog, a drawing's
+  generated HDL) as C99: its processes as C functions in delta cycles, the clocked ones once a step, its HDL functions
+  as C functions, every value at the width and with the sign extension the simulator evaluates it with (two-state);
+  what cannot be modelled said with its line (a falling edge, two clocks, a wait, more than 64 bits). web/js/c-model.js
+  and processes.js: View C Model (both views), the model read-only. docs/c-to-hdl.md. Tests: test/hdl-c.test.js (the
+  examples' modules and designs of the operators: the model compiled with cc and the simulator on the same random
+  cycles, the same outputs), test/ui/c-model.test.js (both interfaces, Portuguese).
+- **The HLS pragmas (#1529):** core/c-pragma.js: which pragmas Silinx makes, where each applies, the warnings of those
+  accepted and ignored (and of the unknown or misplaced ones), the errors of wrong values; in a sequential module
+  (core/c-fsmd.js) `PIPELINE` puts a loop's condition, body and step in one state, `UNROLL` runs a constant loop in the
+  state it is in or N iterations a state, `ARRAY_PARTITION complete` keeps a large array in registers; what a pragma
+  cannot make there is said, with the II made. `cToHdl` gives a report (states, register bits, memories, each loop's
+  II and cycles). A `static` or global memory with no initial values starts at zeros, as C (it started undefined, #1592).
+  docs/c-to-hdl.md. Tests: test/c-pragma.test.js (the cycles co-simulated in VHDL and Verilog, the messages).
+- **C simulation and co-simulation (#1528):** core/c-interp.js and core/c-interp-expr.js (an interpreter of Silinx C:
+  C's and ap_int's arithmetic, pointers, arrays of arrays, statics, printf's conversions; each call of the top
+  function recorded; stopped with its line on a division by zero, an index outside an array, an endless loop),
+  core/c-cosim.js (the calls replayed on the VHDL or Verilog, combinational or through ap_ctrl_hs, compared call by
+  call and port by port; the latency), web/js/c-source.js and app.js (the editor's C Simulation and C/RTL
+  Co-simulation buttons); a value made a bool is 1 when it is not 0 in the generated HDL (it took the lowest bit).
+  Tests: test/c-interp.test.js (against cc's output), test/c-cosim.test.js, test/c-hdl.test.js, test/ui/c-sim.test.js.
+- **Arrays and memories (#1527):** core/c-mem.js with core/c-fsmd.js: an array argument makes the module sequential,
+  its accesses through one port (a read's value the cycle after its address); a local, `static` or global array of more
+  than 64 elements, and a constant one in a sequential module, is a memory inside the module (VHDL's array signal,
+  Verilog's reg array, its initial values its contents: Yosys and XST make it a block RAM); each access a state of its
+  own, the values read kept in registers; what is not supported yet said where it is (a write with another side
+  effect, a memory passed to a function or accessed in a `switch`, an initialized local memory that is written).
+  core/c-interp.js records each call's arrays before and after; core/c-cosim.js models the memory in the test bench.
+  docs/c-to-hdl.md. Tests: test/c-mem.test.js (against cc, co-simulated in VHDL and Verilog, a wrong write reported,
+  the RAMB16 of the open synthesis).
+- **A LUT input's delay by its pin (#1359):** ISE's delay into a LUT depends on the input the signal enters: inputs 3
+  and 4 are about 0.12 ns faster than input 1 (reportgen -delay on 31 748 connections of 9 designs of the corpus,
+  the same in each). The timing model (core/fpga/timing.js, `SPEED_4.lutPin`, `lutPinIndex`) adds each pin's delay at
+  the LUT's input, so the static timing is closer to trce's per connection (rms 0.119 → 0.093 ns, cross-validated by
+  design) and per design (114 routings: mean −0.37 % → +0.09 %, σ 3.21 → 3.00 %). The router, which already permutes a
+  LUT's inputs, now puts the critical loads on the fast ones: trce's period 0.96 % shorter in geometric mean on the 99 routings
+  of the corpus that changed (59 faster, 38 slower), every DRC clean and `.bit` byte-identical to ISE's bitgen. Tests: test/fpga-timing.test.js (Silinx's routing of
+  vtr-ch-intrinsics against ISE's delay of each LUT input, test/fixtures/fpga/trce; the stopwatch's critical loads
+  on pins 3 and 4).
+- **Spartan-6: the INT switch box's routing bits (#726):** research/s6/db/xc6slx16-int.json and -int-cover.json, measured
+  with ISE: a PIP on a net with an outpin is programmed whether or not it is on the net's path, so one design measures
+  a PIP in each of the thousand INT tiles (research/s6/gen-pipprobe6.mjs; all 3449 PIPs in 8 designs); the PIPs whose
+  source must be driven (a wire's continuations, a bidirectional PIP's other direction) on paths from a driver
+  (gen-pipcover6.mjs). Checked against the examples ISE implemented on both boards (check-pips6.mjs): 2534 of 2560
+  INT tiles identical, the rest the clock-break rows' PIPs still to measure. Tests: test/s6-pips.test.js.
+- **Spartan-6: the routing bits of every INT-like tile (#726):** the INT switch box in the clock-break rows, the block RAM,
+  I/O, DSP and edge columns, and their own PIPs (research/s6/db/xc6slx16-int-own.json), measured with ISE
+  (research/s6/gen-pipprobe6.mjs --others); their frames follow the CLB columns' rule. Every INT-like tile of the
+  examples ISE implemented on the Nexys3 and the Atlys is predicted bit for bit (3106 tiles, 24 407 PIPs:
+  research/s6/check-pips6.mjs). Tests: test/s6-pips.test.js.
+- **Spartan-6: where every LUT's bits are (#725):** research/s6/db/xc6slx16-lut.json and xc6slx45-lut.json, measured
+  with ISE on the Mac mini: designs in XDL with every slice's four LUTs set to 1, 0, A1 … A6 and to its number's bits
+  (research/s6/gen-lutmap6.mjs), turned into bitstreams by ISE's xdl and bitgen (ise-xdl-bits.sh) and read by
+  ana-lutmap6.mjs. Each LUT's 64 bits lie in 4 frames of its slice's column, laid out alike in every slice of a kind
+  (SLICEX, SLICEL, SLICEM), and a slice's base follows from its column and Y alone: the XC6SLX16 measured whole (9112
+  LUTs), the XC6SLX45 from a sample of 1204 slices and that rule. Tests: test/s6-lutmap.test.js.
+- **Spartan-6: the carry, F7 / F8 and the 5-input flip-flops' settings (#725):** research/s6/db/xc6slx16-slice-full.json,
+  measured with ISE with the carry chain, F7 / F8 and the 5-input LUTs and flip-flops in the base slice
+  (research/s6/gen-slice6.mjs --full): CY0, PRECYINIT, COUTUSED, the outputs' O5, the 5-input flip-flops' SRINIT. With
+  the earlier rounds every slice setting ISE writes is measured. Tests: test/s6-slice.test.js.
+- **Spartan-6: the LUT and slice databases checked against ISE's examples (#725):** research/s6/check-slice6.mjs
+  predicts every slice of the seven examples ISE implemented on the Nexys3 and the Atlys from research/s6/db and
+  compares them with ISE's bitstreams, tile by tile: 642 of 650 tiles identical, no unexplained bit in the slices'
+  frames once the carry in from the slice below (bit 51) and ISE's route-throughs are modelled; the 8 left are a
+  SLICEX's settings in a CLEXM tile, still to measure. Tests: test/s6-check-slice.test.js.
+- **Spartan-6: the slice settings of the pins (#725):** research/s6/db/xc6slx16-slice-nets.json, measured with ISE
+  with a net on every pin of the measured slices (research/s6/gen-slice6.mjs --nets): CLKINV, CEUSED, SRUSED, every
+  output mux, the flip-flops' sources from AX … DX, a SLICEM's DI muxes, WEMUX, WA7USED and WA8USED. The carry, F7 / F8
+  and the 5-input flip-flops come next. Tests: test/s6-slice.test.js.
+- **Spartan-6: the slice settings without nets (#725):** research/s6/db/xc6slx16-slice.json, measured with ISE: one
+  design per slice kind with a base slice and one slice per variant (every option of every element of the primitive
+  definitions, research/s6/measured/prim-defs.json, read from the XDLRC by prim-defs6.mjs), compared bit by bit
+  (gen-slice6.mjs, ana-slice6.mjs). The flip-flops' modes, SRINIT and SYNC, their sources, and a SLICEM's RAM and SRL
+  modes are measured; the settings of the pins (CLKINV, the outputs used, the carry, F7 / F8) need nets and come
+  next. The LUT map's bits of a used SLICEL or SLICEM are its neighbouring SLICEX's. Tests: test/s6-slice.test.js.
+- **Spartan-6: the LUT and slice bit database complete (#725):** a SLICEX's flip-flops' SRINIT bits measured by tile
+  type (research/s6/gen-slice6.mjs --tiles; db/xc6slx16-slice-full-clexl13.json and -clexm.json): they are in minor 20
+  of the column, 6 or 7 frames before the slice. With them every slice of the seven examples ISE implemented on the
+  Nexys3 and the Atlys is predicted bit for bit by research/s6/check-slice6.mjs (650 tiles), and no bit of the
+  slices' frames is left unexplained. Tests: test/s6-slice.test.js, test/s6-check-slice.test.js.
+- **Spartan-6: the bitstream format, reader and writer (#724):** core/fpga/s6/bitstream.js reads and writes the
+  XC6SLX16's and XC6SLX45's `.bit` files (UG380's 16-bit packets) with the packet sequence of ISE's bitgen, measured
+  on the Mac mini's ISE (research/s6/ise-format.sh: the empty designs with the CRC on and off, StartUpClk Cclk /
+  JtagClk, and with `-g Compress`, whose multi-frame writes gave the frame order and short CRC sequences). The CRC is
+  22 bits, one step per word written (`c = c << 1 ^ (bit 21 ? 0x9081 : 0)`, then `^ register << 16 | word`), checked
+  after the frame data (bitgen's auto CRC, which does not reset it) and at the end; FDRI holds each row's columns
+  (frames of 65 words, 744 per row on the XC6SLX16, 1136 on the XC6SLX45, the last 2 of pad), the block RAM's frames,
+  the I/O words (FLR's count) and one word; a design with a block RAM has one frame of its column written again after
+  them. The empty designs and the seven examples implemented by ISE on the Nexys3 and the Atlys (42 files) are
+  written again byte-identical (research/s6/check-writer6.mjs); the tests check the writer against the SHA-256 of
+  bitgen's empty designs (research/s6/measured/format.json) without ISE. Tests: test/s6-bitstream.test.js.
+- **Device measurements, the I/O arc probe of the joins left (#3):** `candidates.mjs io obs.json out.json tests.json`
+  asks only for the PIPs a round's untestable joins need (into their I/O-tile ends, and into those PIPs' from-wires),
+  as the XC3S250E's round 7 did by hand. The XC3S100E's rounds 1-4 (49 122 join tests, all agreeing with the shipped
+  graph) leave 1484 joins for it: 6514 candidates of the 126 097. Tests: test/s3e-device.test.js (`leftCandidates`).
+- **Device measurements, the XC3S100E's edges and clock network (#3):** the edge tiles' join tests (2410) and the clock
+  joins tested by removal on ISE's clock nets (rounds A, B, spine and rows: 4720 tests, 2305 clock wires settled), every
+  verdict agreeing with the shipped graph; recorded in research/s3e-device/README.md.
+- **Device measurements, the XC3S100E's I/O rounds (#3):** the I/O arc probe (6514 PIPs, every answer as the shipped
+  graph has it) and the join tests' rounds 5-8 (1519 tests, the last from unbonded IOB sites), every verdict agreeing
+  with the shipped graph; rounds 1-8, 50 641 tests. 29 joins stay untestable (hexes from I/O tiles with no pad,
+  three terminations), recorded in research/s3e-device/README.md.
+- **Device measurements, the recipe for the other dies, part 1 (#3):** research/s3e-device/measure.mjs: `designs` writes
+  every observation design of a part into one folder for ISE (38 on the XC3S100E), `observe` observes the ones ISE
+  implemented and names the others. gen-obshdl.mjs's pads design is sized to the part (`padDefaults`): 81 pads on the
+  XC3S100E-CP132, which bonds 83 (the XC3S250E's 90 did not fit), 230 / 248 on the XC3S500E / XC3S1200E-FG320, the
+  XC3S250E's 90 unchanged. Tests: test/s3e-device.test.js (the defaults of the four parts, their designs read with no
+  error or warning; the 38 designs, a second run refused, the designs ISE did not implement).
+- **Device measurements, the recipe for the other dies, part 3 (#3):** `measure.mjs random` writes the random designs ISE
+  routes (gen-observe.mjs, as the XC3S250E's), `observe` reads their routes too, `measure.mjs round k` writes the join
+  tests' round k (predicted joins, across the joins the earlier rounds confirmed), and `measure.mjs verdicts k` reads
+  ISE's verdicts and says whether another round is needed. The XC3S100E's tile probe found the shipped graph's 332
+  switch-box tiles exactly. Tests: test/s3e-device.test.js (the XC3S100E's random designs on its 240 CLBs, the rounds'
+  folders, the stop on a round with no join).
+- **Device measurements, the observation designs sized to the XC3S100E (#3):** the wide-multiplexer design makes at
+  most a quarter of the part's SLICEMs' multiplexers (`muxCount`: 120 on the XC3S100E, which has 480 SLICEMs; 300
+  elsewhere), and the DCM designs' clock pad is the pad above the top edge's first DCM (`dcmClockPad`: B9 on the
+  XC3S100E, whose DCMs are right of the centre, where ISE refused B8 with Place:1012; B8 on the other parts). All 38
+  XC3S100E observation designs now pass ISE; the XC3S250E's are unchanged. Tests: test/s3e-device.test.js (both
+  defaults on the four parts, the XC3S100E's B9 in its DCM's column and B8 left of it).
+- **Device measurements, the recipe for the other dies, part 2 (#3):** `measure.mjs tiles` runs the tile probe
+  (candidates.mjs tiles, probe-run.mjs on ISE) and writes the switch-box tiles, seen in ISE's routes or found by the
+  probe, and the CLBs among them (switch-tiles.txt, clb-tiles.txt), the lists the later stages read. Tests:
+  test/s3e-device.test.js (`tileLists` rebuilds the XC3S250E's committed list from overlapping halves, in its order).
+- **Device measurements, one data folder per die (#3):** research/s3e-device/build-measured.mjs rebuilds the measured
+  description of any Spartan-3E die Silinx supports from `data/<die>/` (`--part`, the die's layout; `PARTS`, `dieOf`,
+  `measuredDies`), the first step of the plan for the XC3S100E, XC3S500E and XC3S1200E; chip.mjs names the description
+  as its device's part. The XC3S250E's rebuild is unchanged. Tests: test/s3e-device.test.js (every measured die rebuilt
+  byte for byte; a part of no supported die and a die with no measurements refused, the file missing named).
+- **Device measurements, the XC3S100E measured (#3):** `data/xc3s100e/` holds the measurements of the XC3S100E-CP132
+  (Basys2-100) and the description built from them alone; `test/s3e-device.test.js` rebuilds it byte for byte. Against
+  the shipped graph: no merged node, no split node a short can come from, every valid test's verdict and every probe's
+  answer agreeing; the 7 examples routed by the open flow on it pass ISE (DRC 0 / 0, `.bit` byte-identical with CRC on
+  and off). The shipped graph is unchanged.
+- **Device measurements, the PIPs of each tile asked (#3):** `candidates.mjs rest measured.json.gz out.json obs.json
+  probe.json,…` writes the arc probe's candidates of section 10, which the XC3S250E's were made by hand: every PIP of a
+  measured description's non-CLB tiles that neither ISE's routes nor a probe showed in that tile, and an I/O tile's site
+  outputs in its own names (`IOIS_X0`). For the XC3S100E, 169 493 candidates. Tests: test/s3e-device.test.js
+  (`restCandidates`).
+- **Device measurements, the XC3S100E's spine, block-RAM pins and long lines (#3):** `varyjoins.mjs spine` writes the
+  clock spine's ambiguous joins with their spine candidates, tested from a BUFGMUX in rounds; it leaves out a row's
+  `GCLKH_GCLK_UP` / `_DN` wire, whose test from a BUFGMUX reaches the other end over a row join not yet known (9
+  such tests gave a wrong join). `varyjoins.mjs pins` writes a block RAM's pin wires' ambiguous joins (the XC3S100E's
+  4 block RAMs, clocked alike in every design). The long lines' switch boxes include the XC3S100E's `DCMAUX_TL_CENTER`
+  / `DCMAUX_BL_CENTER` tiles (`DCM_SWITCH`): its 38 long-line nodes a short could come from. Tests:
+  test/s3e-device.test.js (`spineVariants`, `pinVariants`, `DCM_SWITCH`).
+
 ## 15.18.4
 
 15.18.0 to 15.18.3 were not published (their tests failed at the release): their changes, in the next
