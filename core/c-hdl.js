@@ -12,6 +12,7 @@ import { fsmd } from './c-fsmd.js';
 import { vhdlSeq, verilogSeq } from './c-hdl-seq.js';
 import { aggregate, aggregable } from './c-aggregate.js';
 import { cProcesses } from './c-processes.js';
+import { foldTables } from './c-const-init.js';
 
 export const bits = (k, w) => {
   const m = (1n << BigInt(w)) - 1n;
@@ -26,6 +27,8 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
   const checked = checkC(source, file, { headers, top, depths });
   const diagnostics = [...checked.diagnostics];
   if (!checked.ok || !checked.top) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
+  // (a table filled from constants: computed at synthesis, a ROM, #1779)
+  foldTables(checked);
   // #pragma HLS DATAFLOW: the top's calls processes of their own (#1707); a region not of calls, sequential (said)
   if (checked.dataflow) {
     const r = cProcesses(source, checked, { file, lang, headers, cToHdl });

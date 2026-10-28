@@ -41,7 +41,7 @@ Not part of `npm test` (it needs the network once).
 | interface-aggregation-disaggregation-disaggregation-of-axis-port | C++ | pass | pass | pass | 53 |  |
 | interface-aggregation-disaggregation-struct-ii-issue | C++ | pass | pass | pass | 2715 |  |
 | interface-memory-burst-rw | C++ | pass | pass | pass | 20531 |  |
-| interface-memory-coefficient-filter | C | fail | fail | skip | - | C simulation: 44: cos: floating point is not supported in Silinx HLS yet (the test bench only) |
+| interface-memory-coefficient-filter | C | pass | pass | pass | 1283 |  |
 | interface-memory-ecc-flags | C++ | pass | pass | pass | 118 |  |
 | interface-memory-lmem-2rw | C++ | pass | pass | pass | 67627 |  |
 | interface-memory-manual-burst-manual-burst-example-auto-burst-inference-failure | C++ | pass | pass | pass | 22573 |  |
@@ -49,7 +49,7 @@ Not part of `npm test` (it needs the network once).
 | interface-memory-manual-burst-manual-burst-with-conditionals | C++ | fail | fail | skip | - | C simulation: example.h:18: the header 'hls_burst_maxi.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | interface-memory-max-widen-port-width | C++ | pass | pass | pass | 259 |  |
 | interface-memory-ram-uram | C++ | pass | pass | pass | 4-5 |  |
-| interface-memory-rom-lookup-table-math | C++ | fail | fail | skip | - | C simulation: 24: sin: floating point is not supported in Silinx HLS yet (the test bench only) |
+| interface-memory-rom-lookup-table-math | C++ | pass | pass | pass | - |  |
 | interface-memory-using-axi-master | C++ | fail | fail | skip | - | C simulation: 37: memcpy is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS) |
 | interface-register-using-axi-lite-with-user-defined-offset | C++ | pass | pass | pass | - |  |
 | interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'packet' |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 42 through co-simulation.
+73 designs: 44 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

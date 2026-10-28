@@ -129,11 +129,15 @@
     "reason": null
   },
   "interface-memory-coefficient-filter": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 44: cos: floating point is not supported in Silinx HLS yet (the test bench only)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 1283,
+      "max": 1283,
+      "avg": 1283
+    },
+    "reason": null
   },
   "interface-memory-ecc-flags": {
     "csim": "pass",
@@ -205,11 +209,11 @@
     "reason": null
   },
   "interface-memory-rom-lookup-table-math": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
     "latency": null,
-    "reason": "C simulation: 24: sin: floating point is not supported in Silinx HLS yet (the test bench only)"
+    "reason": null
   },
   "interface-memory-using-axi-master": {
     "csim": "fail",

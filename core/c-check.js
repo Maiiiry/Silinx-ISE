@@ -316,9 +316,9 @@ function checkFunction(f, ctx) {
       for (const a of e.args) expr(a, { printf: true });
       return;
     }
-    // (math.h's: the test bench's, core/c-float.js; floating point is not in hardware yet)
+    // (math.h's: the test bench's, core/c-float.js; in hardware of constants only, a table computed at synthesis, said
+    // by core/c-dataflow-float.js, #1779)
     if (MATH[name] && !lookup(name)) {
-      if (hw) report(e.loc, `${name}: floating point is not supported in Silinx HLS yet (the test bench only)`);
       for (const a of e.args) expr(a, { printf: true });
       return;
     }

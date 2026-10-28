@@ -33,6 +33,22 @@ export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entr
   return { ...r, top: checked.top, diagnostics: checked.diagnostics, files: Object.fromEntries(m.fs) };
 }
 
+/** A function run at synthesis (#1779, core/c-const-init.js): fn called with new arrays of the declarations decls, their
+ *  values after it (BigInt, or numbers for floats), or null when it cannot run. */
+export function runAtSynthesis(checked, fn, decls, maxSteps = 5_000_000) {
+  const m = new Machine(checked, maxSteps);
+  m.files = {};
+  try {
+    for (const it of checked.ast.items) if (it.kind === 'var') m.globals.set(it.name, m.cell(it));
+    const args = decls.map((d) => { const c = m.cell({ ...d, init: null, static: false }); return { arr: c.arr, t: c.t }; });
+    m.invoke(fn, args);
+    return args.map((a) => a.arr.map((c) => c.v));
+  } catch (e) {
+    if (e instanceof Halt || e instanceof Exit) return null;
+    throw e;
+  }
+}
+
 class Machine {
   constructor(checked, maxSteps) {
     this.c = checked;

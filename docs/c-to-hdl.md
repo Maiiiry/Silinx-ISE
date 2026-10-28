@@ -42,7 +42,11 @@ arrays and results are their IEEE-754 bits (32- and 64-bit ports, as Vitis HLS's
 comparisons, `?:`, `-x`, `!x`, the conversions to and from the integers and between float and double) is a circuit of
 the soft-float library (core/c-softfloat.js: round to nearest even, subnormals, infinities, a quiet NaN), inlined where it
 is: the hardware gives the C simulation's bits. C's usual conversions: a double operand, a double constant (`0.5`)
-too, makes an operation a double's; write `0.5f` to keep it a float's. A division and `math.h` are not made yet (#1761).
+too, makes an operation a double's; write `0.5f` to keep it a float's. **A table computed at synthesis** (#1779): a call
+of a function that only writes its arrays from constants (no argument read, no global but a constant, no call but
+`math.h`'s), as `for (i…) t[i] = sin(…)`, is run by the C simulation at synthesis, its values the arrays' (a ROM), as
+Vitis HLS computes one; `math.h` and a division of constants are folded the same way. A division and `math.h` of other
+values are not made yet (#1761).
 
 `ap_fixed<W, I, Q, O>` / `ap_ufixed` (`#include "ap_fixed.h"`, #1643) run in the C
 simulation as AMD's `ap_fixed.h` computes them: full-precision results, the quantization modes (`AP_TRN`,
