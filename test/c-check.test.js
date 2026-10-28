@@ -215,7 +215,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ["'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)", 'c-pointer-variable'],
     ["the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet", 'c-pointer-variable'],
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
-    ['sin: floating point is not supported in Silinx HLS yet (math.h in hardware only of constants, a table computed at synthesis, #1761)', 'c-float'],
+    ['sin: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)', 'c-float'],
     ["the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)", 'c-loop-bound'],
     ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
@@ -253,5 +253,5 @@ test('the flow is named Silinx HLS: its messages, help, interface and docs (#161
   }
   assert.deepEqual(old, []);
   // (math.h of a value that is not a constant: said by the synthesis, test/c-const-init.test.js, #1779)
-  assert.match(hintFor({ message: 'sin: floating point is not supported in Silinx HLS yet (math.h in hardware only of constants, a table computed at synthesis, #1761)' }).pt.explain, /O Silinx HLS faz float e double em hardware/);
+  assert.match(hintFor({ message: 'sin: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)' }).pt.explain, /O Silinx HLS faz float e double em hardware/);
 });

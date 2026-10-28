@@ -112,9 +112,29 @@ int main(void) {
   }
 });
 
-test('#1773 floating point: what is not made yet, said (a division); a double constant with a float a double operation', () => {
+test('#1783 division and sqrt in hardware: float and double, of values (and fabs), co-simulated in VHDL and Verilog on the edge values', () => {
+  const src = `#include <math.h>
+double f(double a, double b, float c, float *q) {
+  *q = sqrtf(fabsf(c)) / (c - 1.0f);
+  return a / b + sqrt(a) - fabs(b);
+}
+int main(void) {
+  double v[6] = {0.0, -0.0, 2.0, -3.5, 1e-310, 1.0 / 0.0};
+  float w[3] = {0.0f, 2.25f, -7.5e-3f};
+  float q;
+  double s = 0;
+  for (int i = 0; i < 6; i++) for (int j = 0; j < 6; j++) s += f(v[i], v[j], w[(i + j) % 3], &q) + q;
+  return s == 0;
+}
+`;
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'd.c', lang });
+    assert.deepEqual([r.errors, r.pass, r.calls, r.gen.diagnostics], [[], true, 36, []], JSON.stringify(r.mismatches.slice(0, 3), big));
+  }
+});
+
+test('#1783 math.h in hardware: sqrt and fabs of any value, the others of constants only (said)', () => {
   const errs = (src) => cToHdl(src, { file: 'e.c' }).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`);
-  assert.deepEqual(errs('float f(float x, float y) { return x / y; }\n'), ['1 a float division is not made in hardware yet (#1761)']);
-  assert.deepEqual(errs('double f(double x, int k) { return x / k; }\n'), ['1 a double division is not made in hardware yet (#1761)']);
-  assert.deepEqual(errs('float f(float x) { float y = 0.1; return x < 0.5 ? y : x * 0.1; }\ndouble g(double d) { return d; }\n'), []);
+  assert.deepEqual(errs('#include <math.h>\ndouble f(double x) { return exp(x); }\n'), ['2 exp: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)']);
+  assert.deepEqual(errs('#include <math.h>\nfloat f(float x, int k) { return sqrtf(x) / k + exp(1.0); }\n'), []);
 });

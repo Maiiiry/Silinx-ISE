@@ -34,6 +34,8 @@ export function f32Bits(x) { if (Number.isNaN(x)) return 0x7fc00000n; f32[0] = x
 /** A number's binary64 bits (a NaN the quiet NaN). */
 export function f64Bits(x) { if (Number.isNaN(x)) return 0x7ff8000000000000n; f64[0] = x; return u64[0]; }
 const TYPE = { 32: F32, 64: F64 };
+// (math.h's made in hardware of any value, #1783: its precision and the library's operation)
+const HW_MATH = { sqrt: [64, 'sqrt'], sqrtf: [32, 'sqrt'], fabs: [64, 'abs'], fabsf: [32, 'abs'] };
 
 export const floatMethods = {
   /** The library's function `name` called on the values args, where the operation is: its result of type rt. */
@@ -99,9 +101,17 @@ export const floatMethods = {
   /** math.h's function of constant arguments: its value, as the C simulation's (#1779); of others, not made yet. */
   flMath(name, e, g) {
     const m = MATH[name];
-    const xs = e.args.map((a) => this.expr(a, g)).map((x) => this.flNumber(x));
+    const vals = e.args.map((a) => this.expr(a, g));
+    const xs = vals.map((x) => this.flNumber(x));
     if (xs.length !== m.n) this.error(e.loc, `${name}() takes ${m.n} argument(s)`);
-    if (xs.some((x) => x === null)) this.error(e.loc, `${name}: floating point is not supported in Silinx HLS yet (math.h in hardware only of constants, a table computed at synthesis, #1761)`);
+    // (sqrt, fabs of values that are not constants: the library's, #1783)
+    if (xs.some((x) => x === null) && HW_MATH[name]) {
+      const [fl, op] = HW_MATH[name];
+      const a = this.flConv(vals[0], TYPE[fl], g);
+      if (op === 'abs') return this.v(this.g.add('and', [a.id, this.g.const((1n << BigInt(fl - 1)) - 1n, TYPE[fl])], TYPE[fl]), TYPE[fl]);
+      return this.softfloat(`ap_f${fl}_${op}`, [a], TYPE[fl], g, e.loc);
+    }
+    if (xs.some((x) => x === null)) this.error(e.loc, `${name}: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)`);
     const r = m.f(...xs);
     if (m.int) return this.v(this.g.const(BigInt(r), { w: 64, s: true }), { w: 64, s: true });
     return name.endsWith('f') ? this.v(this.g.const(f32Bits(Math.fround(r)), F32), F32) : this.v(this.g.const(f64Bits(r), F64), F64);
@@ -114,8 +124,8 @@ export const floatMethods = {
       const q = this.flNumber(a) / this.flNumber(b);
       return fl === 32 ? this.v(this.g.const(f32Bits(Math.fround(q)), F32), F32) : this.v(this.g.const(f64Bits(q), F64), F64);
     }
-    const fn = { '+': 'add', '-': 'sub', '*': 'mul' }[op];
-    if (!fn) this.error(e.loc, op === '/' ? `a ${fl === 32 ? 'float' : 'double'} division is not made in hardware yet (#1761)` : `'${op}' of a floating-point value is not C`);
+    const fn = { '+': 'add', '-': 'sub', '*': 'mul', '/': 'div' }[op];
+    if (!fn) this.error(e.loc, `'${op}' of a floating-point value is not C`);
     return this.softfloat(`ap_f${fl}_${fn}`, [a, b], TYPE[fl], g, e.loc);
   },
   flCompare(op, l, r, g, loc) {
