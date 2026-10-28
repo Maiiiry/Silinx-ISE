@@ -174,7 +174,8 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
    Spartan-6 part, the graphs and the bit database included) and the toolchain's modules of `core/` move there
    as they are, in a few PRs; every old path re-exports, the server serves the package to the browser, the
    standalone build and the release zip take it. Done in agreement with the sessions working in `core/fpga/`
-   (a move conflicts with every open change there).
+   (a move conflicts with every open change there). Started: `packages/silinx-fpga/`, empty, with its
+   `package.json` and LICENSE.
 7. **The public API** ([#1678](https://github.com/pmnmalo/Silinx-ISE/issues/1678)): the package's entry
    (`exports`): netlist and UCF in, `.bit`, XDL and the reports out, the devices and bit databases, the flow
    with its `io`; the IDE's importers switch to it, the re-exporting shims go, and the boundary test then says

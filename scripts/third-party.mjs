@@ -16,12 +16,18 @@ const STANDALONE = new Set(['elkjs', ...importMapPackages()]);
 // where to get the source of copyleft components (EPL-2.0 asks for it)
 const SOURCE = { elkjs: 'https://github.com/kieler/elkjs' };
 
+// this repository's own packages (its npm workspaces, packages/*: silinx-fpga, #1677): not third-party, their
+// dependencies are
+const WORKSPACES = new Set(fs.readdirSync(path.join(root, 'packages'), { withFileTypes: true }).filter(e => e.isDirectory())
+  .map(e => { try { return JSON.parse(fs.readFileSync(path.join(root, 'packages', e.name, 'package.json'), 'utf8')).name; } catch { return null; } }).filter(Boolean));
+
 function productionDeps() {
   const tree = JSON.parse(execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], shell: process.platform === 'win32' }));
   const seen = new Map();
   const walk = (deps, dir) => {
     for (const [name, info] of Object.entries(deps || {})) {
       const key = `${name}@${info.version}`;
+      if (WORKSPACES.has(name)) { walk(info.dependencies, root); continue; }
       if (!seen.has(key)) {
         // the package folder: npm puts most at the top level, conflicting versions nested
         const cands = [path.join(dir, 'node_modules', name), path.join(root, 'node_modules', name)];
