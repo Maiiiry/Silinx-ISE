@@ -59,3 +59,17 @@ test('#1786 a row of an array of two dimensions alone: said', () => {
   assert.deepEqual(errs('static int sum(int r[4]) { return r[0] + r[3]; }\nint f(int a[2][4], int i) {\n  return sum(a[i]);\n}\n'),
     ["3 'a': an array of 2 dimensions indexed by 1 (a row of it alone is not supported yet)"]);
 });
+
+test('#1820 the test bench\'s main() passing a row of an array of two dimensions to the top: synthesized and co-simulated', () => {
+  const src = '#define N 8\nvoid sort(int a[N]) {\n  for (int i = 0; i < N; i++)\n    for (int j = 0; j < N - 1 - i; j++)\n      if (a[j] > a[j + 1]) { int t = a[j]; a[j] = a[j + 1]; a[j + 1] = t; }\n}\n'
+    + 'int main(void) {\n  int t[3][N] = {{5, -2, 9, 0, 7, 7, -8, 1}, {8, 7, 6, 5, 4, 3, 2, 1}, {1, 2, 3, 4, 5, 6, 7, 8}};\n  for (int k = 0; k < 3; k++) sort(t[k]);\n  return 0;\n}\n';
+  const r = cToHdl(src, { file: 's.c' });
+  assert.equal(r.ok, true, JSON.stringify(r.diagnostics));
+  const W = ['4 warning the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)'];
+  const said = (ds) => ds.map((d) => `${d.line} ${d.severity} ${d.message}`);
+  assert.deepEqual(said(r.diagnostics), W);
+  for (const lang of ['vhdl', 'verilog']) {
+    const c = cosimulate(src, { file: 's.c', lang });
+    assert.deepEqual([c.errors, c.pass, c.calls, said(c.gen.diagnostics)], [[], true, 3, W], JSON.stringify(c.mismatches, big));
+  }
+});
