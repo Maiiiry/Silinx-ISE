@@ -1116,3 +1116,40 @@ As the XC3S250E's (section 8), ISE 14.7 on the Mac mini, every verdict scored ag
 **2305 clock wires settled**, each with exactly one join; 76 of those tested stay (the spine's own wires and rows whose
 baselines are not clean, as the XC3S250E's 239). The rows' second round had no candidate left. Next: `chip.mjs` and the
 comparison with the shipped graph (no ISE).
+
+### The recipe for the other dies, part 5: the XC3S100E's measured description (2026-10-28)
+
+The XC3S250E's sections 9-14 on the XC3S100E, ISE 14.7 on the Mac mini; every valid verdict scored against the shipped
+graph (local scoring only), and every one agreeing. The measurements and the description are in `data/xc3s100e/`.
+
+- **The arc probe of every PIP of the non-CLB tiles** neither ISE's routes nor a probe showed there, and of the I/O tiles'
+  site outputs in their own names (`candidates.mjs rest`): 169 493 candidates, 75 rounds, 31 min; 163 204 exist, 6289
+  not, every answer as the shipped graph has it. The extra PIPs go from 6299 to 38.
+- **The join rounds over the whole chip** (`predict` `SEG=pairs` with `WIRES=`, `edgejoins.mjs`, `varyjoins.mjs` long,
+  edge, taps, rows, joins, clock; `PROBED` every non-CLB PIP of the measured description): u1-u8, about 42 000 tests.
+  u1's designs were written from the description before the probe, so ISE refused most of them (an I/O PIP in the
+  CLB's names, `OMUX_E13 -> F4_B1`): asked again in u2.
+- **The long lines** through the XC3S100E's `DCMAUX_TL_CENTER` / `DCMAUX_BL_CENTER` tiles (`DCM_SWITCH`): 46 joins, the
+  38 split nodes a short could come from.
+- **The clock spine** (`varyjoins.mjs spine`, `BUFGSRC=1`): the horizontal spine (`CLKC_GCLKk ~ GCLKVML_GCLKCOREk`) in
+  round sp2, then the vertical spine and the rows. Nine tests of a row's `GCLKH_GCLK_UP` / `_DN` with a row line gave a
+  join the shipped graph does not have: the test's path reached the other end over a join of the row not yet known,
+  so the tests were invalid (marked `invalid` in the verdicts), and the spine rounds leave those wires to the removal
+  tests.
+- **The block RAMs' clocks:** the `GCLKk -> BRAM_CLKj` PIPs ISE's routes did not show (368, an arc probe: all exist),
+  and the pins' own joins (`varyjoins.mjs pins`: the 4 block RAMs are clocked alike in every design): 12 joins.
+- **XB / YB:** Silinx's routes of the 7 examples on the shipped graph, ISE's DRC clean (`others.json.gz`, pins only).
+
+| | First build | Now |
+|---|---|---|
+| Nodes split / merged | 9178 / 0 | 2804 / 0 |
+| ... with two pieces a net can reach (a short) | 280 | **0** |
+| ... with a route lost | 6412 | 318 |
+| PIPs extra / missing | 6299 / 32 964 | 38 / 25 506 |
+| Pins missing | 10 984 | 10 024 |
+
+**ISE's verdict on the 7 examples** (gates, traffic, blinky, pong, stopwatch, clock, vga) routed by the open flow on the
+measured graph: every one clean, DRC 0 errors and 0 warnings, xdl2ncd no warning, Silinx's `.bit` byte-identical to
+ISE's bitgen with CRC on and off. ISE's `trce` periods against the same examples on the shipped graph: traffic 8.167 ->
+7.755 ns, blinky 6.503 -> 6.632, pong 11.600 -> 11.688, stopwatch 12.654 -> 12.923, clock 6.410 -> 6.439, vga 9.099
+-> 9.096. The shipped graph stays; the XC3S100E's `test/fixtures/open-flow` designs are not run on it yet.
