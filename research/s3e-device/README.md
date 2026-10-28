@@ -1094,3 +1094,25 @@ whose start no source reaches (`BIOIS_X14Y0/N6BEG5`, `RIOIS_X17Y6/W6BEG0`, `TIOI
 the terminations (`BTERM2`, `LTERM`, `TTERM`), as the XC3S250E's 11; a deeper search (`MAXJOINS=6 MAXDEPTH=8`) adds
 none. Rounds 1-8: **50 641 tests, no disagreement with the shipped graph**. Next: the clock and edge tests, then
 `chip.mjs` and the comparison.
+
+### The recipe for the other dies, part 4: the XC3S100E's edges and clock network (2026-10-28)
+
+As the XC3S250E's (section 8), ISE 14.7 on the Mac mini, every verdict scored against the shipped graph:
+
+- **The edge tiles** (`edgejoins.mjs obs.json edge.json t1 … t8`, then `prototype.mjs tests` with the round 8 sources):
+  3295 hypotheses (1277 by the rules of the edge tiles' known joins, 2018 ambiguous candidates), 2410 tests in 75 designs
+  (393 s): 853 joins, 1557 islands, **all** agreeing; 885 with no test source within the limits.
+- **The clock network:** the 12 sparser clock designs (`gen-obsclk.mjs clkb 12 100 0.25`, 438 s, every one implemented)
+  with the 42 before: 54 designs, 27 150 joins (12 757 by the intersection), 0 unexplained. Then `clocktests.mjs`:
+
+| Tests | Designs (ISE time) | Verdicts | Against the shipped graph |
+|---|---|---|---|
+| (A) `MAXROW=2`, 3243 | 440 (1589 s) | 1562 joins, 1386 islands, 295 controls clean | **all agree** |
+| (B) `PICK=c2`, 377 | 69 (258 s) | 342 joins, 35 controls clean | **all agree** |
+| spine, first round (574) | 85 (211 s) | 222 joins, 123 islands; baselines 183 clean, 23 not | **all agree** |
+| rows, first round (526) | 129 (284 s) | 179 joins, 299 islands, 48 controls clean | **all agree** |
+| spine, second round (46) | 10 (24 s) | baselines 23 not clean: nothing settled | — |
+
+**2305 clock wires settled**, each with exactly one join; 76 of those tested stay (the spine's own wires and rows whose
+baselines are not clean, as the XC3S250E's 239). The rows' second round had no candidate left. Next: `chip.mjs` and the
+comparison with the shipped graph (no ISE).
