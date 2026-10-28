@@ -153,12 +153,14 @@ export function normalizeDoc(d, { modules } = {}) {
   return doc;
 }
 
-// ISE style bus names: "data(7:0)" / "data[7:0]" -> { base: 'data', width: 8, msb: 7, lsb: 0 }
+// ISE style bus names: "data(7:0)" / "data[7:0]" / "data<7:0>" -> { base: 'data', width: 8, msb: 7, lsb: 0 }; a bit of a
+// bus, "data(3)" (#1688): { base: 'data', width: 1, msb: 3, lsb: 3, bit: true }
 export function parseNetName(s) {
   // (an escaped identifier, \opcode[0], #1697: a name, its brackets not a range)
   if (/^\s*\\[!-~]+\s*$/.test(String(s ?? ''))) return { base: String(s).trim(), width: null };
-  const m = /^\s*([A-Za-z_][\w$]*)\s*(?:[([]\s*(\d+)\s*(?::|downto|to)\s*(\d+)\s*[)\]])?\s*$/i.exec(String(s ?? ''));
+  const m = /^\s*([A-Za-z_][\w$]*)\s*(?:[([<]\s*(\d+)\s*(?:(?::|downto|to)\s*(\d+)\s*)?[)\]>])?\s*$/i.exec(String(s ?? ''));
   if (!m) return { base: String(s ?? '').trim(), width: null, bad: true };
+  if (m[2] != null && m[3] == null) return { base: m[1], width: 1, msb: +m[2], lsb: +m[2], bit: true };
   return { base: m[1], width: m[2] != null ? Math.abs(+m[2] - +m[3]) + 1 : null, ...(m[2] != null ? { msb: +m[2], lsb: +m[3] } : {}) };
 }
 
@@ -317,9 +319,25 @@ export function netlist(docIn, { modules = {} } = {}) {
     if (pn.bad) diags.push({ severity: 'error', message: `invalid net name '${l.net}'`, ref: { kind: 'label', id: l.id }, x: l.x, y: l.y });
     labelOf.set(id, { label: l, ...pn });
   }
+  // a name of some bits of a bus, a(0) or a(3:2) of the bus a (#1688, as ISE names a bus tap's wire): a net of its own,
+  // those bits of the bus, joined by name with the same bits; the bus's range: its I/O marker's, else its widest name of
+  // several bits, else (named by its bits only) all of them
+  const whole = new Map();   // base -> { msb, lsb } of the bus
+  for (const p of doc.ports) if (!whole.has(nk(p.name))) whole.set(nk(p.name), { msb: Math.max(1, int(p.width, 1)) - 1, lsb: 0, port: true });
+  for (const L of labelOf.values()) {
+    const k = nk(L.base), w = whole.get(k);
+    if (L.msb == null || L.msb < L.lsb || w?.port) continue;
+    if (!w || (L.width > 1 && L.width > w.msb - w.lsb + 1)) whole.set(k, { msb: L.msb, lsb: L.lsb, wide: L.width > 1 });
+    else if (L.width === 1 && !w.wide) whole.set(k, { msb: Math.max(w.msb, L.msb), lsb: Math.min(w.lsb, L.lsb) });
+  }
+  for (const L of labelOf.values()) {
+    const w = whole.get(nk(L.base));
+    if (L.msb != null && w && !(L.msb === w.msb && L.lsb === w.lsb)) L.part = { base: L.base, msb: L.msb, lsb: L.lsb };
+  }
+  const partKey = L => `${nk(L.base)}(${L.part.msb}:${L.part.lsb})`;
   // same names join (labels and I/O markers)
   const byName = new Map();
-  for (const [id, L] of labelOf) { const k = nk(L.base); if (byName.has(k)) dsu.union(byName.get(k), id); else byName.set(k, id); }
+  for (const [id, L] of labelOf) { const k = L.part ? partKey(L) : nk(L.base); if (byName.has(k)) dsu.union(byName.get(k), id); else byName.set(k, id); }
   for (const p of doc.ports) { const k = nk(p.name); if (byName.has(k)) dsu.union(byName.get(k), `o:${p.id}`); else byName.set(k, `o:${p.id}`); }
 
   // groups
@@ -357,6 +375,13 @@ export function netlist(docIn, { modules = {} } = {}) {
       net.name = ports.find(p => p.dir === 'in')?.name || ports[0].name;
       const bad = lnames.filter(n => nk(n) !== nk(net.name) && !ports.some(p => nk(p.name) === nk(n)));
       if (bad.length) diags.push({ severity: 'warning', message: `net of I/O marker '${net.name}' also named ${bad.map(b => `'${b}'`).join(', ')} (marker name used)`, ref: { kind: 'label', id: labels[0].label.id }, x: labels[0].label.x, y: labels[0].label.y });
+    } else if (labels.some(L => L.part)) {
+      // (bits of a bus, #1688: their name as written, a(0); a bus's own name on it too, or other bits: several names)
+      const keys = new Set(labels.map(L => (L.part ? partKey(L) : nk(L.base))));
+      const P = labels.find(L => L.part).part;
+      net.part = { ...P };
+      net.name = `${P.base}(${P.msb === P.lsb ? P.msb : `${P.msb}:${P.lsb}`})`;
+      if (keys.size > 1) diags.push({ severity: 'error', message: `net has several names: ${[...new Set(labels.map(L => L.label.net))].join(', ')}`, ref: { kind: 'label', id: labels[0].label.id }, x: labels[0].label.x, y: labels[0].label.y });
     } else if (lnames.length) {
       net.name = lnames.slice().sort()[0];
       if (new Set(lnames.map(nk)).size > 1) diags.push({ severity: 'error', message: `net has several names: ${lnames.join(', ')}`, ref: { kind: 'label', id: labels[0].label.id }, x: labels[0].label.x, y: labels[0].label.y });
@@ -400,7 +425,7 @@ export function netlist(docIn, { modules = {} } = {}) {
     if (!drv.length && sinks.length && !inouts.length && !isolated)
       diags.push({ severity: 'warning', message: `net '${net.name}' has no driver (read by ${sinks.map(e => epName(e, symById, doc)).join(', ')})`, ref: refOf(sinks[0], symById), x: sinks[0].x, y: sinks[0].y, net: net.name });
     if (!eps.length) diags.push({ severity: 'warning', message: `dangling wire${wires.length > 1 ? 's' : ''}${labels.length ? ` (net '${net.name}')` : ''} not connected to any pin`, ref: { kind: 'wire', id: wires[0] || '' }, x: pt?.x, y: pt?.y, net: net.name });
-    else if (eps.length === 1 && (wires.length || labels.length) && !(labels.length && byNameCount(labels, labelOf, nk) > 0)) {
+    else if (eps.length === 1 && (wires.length || labels.length) && !net.part && !(labels.length && byNameCount(labels, labelOf, nk) > 0)) {
       const e = eps[0];
       // (not a signal of the HDL kept in the schematic, declared there: that HDL uses it, e.g. a
       // testbench's task reading an instance's output, #225)
@@ -432,6 +457,29 @@ export function netlist(docIn, { modules = {} } = {}) {
     const top = bus.range?.msb ?? bus.width - 1, bottom = bus.range?.lsb ?? 0;
     if (Math.max(ms, ls) <= top && Math.min(ms, ls) >= bottom) continue;
     diags.push({ severity: 'error', message: `bus tap ${s.name} takes bit${ms === ls ? ` ${ms}` : `s ${ms}..${ls}`}, outside its bus '${bus.name}' (${top > bottom ? `${top} downto ${bottom}` : `one bit, ${bottom}`})`, ref: { kind: 'symbol', id: s.id, pin: 'I' }, x: s.x, y: s.y, net: bus.name });
+  }
+  // the bits of a bus named by their bus (#1688): their bus's net (null: a bus of no net of its own, made of them), its
+  // bits in its range; a part driven drives its bus and the reverse ("no driver" said of neither)
+  const busOf = new Map();   // base -> the bus's net
+  for (const n of nets) if (!n.part && !n.auto) { const k = nk(n.name); if (whole.has(k) && !busOf.has(k)) busOf.set(k, n); }
+  const parts = nets.filter(n => n.part);
+  for (const n of parts) {
+    const k = nk(n.part.base), b = busOf.get(k) || null, w = whole.get(k);
+    n.part.bus = b;
+    const top = b ? (b.range?.msb ?? b.width - 1) : w.msb, bottom = b ? (b.range?.lsb ?? 0) : w.lsb;
+    if (n.part.msb > top || n.part.lsb < bottom) {
+      const L = doc.labels.find(l => n.labels.includes(l.id));
+      diags.push({ severity: 'error', message: `net name '${n.name}' is outside its bus '${b ? b.name : n.part.base}' (${top} downto ${bottom})`, ref: { kind: 'label', id: L?.id }, x: L?.x, y: L?.y, net: n.name });
+    }
+  }
+  const driven = n => n.drivers.length > 0;
+  const quiet = new Set([...parts.filter(n => !driven(n) && n.part.bus && driven(n.part.bus)).map(n => n.name),
+    ...[...busOf.values()].filter(b => !driven(b) && parts.some(n => n.part.bus === b && driven(n))).map(b => b.name)]);
+  // (a bus with bits named: connected to them by name)
+  const withBits = new Set(parts.map(n => n.part.bus?.name).filter(Boolean));
+  for (let i = diags.length - 1; i >= 0; i--) {
+    const d = diags[i];
+    if ((/^net '.*' has no driver/.test(d.message) && quiet.has(d.net)) || (/^net '.*' connects only/.test(d.message) && withBits.has(d.net))) diags.splice(i, 1);
   }
   // unconnected pins
   for (const s of doc.symbols) {

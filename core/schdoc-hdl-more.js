@@ -113,6 +113,13 @@ export function mountSymbolCasesMore(ctx) {
         const outIsVec = ci ? clsOf(o) !== 'sl' : true;
         // (a tap of bit 0 of a net of one bit, a scalar: the net itself, no index, #859)
         const n1 = inNet(s, 'I');
+        // (its wire named with the bits it takes, a(0) of a, as ISE names it, #1688: those bits themselves, nothing to
+        // write; other bits of the same bus: an error)
+        const on = nl.pinNet.get(`${s.id}/O`);
+        if (on?.part && n1 && on.part.bus === n1) {
+          if (on.part.msb !== msb || on.part.lsb !== lsb) diags.push({ severity: 'error', message: `bus tap ${s.name} takes ${msb === lsb ? `bit ${msb}` : `bits ${msb}..${lsb}`} of '${n1.name}' but its wire is named ${on.name}`, ref: { kind: 'symbol', id: s.id } });
+          break;
+        }
         if (msb === 0 && lsb === 0 && n1?.width === 1 && (!ci || clsOf(i) === 'sl')) {
           if (ci) body.push(`${outIsVec ? `${o}(0)` : o} <= ${i};`); else assign(o, i);
           break;

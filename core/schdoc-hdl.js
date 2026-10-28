@@ -115,7 +115,12 @@ export function generateHdl(docIn, opts = {}) {
     if (net && !portOf.has(net)) portOf.set(net, p);
   }
   // net names & types
-  const netName = net => (net ? hdlName(portOf.get(net)?.name ?? net.name, lang) : null);
+  // (a net of some bits of a bus, a(0), #1688: those bits of the bus's signal, read and driven as such)
+  const partExpr = net => {
+    const { bus, base, msb, lsb } = net.part, b = bus ? netName(bus) : base;
+    return ci ? (msb === lsb ? `${b}(${msb})` : `${b}(${msb} downto ${lsb})`) : (msb === lsb ? `${b}[${msb}]` : `${b}[${msb}:${lsb}]`);
+  };
+  const netName = net => (net ? (portOf.has(net) ? hdlName(portOf.get(net).name, lang) : net.part ? partExpr(net) : hdlName(net.name, lang)) : null);
   // netlist() gives every pin a net: a net made of that pin alone (maybe with a dangling wire,
   // but no other pin, I/O marker or label) is an unconnected pin
   const isolated = n => n.endpoints.length === 1 && !n.labels.length && !n.ports.length && !portOf.has(n);
@@ -124,6 +129,7 @@ export function generateHdl(docIn, opts = {}) {
   const P = (sym, pin) => { const n = inNet(sym, pin); return n ? netName(n) : null; };
   const PW = (sym, pin) => nl.pinNet.get(`${sym.id}/${pin}`)?.width ?? defs.get(sym.id).pins.find(p => p.name === pin)?.width ?? 1;
   for (const net of nl.nets) {
+    if (net.part) continue;
     if (!portOf.has(net) && !net.auto && !validIdent(net.name, lang) && !escapedName(net.name)) diags.push({ severity: 'error', message: `net name '${net.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
     else if (!portOf.has(net) && !net.auto && rsvd(net.name)) diags.push({ severity: 'warning', message: `${rsvd(net.name)}: rename it`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
   }
@@ -164,6 +170,9 @@ export function generateHdl(docIn, opts = {}) {
     }
     if (s.type === 'hdlblock') for (const q of def.pins) if (q.dir === 'out' && q.reg) { const n = nl.pinNet.get(`${s.id}/${q.name}`); if (n) regNets.add(n); }
   }
+  // (Verilog: a bit of a bus written by a register, #1688: the bus a reg)
+  const regBases = new Set();
+  for (const n of [...regNets]) if (n.part) { if (n.part.bus) regNets.add(n.part.bus); else regBases.add(nk(n.part.base)); }
 
   const body = [], extra = [];
   const used = new Set([...nl.nets.map(n => nk(netName(n))), ...declared.keys(), ...doc.ports.map(p => nk(p.name)), nk(name)]);
@@ -232,8 +241,18 @@ export function generateHdl(docIn, opts = {}) {
   // the sheet description (doc.description, e.g. from the Schematic Wizard) as comment lines
   const descC = c => String(doc.description || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => `${c} ${l}`);
   const sigDecls = [];
+  // a bus of no net of its own, made of its bits' nets (a(0), a(1) and no a, #1688): declared from their range
+  const madeOf = new Map();
+  for (const n of nl.nets) if (n.part && !n.part.bus) {
+    const k = nk(n.part.base), r = madeOf.get(k);
+    madeOf.set(k, { name: n.part.base, msb: Math.max(r?.msb ?? n.part.msb, n.part.msb), lsb: Math.min(r?.lsb ?? n.part.lsb, n.part.lsb) });
+  }
+  for (const [k, r] of madeOf) {
+    if (ci) sigDecls.push(`  signal ${r.name} : std_logic_vector(${r.msb} downto ${r.lsb});`);
+    else sigDecls.push(`  ${regBases.has(k) ? 'reg ' : 'wire'} [${r.msb}:${r.lsb}] ${r.name};`);
+  }
   for (const net of nl.nets) {
-    if (portOf.has(net)) continue;
+    if (portOf.has(net) || net.part) continue;
     const nm = hdlName(net.name, lang);
     if (declared.has(nk(net.name))) continue;
     if (!net.endpoints.length) continue;

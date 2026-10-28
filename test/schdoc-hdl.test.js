@@ -147,3 +147,72 @@ test('#1689 a bus named d(7:4): declared (7 downto 4) / [7:4], its taps by their
   assert.deepEqual(back.warnings, []);
   assert.deepEqual(run(back.doc, 'vhdl').log, ['1 01 0110'], 'imported back');
 });
+
+// #1688: a net name of some bits of a bus, a(0) / a(3:2) / a<1> of the bus a, as ISE names a bus tap's wire: those bits
+// of the bus, joined by name (a tap whose wire is so named: nothing to write); a bus made only of its bits' nets (b(0),
+// b(1), no b) declared from them; other bits than its tap takes, or bits outside the bus: an error
+test('#1688 net names of bus bits: a(0) is bit 0 of a, a bus made of its bits b(1:0), taps named by their bits; the errors', async () => {
+  const { normalizeDoc, symbolPins, netlist, parseNetName } = await import('../core/schdoc.js');
+  const { simulate } = await import('../core/compile.js');
+  assert.deepEqual(parseNetName('a(3)'), { base: 'a', width: 1, msb: 3, lsb: 3, bit: true });
+  assert.deepEqual([parseNetName('a[2]').msb, parseNetName('a<1>').msb, parseNetName('a<3:2>').width], [2, 1, 2]);
+  const mk = (build) => {
+    const d = { version: 5, name: 'bits', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, symbols: [], wires: [], labels: [], ports: [] };
+    const V = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+    let n = 0;
+    const sym = (type, params, conn) => {
+      const s = { id: `S${++n}`, type, x: 300, y: 100 + 100 * n, rot: 0, mirror: false, name: `U${n}`, params };
+      d.symbols.push(s);
+      for (const p of symbolPins(normalizeDoc({ ...d, symbols: [s] }).symbols[0])) {
+        if (!conn[p.name]) continue;
+        const e = { x: p.x + 20 * V[p.side][0], y: p.y + 20 * V[p.side][1] };
+        d.wires.push({ id: `W${++n}`, points: [{ x: p.x, y: p.y }, e] });
+        d.labels.push({ id: `L${++n}`, x: e.x, y: e.y, net: conn[p.name] });
+      }
+    };
+    const port = (nm, dir, w, i) => {
+      d.ports.push({ id: `P${i}`, name: nm, dir, width: w, x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i });
+      d.wires.push({ id: `WP${i}`, points: [{ x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i }, { x: dir === 'in' ? 120 : 1480, y: 100 + 60 * i }] });
+    };
+    build(sym, port);
+    return normalizeDoc(d);
+  };
+  // a(3:0) in; y = a(0) through a tap named so; z = not a(3:2) (a 2-bit name, no tap); b(1) = a(1), b(0) = not a(2); w = b
+  const doc = mk((sym, port) => {
+    port('a', 'in', 4, 0); port('y', 'out', 1, 1); port('z', 'out', 2, 2); port('w', 'out', 2, 3);
+    sym('slice', { msb: 0, lsb: 0 }, { I: 'a', O: 'a(0)' });
+    sym('buf', { width: 1 }, { I: 'a(0)', O: 'y' });
+    sym('inv', { width: 2 }, { I: 'a(3:2)', O: 'z' });
+    sym('buf', { width: 1 }, { I: 'a<1>', O: 'b(1)' });
+    sym('inv', { width: 1 }, { I: 'a(2)', O: 'b(0)' });
+    sym('buf', { width: 2 }, { I: 'b', O: 'w' });
+  });
+  assert.deepEqual(netlist(doc).diagnostics, []);
+  const TB = {
+    vhdl: 'library ieee; use ieee.std_logic_1164.all;\nentity tb is end;\narchitecture s of tb is signal a : std_logic_vector(3 downto 0); signal z, w : std_logic_vector(1 downto 0); signal y : std_logic; begin\n u : entity work.bits port map (a => a, y => y, z => z, w => w);\n process begin a <= "1011"; wait for 1 ns; report std_logic\'image(y) & " " & to_string(z) & " " & to_string(w); wait; end process;\nend;',
+    verilog: 'module tb; reg [3:0] a; wire y; wire [1:0] z, w; bits u(.a(a), .y(y), .z(z), .w(w)); initial begin a = 4\'b1011; #1 $display("%b %b %b", y, z, w); end endmodule',
+  };
+  for (const lang of ['vhdl', 'verilog']) {
+    const g = generateHdl({ ...doc, lang }, { lang });
+    assert.deepEqual(g.diagnostics, [], lang);
+    assert.match(g.code, lang === 'vhdl' ? /signal b : std_logic_vector\(1 downto 0\);/ : /wire \[1:0\] b;/);
+    assert.doesNotMatch(g.code, /a\(0\) <= a\(0\)|assign a\[0\] = a\[0\]/, 'the tap named by its bit writes nothing');
+    const src = [{ path: `bits.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: g.code }, { path: `tb.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: TB[lang] }];
+    const r = simulate(src, 'tb', { until: 1e7 });
+    assert.deepEqual([r.errors.map((e) => e.message), r.sim.log.map((l) => l.text.replace(/'/g, ''))], [[], ['1 01 11']], `${lang}: y = a(0), z = not a(3:2), w = a(1) & not a(2)`);
+  }
+  // exported as an ISE schematic (the bits named a(0), b(1)…, as ISE names them) and imported again: the same behaviour
+  const { exportIseSch, importIseSch } = await import('../core/isesch.js');
+  const ex = exportIseSch(doc, { lang: 'vhdl' });
+  assert.match(ex.xml, /<signal name="b\(1\)"/);
+  const back = importIseSch(ex.xml, { name: 'bits', lang: 'vhdl', symbols: Object.fromEntries((ex.files || []).filter((f) => /\.sym$/.test(f.path)).map((f) => [f.path, f.text])) });
+  const gb = generateHdl(back.doc, { lang: 'vhdl' });
+  const rb = simulate([{ path: 'bits.vhd', text: gb.code }, { path: 'tb.vhd', text: TB.vhdl }], 'tb', { until: 1e7 });
+  assert.deepEqual([back.warnings, rb.errors.map((e) => e.message), rb.sim.log.map((l) => l.text.replace(/'/g, ''))], [[], [], ['1 01 11']], 'imported back');
+  // a tap of bit 1 whose wire is named a(0); a name outside its bus: errors
+  const bad = mk((sym, port) => { port('a', 'in', 4, 0); port('y', 'out', 1, 1); sym('slice', { msb: 1, lsb: 1 }, { I: 'a', O: 'a(0)' }); sym('buf', { width: 1 }, { I: 'a(5)', O: 'y' }); });
+  assert.deepEqual(generateHdl(bad).diagnostics.map((x) => `${x.severity}: ${x.message}`), [
+    "error: net name 'a(5)' is outside its bus 'a' (3 downto 0)",
+    "error: bus tap U1 takes bit 1 of 'a' but its wire is named a(0)",
+  ]);
+});
