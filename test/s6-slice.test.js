@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { primitiveDefs } from '../research/s6/prim-defs6.mjs';
-import { baseSettings, sliceVariants, sliceXdl, oneSlicePerTile, sliceDesign, harnessNets, designName } from '../research/s6/gen-slice6.mjs';
+import { baseSettings, sliceVariants, sliceXdl, oneSlicePerTile, sliceDesign, harnessNets, designName, tileFilter } from '../research/s6/gen-slice6.mjs';
 import { columnOf, sliceBits, sliceSettings } from '../research/s6/ana-slice6.mjs';
 import { S6_DEVICES, emptyFdri, FRAME_WORDS } from '../core/fpga/s6/bitstream.js';
 
@@ -116,6 +116,17 @@ test('gen-slice6 --full: the base with the 5-input LUTs and flip-flops, a SLICEL
   assert.match(xdl, /net "in_CLK" ,/);
 });
 
+test('gen-slice6 --tiles: the measured slices in the tiles of a type, from a column on', () => {
+  const s = (x, t) => ({ name: `SLICE_X${x}Y0`, kind: 'X', tile: `${t}_X${x}Y0` });
+  const all = [s(1, 'CLEXL'), s(3, 'CLEXM'), s(13, 'CLEXL'), s(15, 'CLEXM')];
+  assert.deepEqual(all.filter(tileFilter('CLEXM')).map(x => x.name), ['SLICE_X3Y0', 'SLICE_X15Y0']);
+  assert.deepEqual(all.filter(tileFilter('CLEXL:13')).map(x => x.name), ['SLICE_X13Y0']);
+  assert.equal(all.filter(tileFilter(null)).length, 4);
+  const many = Array.from({ length: 80 }, (_, y) => [s(1, 'CLEXL'), s(3, 'CLEXM')].map(x => ({ ...x, name: x.name.replace('Y0', `Y${y}`), tile: x.tile.replace('Y0', `Y${y}`) }))).flat();
+  const { manifest } = sliceDesign('p', many, 'X', { AFFMUX: { bel: false, cfg: ['O6', 'AX'] } }, { tiles: 'CLEXM' });
+  assert.ok(Object.keys(manifest).every(n => /^SLICE_X3Y/.test(n)));
+});
+
 const dev = S6_DEVICES.xc6slx16;
 test('ana-slice6: a frame\'s column; a slice\'s bits in its column and band; the variants against the base', () => {
   assert.deepEqual(columnOf(dev, 0), [0, 4]);
@@ -192,4 +203,18 @@ test('the XC6SLX16\'s slice settings with the carry, F7 / F8 and the 5-input fli
     for (const n of ['CARRY4=#OFF', 'CYINITGND=#OFF', 'CYINITVCC', 'F7AMUX=#OFF', 'F8MUX=#OFF']) assert.deepEqual(v(n), { set: [], clear: [] }, `${k} ${n}`);
   }
   assert.deepEqual(db.kinds.X.variants['A5FFSRINIT=SRINIT1'], { set: [[-6, 46]], clear: [] });
+});
+
+test('the XC6SLX16\'s SLICEX settings by tile type: the flip-flops\' SRINIT bits in minor 20 of the column', () => {
+  const read = n => JSON.parse(fs.readFileSync(new URL(`../research/s6/db/xc6slx16-${n}.json`, import.meta.url), 'utf8'));
+  const m = read('slice-full-clexm').kinds.X.variants, l = read('slice-full-clexl13').kinds.X.variants;
+  // a SLICEX's base is minor 26 of a CLEXL column, 27 of a CLEXM: the same bits one frame apart from it
+  for (const [n, b] of [['A5FFSRINIT=SRINIT1', 46], ['B5FFSRINIT=SRINIT1', 42], ['CFFSRINIT=SRINIT1', 22], ['C5FFSRINIT=SRINIT1', 23], ['D5FFSRINIT=SRINIT1', 17]]) {
+    assert.deepEqual(l[n], { set: [[-6, b]], clear: [] }, `CLEXL ${n}`);
+    assert.deepEqual(m[n], { set: [[-7, b]], clear: [] }, `CLEXM ${n}`);
+  }
+  // everything else the same in both and in the first rounds' column; a SLICEL the same in another column
+  const full = read('slice-full');
+  for (const [n, v] of Object.entries(l)) if (!/SRINIT=SRINIT1$/.test(n)) assert.deepEqual(m[n], v, n);
+  assert.deepEqual(read('slice-full-clexl13').kinds.L, full.kinds.L);
 });

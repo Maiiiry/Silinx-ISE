@@ -5,7 +5,7 @@
 // measured none; COUTUSED none: off, it cleared the CY0 bits of a chain the harness did not use; the carry from the
 // slice below, CARRY4 without PRECYINIT, which the harness had no net for: bit 51 of the CY0s' frame, CIN_BIT). A slice's kind is
 // its site's (ISE places a SLICEX on a SLICEL's site), and the two slices of a tile are checked together (a SLICEX's
-// settings in frames before its LUTs are its neighbour's frames).
+// settings in frames before its LUTs are its neighbour's frames; its model by its tile's type).
 //   node research/s6/check-slice6.mjs <dir> …        (each with top.xdl and top.bit, e.g. night 1's impl-nexys3/*)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,7 +28,11 @@ export const CIN_BIT = { L: '4,51', M: '5,51' };
  */
 export function loadDb(device) {
   const read = (d, n) => JSON.parse(fs.readFileSync(new URL(`./db/${d}-${n}.json`, import.meta.url), 'utf8'));
-  return { lut: read(device, 'lut'), rounds: { full: read('xc6slx16', 'slice-full'), nets: read('xc6slx16', 'slice-nets'), slice: read('xc6slx16', 'slice') } };
+  return {
+    lut: read(device, 'lut'), rounds: { full: read('xc6slx16', 'slice-full'), nets: read('xc6slx16', 'slice-nets'), slice: read('xc6slx16', 'slice') },
+    // a SLICEX's settings in the frames before its tile's (minor 20 of the column) by its tile's type
+    sliceX: { CLEXL: read('xc6slx16', 'slice-full-clexl13'), CLEXM: read('xc6slx16', 'slice-full-clexm') },
+  };
 }
 
 /** A LUT's 64 entries from its O6 and O5 equations (entries with A6 = 0 from O5 when there is one). */
@@ -48,7 +52,9 @@ export function lutEntries(o6, o5) {
  * round's base, its LUTs' bits left out), baseCfg: Map element -> value, delta(element, value) -> { set, clear } |
  * null (not measured) }.
  */
-export function kindModel(db, kind) {
+export function kindModel(db, kind, tileType = 'CLEXL') {
+  // a SLICEX: the --full round measured in tiles of its type (its base is minor 26 of a CLEXL column, 27 of a CLEXM)
+  if (kind === 'X' && db.sliceX) db = { ...db, rounds: { ...db.rounds, full: db.sliceX[tileType] } };
   const lut = db.lut.kinds[kind], lutPos = new Set(Object.values(lut).flat().map(key)), positions = new Set();
   for (const r of ROUNDS) {
     const k = db.rounds[r].kinds[kind];
@@ -133,7 +139,8 @@ export function checkDesign(xdlText, bitBytes, db) {
   const tiles = new Map();
   for (const inst of design.insts) {
     if (!KIND[inst.type] || !inst.placed) continue;
-    const kind = kindOf.get(inst.site), model = models[kind] ??= kindModel(db, kind), [f0, b0] = db.lut.slices[inst.site];
+    const kind = kindOf.get(inst.site), type = inst.tile.replace(/_.*/, ''), [f0, b0] = db.lut.slices[inst.site];
+    const model = models[`${kind} ${type}`] ??= kindModel(db, kind, type);
     const p = predictSlice(model, inst.cfg), t = tiles.get(inst.tile) ?? { sites: [], known: new Map(), bits: new Set(), ram: false };
     tiles.set(inst.tile, t);
     out.slices++;

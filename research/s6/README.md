@@ -308,21 +308,25 @@ databases know: the LUTs from their equations, the settings as the `--full` roun
 differs changed. A slice's kind is its site's (ISE places a SLICEX on a SLICEL's site). The XC6SLX45 uses the
 XC6SLX16's settings (the same tiles).
 
-- **972 slices, 650 tiles: 642 tiles identical**, the LUTs, the flip-flops, the carry and the outputs of every
-  example on both boards.
+- **972 slices, 650 tiles: all 650 identical** at every position the databases know, the LUTs, the flip-flops, the
+  carry, the shift registers and the outputs of every example on both boards (the XC6SLX45 with the XC6SLX16's
+  settings: the tile types' bits shared).
 - Learnt from the examples: ISE writes its route-throughs in a slice's cfg (`_ROUTETHROUGH:A:AMUX`: the output mux on
   O6, `_ROUTETHROUGH:A3:A`: the LUT as `O6 = A3`, often on an otherwise empty `XDL_DUMMY` slice); COUTUSED has no
   bit (off, it cleared the CY0 bits of a chain the harness did not use); the carry in from the slice below (CARRY4
   without PRECYINIT, no net on CIN in the harness) is bit 51 of the CY0s' frame; a shift register's settings (SRL16,
   its contents all zeros in the examples) as measured.
+- **A SLICEX by its tile's type** (`gen-slice6.mjs --full --tiles CLEXM`, `--tiles CLEXL:13`, 2026-10-28, three
+  designs, 6 minutes): its flip-flops' SRINIT bits (CFFSRINIT, the four 5-input flip-flops') are in minor 20 of the
+  column, before its tile's frames: 6 frames before its base in a CLEXL tile (its base minor 26), 7 in a CLEXM
+  (minor 27); the first rounds had mixed both (`db/xc6slx16-slice-full-clexl13.json`, `-clexm.json`, which the check
+  uses for a SLICEX by its tile). Everything else is the same in both tile types and in another column (a SLICEL's
+  too).
 - **The residual** (the bits ISE sets in the used tiles' columns and bands that no position explains): none in the
-  slices' frames (minors 21 to 29 / 30 of a CLB column) once the carry in is known; minors 0 to 20 are the routing's
-  (#726).
-- **Left**: the 8 tiles that differ are a SLICEX's settings in its frames 6 and 7 before its LUTs, measured in CLEXL
-  tiles only: in a CLEXM tile they fall elsewhere (CFFSRINIT's and A5FFSRINIT's bit is the SLICEM's LUT there), and
-  bit 17 of frame -7 follows the neighbouring SLICEL's F7B / COUTMUX = F7, not D5FFSRINIT. A round with SLICEXs in
-  CLEXM tiles and that SLICEL measures them. A LUT RAM's or ROM's contents (their layout: the SRL modes move bits) are
-  not measured yet.
+  slices' frames (minors 21 to 29 / 30 of a CLB column); minors 0 to 20 are the routing's (#726), bit 17 of minor 19
+  next to a SLICEL using F7B among them.
+- Not measured: a LUT RAM's or ROM's contents other than zeros (the SRL modes move bits); Silinx does not write them
+  yet (#1153).
 
 ## The order of the work
 

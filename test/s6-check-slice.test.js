@@ -40,6 +40,13 @@ test('check-slice6: the predicted bits of a slice: the LUTs, the settings change
   assert.equal(predictSlice(m, cfg('A6LUT:r:#RAM:O6=0x0000000000000000 A6RAMMODE::SRL16')).ram, false);
 });
 
+test('check-slice6: a SLICEX\'s model by its tile\'s type', () => {
+  const l = kindModel(db, 'X', 'CLEXL'), m = kindModel(db, 'X', 'CLEXM');
+  const c = cfg('A5FF:f: A5FFSRINIT::SRINIT1 A5LUT:a:#LUT:O5=1 AOUTMUX::A5Q');
+  assert.ok(predictSlice(l, c).bits.has('-6,46') && !predictSlice(l, c).bits.has('-7,46'));
+  assert.ok(predictSlice(m, c).bits.has('-7,46') && !predictSlice(m, c).bits.has('-6,46'));
+});
+
 test('check-slice6: a design checked against a bitstream written from its prediction; a bit flipped is found', () => {
   const xdl = `design "t" xc6slx16csg324-3 v3.2 , cfg "";
 inst "s0" "SLICEL",placed CLEXL_X1Y5 SLICE_X0Y5 , cfg " A6LUT:s0.A:#LUT:O6=(A1*A2) AFF:s0.AFF:#FF AFFMUX::O6 AFFSRINIT::SRINIT0 CLKINV::CLK SYNC_ATTR::SYNC " ;
