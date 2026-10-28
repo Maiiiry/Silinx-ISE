@@ -143,3 +143,37 @@ test('#1662 typedef of a struct; the ap types\' widths as constant expressions; 
   assert.deepEqual(errs(`${S}void f(hls::stream<P> &s, int x) { P r; r.a = x; r.b = x; if (x) s.write(r), x++; }\n`), ["3 's' (a stream of a struct): its write a statement of its own (s.write(…);)"]);
   assert.deepEqual(errs(`${S}struct R { int c[2]; };\nvoid f(hls::stream<R> &s) { R r; r.c[0] = 1; r.c[1] = 2; s.write(r); }\n`), ["4 the stream of 'R': its member 'c' is an array (not possible in a stream yet)"]);
 });
+
+test('#1819 hls::axis_user (AMD\'s ap_axi_sdata.h: user, last when AXIS_ENABLE_LAST, id, dest; no data): get_user / set_user, a stream of them co-simulated in VHDL and Verilog; a signal not enabled not a member', () => {
+  const src = `#include "ap_axi_sdata.h"
+#include "hls_stream.h"
+typedef hls::axis_user<13, (AXIS_ENABLE_USER | AXIS_ENABLE_LAST)> packet;
+void bump(hls::stream<packet>& A, hls::stream<packet>& B) {
+  packet t = A.read();
+  t.set_user(t.get_user() + 5);
+  B.write(t);
+}
+int main() {
+  hls::stream<packet> a, b;
+  int bad = 0;
+  for (int j = 0; j < 4; j++) {
+    packet p, q;
+    p.user = j * 1000; p.last = j == 3;
+    a.write(p);
+    bump(a, b);
+    b.read(q);
+    if (q.get_user() != (j * 1000 + 5) % 8192 || q.last != (j == 3)) bad++;
+  }
+  return bad;
+}
+`;
+  const sim = simulateC(src, { file: 'u.cpp' });
+  assert.deepEqual([sim.error, sim.exitCode], [null, 0]);
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'u.cpp', lang });
+    assert.deepEqual([r.errors, r.pass], [[], true], JSON.stringify(r.mismatches, big));
+    assert.deepEqual(r.gen.ports.filter((p) => /_(dout|din)$/.test(p.name)).map((p) => `${p.name}:${p.w}`), ['A_user_dout:13', 'A_last_dout:1', 'B_user_din:13', 'B_last_din:1']);
+  }
+  const errs = (s) => cToHdl(s, { file: 'e.cpp' }).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`);
+  assert.deepEqual(errs('#include "ap_axi_sdata.h"\nint f(int x) { hls::axis_user<8> p; p.user = x; return p.last; }\n'), ["2 'last' is not a member of axis_user_8_64_0_0"]);
+});

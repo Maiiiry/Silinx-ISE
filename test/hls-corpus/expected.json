@@ -230,11 +230,15 @@
     "reason": null
   },
   "interface-streaming-axi-stream-custom-side-channel-data-2": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 20: a type expected, not 'packet'"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 9,
+      "max": 10,
+      "avg": 9.8
+    },
+    "reason": null
   },
   "interface-streaming-axi-stream-to-master": {
     "csim": "fail",

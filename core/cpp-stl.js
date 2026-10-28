@@ -34,6 +34,8 @@ export function cppStl(toks, report) {
   for (let k = 0; k < toks.length; k++) {
     const t = toks[k];
     let j;
+    // (hls::axis_user<…>: the template of ap_axi_sdata.h by its name, its qualifier dropped before the templates, #1819)
+    if (isId(t, 'hls') && op(toks[k + 1], '::') && isId(toks[k + 2], 'axis_user')) { k++; continue; }
     // std::vector<T> …
     if ((j = at(k, 'vector')) >= 0 && op(toks[j + 1], '<')) {
       const e = closing(toks, j + 1);
