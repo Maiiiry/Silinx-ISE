@@ -128,3 +128,21 @@ test('CI: WebKit and its system packages installed in a step of their own, its t
   const job = +w.match(/^    timeout-minutes: (\d+)$/m)[1];
   assert.ok(job >= 25 + 15, `the job's ${job} minutes hold both steps`);
 });
+
+test('contributors from outside (#1872): the maintainer owns every file, merges and releases; a pull request template', () => {
+  assert.match(read('.github/CODEOWNERS'), /^\* @pmnmalo$/m);
+  const c = read('CONTRIBUTING.md');
+  assert.match(c, /^## Contributing from outside$/m);
+  assert.match(c, /\*\*Fork the repository\*\*/);
+  assert.match(c, /\*\*The maintainer reviews, merges and releases\*\*/);
+  assert.match(c, /\*\*A pull request that changes `\.github\/`\*\*[^]*reviewed before any of its runs/);
+  // the rules the agents read say whose the merge is
+  assert.match(read('CLAUDE.md'), /\*\*Merging is the maintainer's\*\*/);
+  assert.doesNotMatch(read('CLAUDE.md'), /- \*\*Merging\*\*: when `related-tests` is green, merge it/);
+  assert.match(read('ONBOARDING.md'), /\*\*Contributing from outside\*\*[^]*leave the merge, the labels and the releases/);
+  // the template asks for what CLAUDE.md asks of every change
+  const t = read('.github/pull_request_template.md');
+  assert.match(t, /^Fixes #$/m);
+  for (const s of ['regression test', 'both interfaces', 'warnings', 'changes/<issue>-<slug>.md', 'node scripts/related-tests.mjs origin/main HEAD'])
+    assert.ok(t.includes(s), s);
+});

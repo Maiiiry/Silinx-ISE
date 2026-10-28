@@ -27,6 +27,23 @@ Contributions are welcome: bug reports, ideas and pull requests.
   The tests against ISE run on the project's own runner after the merge; a pull request's code never
   runs there.
 
+## Contributing from outside
+
+- **Fork the repository** and open a pull request from a branch of your fork, rebased on `main`. Contributors
+  do not get write access to the repository.
+- **The maintainer reviews, merges and releases** (#1872). GitHub asks the maintainer to approve the test
+  runs of each of your pull requests; `related-tests` must then be green. The maintainer merges it
+  (rebased, no merge commit) and makes the releases.
+- **Issues and labels:** open an issue first and say in it what you plan to do. The maintainer adds the labels.
+- **A pull request that changes `.github/`** (the workflows, the actions) is reviewed before any of its runs
+  is approved. Keep such a change in a pull request of its own, with its reason in the issue.
+- **Xilinx ISE is not needed.** The ISE checks (byte-identical bitstreams, ISE's warnings) run on the
+  project's runner after the merge, and a break becomes an issue. Say in the pull request what you could
+  not test (ISE, a real board).
+- **With Claude Code or another agent:** it reads [CLAUDE.md](CLAUDE.md); the parts of
+  [ONBOARDING.md](ONBOARDING.md) about the maintainer's own sessions, the ISE machine and talking with the maintainer do
+  not apply to you.
+
 [README.md](README.md#for-developers) explains how to install and run Silinx from source. By
 contributing you agree that your contribution is licensed under the project's licence (AGPL-3.0-only,
 see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
