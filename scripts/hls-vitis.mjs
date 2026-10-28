@@ -8,6 +8,7 @@
 // the behaviour at them, and its latency is a quality reference (Silinx's schedule is its own).
 //
 //   node scripts/hls-vitis.mjs [--filter pointer] [--update]
+//     --filter: a regular expression on the designs' names (#1780), e.g. '^(modeling-pointers|pipelining-loops)-'
 //     --update: the results written to test/hls-corpus/vitis.json and the table of test/hls-corpus/README.md
 //   node scripts/hls-vitis.mjs --detach [--filter …]   Vitis started on the host in the background (a run of the whole
 //     corpus takes hours: it does not depend on this machine staying awake); it prints the run's name
@@ -159,6 +160,13 @@ export function compareDesign(vitis, silinx) {
   return { vitis, silinx, ports: vitis.ports.length && silinx.ports.length ? comparePorts(silinx.ports, vitis.ports) : null };
 }
 
+/** The designs whose name matches --filter, a regular expression (#1780: a set of designs, e.g. the small ones);
+ * every design with no filter. */
+export function selectDesigns(designs, filter) {
+  const re = filter ? new RegExp(filter) : null;
+  return designs.filter((d) => !re || re.test(d.name));
+}
+
 async function main() {
   const { fetchDesignCorpus, sourceDir } = await import('./fetch-design-corpus.mjs');
   const { runDesign, unitOf } = await import('../test/hls-corpus/lib.mjs');
@@ -197,7 +205,7 @@ async function main() {
       const names = new Set(fs.readFileSync(path.join(work, 'designs.txt'), 'utf8').split('\n').map((l) => l.split(' ')[0]).filter(Boolean));
       designs = manifest.designs.filter((d) => names.has(d.name));
     } else {
-      designs = manifest.designs.filter((d) => !filter || d.name.includes(filter));
+      designs = selectDesigns(manifest.designs, filter);
     }
     const fetchable = { ...manifest, designs: designs.map((d) => ({ ...d, files: [...filesOf(d), `${d.dir}/hls_config.cfg`] })) };
     await fetchDesignCorpus({ manifest: fetchable, log: () => {} });

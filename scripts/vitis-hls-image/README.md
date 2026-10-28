@@ -41,6 +41,8 @@ Never committed: the installer, the image, Vitis's outputs and logs.
     node scripts/hls-vitis.mjs --detach [--filter pointer]         # the whole corpus takes hours: in the background
     node scripts/hls-vitis.mjs --collect silinx-vitis-… --update   # its progress, or its results once done
 
+`--filter` is a regular expression on the designs' names (#1780), e.g. `--filter '^(modeling-pointers|pipelining-loops)-'`.
+
 The machine is `SILINX_ISE_HOST` (else `~/.silinx/config.json`'s ssh user and host, read at run time, never written
 in a file; `local` for the image on this machine); `SILINX_VITIS_IMAGE` (default `xilinx/vitis-hls:2025.2`),
 `SILINX_VITIS_PART` (default `xc7a35tcpg236-1`). Each design's `hls_config.cfg` is run with that part, the Vivado
