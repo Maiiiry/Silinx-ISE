@@ -211,17 +211,10 @@ function textsSvg(sym, def, ctx = {}) {
     // the type with its width under the symbol (ADD8, SUB16, COMP4), as for the gates (#681)
     s += typeUnder(sym, def, box, center, symbolTypeName(sym));
   } else if (def.shape === 'slice') {
-    // the bit(s) it takes, with the bus's name: A(0) of A(5:0) (#174), on its wire inside the symbol, from the end
-    // of its diagonal entry outwards (#1726); turned 90° / 270°, beside that wire: off its width (#1488)
-    const t = cx(14, 10), turned = sym.rot === 90 || sym.rot === 270;
-    const away = xform(sym, def, 1, 0).x - xform(sym, def, 0, 0).x;
-    if (turned) {
-      const m = cx(24, 10);
-      s += `<text class="stext" x="${m.x + 6}" y="${m.y + 3}" text-anchor="start">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
-    } else s += `<text class="stext" x="${t.x}" y="${t.y - 8}" text-anchor="${away > 0 ? 'start' : 'end'}">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
-    // (its output's width when a bus, as every symbol's bus pins; its input takes its bus's, #1488)
-    const o = symbolPins(sym, null, def).find(p => p.dir === 'out');
-    if ((o.width || 1) > 1) s += pinWidth(o);
+    // the bit(s) it takes, with the bus's name: A(0) of A(5:0) (#174), on its wire inside the symbol, where a symbol's
+    // bus pin has its width (with the same halo), in every orientation; no width of its own: its indices say it (#1800)
+    const m = cx(25, 10);
+    s += `<text class="stext on" x="${m.x}" y="${m.y + 3}" text-anchor="middle">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
   } else if (def.shape === 'join') {
     // the width of each input and of the output, as every symbol's bus pins (#1488)
     for (const p of symbolPins(sym, null, def)) if ((p.width || 1) > 1) s += pinWidth(p);

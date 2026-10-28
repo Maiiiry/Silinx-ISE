@@ -58,7 +58,7 @@ uiTest('#1486 schematic: a bus-wide AND and INV show their width at their pins, 
   await page.key('Escape');
 });
 
-uiTest('#1488 schematic: the bus join shows its width on its inputs and output, the bus tap on its output, as the other symbols', E, async (page) => {
+uiTest('#1488 #1800 schematic: the bus join shows its width on its inputs and output, as the other symbols; the bus tap none (its indices)', E, async (page) => {
   const doc = newDoc('bj', 'vhdl');
   const add = (id, type, x, y, rot, params) => doc.symbols.push({ id, type, x, y, rot, mirror: false, name: `XLXI_${id}`, params });
   add('J', 'busjoin', 100, 60, 0, { widths: '4,4' }); add('J1', 'busjoin', 300, 60, 0, { widths: '1,7' });
@@ -75,6 +75,6 @@ uiTest('#1488 schematic: the bus join shows its width on its inputs and output, 
   })), ED);
   assert.deepEqual(drawn, {
     J: { widths: ['4', '4', '8'], on: true, clear: true }, J1: { widths: ['7', '8'], on: true, clear: true },
-    T: { widths: ['4'], on: true, clear: true }, T90: { widths: ['4'], on: true, clear: true }, T1: { widths: [], on: true, clear: true },
+    T: { widths: [], on: true, clear: true }, T90: { widths: [], on: true, clear: true }, T1: { widths: [], on: true, clear: true },
   });
 });
