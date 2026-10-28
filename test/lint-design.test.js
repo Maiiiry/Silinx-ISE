@@ -55,3 +55,22 @@ test('#405 design checks, the later rules: each one found, exactly (Verilog)', (
 test('#405 design checks, the later rules: an integer without a range (VHDL)', () => {
   assert.deepEqual(findings('vhdl', VHDL, 't', 't.vhd'), ['integer-range info 3: Signal <n> is an integer without a range: synthesis makes it 32 bits wide.']);
 });
+
+// #1759: the HDL Silinx HLS makes of a C source is elaborated under the C file's name; its design checks (registers
+// synthesis trims: a delay line's last element, the loops' variables) are not said there: their lines are the HDL's,
+// not the C's, and the C's author cannot act on them
+test('#1759 a C source\'s HDL: no design check warnings under the C file\'s name (its lines are the HDL\'s)', async () => {
+  const { viewHdl } = await import('../core/view-hdl.js');
+  const { compile, elaborate } = await import('../core/compile.js');
+  const { designChecks } = await import('../core/lint.js');
+  const c = 'int fir(int x) {\n  static int d[4];\n  int y = 0;\n  for (int i = 3; i > 0; i--) {\n#pragma HLS UNROLL\n    d[i] = d[i - 1];\n  }\n'
+    + '  d[0] = x;\n  for (int i = 0; i < 4; i++) {\n#pragma HLS UNROLL\n    y += (i + 1) * d[i];\n  }\n  return y;\n}\nint main(void) { return fir(1) == 1 ? 0 : 1; }\n';
+  const h = viewHdl('src/fir.c', c);
+  const lib = compile([{ path: h.path, text: h.text, lang: h.lang }]);
+  const d = elaborate(lib, h.module);
+  assert.deepEqual([h.module, lib.errors, d.diags], ['fir', [], []]);
+  assert.deepEqual(designChecks(lib, d, { lint: true }), []);
+  // (the same HDL under an HDL file's name: its checks said, as for any HDL)
+  const lib2 = compile([{ path: 'src/fir.vhd', text: h.text, lang: h.lang }]);
+  assert.ok(designChecks(lib2, elaborate(lib2, h.module), { lint: true }).some((x) => /Signal <ap_r_d_3> is assigned but never used/.test(x.message)));
+});

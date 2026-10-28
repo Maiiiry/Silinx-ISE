@@ -261,6 +261,9 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
   // (a check without an XST number is Silinx's own: labelled Silinx, #16)
   const add = (check, severity, file, line, message, tool = 'Silinx', col = 1) => {
     if (!file || String(file).startsWith('<')) return;
+    // (the HDL Silinx HLS makes of a C source, under the C file's name, #1759: its lines are not the C's, and what it
+    // says of that HDL, registers synthesis trims, the C's author cannot act on)
+    if (/\.(c|cpp|cc|cxx)$/i.test(String(file))) return;
     const key = `${file}:${line}:${message}`;
     if (seen.has(key)) return;
     seen.add(key);
