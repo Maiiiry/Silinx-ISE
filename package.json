@@ -29,6 +29,9 @@
     "version": "node scripts/sync-version.mjs && git add core/version.js"
   },
   "license": "AGPL-3.0-only",
+  "workspaces": [
+    "packages/*"
+  ],
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
