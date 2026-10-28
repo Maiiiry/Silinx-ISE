@@ -6,7 +6,8 @@
 //   headers ("Started : …", "=== SILINX STEP …", iMPACT's "Programming FPGA (SRAM)..."): the lines after a
 //   header are its process's.
 // - Filters by source follow the task in front in the Tasks interface (Implement: Implementation)
-//   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task).
+//   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task). A
+//   process started whose source the filter hides turns the filter to its source (#1852).
 // - Folded (tasks.js), the panel shows its last line of the current filter.
 // - SSim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulation).
 // - One command line: SSim's commands while simulating (SSim> run 1 us; Simulate in front, or an SSim window in the
@@ -29,7 +30,7 @@ export function sourceOf(line, cur = 'app') {
   if (m) {
     const p = m[1];
     if (/Check Syntax|Check Constraints|Check Schematic/.test(p)) return 'check';
-    if (/^Simulate\b|^Save as Test Bench/.test(p)) return 'sim';
+    if (/^Simulate\b|^Save as Test Bench|^C Simulation$|^C\/RTL Co-simulation$/.test(p)) return 'sim';   // (a C module's runs, #1852)
     return 'impl';   // synthesis, Translate, Map, Place & Route and their models, timing, power, back-annotation, the FPGA view
   }
   if (/^=== SILINX STEP \w+/.test(s)) return 'impl';
@@ -46,6 +47,13 @@ export function filterSources(filter, task) {
   return TASK_SOURCES[task] || null;
 }
 
+/** The filter once a process of `src` starts (#1852): its source when the filter shown hides it (a process the viewer
+ *  starts never seems to do nothing), else the filter as it is. */
+export function filterForProcess(src, filter, task) {
+  const set = filterSources(filter, task);
+  return !set || set.includes(src) ? filter : src;
+}
+
 // ------------------------------------------------------------------ the page
 let app = null, picked = null, task = null, built = false, cur = 'app';
 const $ = id => document.getElementById(id);
@@ -56,8 +64,14 @@ const isimInput = () => document.querySelector('#workspace > .doc:not([hidden]) 
 const simulating = () => !!isimInput() && (task === 'sim' || (task === null && /^isim(:|$)/.test(app?.S.active?.id || '')));
 
 function tag(ln) {
-  if (!ln.dataset.src) ln.dataset.src = cur = sourceOf(ln.textContent, cur);
-  else cur = ln.dataset.src;
+  if (!ln.dataset.src) {
+    ln.dataset.src = cur = sourceOf(ln.textContent, cur);
+    // (a process started: shown, the filter turned to its source if it hid it, #1852)
+    if (/^Started : "/.test(ln.textContent.trim()) && built) {
+      const f = filterForProcess(cur, picked, task);
+      if (f !== picked) { picked = f; refilter(); return; }
+    }
+  } else cur = ln.dataset.src;
   const set = shownSources();
   ln.classList.toggle('mc-off', !!set && !set.includes(ln.dataset.src));
 }
