@@ -108,3 +108,33 @@ test('the other INT-like tiles: their regions by the columns\' rule, their own P
   assert.deepEqual(pipLookup(db, 'EE2E1', '->', 'INT_IOI_LOGICIN_B4'), db.pips['EE2E1 -> LOGICIN_B4']);
   assert.ok(Object.keys(db.own).some(p => /GCLK\d+_BRK -> CLK0/.test(p)));
 });
+
+test('gen-pipdrop6 / ana-pipdrop6: the other tiles\' PIPs dropped (all or a quarter), the changed bits by tile, peeled', async () => {
+  const { dropPips, KEPT } = await import('../research/s6/gen-pipdrop6.mjs');
+  const { diffBits, bitsByTile, peel, gridRegion } = await import('../research/s6/ana-pipdrop6.mjs');
+  const xdl = 'net "n" , \n  outpin "a" A ,\n  pip INT_X1Y2 A -> B ,\n  pip RIOI_X24Y3 C -> D ,\n  pip RIOI_X24Y3 E -> F ,\n  pip CLKC_X15Y31 G =- H ,\n  ;\n';
+  assert.ok(KEPT.test('CLEXM_X2Y3') && !KEPT.test('RIOI_X24Y3'));
+  const all = dropPips(xdl);
+  assert.deepEqual(all.dropped, [{ tile: 'RIOI_X24Y3', pip: 'C -> D' }, { tile: 'RIOI_X24Y3', pip: 'E -> F' }, { tile: 'CLKC_X15Y31', pip: 'G =- H' }]);
+  assert.equal(all.xdl, 'net "n" , \n  outpin "a" A ,\n  pip INT_X1Y2 A -> B ,\n  ;\n');
+  // a quarter: the second PIP of each tile's list (place 1 of 4)
+  assert.deepEqual(dropPips(xdl, [1, 4]).dropped, [{ tile: 'RIOI_X24Y3', pip: 'E -> F' }]);
+  // the bits two designs differ in
+  const a = new Uint16Array(130), b = Uint16Array.from(a);
+  a[0] = 0x8001; a[66] = 0x4000;
+  assert.deepEqual(diffBits(a, b), [[0, 0], [0, 15], [1, 17]]);
+  // a bit to the tile whose region holds it, else the nearest, else none
+  const r = bitsByTile([[10, 100], [12, 70], [40, 0], [5000, 5]], { T: [8, 64, 4, 64], U: [30, 0, 20, 64] });
+  assert.deepEqual(Object.fromEntries(Object.entries(r.out).map(([k, v]) => [k, [...v]])), { T: ['2,36', '4,6'], U: ['10,0'] });
+  assert.deepEqual(r.unplaced, [[5000, 5]]);
+  // peeling: an empty unit gives its PIPs none, a unit with one open PIP gives it its bits less the known
+  const p = peel([{ tile: 'a', keys: ['T x', 'T y'], bits: new Set() }, { tile: 'b', keys: ['T x', 'T z'], bits: new Set(['1,1']) },
+    { tile: 'c', keys: ['T z', 'T w'], bits: new Set(['1,1', '2,2']) }, { tile: 'd', keys: ['T w'], bits: new Set(['3,3']) }]);
+  assert.deepEqual(p.pips, { 'T x': [], 'T y': [], 'T z': ['1,1'], 'T w': ['2,2'] });
+  assert.deepEqual(p.problems, ['d: 3,3 vs its PIPs\' 2,2']);
+  // the device's grid: an INT tile as tileRegion, the centre's clock column FAR column 0, a clock row's 16 bits
+  const dev = S6_DEVICES.xc6slx16;
+  assert.deepEqual(gridRegion(device, dev, 'INT_X17Y15').slice(0, 2), [511, 0]);
+  assert.deepEqual(gridRegion(device, dev, 'REG_V_HCLK_X29Y45'), [1488, 512, 4, 16]);
+  assert.deepEqual(gridRegion(device, dev, 'HCLK_CLB_XL_INT_X1Y55'), [2266, 512, 30, 16]);
+});

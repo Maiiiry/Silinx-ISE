@@ -355,10 +355,19 @@ tiles next to a CLB at once, each in its own tile's region (minors 0 to 20 of th
 - **Checked** (`check-pips6.mjs`) on the examples ISE implemented, both boards (the XC6SLX45's INT tiles the same
   types): a tile's bits are its PIPs' (a bidirectional PIP's direction from its net, walked from its outpins) and its
   slices' settings in minor 20: **all 3106 INT-like tiles identical**, 24 407 PIPs.
-- **Left**: the other tile types' PIPs the examples use (about 6 000 of 30 000: the CLB tiles' site-pin PIPs, which
-  set no bits (the slices' frames have none unexplained), the I/O tiles' (IOI, IOB), the block RAM and DSP sites'
-  (BRAMSITE2, MACCSITE2) and the clock tiles' (HCLK, REG, CLKC)), with the I/O and clocking (#727) and the block RAM
-  and DSP (#728).
+- **The other tiles' PIPs** (`gen-pipdrop6.mjs`, `ana-pipdrop6.mjs`, 2026-10-29): by PIP drop on the examples ISE
+  routed, both boards: each design again as it is and without the PIPs of the tiles other than the INT-like and
+  CLB ones (the nets keep their pins), 24 designs, 6 minutes; then `--split 4`, a quarter of each tile's PIPs at a
+  time (43 of 48 designs: 5 lose an output's constant source and bitgen stops), 22 minutes beside Vitis. A changed
+  bit goes to the dropped PIPs' tiles whose region holds it (`gridRegion`: the device grid's column of the nearest
+  INT-like tile at or left of it, the centre's clock column being FAR column 0, the band of its grid row's INT
+  tiles, a clock row's 16 bits between the halves; the tiles of one region, an I/O tile and its pad's, together),
+  and the PIPs are taken apart by peeling (a unit with no bits gives its PIPs none, one with one PIP open gives it
+  its bits) and by intersections: `db/s6-pips-other.json`, **370 PIPs, 333 with no bits** (the site pins' of the
+  block RAM, DSP and I/O tiles), with bits the clock rows' (HCLK_CLB, REG_V_HCLK, the feedthroughs) and the I/O
+  tiles' (IOI); 5 still apart (an I/O tile's two together, always), 2 units with a bit more (a clock row's, in the
+  CLB frames below it). Bits no dropped tile is near: the I/O words after the block RAM's frames (an output's
+  settings when its path goes: #727) and one in a CLB frame.
 
 ## The order of the work
 
@@ -443,4 +452,6 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `gen-pipcover6.mjs` | The PIPs that need a driven source, on paths from a driver (#726) |
 | `ana-pipprobe6.mjs` | Their bits: `db/<device>-int.json`, `-int-cover.json` (#726) |
 | `check-pips6.mjs` | The INT PIP database checked against ISE's implemented examples, tile by tile (#726) |
+| `gen-pipdrop6.mjs` | The examples routed by ISE without the other tiles' PIPs (`--split`: a quarter at a time) (#726) |
+| `ana-pipdrop6.mjs` | Their bits by tile and PIP: `db/s6-pips-other.json` (#726) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
