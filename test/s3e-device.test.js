@@ -27,7 +27,7 @@ import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
-import { tileCandidates, siteCandidates, censusCandidates, ioCandidates, leftCandidates } from '../research/s3e-device/candidates.mjs';
+import { tileCandidates, siteCandidates, censusCandidates, ioCandidates, leftCandidates, restCandidates } from '../research/s3e-device/candidates.mjs';
 import { bram, mult, pads, inputs, padDefaults } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { deviceSites } from '../core/fpga/place.js';
@@ -440,6 +440,30 @@ test('leftCandidates: the I/O candidates a round\'s untestable joins need: the P
   assert.deepEqual(leftCandidates(pips, untestable), pips.slice(0, 2));
   assert.deepEqual(leftCandidates(pips, [['CLB_X1Y1/X0', 'CLB_X2Y1/F1_B0']]), []);
   assert.deepEqual(leftCandidates(pips, []), []);
+});
+
+test('restCandidates: a measured description\'s non-CLB PIPs not seen nor probed in their tile, and an I/O tile\'s outputs in its own names (#3, section 10)', () => {
+  const pips = [
+    { tile: 'CLB_X1Y1', from: 'X0', to: 'E2BEG0' },                     // a CLB: not asked
+    { tile: 'BRAM0_SMALL_X3Y1', from: 'OMUX3', to: 'E2BEG0' },          // seen in ISE's routes there: not asked
+    { tile: 'BRAM0_SMALL_X3Y1', from: 'OMUX4', to: 'E2BEG1' },          // asked
+    { tile: 'LIOIS_X0Y5', from: 'X0', to: 'E2BEG6' },                   // asked, and in the tile's own name
+    { tile: 'LIOIS_X0Y5', from: 'F1_B0', to: 'X0' },                    // both ends site wires
+    { tile: 'LIOIS_X0Y5', from: 'IOIS_Y1', to: 'OMUX2' },               // already its own name
+    { tile: 'LIOIS_X0Y5', from: 'N2END0', to: 'IOIS_F1_B0' },           // refused by a probe: not asked
+    { tile: 'CLKV_X7Y4', from: 'A', to: 'B', routethru: 'X' },          // a route-through: not asked
+  ];
+  const obs = { pips: [{ tile: 'BRAM0_SMALL_X3Y1', from: 'OMUX3', to: 'E2BEG0' }] };
+  const probe = { pips: { yes: [], no: [{ tile: 'LIOIS_X0Y5', from: 'N2END0', to: 'IOIS_F1_B0' }] } };
+  const c = restCandidates(pips, obs, [probe]).map(p => `${p.tile} ${p.from}->${p.to}`);
+  assert.deepEqual(c, [
+    'BRAM0_SMALL_X3Y1 OMUX4->E2BEG1',
+    'LIOIS_X0Y5 X0->E2BEG6', 'LIOIS_X0Y5 IOIS_X0->E2BEG6',
+    'LIOIS_X0Y5 F1_B0->X0', 'LIOIS_X0Y5 IOIS_F1_B0->X0', 'LIOIS_X0Y5 F1_B0->IOIS_X0',
+    'LIOIS_X0Y5 IOIS_Y1->OMUX2',
+  ]);
+  // (nothing left to ask: none)
+  assert.deepEqual(restCandidates(pips.slice(0, 2), obs), []);
 });
 
 test('testSources: the observed IOB inputs and block-RAM outputs; another package\'s inputs; the unbonded IOB sites of a tile with none (#3, round 8)', () => {

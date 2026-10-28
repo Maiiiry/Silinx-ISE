@@ -7,6 +7,9 @@
 //   node candidates.mjs io obs.json out.json [tests.json]   every PIP of the database's I/O types in every observed I/O tile
 //                                                     (#3, round 7); with a round's tests.json, only those its untestable
 //                                                     joins need (leftCandidates)
+//   node candidates.mjs rest measured.json.gz out.json obs.json [probe.json,…]   every PIP of a measured description's
+//                                                     non-CLB tiles neither ISE's routes nor a probe showed there, and an
+//                                                     I/O tile's outputs in its own names (IOIS_X0): #3, section 10
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,8 +109,29 @@ export function leftCandidates(pips, untestable) {
   return pips.filter(p => want.has(`${p.tile}/${p.to}`) || from.has(`${p.tile}/${p.to}`));
 }
 
+/** The PIPs of a measured description to ask in their own tile (#3, section 10): every PIP (no route-through) of a
+ *  non-CLB tile that neither ISE's routes (obs) nor a probe (yes or no) showed in that tile, and, in an I/O tile, a PIP
+ *  out of or into a site output written as the CLB's (X0, YQ1, F1_B0: the database's `rename`) in the tile's own name
+ *  (IOIS_X0), the name ISE's routes use there. pips: [{ tile, from, to, routethru }]. */
+export function restCandidates(pips, obs, probes = []) {
+  const key = (t, a, b) => `${t} ${a} ${b}`;
+  const seen = new Set(obs.pips.map(p => key(p.tile, p.from, p.to)));
+  for (const r of probes) for (const p of [...r.pips.yes, ...r.pips.no]) seen.add(key(p.tile, p.from, p.to));
+  const out = new Map();
+  const add = (tile, from, to) => { const k = key(tile, from, to); if (!seen.has(k) && !out.has(k)) out.set(k, { tile, from, to, dir: '->' }); };
+  const io = t => /IOIS|IBUFS/.test(t), site = w => /^((X|XQ|Y|YQ|XB|YB)\d|[FG]\d_B\d)$/.test(w);
+  for (const p of pips) {
+    if (p.routethru || p.tile.startsWith('CLB_')) continue;
+    add(p.tile, p.from, p.to);
+    if (!io(p.tile)) continue;
+    if (site(p.from)) add(p.tile, `IOIS_${p.from}`, p.to);
+    if (site(p.to)) add(p.tile, p.from, `IOIS_${p.to}`);
+  }
+  return [...out.values()];
+}
+
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
-  const [cmd, input, out, tests] = process.argv.slice(2);
+  const [cmd, input, out, tests, probes] = process.argv.slice(2);
   const read = f => JSON.parse(fs.readFileSync(f, 'utf8'));
   const lines = f => fs.readFileSync(f, 'utf8').split('\n').map(s => s.trim()).filter(t => t.startsWith('CLB_'));
   let res;
@@ -120,7 +144,13 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
     const db = read(path.join(HERE, '../s3e-bitstream/db/s3e-tiles.json'));
     const pips = ioCandidates(read(input), db, t => tileXY(t).prefix);
     res = { part: PART, pips: tests ? leftCandidates(pips, read(tests).untestable) : pips };
-  } else { console.error('usage: candidates.mjs tiles|sites|census|io input out.json'); process.exit(1); }
+  } else if (cmd === 'rest') {
+    const [{ default: zlib }, { loadDevice }] = await Promise.all([import('node:zlib'), import('../../core/fpga/device.js')]);
+    const M = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(input))));
+    const pips = [];
+    for (let k = 0; k < M.tileCount; k++) for (let i = 0; i < M.templates[M.tileTemplate[k]].from.length; i++) pips.push(M.pip(k, i));
+    res = { part: PART, pips: restCandidates(pips, read(tests), (probes || '').split(',').filter(Boolean).map(read)) };
+  } else { console.error('usage: candidates.mjs tiles|sites|census|io|rest input out.json'); process.exit(1); }
   fs.writeFileSync(out, JSON.stringify(res));
   console.log(`${(res.pips || res.sites).length} candidates`);
 }
