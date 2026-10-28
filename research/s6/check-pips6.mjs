@@ -1,8 +1,9 @@
-// Stage S6-D (#726), checked: the INT PIP database predicts the routing bits of designs ISE implemented. For every INT
-// tile next to a CLB that a design's nets use, its bits (minors 0 … 20 of the column, its band) are the union of its
-// PIPs' (db/<device>-int-cover.json, the PIPs on paths, by the signal's direction, else db/<device>-int.json; a
-// bidirectional PIP's direction from its net, walked from its outpins) and of its CLB's slices' settings in minor 20
-// (check-slice6.mjs), and compared with ISE's bitstream.
+// Stage S6-D (#726), checked: the INT PIP database predicts the routing bits of designs ISE implemented. For every
+// INT-like tile a design's nets use (INT, INT_BRK, INT_BRAM, IOI_INT, …: its bits, minors 0 … 20 of its column and its
+// band, by tileRegion), the union of its PIPs' (db/<device>-int-cover.json, the PIPs on paths, by the signal's
+// direction, else -int.json, else -int-own.json, the other types' own; an I/O tile's INT_IOI_ wires as the INT
+// tile's; a bidirectional PIP's direction from its net, walked from its outpins) and of its CLB's slices' settings in
+// minor 20 (check-slice6.mjs), compared with ISE's bitstream.
 //   node research/s6/check-pips6.mjs <dir> …        (each with top.xdl and top.bit, e.g. night 1's impl-nexys3/*)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,15 +11,20 @@ import { fileURLToPath } from 'node:url';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit6, bitFormat6, emptyFdri } from '../../core/fpga/s6/bitstream.js';
 import { loadDb } from './check-slice6.mjs';
-import { intRegion, regionBits } from './ana-pipprobe6.mjs';
+import { intRegion, regionBits, tileRegion } from './ana-pipprobe6.mjs';
 import { s6Device } from '../../test/s6-lib.mjs';
 import { kindModel, predictSlice } from './check-slice6.mjs';
 
 /** A PIP's bits by the signal's direction (from, to): the path round's, else the probe's ('a =- b': a to b). */
 export function pipLookup(db, from, dir, to) {
   if (db.cover[`${from} -> ${to}`]) return db.cover[`${from} -> ${to}`];
-  if (dir === '->') return db.pips[`${from} -> ${to}`];
-  return db.pips[`${from} =- ${to}`];
+  const key = dir === '->' ? `${from} -> ${to}` : `${from} =- ${to}`;
+  if (db.pips[key]) return db.pips[key];
+  if (db.own?.[key]?.length) return db.own[key];
+  // an I/O tile's renamed wires (INT_IOI_LOGICIN_Bk, INT_IOI_GFANk): the INT switch box's
+  const plain = w => w.replace(/^INT_IOI_/, '');
+  if (plain(from) !== from || plain(to) !== to) return pipLookup({ ...db, own: null }, plain(from), dir, plain(to)) ?? db.own?.[key];
+  return db.own?.[key];
 }
 
 /**
@@ -51,7 +57,7 @@ export function checkPips(xdlText, bitBytes, db, lutBases, slices = null) {
   for (const net of design.nets) {
     const dirs = (net.pips || []).some(p => p.dir === '=-') ? pipDirections(graph, net, design) : null;
     (net.pips || []).forEach((p, i) => {
-      if (!/^INT_X/.test(p.tile)) return;
+      if (!/^(INT|INT_BRK|INT_BRAM|INT_BRAM_BRK|IOI_INT|LIOI_INT|INT_GCLK)_X/.test(p.tile)) return;
       const [from, to] = dirs?.[i] ?? [p.from, p.to];
       (byTile.get(p.tile) ?? byTile.set(p.tile, []).get(p.tile)).push({ text: `${p.from} ${p.dir} ${p.to}`, bits: pipLookup(db, from, p.dir, to) });
     });
@@ -72,8 +78,7 @@ export function checkPips(xdlText, bitBytes, db, lutBases, slices = null) {
     }
   }
   for (const [tile, pips] of byTile) {
-    const r = intRegion(sites, lutBases, dev, tile);
-    if (!r) continue;
+    const r = tileRegion(dev, tile);
     out.tiles++;
     const want = new Set(minor20.get(tile) || []);
     let known = true;
@@ -97,7 +102,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const dir of dirs) {
     const bit = fs.readFileSync(path.join(dir, 'top.bit')), device = readBit6(bit).device.device;
     // the INT switch box measured on the XC6SLX16 (the XC6SLX45's INT tiles are the same type)
-    const db = { pips: read('xc6slx16-int').pips, cover: read('xc6slx16-int-cover').pips };
+    const db = { pips: read('xc6slx16-int').pips, cover: read('xc6slx16-int-cover').pips, own: read('xc6slx16-int-own').pips };
     const r = checkPips(fs.readFileSync(path.join(dir, 'top.xdl'), 'utf8'), bit, db, read(`${device}-lut`).slices, loadDb(device));
     total.tiles += r.tiles; total.pips += r.pips; total.bad += r.mismatches.length;
     for (const [p, n] of r.unknown) unknown.set(p, (unknown.get(p) || 0) + n);

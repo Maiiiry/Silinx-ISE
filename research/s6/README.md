@@ -345,12 +345,20 @@ tiles next to a CLB at once, each in its own tile's region (minors 0 to 20 of th
   breadth-first search over the device's graph, in a tile of its own; its bits are its tile's less those of every
   path's PIPs there: `db/xc6slx16-int-cover.json`, by the signal's direction. The KEEP1 PIPs and `LOGICIN_Bk ->
   LOGICINk` have no bits.
+- **The other INT-like tiles** (`gen-pipprobe6.mjs --others`, three designs, 3 minutes): the same switch box in the
+  clock-break rows (INT_BRK, INT_BRAM_BRK), the block RAM (INT_BRAM) and I/O (IOI_INT, LIOI_INT) columns, the DSP and
+  edge columns' INT tiles and INT_GCLK, on nets of their TIEOFF; their regions follow the CLB columns' rule (the FAR
+  column is the tile's X + 1, the row Y div 16, the band by Y mod 16: `tileRegion`), checked by a PIP of the INT
+  switch box in each of the 517 tiles (514 as the INT database, 3 continuations at the top edge). Their own PIPs
+  (the clock-break rows' `GCLKk_BRK`, the I/O tiles' `INT_IOI_GFANk`, the BUFPLL clocks: `db/xc6slx16-int-own.json`,
+  190, in two tiles each but 40); an I/O tile's `INT_IOI_LOGICIN_Bk` is the INT tile's `LOGICIN_Bk` (its bits).
 - **Checked** (`check-pips6.mjs`) on the examples ISE implemented, both boards (the XC6SLX45's INT tiles the same
-  type): a tile's bits are its PIPs' (a bidirectional PIP's direction from its net, walked from its outpins) and its
-  slices' settings in minor 20; **2534 of 2560 INT tiles identical**, 22 241 PIPs. The 26 left have a PIP of the
-  clock-break rows' INT tiles (INT_BRK, `GCLKk_BRK -> CLKk`), not measured yet.
-- **Left**: the INT_BRK tiles, the same switch box in the other columns (INT_BRAM, IOI_INT, LIOI_INT, INT_GCLK:
-  their columns' frames), and the other tile types' PIPs the examples use (the I/O, block RAM, DSP and clock tiles').
+  types): a tile's bits are its PIPs' (a bidirectional PIP's direction from its net, walked from its outpins) and its
+  slices' settings in minor 20: **all 3106 INT-like tiles identical**, 24 407 PIPs.
+- **Left**: the other tile types' PIPs the examples use (about 6 000 of 30 000: the CLB tiles' site-pin PIPs, which
+  set no bits (the slices' frames have none unexplained), the I/O tiles' (IOI, IOB), the block RAM and DSP sites'
+  (BRAMSITE2, MACCSITE2) and the clock tiles' (HCLK, REG, CLKC)), with the I/O and clocking (#727) and the block RAM
+  and DSP (#728).
 
 ## The order of the work
 

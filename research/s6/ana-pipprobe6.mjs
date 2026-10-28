@@ -22,6 +22,17 @@ export function intRegion(sites, bases, dev, tile) {
   return [columnOf(dev, f0)[0], b0];
 }
 
+/**
+ * Any INT-like tile's region by the rule its CLB columns follow: the FAR column X + 1 (tile X), the row Y div 16, the
+ * band of Y mod 16 (Y15 at bit 0 … Y8 at 448, Y7 at 528 … Y0 at 976: the HCLK word between).
+ */
+export function tileRegion(dev, tile) {
+  const [x, y] = tile.match(/X(\d+)Y(\d+)$/).slice(1).map(Number), m = y % 16;
+  let c = 0;
+  for (let i = 0; i <= x; i++) c += dev.columns[i];
+  return [Math.floor(y / 16) * dev.rowFrames + c, (15 - m) * 64 + (m <= 7 ? 16 : 0)];
+}
+
 /** The bits a design sets in a region (minors 0 … 20, 64 bits): [[minor, bit]]. */
 export function regionBits(fdri, empty, [c0, b0]) {
   const out = [];
@@ -70,7 +81,20 @@ export function coverBits(key, tileBits, intDb) {
   return out;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--cover') {
+if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--others') {
+  const [, dir, part = 'xc6slx16csg324-3'] = process.argv.slice(2);
+  const dev = bitFormat6(part), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2'), empty = emptyFdri(dev);
+  const intDb = JSON.parse(fs.readFileSync(new URL(`./db/${dev.device}-int.json`, import.meta.url), 'utf8')).pips;
+  const read = d => { const ps = JSON.parse(fs.readFileSync(path.join(dir, `${p}.${d}.json`), 'utf8')), { fdri } = readBit6(fs.readFileSync(path.join(dir, `${p}.${d}.bit`))), bits = {}; for (const t of Object.keys(ps)) bits[t] = regionBits(fdri, empty, tileRegion(dev, t)); return { pips: ps, bits }; };
+  // oth0: PIPs the INT tiles share, their bits known: the rule and the switch box checked
+  const o = read('oth0'), bad = Object.entries(o.pips).filter(([t, x]) => JSON.stringify(o.bits[t]) !== JSON.stringify(intDb[x]));
+  const byType = {};
+  for (const [t] of bad) { const ty = t.replace(/_X\d+Y\d+$/, ''); byType[ty] = (byType[ty] || 0) + 1; }
+  console.log(`oth0: ${Object.keys(o.pips).length - bad.length} of ${Object.keys(o.pips).length} tiles as the INT database${bad.length ? `; differ: ${JSON.stringify(byType)}, e.g. ${bad.slice(0, 4).map(([t, x]) => `${t} ${x}: ${JSON.stringify(o.bits[t])} vs ${JSON.stringify(intDb[x])}`).join('; ')}` : ''}`);
+  const { pips, tiles, problems } = pipBits([read('oth1'), read('oth2')]), none = Object.keys(pips).filter(x => !pips[x].length);
+  console.log(`own PIPs: ${Object.keys(pips).length} measured (${Object.values(tiles).filter(c => c > 1).length} in two tiles), ${none.length} with no bits; ${problems.length} differ between tiles${problems.length ? `: ${problems.slice(0, 4).join('; ')}` : ''}`);
+  fs.writeFileSync(new URL(`./db/${dev.device}-int-own.json`, import.meta.url), `${JSON.stringify({ part, pips })}\n`);
+} else if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--cover') {
   const [, dir, part = 'xc6slx16csg324-3'] = process.argv.slice(2);
   const dev = bitFormat6(part), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2'), { sites } = s6Device(part);
   const bases = JSON.parse(fs.readFileSync(new URL(`./db/${dev.device}-lut.json`, import.meta.url), 'utf8')).slices, empty = emptyFdri(dev);
