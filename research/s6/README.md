@@ -299,6 +299,31 @@ PRECYINIT 0, every CY0 on O5, COUTUSED) and F7AMUX, F7BMUX, F8MUX. `ana-slice6.m
   a SLICEX's six or seven); nothing else of their own.
 - What remains without bits is the routing's (`*USED`, the pins' nets) or a default.
 
+### The LUTs and slices checked against ISE's examples (#725, 2026-10-28)
+
+`check-slice6.mjs` predicts every slice of a design ISE implemented (night 1's seven examples on both boards, their
+`top.xdl` and `top.bit`) from the databases and compares it with ISE's bitstream, tile by tile (the two slices of a
+tile together: a SLICEX's settings in frames before its LUTs are its neighbour's frames), at every position the
+databases know: the LUTs from their equations, the settings as the `--full` round's base with each element that
+differs changed. A slice's kind is its site's (ISE places a SLICEX on a SLICEL's site). The XC6SLX45 uses the
+XC6SLX16's settings (the same tiles).
+
+- **972 slices, 650 tiles: 642 tiles identical**, the LUTs, the flip-flops, the carry and the outputs of every
+  example on both boards.
+- Learnt from the examples: ISE writes its route-throughs in a slice's cfg (`_ROUTETHROUGH:A:AMUX`: the output mux on
+  O6, `_ROUTETHROUGH:A3:A`: the LUT as `O6 = A3`, often on an otherwise empty `XDL_DUMMY` slice); COUTUSED has no
+  bit (off, it cleared the CY0 bits of a chain the harness did not use); the carry in from the slice below (CARRY4
+  without PRECYINIT, no net on CIN in the harness) is bit 51 of the CY0s' frame; a shift register's settings (SRL16,
+  its contents all zeros in the examples) as measured.
+- **The residual** (the bits ISE sets in the used tiles' columns and bands that no position explains): none in the
+  slices' frames (minors 21 to 29 / 30 of a CLB column) once the carry in is known; minors 0 to 20 are the routing's
+  (#726).
+- **Left**: the 8 tiles that differ are a SLICEX's settings in its frames 6 and 7 before its LUTs, measured in CLEXL
+  tiles only: in a CLEXM tile they fall elsewhere (CFFSRINIT's and A5FFSRINIT's bit is the SLICEM's LUT there), and
+  bit 17 of frame -7 follows the neighbouring SLICEL's F7B / COUTMUX = F7, not D5FFSRINIT. A round with SLICEXs in
+  CLEXM tiles and that SLICEL measures them. A LUT RAM's or ROM's contents (their layout: the SRL modes move bits) are
+  not measured yet.
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -377,4 +402,5 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `prim-defs6.mjs` | The sites' elements and options from an XDLRC: `measured/prim-defs.json` (#725) |
 | `gen-slice6.mjs` | The slice settings' designs in XDL, one per slice kind (#725) |
 | `ana-slice6.mjs` | The slice settings from their bitstreams: `db/<device>-slice.json` (#725) |
+| `check-slice6.mjs` | The LUT and slice databases checked against ISE's implemented examples, tile by tile (#725) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
