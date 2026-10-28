@@ -22,7 +22,7 @@ import { muxDesign, muxCount } from '../research/s3e-device/gen-obsmux.mjs';
 import { srlCascade, f8Muxes, ramClkB, bufgs, dcmPads } from '../research/s3e-device/gen-obspins2.mjs';
 import { observationDesigns, implemented, GENERATORS, tileLists, roundPaths, roundSummary } from '../research/s3e-device/measure.mjs';
 import { buildMeasured, DATA_DIR, PARTS, dieOf, dataDir, measuredDies } from '../research/s3e-device/build-measured.mjs';
-import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants } from '../research/s3e-device/varyjoins.mjs';
+import { indexVariants, pipVariants, joinVariants, clockLineVariants, clockRowVariants, longLineVariants, tapVariants, spineVariants, pinVariants, DCM_SWITCH } from '../research/s3e-device/varyjoins.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests, testSources } from '../research/s3e-device/hypotheses.mjs';
@@ -464,6 +464,36 @@ test('restCandidates: a measured description\'s non-CLB PIPs not seen nor probed
   ]);
   // (nothing left to ask: none)
   assert.deepEqual(restCandidates(pips.slice(0, 2), obs), []);
+});
+
+test('spineVariants, pinVariants: the clock spine\'s and the block RAMs\' pin wires\' ambiguous joins with their candidates, less the decided ones (#3, the XC3S100E)', () => {
+  const ord = j => [...j].sort().join('|');
+  const ambiguous = [
+    { from: 'GCLKVML_X2Y11/GCLKVML_GCLKCORE0', candidates: ['CLKB_X8Y0/CLKB_GCLK_MAIN0', 'CLKC_X8Y11/CLKC_GCLK0'] },
+    // (a row's DN wire, driven by its own tile's row line: left to the removal tests)
+    { from: 'GCLKH_X1Y15/GCLKH_GCLK_DN7', candidates: ['GCLKH_X2Y15/GCLKH_GCLK7'] },
+    // (a spine wire already joined: not asked again)
+    { from: 'GCLKVC_X2Y7/GCLKC_GCLK5', candidates: ['CLKC_X8Y11/CLKC_GCLK5'] },
+    // (not the spine; a CLB's clock line is clocktests.mjs's)
+    { from: 'CLB_X2Y10/GCLK5', candidates: ['GCLKH_X2Y7/GCLKH_GCLK_DN5'] },
+    { from: 'BRAMSITE2_X4Y16/BRAM_CLK2_INT1', candidates: ['BRAM1_SMALL_X3Y13/BRAM_CLK2', 'BRAM1_SMALL_X3Y17/BRAM_CLK2'] },
+  ];
+  const done = new Set([ord(['CLKB_X8Y0/CLKB_GCLK_MAIN0', 'GCLKVML_X2Y11/GCLKVML_GCLKCORE0'])]);   // an island already
+  const joined = new Set(['GCLKVC_X2Y7/GCLKC_GCLK5']);
+  assert.deepEqual(spineVariants(ambiguous, done, joined), [['CLKC_X8Y11/CLKC_GCLK0', 'GCLKVML_X2Y11/GCLKVML_GCLKCORE0']]);
+  assert.deepEqual(spineVariants(ambiguous, new Set(), new Set()).map(ord).sort(), [
+    ord(['CLKB_X8Y0/CLKB_GCLK_MAIN0', 'GCLKVML_X2Y11/GCLKVML_GCLKCORE0']), ord(['CLKC_X8Y11/CLKC_GCLK0', 'GCLKVML_X2Y11/GCLKVML_GCLKCORE0']),
+    ord(['CLKC_X8Y11/CLKC_GCLK5', 'GCLKVC_X2Y7/GCLKC_GCLK5']),
+  ].sort());
+  assert.deepEqual(pinVariants(ambiguous, new Set([ord(['BRAM1_SMALL_X3Y13/BRAM_CLK2', 'BRAMSITE2_X4Y16/BRAM_CLK2_INT1'])])),
+    [['BRAM1_SMALL_X3Y17/BRAM_CLK2', 'BRAMSITE2_X4Y16/BRAM_CLK2_INT1']]);
+  assert.deepEqual(spineVariants([], new Set(), new Set()), []);
+  // the long lines' switch boxes in the DCM tiles: the XC3S100E's DCMAUX ones too (regression: its 38 long-line nodes
+  // a short could come from were the DCMAUX tiles' LH / LV), not the DCM_TERM tiles
+  const dcm = loadDeviceCache('xc3s100ecp132-4').tileNames.filter(t => DCM_SWITCH.test(t)).sort();
+  assert.deepEqual(dcm, ['DCMAUX_BL_CENTER_X8Y1', 'DCMAUX_TL_CENTER_X8Y22', 'DCM_BR_CENTER_X9Y1', 'DCM_TR_CENTER_X9Y22']);
+  assert.ok(DCM_SWITCH.test('DCM_TL_CENTER_X13Y34') && !DCM_SWITCH.test('DCM_TERM_X10Y22'));
+  assert.deepEqual(pinVariants(ambiguous.slice(0, 4), new Set()), []);
 });
 
 test('testSources: the observed IOB inputs and block-RAM outputs; another package\'s inputs; the unbonded IOB sites of a tile with none (#3, round 8)', () => {
