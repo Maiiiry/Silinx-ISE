@@ -19,7 +19,14 @@
 //          index six on, modulo 24, eastwards (LH) or southwards (LV) — the rule every known long-line join follows
 //          (BIOIS_X11Y0/LH0 ~ BIOIS_X17Y0/LH6, LIOIS_X0Y29/LV6 ~ LIOIS_X0Y23/LV12): the I/O rows' and columns' ends no
 //          route took (TIOIS_X1Y35/LH12 ~ TIOIS_X7Y35/LH18)
-//   [SWITCHTILES=switch-tiles.txt] node varyjoins.mjs pips|joins|edge|taps|clock|rows|long measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
+//   spine: the observations' ambiguous joins of the clock spine (a CLKT, CLKB, CLKC, GCLKVC, GCLKVM or GCLKH wire, not a
+//          row's GCLKH_GCLK_UP / DN, which clocktests.mjs tests by removal), each with every spine candidate: tested from a
+//          BUFGMUX (BUFGSRC=1), round after round, each round's joins the next one's paths (CLKC_GCLK0 ~
+//          GCLKVML_GCLKCORE0, then the vertical spine, the rows)
+//   pins:  the observations' ambiguous joins of a block RAM's pin wires (BRAMSITE2/BRAM_CLK2_INT1, its interconnect
+//          tile's BRAM_CLK2 among the column's), each with every candidate: the designs clock every block RAM alike, so
+//          the intersection cannot tell them apart (the XC3S100E's 4)
+//   [SWITCHTILES=switch-tiles.txt] node varyjoins.mjs pips|joins|edge|taps|clock|rows|long|spine|pins measured.json.gz obs.json out.json [probe.json,… | verdict-dir…]
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -43,6 +50,9 @@ const CLOCK_COLUMN = /^(CLKT|CLKB|CLKV|CLKC|CLKL|CLKR|DCM|GCLK)/;
 // (the edge tiles and corners, edgejoins.mjs's edgeTile)
 const EDGE = /^(LTERM|RTERM|TTERM|BTERM|COB_|CNR_|UL_|UR_|LL_|LR_)/;
 const ord = j => [j[0], j[1]].sort().join('|');
+/** The DCM tiles that hold a switch box (the long lines cross them), which the tile probe's list leaves out: the
+ *  XC3S250E's DCM_TL_CENTER…, and the XC3S100E's left ones, DCMAUX_TL_CENTER / DCMAUX_BL_CENTER. */
+export const DCM_SWITCH = /^DCM(AUX)?_[TB][LR]_CENTER_/;
 
 /** The arc-probe candidates: [{ tile, from, to }]. wiresOf(tile): the measured wires of a tile (a Set) or null; asked:
  *  'tile from to' already seen or probed. */
@@ -184,6 +194,30 @@ export function longLineVariants(tiles, wiresOf, sameNode, done, grid = null) {
   return [...out.values()];
 }
 
+/** The ambiguous joins of the clock spine, each with every spine candidate, less those a test decided (`done`) and the
+ *  wires already joined (`joined`). A row's UP / DN wire is driven by a PIP from its own tile's row line: a test of it
+ *  from a BUFGMUX may reach the other end over a join of that line not yet known, and so is left to the removal tests. */
+export function spineVariants(ambiguous, done, joined) {
+  const spine = k => /^(CLKT|CLKB|CLKC|GCLKVC|GCLKVM|GCLKH)/.test(k) && !/GCLK_(UP|DN)\d+$/.test(k);
+  const out = new Map();
+  for (const { from, candidates } of ambiguous) {
+    if (!spine(from) || joined.has(from)) continue;
+    for (const c of candidates) if (spine(c) && !done.has(ord([c, from])) && !out.has(ord([c, from]))) out.set(ord([c, from]), [c, from]);
+  }
+  return [...out.values()];
+}
+
+/** The ambiguous joins of a block RAM's pin wires (<pin>_INTk), each with every candidate, less those a test decided. */
+export function pinVariants(ambiguous, done) {
+  const pin = k => /^BRAM[A-Z0-9_]*_INT\d+$/.test(k.slice(k.indexOf('/') + 1));
+  const out = new Map();
+  for (const { from, candidates } of ambiguous) {
+    if (!pin(from) && !candidates.some(pin)) continue;
+    for (const c of candidates) if (!done.has(ord([c, from])) && !out.has(ord([c, from]))) out.set(ord([c, from]), [c, from]);
+  }
+  return [...out.values()];
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, gf, of, out, ...rest] = process.argv.slice(2);
   const { loadDevice } = await import('../../core/fpga/device.js');
@@ -202,11 +236,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const known = [...obs.joins, ...verdicts.filter(v => v[2] === 'join').map(v => [v[0], v[1]])];
     const done = new Set([...known, ...verdicts.filter(v => v[2] === 'no-join')].map(ord));
     const node = k => { const i = k.indexOf('/'); return G.node(k.slice(0, i), k.slice(i + 1)); };
-    const hyp = cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : cmd === 'edge' ? joinVariants(known, wiresOf, done, EDGE) : cmd === 'rows' ? clockRowVariants(known, G.tileNames, wiresOf, done)
+    const hyp = cmd === 'spine' ? spineVariants(obs.ambiguous, done, new Set(known.flat())) : cmd === 'pins' ? pinVariants(obs.ambiguous, done)
+      : cmd === 'joins' ? joinVariants(obs.joins, wiresOf, done) : cmd === 'edge' ? joinVariants(known, wiresOf, done, EDGE) : cmd === 'rows' ? clockRowVariants(known, G.tileNames, wiresOf, done)
       : cmd === 'taps' ? tapVariants(G.tileNames, wiresOf, (a, b) => node(a) >= 0 && node(a) === node(b), done)
       : cmd === 'long' ? longLineVariants(G.tileNames, wiresOf, (a, b) => node(a) >= 0 && node(a) === node(b), done,
         // (the DCM tiles hold a switch box too: TIBUFS_X13Y35/LV18 -> DCM_TL_CENTER_X13Y34/LV19 -> CLB_X13Y30/LV20)
-        process.env.SWITCHTILES ? switchGrid([...new Set([...fs.readFileSync(process.env.SWITCHTILES, 'utf8').split('\n').filter(Boolean), ...G.tileNames.filter(t => /^DCM_[TB][LR]_CENTER_/.test(t))])]) : null)
+        process.env.SWITCHTILES ? switchGrid([...new Set([...fs.readFileSync(process.env.SWITCHTILES, 'utf8').split('\n').filter(Boolean), ...G.tileNames.filter(t => DCM_SWITCH.test(t))])]) : null)
         : clockLineVariants(known, G.tileNames, wiresOf, done);
     fs.writeFileSync(out, JSON.stringify(hyp));
     console.log(`${hyp.length} join hypotheses`);
