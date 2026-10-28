@@ -77,8 +77,10 @@ the code and the lessons learnt.
   of a changed page script; for a data file (the bit database, a device description, an example), the tests of
   the modules that read it and of their importers, #772); `main` requires its check, `related-tests`. Before pushing, run the same files
   locally: `node scripts/related-tests.mjs origin/main HEAD`.
-- **Merging**: when `related-tests` is green, merge it into `main` (rebased, fast-forward, no merge commit;
-  rebase the branch first if `main` moved). A break found later (by the
+- **Merging is the maintainer's** (#1872): the maintainer, or a session the maintainer runs, merges a pull request
+  when `related-tests` is green, into `main` (rebased, fast-forward, no merge commit; rebase the branch first if
+  `main` moved). A contributor from outside (a fork) opens the pull request and leaves the merge, the labels and
+  the releases to the maintainer ([CONTRIBUTING.md](CONTRIBUTING.md#contributing-from-outside)). A break found later (by the
   release's CI, the nightly or ISE runs, the CI watcher) becomes an issue, fixed in the next change.
 - **Reviewing** another session's pull request: its intent and its evidence, not every line. Does it do
   what its issue asks and nothing more; do its tests prove it (a regression test, the warnings asserted);
