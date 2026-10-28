@@ -369,6 +369,20 @@ tiles next to a CLB at once, each in its own tile's region (minors 0 to 20 of th
   CLB frames below it). Bits no dropped tile is near: the I/O words after the block RAM's frames (an output's
   settings when its path goes: #727) and one in a CLB frame.
 
+### The residual of the examples (#725, #726, 2026-10-29)
+
+`residual6.mjs` predicts every bit of the rows' frames of a design ISE implemented from all the databases (the
+slices', the INT-like tiles' PIPs with their directions, the other tiles' PIPs placed by `gridRegion`) and compares
+them with ISE's bitstream; a bit left over goes to the tile types whose regions hold it. On the seven examples of
+both boards (about 121 000 bits set): **no bit predicted that ISE does not set, 215 left over**, none of them a
+routing switch's:
+
+- the clock rows' HCLK words, minors 16 to 19 (96: the bits the LUT map's zero design set already, with no net:
+  the clock rows' settings), one bit of a REGC tile and one of the corner's in every design: the clocking (#727);
+- the I/O tiles' (21: the outputs' and inputs' settings, with the 5 I/O PIPs that are always together with them,
+  `OQ`, `PINW`, `IDATAIN`): the I/O (#727);
+- the block RAM's and DSP's interface (66, stopwatch's): #728.
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -454,4 +468,5 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `check-pips6.mjs` | The INT PIP database checked against ISE's implemented examples, tile by tile (#726) |
 | `gen-pipdrop6.mjs` | The examples routed by ISE without the other tiles' PIPs (`--split`: a quarter at a time) (#726) |
 | `ana-pipdrop6.mjs` | Their bits by tile and PIP: `db/s6-pips-other.json` (#726) |
+| `residual6.mjs` | Every bit of ISE's implemented examples predicted from the databases; what is left, by tile type (#725, #726) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |

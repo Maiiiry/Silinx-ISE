@@ -138,3 +138,26 @@ test('gen-pipdrop6 / ana-pipdrop6: the other tiles\' PIPs dropped (all or a quar
   assert.deepEqual(gridRegion(device, dev, 'REG_V_HCLK_X29Y45'), [1488, 512, 4, 16]);
   assert.deepEqual(gridRegion(device, dev, 'HCLK_CLB_XL_INT_X1Y55'), [2266, 512, 30, 16]);
 });
+
+test('residual6: a design\'s bits predicted from every database (slices, INT-like PIPs, the other tiles\' PIPs)', async () => {
+  const { predictDesign, typesAt } = await import('../research/s6/residual6.mjs');
+  const { loadDb } = await import('../research/s6/check-slice6.mjs');
+  const { parseXdl } = await import('../core/xdl.js');
+  const read = n => JSON.parse(fs.readFileSync(new URL(`../research/s6/db/${n}.json`, import.meta.url), 'utf8'));
+  const db = { part: 'xc6slx16csg324-3', slices: loadDb('xc6slx16'), int: { pips: read('xc6slx16-int').pips, cover: read('xc6slx16-int-cover').pips, own: read('xc6slx16-int-own').pips }, other: read('s6-pips-other') };
+  const design = parseXdl(`design "t" xc6slx16csg324-3 v3.2 , cfg "";
+inst "t" "TIEOFF",placed INT_X17Y15 TIEOFF_X31Y30 , cfg "" ;
+inst "s" "SLICEL",placed CLEXL_X17Y15 SLICE_X28Y15 , cfg " A6LUT:s.A:#LUT:O6=A1 " ;
+net "n" , outpin "t" HARD1 , pip INT_X17Y15 VCC_WIRE -> GFAN1 , pip INT_X17Y15 GFAN1 =- LOGICIN_B51 , ;
+net "m" , pip RIOI_X24Y3 NOT_A -> PIP , ;
+`);
+  const dev = S6_DEVICES.xc6slx16, { bits, unknown } = predictDesign(design, device, dev, db);
+  // the LUT's 32 ones, the two PIPs (the bidirectional one from GFAN1, its direction from the net)
+  const [c0, b0] = [511, 0], rel = p => p.map(([m, b]) => `${c0 + m},${b0 + b}`);
+  for (const x of [...rel(db.int.pips['VCC_WIRE -> GFAN1']), ...rel(db.int.pips['GFAN1 =- LOGICIN_B51'])]) assert.ok(bits.has(x), x);
+  assert.equal(bits.size, 32 + new Set([...rel(db.int.pips['VCC_WIRE -> GFAN1']), ...rel(db.int.pips['GFAN1 =- LOGICIN_B51'])]).size);
+  assert.deepEqual([...unknown], [['RIOI NOT_A -> PIP', 1]]);
+  // the tile types whose regions hold a bit
+  const where = typesAt(device, dev);
+  assert.equal(where(511 + 3, 5), 'CLEXL+INT');
+});
