@@ -256,7 +256,7 @@ export function mountSchEditor(container, opts = {}) {
   const { copySel, deleteSel, duplicateSel, mirrorSel, paste, rotateSel, selectAll, selected } = mountSchSelect({
     container, changed, destroyed: () => destroyed, doc: () => doc, edit, live: () => live, modules: () => modules,
     placing: () => placing, readOnly, refusedShort, render, renderOverlay, renderProps, sel: () => sel, setTool,
-    snapshot, tool: () => tool, undoStack, setSel: (v) => { sel = v; }
+    snapshot, svg, toSheet, tool: () => tool, undoStack, setSel: (v) => { sel = v; }
   });
 
   // ---------------- moving with rubber-banding wires, dragging one segment of a wire (#688): sch-move.js
@@ -360,7 +360,7 @@ export function mountSchEditor(container, opts = {}) {
     undo: () => undo(), redo: () => redo(),
     canUndo: () => undoStack.length > 0 && !live, canRedo: () => redoStack.length > 0 && !live,
     // Edit ▸ Cut / Copy / Paste / Delete (#677)
-    copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => { if (!live) deleteSel(); },
+    copy: () => copySel(), cut: () => copySel(true), paste: (clip, offset) => paste(clip, offset), deleteSelection: () => { if (!live) deleteSel(); },
     canCopy: () => !readOnly && !live && sel.size > 0, canPaste: () => !readOnly && !live && hasClip('schematic'),
     handwritten: readOnly ? null : () => import('./sch-ink.js').then(m => m.handwrittenSchematicInto({ doc: () => doc, replace: parts => edit(() => { doc = { ...doc, ...parts }; }), fit: () => fit() })),   // (#1067, #1098)
     setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc(), { modules }); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
