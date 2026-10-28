@@ -181,7 +181,7 @@
   },
   "warnings": {
    "ise": [
-    "export: ISE symbols not in the Xilinx library: xl_bufg, xl_reg4_ce_ar_h0, xl_cnt4_ce_ar, xl_cnt3_sr_dn — add the returned HDL (.vhd) and .sym files to the ISE project"
+    "export: ISE symbols not in the Xilinx library: xl_reg4_ce_ar_h0, xl_cnt4_ce_ar, xl_cnt3_sr_dn — add the returned HDL (.vhd) and .sym files to the ISE project"
    ]
   }
  },

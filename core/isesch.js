@@ -31,6 +31,7 @@ import { readIseNets } from './isesch-nets.js';
 import { blockGeometry } from './isesch-geometry.js';
 import { assembleIseImport } from './isesch-assemble.js';
 import { libTemplate } from './isesch-hdl.js';
+import { primFromIse, primLibPins } from './isesch-prims.js';
 export { exportIseSch, decodeXlSymbol, iseTimestamp };
 
 export function parseXml(text) {
@@ -464,7 +465,7 @@ export function libPins(sym) {
   if ((m = /^xorcy(_l|_d)?$/.exec(s))) return { CI: ['in', null, null], LI: ['in', null, null], ...(m[1] !== '_l' ? { O: ['out', null, null] } : {}), ...(m[1] ? { LO: ['out', null, null] } : {}) };
   if (s === 'mult_and') return { I0: ['in', 0, -64], I1: ['in', 0, -128], LO: ['out', 256, -96] };
   if ((m = /^muxf[5-8](_l|_d)?$/.exec(s))) return { I0: ['in', null, null], I1: ['in', null, null], S: ['in', null, null], ...(m[1] !== '_l' ? { O: ['out', null, null] } : {}), ...(m[1] ? { LO: ['out', null, null] } : {}) };
-  return null;
+  return primLibPins(s);              // a device primitive's symbol (#1694), or null
 }
 
 // pins of a blockdef that look like pin stubs: a line with one end on the outside of the body
@@ -892,6 +893,9 @@ export function mapSymbol(blk, modules, warn, geo = {}) {
       return s;
     }
   }
+  // a device primitive's library symbol (BUFG, DCM_SP, RAMB16_S9 …): the Silinx primitive, its attributes its parameters (#1694)
+  const prim = primFromIse(sym, blk.attrs);
+  if (prim) return direct(prim.type, prim.params);
   if (BUF1.has(sym)) return direct(sym === 'inv' ? 'inv' : 'buf', { width: 1 });
   // tri-state buffers BUFE / BUFT (1 bit), BUFE4 / BUFT4 (one pin per bit), BUFE8/16 / BUFT8/16 (bus pins)
   if ((m = /^buf([et])(4|8|16)?$/.exec(sym))) { const w = m[2] ? +m[2] : 1; return direct('tbuf', { width: w, enable: m[1].toUpperCase(), bits: w === 4 }); }

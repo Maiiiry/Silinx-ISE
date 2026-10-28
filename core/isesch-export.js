@@ -7,6 +7,7 @@ import {
 } from './schdoc.js';
 import { LIB_GFX, LIB_TS, findModule, gfxShapes, iomarkerOrien, iseXform, lc, libPins, xaiToIseOrien } from './isesch.js';
 import { blockHdlDecls } from './isesch-blockhdl.js';
+import { primIseSymbol, primTimestamp } from './isesch-prims.js';
 
 const S_OUT = 16 / 5;                     // Silinx px -> ISE units (grid 10 -> 32, pin pitch 20 -> 64)
 const SHEET_SIZES = [[1760, 1360], [2720, 1760], [3520, 2720], [5440, 3520], [7040, 5440]];
@@ -136,7 +137,8 @@ function iseSymbolFor(s, def, netW, modules) {
       }
       return { lib: false, name: null, hdl: true };
     }
-    default: return { lib: false, name: `xl_${t}` };
+    // a device primitive: ISE's library symbol with its attributes (#1694)
+    default: return (S?.prim && primIseSymbol(s)) || { lib: false, name: `xl_${t}` };
   }
 }
 
@@ -306,7 +308,7 @@ export function exportIseSch(docIn, opts = {}) {
       const lp = libPins(iseName);
       pinMap = info.pins;
       localOf = xp => { const ip = pinMap[xp]; return ip && lp[ip] ? [lp[ip][1], lp[ip][2]] : null; };
-      if (!blockdefs.has(lc(iseName))) blockdefs.set(lc(iseName), { name: iseName, timestamp: LIB_TS[iseName] || '2000-1-1T10:10:10', shapes: LIB_GFX[iseName] ? gfxShapes(LIB_GFX[iseName]) : boxShapes(lp) });
+      if (!blockdefs.has(lc(iseName))) blockdefs.set(lc(iseName), { name: iseName, timestamp: LIB_TS[iseName] || primTimestamp(iseName, family) || '2000-1-1T10:10:10', shapes: LIB_GFX[iseName] ? gfxShapes(LIB_GFX[iseName]) : boxShapes(lp) });
     } else {
       // custom symbol: the Silinx geometry, scaled (origin = bottom left corner of the unrotated symbol)
       pinMap = Object.fromEntries(def.pins.map(q => [q.name, info.pins?.[q.name] ?? ((q.width ?? netW(q.name) ?? 1) > 1 ? `${q.name}(${(q.width ?? netW(q.name)) - 1}:0)` : q.name)]));
@@ -351,7 +353,10 @@ export function exportIseSch(docIn, opts = {}) {
     }
     // library pins the Silinx symbol does not have (CEO/TC of counters...) stay unconnected
     if (info.lib) for (const ip of Object.keys(libPins(iseName))) if (!Object.values(pinMap).includes(ip) || !pinsSheet.some(q => pinMap[q.name] === ip)) { if (!bp.some(l => l.includes(`name="${ip}"`))) bp.push(`            <blockpin name="${xesc(ip)}" />`); }
-    blocks.push([`        <block symbolname="${xesc(iseName)}" name="${xesc(s.name)}">`, ...bp, '        </block>'].join('\n'));
+    // (a device primitive's attributes, as ISE writes a block's: the generics of its HDL, #1694)
+    const at = (info.attrs || []).flatMap(([k, v, vt]) => [`            <attr value="${xesc(v)}" name="${xesc(k)}">`, '                <trait verilog="all:0 dp:1nosynth wsynop:1 wsynth:1" />',
+      '                <trait vhdl="all:0 gm:1nosynth wa:1 wd:1" />', `                <trait valuetype="${xesc(vt)}" />`, '            </attr>']);
+    blocks.push([`        <block symbolname="${xesc(iseName)}" name="${xesc(s.name)}">`, ...at, ...bp, '        </block>'].join('\n'));
   }
 
   // ------------------------------------------------------------- HDL modules and symbols for the custom blockdefs
