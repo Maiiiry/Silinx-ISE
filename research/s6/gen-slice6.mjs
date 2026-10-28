@@ -10,7 +10,9 @@
 // sinks in tiles of their own; the base's outputs AMUX … DMUX then on O6: the settings of the pins.
 // With --full (and the nets) the base also has the 5-input LUTs (O5 = A1 * A2) and flip-flops (on AMUX … DMUX), and a
 // SLICEL's or SLICEM's carry chain (CARRY4 from GND, every CY0 on O5) and F7 / F8: the settings these need.
-//   node research/s6/gen-slice6.mjs [--nets | --full] <out dir> [part …]      (default the XC6SLX16)
+// --tiles TYPE[:X] (after the mode) keeps the measured slices to the tiles of a type (CLEXL, CLEXM) from column X on:
+// a SLICEX's settings in another tile type or column; its files <part>.<design><kind>.<TYPE[X]>.
+//   node research/s6/gen-slice6.mjs [--nets | --full] [--tiles TYPE[:X]] <out dir> [part …]      (default the XC6SLX16)
 // <part>.slice<kind>.xdl and <part>.slice<kind>.json ({ slice: variant name }, 'BASE' the two bases); with --nets
 // <part>.nets<kind>.xdl / .json, with --full <part>.full<kind>.xdl / .json.
 import fs from 'node:fs';
@@ -105,13 +107,20 @@ export function harnessNets(kind, cells, driver, sinks) {
 /** The designs' names by their options: slice, nets, full. */
 export const designName = ({ nets = false, full = false } = {}) => (full ? 'full' : nets ? 'nets' : 'slice');
 
+/** The slices of the tiles of a type from a column on ('CLEXM', 'CLEXL:13'; null: all). */
+export function tileFilter(spec) {
+  if (!spec) return () => true;
+  const [type, from = '0'] = spec.split(':');
+  return s => s.tile.startsWith(`${type}_`) && +s.name.match(/^SLICE_X(\d+)Y/)[1] >= +from;
+}
+
 /**
  * A kind's design: { xdl, manifest: { slice: variant } }, the base first and last (nets: the pins' nets; full: the
  * base with the 5-input LUTs and flip-flops, the carry and F7 / F8, and the nets).
  */
-export function sliceDesign(part, slices, kind, def, { nets = false, full = false } = {}) {
+export function sliceDesign(part, slices, kind, def, { nets = false, full = false, tiles = null } = {}) {
   if (full) nets = true;
-  const opts = { nets, full, kind }, vs = sliceVariants(def, opts), at = oneSlicePerTile(slices, kind);
+  const opts = { nets, full, kind }, vs = sliceVariants(def, opts), at = oneSlicePerTile(slices.filter(tileFilter(tiles)), kind);
   if (at.length < vs.length + 2) throw new Error(`${part}: ${at.length} ${TYPE[kind]} tiles for ${vs.length + 2} slices`);
   const base = { name: 'BASE', settings: baseSettings(opts) }, list = [base, ...vs, base];
   const out = [`design "${designName(opts)}${kind}" ${part} v3.2 ,\n  cfg "";\n`], manifest = {};
@@ -129,14 +138,17 @@ export function sliceDesign(part, slices, kind, def, { nets = false, full = fals
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), opts = { nets: args[0] === '--nets', full: args[0] === '--full' };
-  const [out, ...parts] = opts.nets || opts.full ? args.slice(1) : args;
-  if (!out) { console.error('usage: node research/s6/gen-slice6.mjs [--nets | --full] <out dir> [part …]'); process.exit(1); }
+  if (opts.nets || opts.full) args.shift();
+  if (args[0] === '--tiles') { opts.tiles = args[1]; args.splice(0, 2); }
+  const [out, ...parts] = args, suffix = opts.tiles ? `.${opts.tiles.replace(':', '')}` : '';
+  if (!out) { console.error('usage: node research/s6/gen-slice6.mjs [--nets | --full] [--tiles TYPE[:X]] <out dir> [part …]'); process.exit(1); }
   const defs = JSON.parse(fs.readFileSync(new URL('./measured/prim-defs.json', import.meta.url), 'utf8'));
   fs.mkdirSync(out, { recursive: true });
   for (const part of parts.length ? parts : ['xc6slx16csg324-3']) {
     const slices = lutSlices(s6Device(part).sites), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2');
     for (const kind of Object.keys(TYPE)) {
-      const { xdl, manifest } = sliceDesign(part, slices, kind, defs[TYPE[kind]], opts), name = `${p}.${designName(opts)}${kind}`;
+      if (opts.tiles && !slices.some(s => s.kind === kind && tileFilter(opts.tiles)(s))) continue;
+      const { xdl, manifest } = sliceDesign(part, slices, kind, defs[TYPE[kind]], opts), name = `${p}.${designName(opts)}${kind}${suffix}`;
       fs.writeFileSync(path.join(out, `${name}.xdl`), xdl);
       fs.writeFileSync(path.join(out, `${name}.json`), JSON.stringify(manifest));
       console.log(`${name}: ${Object.keys(manifest).length} slices`);

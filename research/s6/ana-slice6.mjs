@@ -2,7 +2,8 @@
 // those of its column's frames and its 64-bit band (from its base, db/<device>-lut.json), as (frame, bit) offsets
 // from its base; a variant's settings are the bits it sets and clears against the base slice's (the two bases
 // equal, checked).
-//   node research/s6/ana-slice6.mjs [--nets | --full] <dir> [part …]   -> research/s6/db/<device>-slice[-nets|-full].json
+//   node research/s6/ana-slice6.mjs [--nets | --full] [--tiles TYPE[:X]] <dir> [part …]
+//     -> research/s6/db/<device>-slice[-nets|-full][-<type>[X]].json (with --tiles, the kinds it has designs of)
 // { kinds: { X|L|M: { base: [[frame, bit]], variants: { name: { set: [[frame, bit]], clear: [[frame, bit]] } } } } }
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,21 +47,25 @@ export function sliceSettings(fdri, dev, manifest, bases) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), mode = { '--nets': 'nets', '--full': 'full' }[args[0]], design = mode || 'slice';
-  const [dir, ...parts] = mode ? args.slice(1) : args;
+  if (mode) args.shift();
+  let tiles = '';
+  if (args[0] === '--tiles') { tiles = args[1].replace(':', ''); args.splice(0, 2); }
+  const [dir, ...parts] = args, suffix = tiles ? `.${tiles}` : '';
   if (!dir) { console.error('usage: node research/s6/ana-slice6.mjs [--nets | --full] <dir> [part …]'); process.exit(1); }
   for (const part of parts.length ? parts : ['xc6slx16csg324-3']) {
     const dev = bitFormat6(part), p = part.replace(/^(xc6slx\d+)(csg)/, '$1-$2');
     const bases = JSON.parse(fs.readFileSync(new URL(`./db/${dev.device}-lut.json`, import.meta.url), 'utf8')).slices;
     const kinds = {};
     for (const kind of ['X', 'L', 'M']) {
-      const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${p}.${design}${kind}.json`), 'utf8'));
-      const { fdri } = readBit6(fs.readFileSync(path.join(dir, `${p}.${design}${kind}.bit`)));
+      if (!fs.existsSync(path.join(dir, `${p}.${design}${kind}${suffix}.json`))) continue;
+      const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${p}.${design}${kind}${suffix}.json`), 'utf8'));
+      const { fdri } = readBit6(fs.readFileSync(path.join(dir, `${p}.${design}${kind}${suffix}.bit`)));
       const { base, variants, problems } = sliceSettings(fdri, dev, manifest, bases);
       const none = Object.entries(variants).filter(([, v]) => !v.set.length && !v.clear.length).map(([n]) => n);
       console.log(`${part} SLICE${kind}: base ${base.length} bits, ${Object.keys(variants).length} variants, ${none.length} with no bits${none.length ? ` (${none.join(' ')})` : ''}; ${problems.length} problems${problems.length ? `: ${problems.join('; ')}` : ''}`);
       kinds[kind] = { base, variants };
     }
     fs.mkdirSync(new URL('./db/', import.meta.url), { recursive: true });
-    fs.writeFileSync(new URL(`./db/${dev.device}-slice${mode ? `-${mode}` : ''}.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
+    fs.writeFileSync(new URL(`./db/${dev.device}-slice${mode ? `-${mode}` : ''}${tiles ? `-${tiles.toLowerCase()}` : ''}.json`, import.meta.url), `${JSON.stringify({ part, kinds })}\n`);
   }
 }
