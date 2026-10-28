@@ -141,6 +141,7 @@ test('#1783 math.h in hardware: sqrt and fabs of any value, the others of consta
 
 const ROUND = `#include <stdio.h>
 #include <math.h>
+#define P(x) ((x) == (x) ? (double)(x) : 99.0)   /* (a NaN's sign printed: the host's, -nan on x86) */
 double g(double a, double b, float c, float d, double *lo, double *hi, float *q) {
   *lo = floor(a) + fmin(a, b);
   *hi = ceil(b) - fmax(a, b);
@@ -154,9 +155,9 @@ int main(void) {
   float q;
   for (int i = 0; i < 8; i++) for (int j = 0; j < 8; j++) {
     double r = g(v[i], v[j], w[(i + j) % 6], w[(i * 3 + j) % 6], &lo, &hi, &q);
-    if (i == j) printf("%g %g %g %g\\n", r, lo, hi, (double)q);
+    if (i == j) printf("%g %g %g %g\\n", P(r), P(lo), P(hi), P(q));
   }
-  printf("%g %g %g %g\\n", fmin(0.0 / 0.0, 1.0), fmaxf(2.0f, 0.0f / 0.0f), copysign(3.0, -0.0), floorf(-0.5f));
+  printf("%g %g %g %g\\n", P(fmin(0.0 / 0.0, 1.0)), P(fmaxf(2.0f, 0.0f / 0.0f)), copysign(3.0, -0.0), floorf(-0.5f));
   return 0;
 }
 `;
