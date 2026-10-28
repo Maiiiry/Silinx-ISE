@@ -50,3 +50,24 @@ test('#1109 an edit that connects the marker to no new pin keeps its direction (
   const inv = normalizeDoc({ ...d2, symbols: [...d2.symbols, { id: 'S2', type: 'inv', x: 20, y: 180 }] });   // (O at (80, 190))
   assert.deepEqual(after(inv, wired(inv, [{ x: 80, y: 190 }, { x: 120, y: 190 }, { x: 120, y: 210 }])), [{ port: 'P1', dir: 'out' }]);
 });
+
+// #1796: a bus tap is a connector: an input marker wired to a tap's bit side (its O) stays an input; wired to a gate's
+// output too, it becomes an output as before
+test('#1796 an input marker wired to a bus tap\'s bit side stays an input', async () => {
+  const { newDoc, normalizeDoc, netlist, symbolPins } = await import('../core/schdoc.js');
+  const { markerDirections } = await import('../core/schdoc-markers.js');
+  const d = newDoc('m', 'vhdl');
+  d.symbols.push({ id: 'T', type: 'slice', x: 300, y: 200, rot: 0, mirror: false, name: 'T1', params: { msb: 1, lsb: 1 } });
+  const o = symbolPins(normalizeDoc(d).symbols[0]).find((p) => p.name === 'O');
+  d.ports.push({ id: 'P1', name: 'X1', dir: 'in', width: 1, x: o.x + 100, y: o.y });
+  const before = netlist(normalizeDoc(d));
+  d.wires.push({ id: 'W1', points: [{ x: o.x, y: o.y }, { x: o.x + 100, y: o.y }] });
+  const doc = normalizeDoc(d);
+  assert.deepEqual(markerDirections(doc, before, netlist(doc)), []);
+  // (a gate's output on it too: an output, #1109)
+  doc.symbols.push({ id: 'G', type: 'inv', x: 0, y: 0, rot: 0, mirror: false, name: 'G1', params: { width: 1 } });
+  const g = symbolPins(normalizeDoc(doc).symbols.find((s) => s.id === 'G')).find((p) => p.name === 'O');
+  const b2 = netlist(normalizeDoc(doc));
+  doc.wires.push({ id: 'W2', points: [{ x: g.x, y: g.y }, { x: o.x + 100, y: g.y }, { x: o.x + 100, y: o.y }] });
+  assert.deepEqual(markerDirections(normalizeDoc(doc), b2, netlist(normalizeDoc(doc))), [{ port: 'P1', dir: 'out' }]);
+});
