@@ -142,3 +142,53 @@ test('#1690 a bus tap of bits outside its bus: an error on the tap, in the check
   alone.symbols.push(tap(300, 200, 5, 5));
   assert.deepEqual(diags(netlist(normalizeDoc(alone))).filter((x) => /outside/.test(x)), []);
 });
+
+// #1796: a bus tap is a connector, as in ISE: bit wires driven by input markers (X3..X0) build a bus through taps (into
+// an adder's A), and the adder's sum is split by taps into output markers (Z3..Z0); no "2 drivers" on the X's, no "no
+// driver" on the bus; simulated, Z = X + Y. A bus driven by its own driver and through a tap too: an error
+test('#1796 bus taps both ways: X3..X0 into a bus through taps, the sum out through taps; simulated; a bus driven twice, an error', async () => {
+  const { symbolPins } = await import('../core/schdoc.js');
+  const mk = (extra) => {
+    const d = newDoc('bustest', 'vhdl');
+    const V = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+    let n = 0;
+    const sym = (type, params, conn) => {
+      const s = { id: `S${++n}`, type, x: 300, y: 100 + 100 * n, rot: 0, mirror: false, name: `inst_${n}`, params };
+      d.symbols.push(s);
+      for (const p of symbolPins(normalizeDoc({ ...d, symbols: [s] }).symbols[0])) {
+        if (!conn[p.name]) continue;
+        const e = { x: p.x + 20 * V[p.side][0], y: p.y + 20 * V[p.side][1] };
+        d.wires.push({ id: `W${++n}`, points: [{ x: p.x, y: p.y }, e] });
+        d.labels.push({ id: `L${++n}`, x: e.x, y: e.y, net: conn[p.name] });
+      }
+    };
+    const port = (nm, dir, w, i) => {
+      d.ports.push({ id: `P${i}`, name: nm, dir, width: w, x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i });
+      d.wires.push({ id: `WP${i}`, points: [{ x: dir === 'in' ? 100 : 1500, y: 100 + 60 * i }, { x: dir === 'in' ? 120 : 1480, y: 100 + 60 * i }] });
+    };
+    for (let k = 3; k >= 0; k--) { port(`X${k}`, 'in', 1, 3 - k); port(`Z${k}`, 'out', 1, 10 + 3 - k); }
+    port('Y', 'in', 4, 4);
+    for (let k = 3; k >= 0; k--) sym('slice', { msb: k, lsb: k }, { I: 'xb', O: `X${k}` });
+    sym('add', { width: 4 }, { A: 'xb', B: 'Y', S: 'sb' });
+    for (let k = 3; k >= 0; k--) sym('slice', { msb: k, lsb: k }, { I: 'sb', O: `Z${k}` });
+    if (extra) extra(sym);
+    return normalizeDoc(d);
+  };
+  const doc = mk();
+  assert.deepEqual(diags(netlist(doc)), []);
+  const TB = {
+    vhdl: 'library ieee; use ieee.std_logic_1164.all;\nentity tb is end;\narchitecture s of tb is signal x3, x2, x1, x0, z3, z2, z1, z0 : std_logic; signal y : std_logic_vector(3 downto 0); begin\n u : entity work.bustest port map (X3 => x3, X2 => x2, X1 => x1, X0 => x0, Y => y, Z3 => z3, Z2 => z2, Z1 => z1, Z0 => z0);\n process begin x3 <= \'0\'; x2 <= \'1\'; x1 <= \'0\'; x0 <= \'1\'; y <= "0011"; wait for 1 ns; report std_logic\'image(z3) & std_logic\'image(z2) & std_logic\'image(z1) & std_logic\'image(z0); wait; end process;\nend;',
+    verilog: 'module tb; reg x3, x2, x1, x0; reg [3:0] y; wire z3, z2, z1, z0; bustest u(.X3(x3), .X2(x2), .X1(x1), .X0(x0), .Y(y), .Z3(z3), .Z2(z2), .Z1(z1), .Z0(z0)); initial begin x3 = 0; x2 = 1; x1 = 0; x0 = 1; y = 4\'b0011; #1 $display("%b%b%b%b", z3, z2, z1, z0); end endmodule',
+  };
+  for (const lang of ['vhdl', 'verilog']) {
+    const g = generateHdl({ ...doc, lang }, { lang });
+    assert.deepEqual(g.diagnostics, [], lang);
+    assert.match(g.code, lang === 'vhdl' ? /xb\(3\) <= X3;/ : /assign xb\[3\] = X3;/);
+    const ext = lang === 'vhdl' ? 'vhd' : 'v';
+    const r = simulate([{ path: `bustest.${ext}`, text: g.code }, { path: `tb.${ext}`, text: TB[lang] }], 'tb', { until: 1e7 });
+    assert.deepEqual([r.errors.map((e) => e.message), r.sim.log.map((l) => l.text.replace(/'/g, ''))], [[], ['1000']], `${lang}: Z = 0101 + 0011`);
+  }
+  // the bus driven by a constant too: an error on the tap
+  const twice = mk((sym) => sym('constant', { value: '5', width: 4 }, { O: 'xb' }));
+  assert.deepEqual(diags(netlist(twice)).filter((x) => /^error/.test(x)), ["error bus 'xb' is driven by inst_48.O and, through bus taps inst_1, inst_6, inst_11, inst_16, by their bit wires"]);
+});

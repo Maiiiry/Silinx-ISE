@@ -106,6 +106,14 @@ export function mountSymbolCasesMore(ctx) {
         break;
       }
       case 'slice': {
+        // (a tap whose bit wire is driven by something else drives those bits of its bus, as in ISE, #1796)
+        const onet = nl.pinNet.get(`${s.id}/O`), bnet = inNet(s, 'I');
+        if (onet?.tapsIn?.includes(s.id) && bnet) {
+          const b = netName(bnet), m = int(p.msb, 0), l = int(p.lsb, 0), one = m === l;
+          if (ci) body.push(`${bnet.width === 1 ? b : one ? `${b}(${m})` : `${b}(${m} downto ${l})`} <= ${netName(onet)};`);
+          else assign(bnet.width === 1 ? b : one ? `${b}[${m}]` : `${b}[${m}:${l}]`, netName(onet));
+          break;
+        }
         const o = OUTN(s, 'O'); if (!o) return;
         const i = INN(s, 'I', true);
         const msb = int(p.msb, 0), lsb = int(p.lsb, 0);

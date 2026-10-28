@@ -394,7 +394,11 @@ export function netlist(docIn, { modules = {} } = {}) {
     const lw = labels.map(L => L.width).filter(isNum);
     const portW = ports.map(p => p.width);
     const cands = [...portW, ...lw, ...pinW.map(e => e.width)];
-    const drv = eps.filter(e => (e.kind === 'pin' && e.dir === 'out') || (e.kind === 'port' && e.dir === 'in'));
+    let drv = eps.filter(e => (e.kind === 'pin' && e.dir === 'out') || (e.kind === 'port' && e.dir === 'in'));
+    // a bus tap is a connector, as in ISE (#1796): its bit wire driven by something else (an input marker, a symbol's
+    // output) drives those bits of its bus, the tap's output O no driver of it then
+    const tapOuts = drv.filter(e => e.kind === 'pin' && e.pin === 'O' && symById.get(e.sym)?.type === 'slice');
+    if (tapOuts.length && drv.length > tapOuts.length) { net.tapsIn = tapOuts.map(e => e.sym); drv = drv.filter(e => !tapOuts.includes(e)); }
     net.drivers = drv;
     net.width = portW[0] ?? lw[0] ?? drv.find(e => isNum(e.width))?.width ?? (cands.length ? Math.max(...cands) : (wires.some(id => doc.wires.find(w => w.id === id)?.bus) ? null : 1));
     if (net.width == null) net.width = 1;
@@ -409,7 +413,7 @@ export function netlist(docIn, { modules = {} } = {}) {
     const pt = eps[0] || (labels[0] && labels[0].label) || doc.wires.find(w => w.id === wires[0])?.points[0];
     // drivers: tri-state outputs (and bidirectional pins / markers) may share a net, a bus; an ordinary
     // output or an input marker must be its only driver
-    const outs = eps.filter(e => e.dir === 'out' && e.kind === 'pin' && !e.tri);
+    const outs = eps.filter(e => e.dir === 'out' && e.kind === 'pin' && !e.tri && !(net.tapsIn && tapOuts.includes(e)));
     const ins = eps.filter(e => e.kind === 'port' && e.dir === 'in');
     const tris = eps.filter(e => e.dir === 'out' && e.kind === 'pin' && e.tri);
     if (outs.length + ins.length > 1)
@@ -480,6 +484,20 @@ export function netlist(docIn, { modules = {} } = {}) {
   for (let i = diags.length - 1; i >= 0; i--) {
     const d = diags[i];
     if ((/^net '.*' has no driver/.test(d.message) && quiet.has(d.net)) || (/^net '.*' connects only/.test(d.message) && withBits.has(d.net))) diags.splice(i, 1);
+  }
+  // the buses driven through their taps from their bits (#1796): driven (no "no driver"), not by their own driver too
+  const intoBus = new Map();   // the bus's net -> the taps driving it
+  for (const n of nets) for (const id of n.tapsIn || []) {
+    const bus = pinNet.get(`${id}/I`);
+    if (bus && bus !== n) { let l = intoBus.get(bus); if (!l) intoBus.set(bus, l = []); l.push(id); }
+  }
+  for (const [bus, ids] of intoBus) {
+    if (bus.drivers.length) {
+      const s = symById.get(ids[0]);
+      diags.push({ severity: 'error', message: `bus '${bus.name}' is driven by ${bus.drivers.map(e => epName(e, symById, doc)).join(', ')} and, through bus tap${ids.length > 1 ? 's' : ''} ${ids.map(i => symById.get(i).name).join(', ')}, by ${ids.length > 1 ? 'their' : 'its'} bit wire${ids.length > 1 ? 's' : ''}`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y, net: bus.name });
+    }
+    bus.tapsDrive = ids;
+    for (let i = diags.length - 1; i >= 0; i--) if (diags[i].net === bus.name && /^net '.*' has no driver/.test(diags[i].message)) diags.splice(i, 1);
   }
   // unconnected pins
   for (const s of doc.symbols) {
