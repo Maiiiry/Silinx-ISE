@@ -12,12 +12,12 @@
 import { simulateC } from './c-interp.js';
 import { cToHdl } from './c-hdl.js';
 import { simulate } from './compile.js';
-import { f32Bits } from './c-dataflow-float.js';
+import { f32Bits, f64Bits } from './c-dataflow-float.js';
 
 export const MAX_CYCLES = 100000;
 const mask = (w) => (1n << BigInt(w)) - 1n;
 // (a float's value: its IEEE bits, as its port holds them, #1768)
-const B = (v, w) => (typeof v === 'number' ? f32Bits(v) : BigInt(v)) & mask(w);
+const B = (v, w) => (typeof v === 'number' ? (w > 32 ? f64Bits(v) : f32Bits(v)) : BigInt(v)) & mask(w);
 const hex = (v, w) => `${w}'h${B(v, w).toString(16)}`;
 /** A struct's port's value (#1628): its members' (value(member)) at their fields, the padding 0. */
 export const pack = (fields, value) => fields.reduce((acc, f) => acc | (B(value(f.param) ?? 0n, f.w) << BigInt(f.off)), 0n);

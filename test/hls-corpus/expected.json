@@ -209,7 +209,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 24: 'real_val': double is not supported in Silinx HLS yet: use float (#1761)"
+    "reason": "C simulation: 24: sin: floating point is not supported in Silinx HLS yet (the test bench only)"
   },
   "interface-memory-using-axi-master": {
     "csim": "fail",
@@ -547,7 +547,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 21: the parameter 'A': double is not supported in Silinx HLS yet: use float (#1761)"
+    "reason": "C simulation: 68: '&' takes a variable"
   },
   "task-level-parallelism-control-driven-channels-autorestart": {
     "csim": "fail",

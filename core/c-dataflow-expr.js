@@ -34,7 +34,7 @@ export const exprMethods = {
       case 'cond': {
         const c = this.bool(this.expr(e.c, g));
         const a = this.expr(e.a, this.and(g, c)), b = this.expr(e.b, this.and(g, this.not(c)));
-        const t = a.t.fl === 32 || b.t.fl === 32 ? a.t.fl ? a.t : b.t : a.t.fx ? a.t : b.t.fx ? b.t : compareType(a.t, b.t);
+        const t = !(a.t.fx || b.t.fx) && (a.t.fl || b.t.fl) ? this.flType(a, b) : a.t.fx ? a.t : b.t.fx ? b.t : compareType(a.t, b.t);
         return this.v(this.mux(c, this.conv(a, t).id, this.conv(b, t).id, t), t);
       }
       case 'comma': this.expr(e.l, g); return this.expr(e.r, g);
@@ -88,7 +88,7 @@ export const exprMethods = {
       case '-': case '+': case '~': {
         if (e.op === '-' && e.e.kind === 'float') return this.floatConst(e.e, true);
         const x = this.expr(e.e, g);
-        if (x.t.fl === 32 && e.op !== '~') return e.op === '-' ? this.flNeg(x) : x;   // (#1768)
+        if (x.t.fl && x.fconst === undefined && e.op !== '~') return e.op === '-' ? this.flNeg(x) : x;   // (#1768)
         if (x.t.fx) return this.fxUnary(e.op, x);
         const t = unaryType(e.op, x.t);
         const c = this.conv(x, t);
@@ -118,7 +118,7 @@ export const exprMethods = {
       return this.v(e.op === '&&' ? this.and(l, r) : this.or(l, r), BOOL);
     }
     const l = this.expr(e.l, g), r = this.expr(e.r, g);
-    if (CMP[e.op] && (l.t.fl === 32 || r.t.fl === 32)) return this.flCompare(e.op, l, r, g, e.loc);   // (float, #1768)
+    if (CMP[e.op] && !(l.t.fx || r.t.fx) && (l.t.fl || r.t.fl)) return this.flCompare(e.op, l, r, g, e.loc);   // (float, double, #1768)
     if (CMP[e.op] && (l.t.fx || r.t.fx)) return this.fxCompare(e.op, l, r);
     if (CMP[e.op]) {
       const t = compareType(l.t, r.t);
@@ -128,7 +128,7 @@ export const exprMethods = {
   },
   /** l op r with C's / ap_int's arithmetic: + - * / % & | ^ << >> */
   arith(op, l, r, e) {
-    if (l.t.fl === 32 || r.t.fl === 32) return this.flArith(op, l, r, e);   // (float, core/c-dataflow-float.js, #1768)
+    if (!(l.t.fx || r.t.fx) && (l.t.fl || r.t.fl)) return this.flArith(op, l, r, e);   // (float, double: core/c-dataflow-float.js, #1768)
     if (l.t.fx || r.t.fx || l.fconst !== undefined || r.fconst !== undefined) return this.fxArith(op, l, r, e);
     if (op === '<<' || op === '>>') {
       const t = shiftType(l.t);

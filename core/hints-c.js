@@ -38,11 +38,11 @@ export const C_HINTS = [
       fix: 'Escreva p[1] em vez de *(p + 1).' },
   },
   {
-    id: 'c-float', re: /\b(double) is not supported in Silinx HLS yet: use float|floating point \((.+)\) is not supported in Silinx HLS yet/,
-    en: { explain: 'Silinx HLS makes float in hardware (IEEE-754, each operation a circuit of its own, as Vitis HLS\'s cores); $1 is not made yet: it needs larger circuits still.',
-      fix: 'Use float (and write its constants as floats: 0.5f), or integers / ap_fixed<W, I> when the values have a known range.' },
-    pt: { explain: 'O Silinx HLS faz float em hardware (IEEE-754, cada operação um circuito, como os cores do Vitis HLS); $1 ainda não: precisa de circuitos ainda maiores.',
-      fix: 'Use float (e escreva as suas constantes como float: 0.5f), ou inteiros / ap_fixed<W, I> quando os valores têm uma gama conhecida.' },
+    id: 'c-float', re: /^(\w+): floating point is not supported in Silinx HLS yet|floating point \((.+)\) is not supported in Silinx HLS yet/,
+    en: { explain: 'Silinx HLS makes float and double in hardware (IEEE-754: + - *, the comparisons and the conversions, each a circuit of its own, as Vitis HLS\'s cores); $1 (math.h) and the division are not made yet.',
+      fix: 'Compute it with + - * (a polynomial, a table), or keep it in the test bench (main and what only it calls).' },
+    pt: { explain: 'O Silinx HLS faz float e double em hardware (IEEE-754: + - *, as comparações e as conversões, cada uma um circuito, como os cores do Vitis HLS); $1 (math.h) e a divisão ainda não.',
+      fix: 'Calcule-o com + - * (um polinómio, uma tabela), ou deixe-o no test bench (o main e o que só ele chama).' },
   },
   {
     id: 'c-loop-bound', re: /^the number of iterations of this loop is not known/,

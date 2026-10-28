@@ -35,14 +35,14 @@ Spartan-3E, so it is not Silinx's oracle: the C itself is (see *Checking it* bel
 | `long`, `long long` and their unsigned | 64 | |
 | `int8_t` … `int64_t`, `uint8_t` … `uint64_t` | as named | |
 | `ap_int<W>` / `ap_uint<W>` | W | yes / no |
-| `float` (#1768) | 32 (its IEEE-754 bits) | |
+| `float` (#1768), `double` (#1773) | 32, 64 (their IEEE-754 bits) | |
 
-**`float` in hardware** (#1768): a synthesized function's float variables, arguments, arrays and results are their
-IEEE-754 binary32 bits (32-bit ports, as Vitis HLS's), and each operation (`+ - *`, the comparisons, `?:`, `-x`, `!x`,
-the conversions to and from the integers) is a circuit of the soft-float library (core/c-softfloat.js: round to nearest
-even, subnormals, infinities, a NaN `0x7fc00000`), inlined where it is: the hardware gives the C simulation's bits. A
-`double` constant is a float's value when converted to one (`float s = 0.0;`); in an operation with a float write it as
-a float (`0.5f`): `double` arithmetic, `double` itself, a division and `math.h` are not made yet (#1761).
+**`float` and `double` in hardware** (#1768, #1773): a synthesized function's floating-point variables, arguments,
+arrays and results are their IEEE-754 bits (32- and 64-bit ports, as Vitis HLS's), and each operation (`+ - *`, the
+comparisons, `?:`, `-x`, `!x`, the conversions to and from the integers and between float and double) is a circuit of
+the soft-float library (core/c-softfloat.js: round to nearest even, subnormals, infinities, a quiet NaN), inlined where it
+is: the hardware gives the C simulation's bits. C's usual conversions: a double operand, a double constant (`0.5`)
+too, makes an operation a double's; write `0.5f` to keep it a float's. A division and `math.h` are not made yet (#1761).
 
 `ap_fixed<W, I, Q, O>` / `ap_ufixed` (`#include "ap_fixed.h"`, #1643) run in the C
 simulation as AMD's `ap_fixed.h` computes them: full-precision results, the quantization modes (`AP_TRN`,

@@ -1,4 +1,4 @@
-// Silinx HLS (#1768, core/c-dataflow-float.js): float in synthesized functions, each operation a call of the soft-float
+// Silinx HLS (#1768, #1773, core/c-dataflow-float.js): float and double in synthesized functions, each operation a call of the soft-float
 // library (core/c-softfloat.js) on the values' bits: variables, a float array (ap_memory of 32 bits), a pointer output,
 // a result, + - *, the comparisons, ?:, -x, !x, casts to and from int, a double constant converted to a float. The C
 // simulation as cc's; the co-simulation in VHDL and Verilog (the C simulation's floats as their bits), a sequential and
@@ -63,11 +63,58 @@ int main(void) {
   }
 });
 
-test('#1768 float: what is not made yet, said (double, a double constant in an operation, a division)', () => {
+const POLY = `#include <stdio.h>
+double poly(double c[4], float x, int n, double *err) {
+  double s = 0.0;
+  for (int i = 0; i < 4; i++) s = s * x + c[i];
+  float f = s * 0.5;
+  *err = s - (double)f + n * 1e-3;
+  return s > 1e6 ? (double)(int)(s * 1e-3) : -s + 0.1;
+}
+int main(void) {
+  double c[4] = {1.5, -2.25, 3.0e-5, 0.1};
+  double e;
+  for (int k = 0; k < 4; k++) { double r = poly(c, k * 1.25f - 2.0f, k, &e); printf("%.17g %.17g\\n", r, e); }
+  return 0;
+}
+`;
+
+test('#1773 double in a sequential module (C\'s conversions: float with double a double, a double constant a double, double to float rounded): the C simulation as cc\'s', { skip: noCC }, () => {
+  const sim = simulateC(POLY, { file: 'poly.c' });
+  assert.deepEqual([sim.error, sim.exitCode], [null, 0]);
+  assert.equal(sim.output, compiledRun(POLY).output);
+});
+
+test('#1773 double co-simulated in VHDL and Verilog: a double array an ap_memory of 64 bits, the pointer output and the result 64-bit ports, a float argument 32', () => {
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(POLY, { file: 'poly.c', lang });
+    assert.deepEqual([r.errors, r.pass, r.calls, r.gen.diagnostics], [[], true, 4, []], JSON.stringify(r.mismatches, big));
+    assert.deepEqual(r.gen.ports.filter((p) => !/^ap_(clk|rst|start|done|idle|ready)$/.test(p.name)).map((p) => `${p.name}:${p.w}`),
+      ['c_address0:2', 'c_ce0:1', 'c_q0:64', 'x:32', 'n:32', 'err:64', 'err_ap_vld:1', 'ap_return:64']);
+  }
+});
+
+test('#1773 double in a combinational module: + - * and the comparisons on the edge values, co-simulated in VHDL and Verilog', () => {
+  const src = `double f(double a, double b, int *c) {
+  *c = (a < b) + 2 * (a <= b) + 4 * (a == b) + 8 * (a != b) + 16 * !a;
+  return a * b - (a + b) * 0.1;
+}
+int main(void) {
+  double v[8] = {0.0, -0.0, 1.0, -3.5, 4.9e-324, 1.7e308, 1.0 / 0.0, 0.0 / 0.0};
+  int c, s = 0;
+  for (int i = 0; i < 8; i++) for (int j = 0; j < 8; j++) { double r = f(v[i], v[j], &c); s += c + (r > 0.0); }
+  return s == 0;
+}
+`;
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(src, { file: 'f.c', lang });
+    assert.deepEqual([r.errors, r.pass, r.calls, r.gen.diagnostics], [[], true, 64, []], JSON.stringify(r.mismatches.slice(0, 3), big));
+  }
+});
+
+test('#1773 floating point: what is not made yet, said (a division); a double constant with a float a double operation', () => {
   const errs = (src) => cToHdl(src, { file: 'e.c' }).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`);
-  assert.deepEqual(errs('double f(double x) { return x; }\n'), ["1 the result of 'f': double is not supported in Silinx HLS yet: use float (#1761)", "1 the parameter 'x': double is not supported in Silinx HLS yet: use float (#1761)"]);
-  assert.deepEqual(errs('float f(float x) { return x * 0.1; }\n'), ['1 the double constant 0.1: double arithmetic is not made in hardware yet: write 0.1f (a float) (#1761)']);
   assert.deepEqual(errs('float f(float x, float y) { return x / y; }\n'), ['1 a float division is not made in hardware yet (#1761)']);
-  // (a double constant a float's value; one a float holds exactly in a comparison)
-  assert.deepEqual(errs('float f(float x) { float y = 0.1; return x < 0.5 ? y : x; }\n'), []);
+  assert.deepEqual(errs('double f(double x, int k) { return x / k; }\n'), ['1 a double division is not made in hardware yet (#1761)']);
+  assert.deepEqual(errs('float f(float x) { float y = 0.1; return x < 0.5 ? y : x * 0.1; }\ndouble g(double d) { return d; }\n'), []);
 });

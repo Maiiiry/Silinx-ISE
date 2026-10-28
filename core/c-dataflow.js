@@ -49,12 +49,14 @@ export class Flow {
   v(id, t) { return { id, t }; }
   // (to bool: 0 or 1, as C converts: any value other than 0 is 1, #1528)
   conv(x, t) {
-    if (t.fl || x.t?.fl === 32 || (x.fconst !== undefined && !t.fx)) return this.flConv(x, t);   // (float, core/c-dataflow-float.js, #1768)
+    // (float and double, core/c-dataflow-float.js, #1768, #1773; an ap_fixed takes a double constant only)
+    if (t.fx && x.t?.fl && x.fconst === undefined) this.error(x.loc, `a ${x.t.fl === 32 ? 'float' : 'double'} converted to an ap_fixed: not made yet`);
+    if (!t.fx && (t.fl || x.t?.fl)) return this.flConv(x, t);
     if (t.fx || x.t?.fx || x.fconst !== undefined) return this.fxConv(x, t);   // (ap_fixed, core/c-dataflow-fixed.js)
     return t.bool ? this.v(this.bool(x), t) : this.v(this.g.add('ext', [x.id], t), t);
   }
   bool(x) {
-    if (x.t.fl) return this.flBool(x);   // (a float: not 0, #1768)
+    if (x.t?.fl) return this.flBool(x);   // (a float or a double: not 0, #1768)
     if (x.t.w === 1 && !x.t.s) return x.id;
     return this.g.add('ne', [x.id, this.g.const(0, x.t)], BOOL);
   }

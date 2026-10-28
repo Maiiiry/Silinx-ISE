@@ -215,7 +215,7 @@ test('hints: the main messages of Silinx HLS have their help in English and in P
     ["'q': a pointer variable is not possible in Silinx HLS (pointers only as arguments; use an array index)", 'c-pointer-variable'],
     ["the pointer 'q': set to something other than an array, &x, &a[i] or a + i: not supported yet", 'c-pointer-variable'],
     ['pointer arithmetic is not possible in Silinx HLS: index the array instead', 'c-pointer-arithmetic'],
-    ["'x': double is not supported in Silinx HLS yet: use float (#1761)", 'c-float'],
+    ['sin: floating point is not supported in Silinx HLS yet (the test bench only)', 'c-float'],
     ["the number of iterations of this loop is not known: its latency is unknown (#pragma HLS LOOP_TRIPCOUNT max=N in it gives the report a bound)", 'c-loop-bound'],
     ["the header 'unistd.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h)", 'c-header'],
     ['printf is ignored by synthesis (it only prints in C simulation)', 'c-printf'],
@@ -252,6 +252,6 @@ test('the flow is named Silinx HLS: its messages, help, interface and docs (#161
     }
   }
   assert.deepEqual(old, []);
-  assert.ok(msgs('double f(double x) { return x; }').some((m) => /not supported in Silinx HLS yet/.test(m)));
-  assert.match(hintFor({ message: "'x': double is not supported in Silinx HLS yet: use float (#1761)" }).pt.explain, /O Silinx HLS faz float em hardware/);
+  assert.ok(msgs('#include <math.h>\ndouble f(double x) { return sin(x); }').some((m) => /not supported in Silinx HLS yet/.test(m)));
+  assert.match(hintFor({ message: 'sin: floating point is not supported in Silinx HLS yet (the test bench only)' }).pt.explain, /O Silinx HLS faz float e double em hardware/);
 });
