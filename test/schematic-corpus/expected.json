@@ -25,10 +25,10 @@
  },
  "bus_bitnames": {
   "load": "pass",
-  "check": "fail: invalid net name 'a(0)'",
-  "hdl": "fail: vhdl: bus_bitnames.vhd:16: expected ':' but found '('",
-  "sim": "mismatch: vhdl: does not elaborate: bus_bitnames.vhd:16 expected ':' but found '('",
-  "ise": "mismatch: the reference does not elaborate: bus_bitnames.vhd:16 expected ':' but found '('",
+  "check": "pass",
+  "hdl": "pass",
+  "sim": "pass",
+  "ise": "pass",
   "synth": "fail: bus_bitnames.vhd:16 expected ':' but found '('",
   "flow": "xc3s100ecp132-4: fail: the design has errors",
   "quality": null,
@@ -39,9 +39,9 @@
    "xc3s1200efg320-4": "fail: the design has errors"
   },
   "warnings": {
-   "ise": [
-    "export: schematic check: invalid net name 'a(0)'",
-    "export: schematic check: invalid net name 'a(3)'"
+   "hdl": [
+    "verilog: bus_bitnames.v:6: Input <a<2:1>> is never used.",
+    "vhdl: bus_bitnames.vhd:9: Input <a<2:1>> is never used."
    ]
   }
  },

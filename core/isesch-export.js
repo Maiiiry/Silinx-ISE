@@ -237,13 +237,18 @@ export function exportIseSch(docIn, opts = {}) {
   const used = nl.nets.filter(n => n.endpoints.length || n.wires.length);
   const order = [...used].sort((a, b) => (portOwner.has(b) - portOwner.has(a)) || (a.auto - b.auto));
   for (const n of order) {
-    if (member.has(n)) continue;
+    if (member.has(n) || (n.part && !portOwner.has(n))) continue;
     let base;
     if (portOwner.has(n)) base = claimName(portOwner.get(n).name, n);
     else if (!n.auto) base = claimName(n.name, n);
     else { do auto++; while (taken.has(lc(`XLXN_${auto}`))); base = claimName(`XLXN_${auto}`, n); }
     // (a bus named with its indices, d(7:4), keeps them, #1689)
     sigOf.set(n, n.width > 1 ? `${base}(${n.range ? `${n.range.msb}:${n.range.lsb}` : `${n.width - 1}:0`})` : base);
+  }
+  // (a net of some bits of a bus named so, a(0), #1688: those bits of its bus's ISE name)
+  for (const n of order) if (n.part && !member.has(n) && !portOwner.has(n)) {
+    const base = n.part.bus ? sigOf.get(n.part.bus).replace(/\(.*$/, '') : claimName(n.part.base, `#bus:${lc(n.part.base)}`);
+    sigOf.set(n, n.part.msb === n.part.lsb ? `${base}(${n.part.msb})` : `${base}(${n.part.msb}:${n.part.lsb})`);
   }
   for (const [n, m] of member) {
     const base = sigOf.get(m.main).replace(/\(.*$/, '');
