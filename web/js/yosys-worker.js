@@ -10,3 +10,5 @@ self.onmessage = async ({ data: { id, args, files } }) => {
   try { self.postMessage({ id, files: await runYosysOnce(runYosys, args, files, line => self.postMessage({ id, line }), { fetchProgress }) }); }
   catch (e) { self.postMessage({ id, error: e.message, code: e.code, crash: e.crash }); }
 };
+
+# Automated fix for issue #1877: Windows: 'measure designs: every observation design of a part in one folder' cannot find gen-obshdl (#3)
