@@ -186,7 +186,7 @@
 .sch-editor svg .sop { font-size: 15px; font-weight: bold; fill: var(--se-symbol); }
 .sch-editor svg .stext { font-size: 9px; fill: var(--se-pin); }
 .sch-editor svg .pname { font-size: 9px; fill: var(--se-pin); }
-.sch-editor svg .pwidth { font-size: 8px; fill: var(--se-pin); }
+.sch-editor svg .pwidth, .sch-editor svg .stext.on { font-size: 8px; fill: var(--se-pin); }   /* (the bus tap's label: the widths' size, #1812) */
 /* (on its lead, the lead broken under it, #1139, #1174) */
 .sch-editor svg .pwidth.on, .sch-editor svg .stext.on { paint-order: stroke; stroke: var(--sch-bg, #fff); stroke-width: 3px; }
 .sch-editor svg .iomark { fill: var(--se-symbol-fill); stroke: var(--se-symbol); stroke-width: 1.3; }

@@ -77,4 +77,6 @@ uiTest('#1488 #1800 schematic: the bus join shows its width on its inputs and ou
     J: { widths: ['4', '4', '8'], on: true, clear: true }, J1: { widths: ['7', '8'], on: true, clear: true },
     T: { widths: [], on: true, clear: true }, T90: { widths: [], on: true, clear: true }, T1: { widths: [], on: true, clear: true },
   });
+  // (the tap's label in the size of the widths it replaced, #1812)
+  assert.deepEqual(await page.eval((ed) => [document.querySelector(`${ed} .se-svg g.sym[data-id="T"] .stext`), document.querySelector(`${ed} .se-svg g.sym[data-id="J"] .pwidth`)].map((t) => getComputedStyle(t).fontSize), ED), ['8px', '8px']);
 });
