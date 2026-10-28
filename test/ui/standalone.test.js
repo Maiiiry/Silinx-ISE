@@ -963,9 +963,17 @@ uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain i
   }, ucf);
   await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
   await page.waitDialog('Back-annotate Pin Locations', { timeout: 120000 });
-  const pins = ['NET "led<4>" LOC = "J14";', 'NET "led<5>" LOC = "J13";', 'NET "led<6>" LOC = "G14";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "H13";'];
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent),
-    `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${pins.join('\n')}`);
+  // the pads the placer chose in this run, in the dialog: five different ones, none of them one the UCF gives (a change of
+  // the placer moves them, #1840)
+  const nets = ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>'];
+  const taken = new Set([...ucf.matchAll(/LOC = "(\w+)"/g)].map((m) => m[1]));
+  const msg = await page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent);
+  const pads = nets.map((n) => msg.match(new RegExp(`NET "${n.replace(/[<>]/g, '\\$&')}" LOC = "(\\w+)";`))?.[1]);
+  assert.ok(pads.every(Boolean), msg);
+  assert.equal(new Set(pads).size, 5);
+  assert.deepEqual(pads.filter((p) => taken.has(p)), []);
+  const pins = nets.map((n, k) => `NET "${n}" LOC = "${pads[k]}";`);
+  assert.equal(msg, `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${pins.join('\n')}`);
   const log = await page.consoleText();
   for (const re of [/=== SILINX STEP par ===/, /=== SILINX STEP pin2ucf ===/, /Pin locations of 27 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/])
     assert.match(log, re);
