@@ -1,7 +1,8 @@
 // Silinx HLS (#1786): arrays of two or more dimensions in synthesis, as Vitis HLS makes them by default: an array of
 // N x M x … elements one array (a memory, an argument one ap_memory) of N*M*… words, a[i][j] at i*M + j (row-major),
 // its initializer's nested lists its words in order. On the checked syntax tree, before core/c-dataflow.js and
-// core/c-fsmd.js (the C simulation keeps its dimensions). A row of it alone (a[i] passed to a function) is said.
+// core/c-fsmd.js (the C simulation keeps its dimensions), in the functions made into hardware. A row of it alone (a[i]
+// passed to a function) is said there.
 // Isomorphic ES module.
 //
 //   flattenArrays(checked, report) -> the names flattened ('function:name')
@@ -15,6 +16,25 @@ function dims(t) {
   return ds.length > 1 ? { ds, of: at } : null;
 }
 const num = (v, loc) => ({ kind: 'num', value: BigInt(v), text: String(v), loc });
+/** The functions made into hardware: the top and the functions it names (calls, hls::task's), the test bench's main()
+ *  not one (#1820). */
+function hardware(checked) {
+  const seen = new Set();
+  const visit = (name) => {
+    const f = checked.funcs.get(name);
+    if (!f?.body || seen.has(name)) return;
+    seen.add(name);
+    const walk = (n) => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      if (n.kind === 'id') visit(n.name);
+      for (const [k, v] of Object.entries(n)) if (k !== 'loc' && k !== 'type') walk(v);
+    };
+    walk(f.body);
+  };
+  visit(checked.top);
+  return seen;
+}
 
 export function flattenArrays(checked, report) {
   const done = [];
@@ -37,8 +57,9 @@ export function flattenArrays(checked, report) {
     return d.ds;
   };
   for (const it of checked.ast.items) if (it.kind === 'var') { const ds = flat(it, 'global'); if (ds) globals.set(it.name, ds); }
+  const hw = hardware(checked);
   for (const f of checked.funcs.values()) {
-    if (!f.body) continue;
+    if (!f.body || !hw.has(f.name)) continue;
     const scope = [new Map(globals)];
     const look = (n) => { for (let k = scope.length - 1; k >= 0; k--) if (scope[k].has(n)) return scope[k].get(n); return null; };
     const top = new Map();
