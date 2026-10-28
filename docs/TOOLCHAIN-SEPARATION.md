@@ -157,7 +157,8 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
    `core/fpga/techview.js` moves to `core/`, the old path re-exporting. Done: `core/techview.js`.
 3. **Synthesis from flat Verilog** ([#1674](https://github.com/pmnmalo/Silinx-ISE/issues/1674)):
    `synthesizeOpen(design)` becomes the front end (`toVerilog`, the gate count) followed by a synthesis of the
-   flat Verilog; `synthesizeOpen` keeps its signature. The same netlists on the corpus.
+   flat Verilog; `synthesizeOpen` keeps its signature. The same netlists on the corpus. Done: `core/synth-front.js`
+   (`synthesisInput`, `synthesizeOpen`) and `synthesizeVerilog` in `core/synth-open.js`.
 4. **The flow's front end and simulation models as hooks**
    ([#1675](https://github.com/pmnmalo/Silinx-ISE/issues/1675)): `runOpenFlow` gets the HDL front end and the
    simulation models through `io`; a wrapper in the IDE gives them, so `server/open-flow-run.js` and

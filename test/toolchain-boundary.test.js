@@ -27,7 +27,7 @@ const ALLOWED = new Set([
   'core/open-flow-models.js -> core/compile.js',
   'core/open-flow-models.js -> core/sim-model.js',
   'core/open-flow-models.js -> core/unisim.js',
-  'core/synth-open.js -> core/synth-verilog.js', // step 3, #1674: synthesis from flat Verilog
+  'core/synth-open.js -> core/synth-front.js', // #1674: synthesizeOpen from the front end, until its importers switch (step 7)
 ]);
 // the npm packages it imports (its dependencies once it is a package of its own)
 const PACKAGES = new Set(['@yowasp/yosys']);
