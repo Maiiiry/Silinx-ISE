@@ -630,6 +630,16 @@ test('gen-obspins: designs that use every pin of the block RAMs, multipliers, DC
   const locs = ucf => [...ucf.matchAll(/^INST "u(\d+)" LOC = "(\S+)" ;$/gm)].map(x => x[2]);
   const designs = { wide: ram(dev, true), narrow: ram(dev, false), mult: multCascade(dev), dcm: dcmPins(dev), iob: iobDdr(dev), clk2: [0, 1, 2].map(k => iobClk2(dev, k)) };
   for (const d of [designs.wide, designs.narrow]) assert.deepEqual(locs(d.ucf).sort(), dev.sites('RAMB16').map(s => s.name).sort());
+  // iobddr and iobddr-b: every pad but the clock has its DDR registers in one of them (the XC3S100E's G12 among them,
+  // which iobddr leaves out: its IQ2, SR, REV, ICE)
+  for (const part of ['xc3s250ecp132-4', 'xc3s100ecp132-4']) {
+    const g = loadDeviceCache(part), all = devicePads(g).map(p => p.name).filter(p => p !== 'B8');
+    const ddr = u => [...u.matchAll(/^NET "[ab]<\d+>" LOC = "(\S+)" ;$/gm)].map(x => x[1]);
+    const a = ddr(iobDdr(g).ucf), b = ddr(iobDdr(g, 'B8', part, devicePads(g), { alt: true }).ucf);
+    assert.deepEqual([...new Set([...a, ...b])].sort(), all.sort(), part);
+    if (part === 'xc3s100ecp132-4') assert.deepEqual([a.includes('G12'), b.includes('G12')], [false, true]);
+  }
+  assert.equal(read(iobDdr(dev, 'B8', 'xc3s250ecp132-4', devicePads(dev), { alt: true }).v)[0].length, 0);
   // every pin on a signal of its own: no bit of s twice (the I/O blocks' set and reset once per IOB, shared by its registers)
   const used = v => [...v.matchAll(/s\[(\d+)(?::(\d+))?\]/g)].flatMap(([, a, b]) => b === undefined ? [+a] : Array.from({ length: +a - +b + 1 }, (_, i) => +b + i));
   for (const [n, d] of Object.entries({ wide: designs.wide, narrow: designs.narrow, mult: designs.mult })) {
@@ -1116,9 +1126,9 @@ test('build-measured: every measured die rebuilt from its measurements alone is 
     assert.equal(m.part, PARTS[die]);
     assert.deepEqual([m.rows, m.cols], [g.rows, g.cols], die);
   }
-  // (the tiles with a PIP or a site: the XC3S250E's 1057 of the grid's 1419, the XC3S100E's 478 of its 667)
+  // (the tiles with a PIP or a site: the XC3S250E's 1057 of the grid's 1419, the XC3S100E's 479 of its 667)
   assert.equal(loadDevice(buildMeasured(loadDeviceCache('xc3s250ecp132-4'))).tileCount, 1057);
-  assert.equal(loadDevice(buildMeasured(loadDeviceCache('xc3s100ecp132-4'))).tileCount, 478);
+  assert.equal(loadDevice(buildMeasured(loadDeviceCache('xc3s100ecp132-4'))).tileCount, 479);
 });
 
 test('build-measured: the die of a part; a part with no die or no measurements refused (#3)', () => {
@@ -1139,7 +1149,7 @@ test('measure designs: every observation design of a part in one folder, sized t
     const names = observationDesigns('xc3s100ecp132-4', path.join(dir, 'w'));
     assert.deepEqual(GENERATORS, ['gen-obshdl', 'gen-obscarry', 'gen-obsslice', 'gen-obsmux', 'gen-obspins', 'gen-obspins2', 'gen-obsclk']);
     assert.deepEqual(names, ['bram', 'mult', 'pads', 'carry-l0', 'carry-l8', 'carry-m0', 'carry-m8', 'slices', 'muxes',
-      'dcmpins', 'iobclk2-0', 'iobclk2-1', 'iobclk2-2', 'iobddr', 'multcasc', 'ramnarrow', 'ramwide',
+      'dcmpins', 'iobclk2-0', 'iobclk2-1', 'iobclk2-2', 'iobddr', 'iobddr-b', 'multcasc', 'ramnarrow', 'ramwide',
       'bufg-b0', 'bufg-b1', 'bufg-l0', 'bufg-l1', 'bufg-r0', 'bufg-r1', 'bufg-t0', 'bufg-t1', 'dcmpads',
       'f8-00', 'f8-01', 'f8-10', 'f8-11', 'ramclkb', 'srlcasc', 'clk0', 'clk1', 'clk2', 'clk3', 'clk4', 'clk5']);
     // the pads design sized to the XC3S100E-CP132 (81 of its 83 pads), not the XC3S250E's 90

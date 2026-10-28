@@ -7,7 +7,7 @@ the device report's grid and sites; `test/s3e-device.test.js` checks the rebuild
 
 | File | What |
 |---|---|
-| `obs.json.gz` | The observation of ISE's routed designs (`prototype.mjs observe`, `INTERSECT=1`): the 38 observation designs, the 12 sparser clock designs, the 4 random designs: PIPs, sites, pin wires, joins seen, the joins rules decided (`decided`, hypotheses), the ambiguous ones |
+| `obs.json.gz` | The observation of ISE's routed designs (`prototype.mjs observe`, `INTERSECT=1`): the 38 observation designs and `iobddr-b`, the 12 sparser clock designs, the 4 random designs, 33 of the `test/fixtures/open-flow` designs: PIPs, sites, pin wires, joins seen, the joins rules decided (`decided`, hypotheses), the ambiguous ones |
 | `others.json.gz` | Silinx's routes of the 7 examples on the shipped graph, which ISE's DRC passed (their XB / YB pins only) |
 | `probes.json.gz` | The arc probe's answers (`xdl -xdl2ncd`): `yes` / `no` per PIP and tile, by probe (the I/O tiles of the joins left, every non-CLB tile's PIPs and the I/O names, the block RAMs' clock PIPs) |
 | `verdicts.json.gz` | The verdicts of every round of join and clock tests (ISE's DRC), by round, in the order they were taken: `[a, b, 'join' \| 'no-join' \| …]` (`invalid`: a test whose path crossed a join not yet known) |
