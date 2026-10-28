@@ -19,6 +19,10 @@ In short:
   against it, in VHDL and Verilog; a sequential module's state machine is shown as an ASM chart. 47 of AMD's 73 Vitis
   HLS introductory examples pass all three.
 - **HDL to C:** a module's C model (Processes ▸ View C Model).
+- **The C and C++ editor's Language Templates** (Templates ▾): a top function, a test bench, `ap_int` and its bits,
+  loops with their pragmas, a ROM, a static register; in C++ also `hls::stream`, DATAFLOW and `hls::task`.
+- **The open synthesis** maps a processor's wide instruction decode on fewer levels of logic: the T80 (Z80) is about
+  12 % faster once routed.
 - **Schematics as in ISE:** bus taps drawn and built as ISE's, buses and bits named with their indices (`d(7:4)`,
   `a(0)`), a wire drawn thick when it is a bus, paste where you point; Rearrange Wires and Rearrange Schematic in place
   of Beautify; the side panels fold; Undo / Redo by the drawing tools.
@@ -32,6 +36,66 @@ In short:
 
 In detail:
 
+- **The Console's filter following the task (#1867):** a process started turns only a filter the viewer picked to its
+  source (#1852); one following the task in front (the Tasks interface) stays the task's.
+- **The C tests on Windows: the compiled program's output with LF line ends (#1860):** about 25 tests that compare
+  the C simulation with the program cc builds failed on Windows only, in the release's CI: the C runtime writes CRLF in
+  text mode, the simulator LF. The test helpers (test/c-helpers.js `lf`, used by hdl-c-helpers, ap-int-ref,
+  c-interp, cpp and c-stream-array) make the reference's line ends LF, its other characters kept; a test of it in
+  test/c-interp.test.js.
+- **The side panels' chevron chosen among constants (#1859):** web/js/sch-panels.js (#1713) put `${CHEVRON[dir]}` in
+  its markup, a shape test/web-markup-interpolations.test.js does not know as safe, and the release's CI failed on it;
+  the chevron is now `CHEVRON.left` or `CHEVRON.right`, chosen by the side, the same drawing.
+- **One copy of the helpers (#1858):** core/c-inline.js's deep copy keeping BigInt values is named `cloneBig`, not
+  `clone` (core/util.js's), as test/util.test.js asks; no change of behaviour.
+- **The C editor's Language Templates (#1855):** Silinx HLS's templates (web/js/c-templates.js), as the HDL editor's;
+  each synthesizes with no warnings and runs in the C simulation (test/c-templates.test.js); a `.c` source's are
+  C's, a `.cpp` source's add C++'s; their names in Portuguese.
+- **The Console's filter and a process started (#1852):** C Simulation's and C/RTL Co-simulation's lines are the
+  Simulation filter's (they were Implementation's, hidden by Design); a process started whose lines the filter hides
+  turns the filter to its source, so a button never seems to do nothing.
+- **CLAUDE.md (#1849):** shell output kept short (the summary and the failures), as a usage audit found the shell's
+  results about 14 % of a week's tokens.
+- **The ISE comparison over SSH times Silinx's routings in the ssh config's remoteDir (#1774):**
+  test/designs-corpus/compare-ise.mjs copied the routings to `~/silinx-compare` on the ISE host and mounted that folder,
+  which Docker Desktop refuses when it shares only some folders (#482). The trce step then failed and the run stopped.
+  It now takes the host's folder as scripts/check-open-flow.mjs does (server/toolchain.js `iseWorkBase`:
+  SILINX_ISE_REMOTE_DIR, else `ssh.remoteDir`, else the home as before), through a helper of its own,
+  `remoteWork` (test/designs-corpus/compare-lib.mjs), tested in test/quality-page.test.js. The weekly comparison
+  (`SILINX_ISE_HOST=local`) is not affected.
+- **The toolchain's package, silinx-fpga, as a workspace of this repository (#1677):** the first part of step 6 of
+  the toolchain's separation (#1651, docs/TOOLCHAIN-SEPARATION.md). packages/silinx-fpga/ with its package.json
+  (private until it is published, #1681; its own version, 0.1.0; its dependency @yowasp/yosys at the version the
+  IDE pins) and its Apache-2.0 LICENSE (its code and its data, as decided), and the root's `workspaces`. It holds no
+  code yet: the toolchain moves into it in the next pull requests. The third-party notices leave this repository's
+  own packages out (scripts/third-party.mjs). Tests: test/silinx-fpga-package.test.js. No behaviour change.
+- **The bit database out of research/ (#1676):** step 5 of the toolchain's separation (#1651,
+  docs/TOOLCHAIN-SEPARATION.md). The Spartan-3E bit database the application ships moves as it is from
+  research/s3e-bitstream/db to core/fpga/bitdb, next to the device graphs: core/fpga/bitdb-node.js reads it there,
+  research/s3e-bitstream/db.mjs still re-exports its path (test/layering.test.js), and the experiments that build
+  it (research/s3e-bitstream, research/s3e-device), the standalone build, the power measurement, the tests and the
+  docs name the new folder. The site's assets keep their names (assets/<version>/bitdb/), so the published
+  releases are unaffected. No behaviour change: the same bitstreams.
+- **The critical path's wide decodes collapsed and mapped again (#1360):** a cone of LUTs that computes a function of
+  many flip-flops (the T80's instruction decode, T80_MCode's case of IR, ISet and MCycle) kept the shape the HDL wrote
+  it in: 7 LUT levels for IncDec_16, a function of 19 flip-flops, where XST's takes 5. A new last candidate of the open
+  synthesis (core/synth-open-bdd.js), on the netlist chosen of all the others (the memories' choice, #54, included),
+  follows the critical paths back (through carry chains and a distributed RAM's address too) to the first signal with
+  a cone of at most 22 leaves, collapses it to a BDD of them under 8 orders of its variables, has Yosys and ABC map each
+  alone, and puts the shallowest mapping in the cone's place when it has fewer levels, checked against the old cone on
+  every row up to 2^12, else on 512 random ones. Rounds while the estimate gets no longer, the LUTs within 8 % (+16);
+  kept by DEPTH_RULE; `bdd: false` leaves it out. On the design corpus it is kept on the T80 at both efforts
+  (estimate 20.41 → 17.37 ns at Normal, 1816 → 1976 LUTs; routed −12.4 % over seeds 1–6, all faster), itc99-b15 at
+  High and epfl-sin; nothing else changes. `pathEnds` (core/synth-open-path.js) also gives the estimated arrival at a
+  signal. Tests: test/synth-open-bdd.test.js.
+- **Spartan-6: the routing bits of the I/O, block RAM, DSP and clock tiles (#726):** research/s6/db/s6-pips-other.json,
+  measured with ISE by PIP drop on the examples ISE routed on both boards (research/s6/gen-pipdrop6.mjs, ana-pipdrop6.mjs):
+  370 PIPs (333 of them, the sites' pins, with no bits), the bits placed by the device grid's columns and rows. Tests:
+  test/s6-pips.test.js.
+- **Spartan-6: the routing bit database complete (#726):** research/s6/residual6.mjs predicts every bit of the examples
+  ISE implemented on the Nexys3 and the Atlys from the LUT, slice and routing databases: no bit predicted that ISE does
+  not set, and the 209 left of about 121 000 are the clock rows', the I/O's and the block RAM's and DSP's settings
+  (#727, #728), none a routing switch's. Tests: test/s6-pips.test.js.
 - **math.h's rounding in hardware (#1843):** `floor`, `ceil`, `trunc`, `round` (half away from zero), `fmin`, `fmax`
   and `copysign`, and their float versions (`floorf`, …), of values that are not constants, are functions of the
   soft-float library on the value's bits (a mask of the fraction, the carry into the exponent), so the hardware gives
