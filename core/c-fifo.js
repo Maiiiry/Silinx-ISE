@@ -64,6 +64,8 @@ export const fifoMethods = {
     const op = this.fifoOp(e);
     if (op === null) return exprMethods.member.call(this, e, g);
     const f = this.slots.get(e.callee.e.name);
+    // (a stream polled: the co-simulation's FIFO never empty nor full but when it is, core/c-cosim.js, #1823)
+    if (op === 'empty' || op === 'full') f.polled = true;
     if (op === 'empty') return this.v(this.not(this.fifoIn(f, 'empty_n')), BOOL);
     if (op === 'full') return this.v(this.not(this.fifoIn(f, 'full_n')), BOOL);
     this.error(e.loc, `'${f.name}.${op}()' is not supported here yet (a stream read or written as a statement of the top function, x = ${f.name}.read(); ${f.name}.write(v);)`);
@@ -84,7 +86,7 @@ export const fifoMethods = {
         go = this.or(go, here);
         if (a.d !== undefined) d = this.mux(this.g.add('eq', [cs, this.g.const(st.id, this.stateT)], BOOL), a.d, d, f.t);
       }
-      out.push({ name: f.name, dir: f.written ? 'out' : 'in', t: f.t, go, d: f.written ? d : null, used: f.read || f.written });
+      out.push({ name: f.name, dir: f.written ? 'out' : 'in', t: f.t, go, d: f.written ? d : null, used: f.read || f.written, polled: !!f.polled });
     }
     return out;
   },

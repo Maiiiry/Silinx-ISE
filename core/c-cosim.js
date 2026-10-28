@@ -38,7 +38,7 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
     if (x.read) L.push(`  reg [${x.w - 1}:0] q_${x.name};`, `  assign ${P(x)}_q0 = q_${x.name};`);
   }
   // (a stream: a FIFO in the test bench, its values the C's before each call; empty and full now and then, the
-  // module's waits exercised, #1590)
+  // module's waits exercised, #1590; one the design polls, s.empty() / s.full(), only when it is, #1823)
   const fifos = gen.fifos || [];
   // (hls::task's run by themselves, #1719: an input stream's values kept across calls, each call adding the test
   // bench's new ones; the values read counted from the start, at least the C's: a task may read ahead)
@@ -55,9 +55,9 @@ export function cosimBench(gen, calls, { maxCycles = MAX_CYCLES } = {}) {
     if (f.dir === 'in') {
       const N = depth(f, 'streamIn');
       L.push(`  reg [${f.w - 1}:0] fin_${f.name} [0:${N - 1}]; integer fi_${f.name} = 0, fn_${f.name} = 0;`,
-        `  assign ${P(f)}_dout = fin_${f.name}[fi_${f.name} < ${N} ? fi_${f.name} : 0];`, `  assign ${P(f)}_empty_n = fi_${f.name} < fn_${f.name} && ap_tick % 3 != 1;`);
+        `  assign ${P(f)}_dout = fin_${f.name}[fi_${f.name} < ${N} ? fi_${f.name} : 0];`, `  assign ${P(f)}_empty_n = fi_${f.name} < fn_${f.name}${f.polled ? '' : ' && ap_tick % 3 != 1'};`);
     } else {
-      L.push(`  reg [${f.w - 1}:0] fout_${f.name} [0:${depth(f, 'streamOut') - 1}]; integer fo_${f.name} = 0;`, `  assign ${P(f)}_full_n = ap_tick % 4 != 2;`);
+      L.push(`  reg [${f.w - 1}:0] fout_${f.name} [0:${depth(f, 'streamOut') - 1}]; integer fo_${f.name} = 0;`, `  assign ${P(f)}_full_n = ${f.polled ? "1'b1" : 'ap_tick % 4 != 2'};`);
     }
   }
   L.push(`  ${gen.top} dut(${gen.ports.map((p) => `.${p.name}(${p.name})`).join(', ')});`);

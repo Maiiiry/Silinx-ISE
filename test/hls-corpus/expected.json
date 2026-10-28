@@ -89,11 +89,15 @@
     "reason": null
   },
   "interface-aggregation-disaggregation-auto-disaggregation-of-struct": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 22: '.empty' is not a member function Silinx HLS knows (ap_int / ap_uint: range, to_double, to_float, to_int, to_uint, to_long, to_ulong, to_int64, to_uint64, length, and_reduce, or_reduce, xor_reduce)"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 75,
+      "max": 75,
+      "avg": 75
+    },
+    "reason": null
   },
   "interface-aggregation-disaggregation-disaggregation-of-axis-port": {
     "csim": "pass",
@@ -559,7 +563,7 @@
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C synthesis: 57: the argument 'strm' is not an integer pointer"
+    "reason": "C synthesis: 66: 'strm_out' is not an integer"
   },
   "task-level-parallelism-control-driven-channels-autorestart": {
     "csim": "fail",
