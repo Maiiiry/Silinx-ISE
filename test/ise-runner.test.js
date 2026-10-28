@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { workflowFiles } from './workflows-lib.mjs';
@@ -200,12 +201,37 @@ test('install.sh --docker-acl: the runner\'s user on Docker Desktop\'s socket, a
   assert.equal(r.code, 0, r.err);
   const plist = r.read(path.join(r.home, 'Library/LaunchAgents/com.github.pmnmalo.silinx-ise.docker-acl.plist'));
   const sock = path.join(r.home, '.docker/run/docker.sock');
-  assert.match(plist, new RegExp(`<string>chmod -a 'user:iserunner allow read,write' '${sock}' 2&gt;/dev/null; chmod \\+a 'user:iserunner allow read,write' '${sock}'</string>`));
+  assert.match(plist, new RegExp(`<string>i=0; until \\[ -S '${sock}' \\] \\|\\| \\[ \\$i -ge 60 \\]; do sleep 1; i=\\$\\(\\(i\\+1\\)\\); done; chmod -a 'user:iserunner allow read,write' '${sock}' 2&gt;/dev/null; chmod \\+a 'user:iserunner allow read,write' '${sock}'</string>`));
   assert.match(plist, new RegExp(`<key>WatchPaths</key><array><string>${path.dirname(sock)}</string></array>`));
+  assert.match(plist, /<key>StartInterval<\/key><integer>300<\/integer>/);
   assert.match(plist, /<key>RunAtLoad<\/key><true\/>/);
   assert.equal(r.calls().length, 2);
   assert.match(r.calls()[0], /^launchctl bootout gui\/\d+\/com\.github\.pmnmalo\.silinx-ise\.docker-acl$/);
   assert.match(r.calls()[1], new RegExp(`^launchctl bootstrap gui/\\d+ ${r.home}/Library/LaunchAgents/com\\.github\\.pmnmalo\\.silinx-ise\\.docker-acl\\.plist$`));
+});
+
+test('install.sh --docker-acl: the agent waits for the socket Docker Desktop makes anew, then sets the ACL (#1799)', { skip: !posix }, async () => {
+  const r = installIn(['--docker-acl', 'iserunner']);
+  assert.equal(r.code, 0, r.err);
+  const plist = r.read(path.join(r.home, 'Library/LaunchAgents/com.github.pmnmalo.silinx-ise.docker-acl.plist'));
+  const cmd = /<string>-c<\/string><string>(.*?)<\/string>/.exec(plist)[1].replace(/&gt;/g, '>');
+  const sock = path.join(r.home, '.docker/run/docker.sock');
+  fs.mkdirSync(path.dirname(sock), { recursive: true });
+  // chmod stubbed: each call logged with whether the socket was there
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'acl-bin-')), log = path.join(bin, 'log');
+  fs.writeFileSync(path.join(bin, 'chmod'), `#!/bin/sh\n[ -S '${sock}' ] && s=socket || s=none\necho "$s chmod $*" >> '${log}'\n`, { mode: 0o755 });
+  const child = spawn('/bin/sh', ['-c', cmd], { env: { PATH: `${bin}:${process.env.PATH}` } });
+  const exited = new Promise(res => child.on('exit', res));
+  await new Promise(res => setTimeout(res, 1500));
+  assert.equal(fs.existsSync(log), false, 'no chmod before the socket is there');
+  const server = net.createServer().listen(sock);
+  await new Promise(res => server.on('listening', res));
+  assert.equal(await exited, 0);
+  server.close();
+  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
+    `socket chmod -a user:iserunner allow read,write ${sock}`,
+    `socket chmod +a user:iserunner allow read,write ${sock}`,
+  ]);
 });
 
 test('window: the runner\'s service started and stopped through svc.sh, or as root\'s daemon', () => {
