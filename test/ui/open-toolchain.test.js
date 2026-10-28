@@ -194,10 +194,21 @@ uiTest('open mode: Generate Text Power Report of blinky without ISE: the estimat
 
 // Back-annotate Pin Locations in the Silinx toolchain (#118): blinky without a board, its UCF without the
 // LOCs of four LEDs and a switch; the pads the placer chose are added to the UCF (after the preview);
-// built again, nothing more to add (the pads of the two placements at Normal, #651; #938)
+// built again, nothing more to add (the pads of the two placements at Normal, #651; #938). The pads are the ones the
+// placer chose in this run, read from its build/top_pins.ucf: a change of the placer moves them (#1771)
 const BA_UCF = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../examples/blinky/constraints/top.ucf'), 'utf8')
   .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
-const BA_PINS = ['NET "led<4>" LOC = "J14";', 'NET "led<5>" LOC = "J13";', 'NET "led<6>" LOC = "G14";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "H13";'];
+const BA_NETS = ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>'];
+const BA_TAKEN = new Set([...BA_UCF.matchAll(/LOC = "(\w+)"/g)].map((m) => m[1]));
+// the placer's pads of the five (core/ucf.js pinsUcf: the names padded to a column), in the dialog's order: five
+// different pads, none of them one the UCF gives
+const baPins = (pinsUcf) => {
+  const pads = BA_NETS.map((n) => pinsUcf.match(new RegExp(`NET "${n.replace(/[<>]/g, '\\$&')}"\\s+LOC = "(\\w+)"`))?.[1]);
+  assert.ok(pads.every(Boolean), `the five in build/top_pins.ucf: ${pads}`);
+  assert.equal(new Set(pads).size, 5);
+  assert.deepEqual(pads.filter((p) => BA_TAKEN.has(p)), []);
+  return BA_NETS.map((n, k) => `NET "${n}" LOC = "${pads[k]}";`);
+};
 uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose into the UCF; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
@@ -209,6 +220,7 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
   await page.waitDialog('Back-annotate Pin Locations', { timeout: 120000 });
   const msg = () => page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent);
+  const BA_PINS = baPins(await readWs(env, 'OpenPins', 'build/top_pins.ucf'));
   assert.equal(await msg(), `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${BA_PINS.join('\n')}`);
   const text = await page.consoleText();
   assert.match(text, /=== SILINX STEP pin2ucf ===/);
