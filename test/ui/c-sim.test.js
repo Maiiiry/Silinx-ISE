@@ -160,3 +160,36 @@ uiTest('#1852 C Simulation with the Console\'s filter on Design: its lines shown
   }));
   assert.deepEqual(st, { hidden: 0, pressed: ['sim'] });
 });
+
+uiTest('#1855 the C editor\'s Templates ▾: Silinx HLS\'s templates (C++\'s in a .cpp source), one inserted at the cursor; Portuguese', E, async (page) => {
+  await makeProject(env, { name: 'CTpl', top: '', files: { 'src/f.c': 'int f(int a) {\n  return a;\n}\n', 'src/g.cpp': 'int g(int a) {\n  return a;\n}\n' } });
+  await page.openProject('CTpl');
+  const items = () => page.eval(() => [...document.querySelectorAll('.menu-popup .mi .lbl')].map((l) => l.textContent));
+  const open = async (path) => {
+    await page.eval((p) => window.SilinxApp.openFile(p), path);
+    await page.waitFor((p) => window.Silinx.active?.id === `file:${p}` && window.Silinx.active.editor, [path]);
+  };
+  await open('src/f.c');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Templates ▾' });
+  await page.waitForSelector('.menu-popup');
+  const C = ['includes', 'top function (ports)', 'test bench (main)', 'ap_uint / ap_int', 'bits and ranges', 'ap_fixed', 'for loop (PIPELINE)', 'for loop (UNROLL)',
+    'loop of a variable count (LOOP_TRIPCOUNT)', 'array argument (ap_memory)', 'ROM (a constant table)', 'static register (counter)', 'struct argument'];
+  assert.deepEqual(await items(), C);
+  // inserted where the cursor is (line 2), indented as the line it goes into
+  await page.eval(() => window.Silinx.active.editor.setCursor({ line: 1, ch: 0 }));
+  await page.click('.menu-popup .mi', { text: 'for loop (PIPELINE)' });
+  assert.match(await page.eval(() => window.Silinx.active.editor.getValue()), /^int f\(int a\) \{\nfor \(int i = 0; i < 8; i\+\+\) \{\n\s*#pragma HLS PIPELINE II=1\n[\s\S]*\}\s*return a;\n\}\n$/);
+  await open('src/g.cpp');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Templates ▾' });
+  await page.waitForSelector('.menu-popup');
+  assert.deepEqual(await items(), [...C, 'hls::stream (read, write)', 'DATAFLOW (two processes, a stream)', 'hls::task (data-driven)']);
+  await page.closeMenus();
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Modelos ▾' });
+  await page.waitForSelector('.menu-popup');
+  const pt = await items();
+  for (const l of ['função de topo (portas)', 'ciclo for (PIPELINE)', 'registo static (contador)', 'hls::task (guiado pelos dados)']) assert.ok(pt.includes(l), l);
+  await page.closeMenus();
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+});

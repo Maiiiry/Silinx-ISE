@@ -24,7 +24,10 @@ import { EDITOR_PHRASES_PT } from './i18n-editor.js';
 import { popupMenu, toast } from './ui.js';
 import { esc } from './dom.js';
 import { mountCompletion } from './editor-complete.js';
+import { cSnippets } from './c-templates.js';
 
+/** A source's Language Templates: an HDL's (SNIPPETS), a C or C++ one's (web/js/c-templates.js, #1855), else none. */
+export const snippetsFor = (lang, path) => (lang === 'c' ? cSnippets(path) : SNIPPETS[lang] || null);
 // Language templates (ISE "Language Templates"). ${1}/${0} style placeholders: the cursor goes to `$0`.
 export const SNIPPETS = {
   vhdl: [

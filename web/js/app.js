@@ -2,7 +2,7 @@
 import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, splitter, toast } from './ui.js';
-import { createEditor, instTemplate, SNIPPETS, typeText } from './editor.js';
+import { createEditor, instTemplate, snippetsFor, typeText } from './editor.js';
 import { cRunButtons, isC, openCHdl } from './c-source.js';
 import { compile, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
@@ -522,19 +522,19 @@ export async function openFile(path, line, col, { task } = {}) {
         const bar = h('div', { class: 'editor-bar' },
           ...editing,
           h('button', { class: 'tb-btn', title: 'Find (Ctrl+F)', html: icons.find, onclick: () => d.editor.exec('findToggle') }),   // (again: closed, #1328)
-          (lang === 'vhdl' || lang === 'verilog') ? tplBtn : null,
+          snippetsFor(lang, path) && lang !== 'ucf' ? tplBtn : null,   // (C / C++ too, #1855)
           ...(lang === 'c' ? cRunButtons(path) : []),   // (C Simulation, C/RTL Co-simulation: #1528)
           (lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' || lang === 'c') ? h('button', { class: 'btn', style: { minWidth: '0' }, title: 'Check Syntax of this file', onclick: () => (lang === 'ucf' ? checkUcfFile(path) : checkFileSyntax(path)) }, h('span', { class: 'ico-inline', html: icons.ok }), ' Check Syntax') : null,
           h('span', { class: 'path' }, path),
           syncBanner(path));
-        if (lang === 'vhdl' || lang === 'verilog') editing.push(tplBtn);
+        if (lang === 'vhdl' || lang === 'verilog' || lang === 'c') editing.push(tplBtn);
         tplBtn.addEventListener('click', e => {
           const r = tplBtn.getBoundingClientRect();
           popupMenu([
-            ...SNIPPETS[lang].map(s => ({ label: s.name, action: () => d.editor.insertText(s.text) })),
-            '-',
-            primTemplatesMenu(d, lang),
-            { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) },
+            ...snippetsFor(lang, path).map(s => ({ label: s.name, action: () => d.editor.insertText(s.text) })),
+            lang === 'c' ? null : '-',
+            lang === 'c' ? null : primTemplatesMenu(d, lang),
+            lang === 'c' ? null : { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) },
           ], r.left, r.bottom);
         });
         const host = h('div', { class: 'editor-host' });
@@ -594,7 +594,7 @@ export async function openFile(path, line, col, { task } = {}) {
             edit ? { label: 'Rename Symbol…', shortcut: 'F2', action: () => { if (!hasSel) ed.setCursor(at); renameSymbolIn(d, lang, path); } } : null,
             edit ? { label: 'Quick Fix…', shortcut: 'Ctrl+.', action: () => { ed.setCursor(at); d.editor.showFixMenu(at.line); }, disabled: !d.editor.fixesOnLine(at.line).length } : null,
             edit ? '-' : null,
-            edit ? { label: 'Language Templates', submenu: SNIPPETS[lang].map(sn => ({ label: sn.name, action: () => d.editor.insertText(sn.text) })) } : null,
+            edit || lang === 'c' ? { label: 'Language Templates', submenu: snippetsFor(lang, path).map(sn => ({ label: sn.name, action: () => d.editor.insertText(sn.text) })) } : null,
             edit ? primTemplatesMenu(d, lang) : null,
             edit ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,
             hdl ? '-' : null,

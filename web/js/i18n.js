@@ -206,6 +206,12 @@ const PT = {
   'Another operation is running': 'Outra operação está em curso', 'Failed — see console': 'Falhou — ver consola', 'Scan finished.': 'Scan concluído.',
   // editor
   'Templates ▾': 'Modelos ▾', 'Find (Ctrl+F)': 'Procurar (Ctrl+F)', 'Auto-complete': 'Completar automaticamente',
+  // (the C editor's Language Templates, #1855)
+  'includes': 'includes', 'top function (ports)': 'função de topo (portas)', 'test bench (main)': 'test bench (main)', 'bits and ranges': 'bits e intervalos',
+  'for loop (PIPELINE)': 'ciclo for (PIPELINE)', 'for loop (UNROLL)': 'ciclo for (UNROLL)', 'loop of a variable count (LOOP_TRIPCOUNT)': 'ciclo de contagem variável (LOOP_TRIPCOUNT)',
+  'array argument (ap_memory)': 'argumento array (ap_memory)', 'ROM (a constant table)': 'ROM (uma tabela constante)', 'static register (counter)': 'registo static (contador)',
+  'struct argument': 'argumento struct', 'hls::stream (read, write)': 'hls::stream (ler, escrever)', 'DATAFLOW (two processes, a stream)': 'DATAFLOW (dois processos, um stream)',
+  'hls::task (data-driven)': 'hls::task (guiado pelos dados)',
   'Toggle comment': 'Comentar/descomentar', 'Find / Replace': 'Procurar / Substituir', 'Go to line': 'Ir para a linha', 'Go to definition': 'Ir para a definição',
   'Fold block': 'Dobrar bloco', 'Run process': 'Executar processo', 'Push into instance': 'Entrar na instância',
   'Double-click process': 'Duplo clique num processo', 'Double-click instance (schematic)': 'Duplo clique numa instância (esquemático)',
