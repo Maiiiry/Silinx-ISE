@@ -56,6 +56,9 @@ test('sourceOf: the processes\' headers', () => {
     'Started : "Check Constraints" of constraints/top.ucf.': 'check',
     'Started : "Simulate Post-Place & Route Model".': 'sim',
     'Started : "Save as Test Bench".': 'sim',
+    'Started : "C Simulation" of src/gcd.c.': 'sim',   // (#1852)
+    'Started : "C/RTL Co-simulation" of src/gcd.c (VHDL).': 'sim',
+    'Started : "View C Synthesis Report" of src/gcd.c.': 'impl',
     'Started : "Synthesize - XST".': 'impl',
     'Started : "Synthesize - Yosys (open)".': 'impl',
     'Started : "Implement Design".': 'impl',
@@ -88,4 +91,13 @@ test('filterSources: a picked filter, All, or the task\'s own sources (Implement
   assert.deepEqual(M.filterSources(null, 'impl'), ['impl']);
   assert.deepEqual(M.filterSources(null, 'prog'), ['impl']);
   assert.equal(M.filterSources('bogus', 'nothing'), null);
+});
+
+test('#1852 filterForProcess: a process started whose source the filter hides turns the filter to its source; one shown leaves it', () => {
+  assert.equal(M.filterForProcess('sim', 'check', null), 'sim');   // (Design picked: a C Simulation shown)
+  assert.equal(M.filterForProcess('impl', 'sim', 'impl'), 'impl');
+  assert.equal(M.filterForProcess('sim', null, 'edit'), 'sim');    // (the task's filter, Design: turned too)
+  assert.equal(M.filterForProcess('sim', 'all', null), 'all');
+  assert.equal(M.filterForProcess('sim', null, null), null);       // (no task, nothing picked: every source)
+  assert.equal(M.filterForProcess('check', 'check', 'sim'), 'check');
 });

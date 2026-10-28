@@ -144,3 +144,19 @@ uiTest('#1707 View C Synthesis Report of a DATAFLOW module: its processes (each 
   await page.setView('impl');
   assert.deepEqual(page.console.filter((c) => c.type === 'warning' || c.type === 'warn').map((c) => c.text), []);
 });
+
+uiTest('#1852 C Simulation with the Console\'s filter on Design: its lines shown, the filter turned to Simulation', E, async (page) => {
+  await makeProject(env, { name: 'CSimFilter', top: '', files: { 'src/gcd.c': GCD } });
+  await page.openProject('CSimFilter');
+  await page.showMessages();
+  await page.eval(() => window.SilinxApp.openFile('src/gcd.c'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/gcd.c' && window.Silinx.active.editor);
+  await page.click('#mc-filters .filt[data-src="check"]');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'C Simulation' });
+  await page.waitConsole(/Process "C Simulation" completed successfully/);
+  const st = await page.eval(() => ({
+    hidden: [...document.getElementById('console-log').children].filter((l) => /gcd\(48, 18\) = 6|C Simulation/.test(l.textContent) && l.classList.contains('mc-off')).length,
+    pressed: [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src),
+  }));
+  assert.deepEqual(st, { hidden: 0, pressed: ['sim'] });
+});
