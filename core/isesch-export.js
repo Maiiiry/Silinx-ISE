@@ -13,6 +13,14 @@ const S_OUT = 16 / 5;                     // Silinx px -> ISE units (grid 10 -> 
 const SHEET_SIZES = [[1760, 1360], [2720, 1760], [3520, 2720], [5440, 3520], [7040, 5440]];
 const xesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const hexOf = bits => (bits ? BigInt('0b' + bits.replace(/[^01]/g, '0')).toString(16) : '0');
+// a name as ISE holds it (#1763): an identifier, which an escaped name (\opcode[0]) cannot be; its other characters
+// become '_', none first nor last (a VHDL identifier too, as the import reads it back): opcode_0
+export function iseIdent(s) {
+  const t = String(s ?? '');
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) return t;
+  const u = t.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return !u ? 'n' : /^\d/.test(u) ? `n${u}` : u;
+}
 
 // Name of the ISE symbol a Silinx symbol is exported as. Library symbols: { lib: true, name, pins: {xaiPin: isePin} };
 // Silinx-only symbols: { lib: false, name: 'xl_…' (parameters encoded in the name, decoded again on import) }.
@@ -190,6 +198,7 @@ function shapeXml(sh, ind) {
 export function exportIseSch(docIn, opts = {}) {
   const warnings = [];
   const warn = m => { if (!warnings.includes(m)) warnings.push(m); };
+  const renamed = new Set();      // the names written otherwise, as ISE holds them (#1763)
   const doc = normalizeDoc(docIn);
   const modules = normModules(opts.modules);
   const lang = opts.lang === 'verilog' || opts.lang === 'vhdl' ? opts.lang : doc.lang;
@@ -202,9 +211,10 @@ export function exportIseSch(docIn, opts = {}) {
   // ------------------------------------------------------------- signal names
   const taken = new Map();
   const claimName = (want, net) => {
-    let b = String(want).replace(/[^A-Za-z0-9_]/g, '_') || 'n', nm = b, k = 0;
+    let b = iseIdent(want), nm = b, k = 0;
     while (taken.has(lc(nm)) && taken.get(lc(nm)) !== net) nm = `${b}_${++k}`;
     taken.set(lc(nm), net);
+    if (b !== String(want)) renamed.add(`'${want}' as '${nm}'`);
     return nm;
   };
   const sigOf = new Map();        // net -> ISE signal name (with bus range)
@@ -311,7 +321,9 @@ export function exportIseSch(docIn, opts = {}) {
       if (!blockdefs.has(lc(iseName))) blockdefs.set(lc(iseName), { name: iseName, timestamp: LIB_TS[iseName] || primTimestamp(iseName, family) || '2000-1-1T10:10:10', shapes: LIB_GFX[iseName] ? gfxShapes(LIB_GFX[iseName]) : boxShapes(lp) });
     } else {
       // custom symbol: the Silinx geometry, scaled (origin = bottom left corner of the unrotated symbol)
-      pinMap = Object.fromEntries(def.pins.map(q => [q.name, info.pins?.[q.name] ?? ((q.width ?? netW(q.name) ?? 1) > 1 ? `${q.name}(${(q.width ?? netW(q.name)) - 1}:0)` : q.name)]));
+      // (a pin's name as ISE holds it, its module's port named so too, #1763)
+      const pn = q => { const n = iseIdent(q.name); if (n !== q.name) renamed.add(`${iseName}'s pin '${q.name}' as '${n}'`); return n; };
+      pinMap = Object.fromEntries(def.pins.map(q => [q.name, info.pins?.[q.name] ?? ((q.width ?? netW(q.name) ?? 1) > 1 ? `${pn(q)}(${(q.width ?? netW(q.name)) - 1}:0)` : pn(q))]));
       localOf = xp => { const q = def.pins.find(r => r.name === xp); return q ? [X(q.x), X(q.y - def.h)] : null; };
       const key = lc(iseName);
       const prev = customs.get(key);
@@ -377,7 +389,7 @@ export function exportIseSch(docIn, opts = {}) {
     for (const q of symbolPins(s2, modules)) {
       const net = nl.pinNet.get(`${sym.id}/${q.name}`);
       const w = q.width ?? net?.width ?? 1;
-      mini.ports.push({ id: `P${mini.ports.length + 1}`, name: q.name, dir: q.dir === 'out' ? 'out' : q.dir === 'inout' ? 'inout' : 'in', width: w, x: q.x, y: q.y });
+      mini.ports.push({ id: `P${mini.ports.length + 1}`, name: iseIdent(q.name), dir: q.dir === 'out' ? 'out' : q.dir === 'inout' ? 'inout' : 'in', width: w, x: q.x, y: q.y });
     }
     const g = generateHdl(mini, { lang, modules, structural: false });
     const errs = g.diagnostics.filter(d => d.severity === 'error');
@@ -387,6 +399,10 @@ export function exportIseSch(docIn, opts = {}) {
   if (customs.size) {
     const xs = [...customs.values()].filter(c => !c.info.module).map(c => c.name);
     if (xs.length) warn(`ISE symbols not in the Xilinx library: ${xs.join(', ')} — add the returned HDL (${lang === 'vhdl' ? '.vhd' : '.v'}) and .sym files to the ISE project`);
+  }
+  if (renamed.size) {
+    const l = [...renamed];
+    warn(`names written as identifiers, as ISE's names are ([A-Za-z_][A-Za-z0-9_]*; an escaped name cannot be one): ${l.slice(0, 6).join(', ')}${l.length > 6 ? `, … (${l.length} in all)` : ''}`);
   }
 
   // ------------------------------------------------------------- sheet: wires, net names, I/O markers
