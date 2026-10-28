@@ -31,6 +31,8 @@ the code and the lessons learnt.
 ## Programming
 
 - Write code that reads like the code around it: its comment density, naming and idiom.
+- **Keep tool output short** (it stays in the context for the rest of the session): pipe builds and tests through
+  `tail -n 30` or `grep`, and read a file by line range, never whole.
 - **Small modules and functions** (#405): a source file (`core/`, `web/js/`, `server/`, `scripts/`) stays under
   1000 lines and a function under 300; one module per concern (an editor's panel, its drawing, its tools; a
   compiler's expressions, its statements). A change that would take a file or a function past the limit splits it
