@@ -19,13 +19,14 @@ export function mountSchToolbar(ctx) {
     // (Undo / Redo right after the drawing tools, #1696)
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
+    sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
+    sep(), btn('info', 'info', 'Symbol Info (F1)'),
+    // (Keep connections and the two Rearrange after the view's buttons and Symbol Info, #1733)
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
     // (#1730: the wires only, the symbols where they are; or the whole schematic, its symbols moved where needed)
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'rewire', title: 'Rearrange Wires: draw the wires again with few bends and crossings, the symbols, I/O markers and net names where they are; with a selection, only its wires. The connections stay the same', html: `${ICON.rewire}<span>Rearrange Wires</span>` }),
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'relayout', title: 'Rearrange Schematic: lay the whole schematic out again, easier to read (the inputs on the left, the outputs on the right, the symbols moved in the order of the signals, the wires with few bends and crossings). The connections stay the same', html: `${ICON.beautify}<span>Rearrange Schematic</span>` }),
-    sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
-    sep(), btn('info', 'info', 'Symbol Info (F1)'),
     // (Curved wires, how the wires are drawn, before Hop-overs, #1175)
     sep(), h('label', { class: 'se-curved', title: 'Draw the wires as smooth curves of any shape instead of the technical drawing\'s square corners (the connections, the nets and the HDL the same)' },
       curvedBox, h('span', { text: 'Curved wires' })),
