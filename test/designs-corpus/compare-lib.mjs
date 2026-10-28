@@ -97,3 +97,12 @@ export function criticalPath(text, periodNs) {
   const key = a => (periodNs == null ? -a.ns : Math.abs(a.ns - periodNs));
   return all.reduce((b, a) => (key(a) < key(b) ? a : b)).path;
 }
+
+/** The folder on the ISE host for a run's trce of Silinx's routings (#1774): `base` (server/toolchain.js iseWorkBase:
+ *  SILINX_ISE_REMOTE_DIR, else the ssh config's remoteDir, e.g. /Users/Shared/silinx-ise/build, a folder Docker Desktop
+ *  shares, #482; else a folder in the remote home) and the run's own: { remote, mount } (the path for ssh and rsync, and
+ *  the one docker run mounts: an absolute path as it is, else under $HOME). */
+export function remoteWork(base, run) {
+  const remote = `${base}/${run}`;
+  return { remote, mount: remote.startsWith('/') ? remote : `$HOME/${remote}` };
+}
