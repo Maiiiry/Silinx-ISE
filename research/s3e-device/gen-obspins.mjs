@@ -131,12 +131,16 @@ export function dcmPins(dev, part = PART) {
 }
 
 /** Every pad but the clock, the eight inputs and the eight outputs (LOC'd): an IDDR2 (set and reset), on the pads that can drive an ODDR2
- *  for the data and one for the tristate, every pin on a signal of its own: { v, ucf }. */
-export function iobDdr(dev, clkPin = 'B8', part = PART, padList = devicePads(dev)) {
+ *  for the data and one for the tristate, every pin on a signal of its own: { v, ucf }. alt: the inputs and outputs on the
+ *  first pads that can drive instead (iobddr-b), so that the two designs together give every pad its DDR registers (the
+ *  XC3S100E's input-only pads and last pads, which only the default leaves out: G12's IQ2, SR, REV, ICE). */
+export function iobDdr(dev, clkPin = 'B8', part = PART, padList = devicePads(dev), { alt = false } = {}) {
   const pads = padList.filter(p => p.name !== clkPin).sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
-  // (the eight inputs d: input-only pads first, then the last pads; the eight outputs q: the last pads left)
-  const dPads = [...pads.filter(p => p.inputOnly), ...pads.filter(p => !p.inputOnly).reverse()].slice(0, 8);
-  const qPads = pads.filter(p => !p.inputOnly && !dPads.includes(p)).reverse().slice(0, 8);
+  // (the eight inputs d: input-only pads first, then the last pads; the eight outputs q: the last pads left; alt: both on
+  // the first pads that can drive)
+  const drive = pads.filter(p => !p.inputOnly);
+  const dPads = alt ? drive.slice(0, 8) : [...pads.filter(p => p.inputOnly), ...drive.slice().reverse()].slice(0, 8);
+  const qPads = alt ? drive.slice(8, 16) : drive.filter(p => !dPads.includes(p)).reverse().slice(0, 8);
   const use = pads.filter(p => !dPads.includes(p) && !qPads.includes(p));
   const ins = use.filter(p => p.inputOnly), ios = use.filter(p => !p.inputOnly);
   let k = 0;
@@ -205,7 +209,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const pads = padsObs ? observedPads(padsObs) : devicePads(dev);
   // (iobddr has no DCM: B8; iobclk2's clock goes through one: the pad above it)
   const clkPin = clkArg || 'B8', dcmClk = clkArg || (dev ? dcmClockPad(dev) : 'B8');
-  const io = [['iobddr', () => iobDdr(dev, clkPin, PART, pads)], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, dcmClk, PART, pads)])];
+  const io = [['iobddr', () => iobDdr(dev, clkPin, PART, pads)], ['iobddr-b', () => iobDdr(dev, clkPin, PART, pads, { alt: true })], ...[0, 1, 2].map(k => [`iobclk2-${k}`, () => iobClk2(dev, k, dcmClk, PART, pads)])];
   const done = [];
   for (const [name, f] of padsObs ? io : [['ramwide', () => ram(dev, true)], ['ramnarrow', () => ram(dev, false)], ['multcasc', () => multCascade(dev)], ['dcmpins', () => dcmPins(dev)], ...io]) {
     const { v, ucf } = f();

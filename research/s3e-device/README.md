@@ -1153,3 +1153,24 @@ measured graph: every one clean, DRC 0 errors and 0 warnings, xdl2ncd no warning
 ISE's bitgen with CRC on and off. ISE's `trce` periods against the same examples on the shipped graph: traffic 8.167 ->
 7.755 ns, blinky 6.503 -> 6.632, pong 11.600 -> 11.688, stopwatch 12.654 -> 12.923, clock 6.410 -> 6.439, vga 9.099
 -> 9.096. The shipped graph stays; the XC3S100E's `test/fixtures/open-flow` designs are not run on it yet.
+
+### The recipe for the other dies, part 6: the XC3S100E's open-flow designs (2026-10-28)
+
+The `test/fixtures/open-flow` designs of the XC3S250E CP132, made for the XC3S100E (the part changed; the two that need
+10 block RAMs or 10 multipliers left out, it has 4): on the shipped graph 32 route, `feat_iob_plain` and `feat_iobreg`
+do not (17 of their features are not in the bit database for this die). On the measured graph of part 5, 19.
+
+- **ISE implemented them** (as section 11): 33 of the 34 (`feat_iob_ddr_v`: XST refuses `wire ck, ckn = ~ck;`, its VHDL
+  twin is in; `feat_clock_data` and `feat_const_dcm` with their clock on B9, the pad ISE's Place:1012 asks for a DCM on
+  this die). Observed with the earlier designs: 1006 joins more; the DCMs' paths to the global buffers route.
+- **`iobddr-b`** (`gen-obspins.mjs`, `iobDdr` `alt`): `iobddr` leaves its 8 inputs and 8 outputs without DDR registers,
+  the input-only pads and the last pads among them (G12's IQ2, SR, REV, ICE); `iobddr-b` takes them from the first pads
+  that can drive, so the two give every pad its DDR registers.
+- **Clock tests** (`varyjoins.mjs rows`, `spine`; `clocktests.mjs` on the fixtures' clock nets; the I/O columns' undriven
+  clock lines against the UP / DN of each clock row of their column, from a BUFGMUX): 161 tests, every verdict agreeing.
+
+**ISE's verdict on the 32** routed by the open flow on the measured graph: every one clean, DRC 0 errors and 0 warnings,
+xdl2ncd no warning, Silinx's `.bit` byte-identical to ISE's bitgen with CRC on and off. Nine (the DCM designs) warn, as on
+the shipped graph, that the DCM's CLKIN comes from B8 through general routing; the measured graph knows the dedicated
+path from B9 and A9, the shipped graph also from A10 and C9 (not measured yet). The measured graph now: 2930 split nodes,
+none a short can come from, 488 a route lost; 0 merged; 38 extra PIPs.
