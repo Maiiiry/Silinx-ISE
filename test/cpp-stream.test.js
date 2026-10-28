@@ -100,3 +100,19 @@ test('#1590 hls::stream: what is not supported, said; in a .c file, a C++ type',
   assert.deepEqual(errs('#include "hls_stream.h"\nint f(hls::stream<int> &s) {\n  return s.size();\n}\n'), ["3 's.size()' is not supported here yet (a stream read or written as a statement of the top function, x = s.read(); s.write(v);)"]);
   assert.deepEqual(errs('#include "hls_stream.h"\nint f(int a) { return a; }\n', 'e.c'), ['1 hls_stream.h: hls::stream is C++: write the source as a .cpp file']);
 });
+
+test('#1823 a header of a struct with a stream, two sources including it, the function declared again after its definition: its reference parameters as the definition\'s; a stream read until empty() co-simulated (the test bench\'s FIFO empty only when it is)', () => {
+  const headers = {
+    'ex.h': '#include "hls_stream.h"\n#include <iostream>\n#define N 10\nstruct A {\n  hls::stream<int> s_in;\n  long arr[N];\n};\nlong dut(struct A& d);\n',
+    'ex.cpp': '#include "ex.h"\nlong dut(struct A& d) {\n  long sum = 0;\n  while (!d.s_in.empty())\n    sum += d.s_in.read();\n  for (unsigned i = 0; i < N; i++)\n    sum += d.arr[i];\n  return sum;\n}\n',
+    'tb.cpp': '#include "ex.h"\nint main() {\n  A a;\n  for (unsigned i = 0; i < N; i++)\n    a.s_in.write(i);\n  for (unsigned i = 0; i < N; i++)\n    a.arr[i] = i;\n  auto ret = dut(a);\n  std::cout << "ret = " << ret << std::endl;\n  return 0;\n}\n',
+  };
+  const unit = '#include "ex.cpp"\n#include "tb.cpp"\n';
+  const sim = simulateC(unit, { file: 'unit.cpp', headers, top: 'dut' });
+  assert.deepEqual([sim.error, sim.exitCode, sim.output], [null, 0, 'ret = 90\n']);
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(unit, { file: 'unit.cpp', headers, top: 'dut', lang });
+    assert.deepEqual([r.errors, r.pass], [[], true], JSON.stringify(r.mismatches, (k, v) => (typeof v === 'bigint' ? `${v}` : v)));
+    assert.deepEqual(r.gen.fifos.map((f) => `${f.name} ${f.dir} ${f.polled}`), ['d_s_in in true']);
+  }
+});

@@ -18,9 +18,11 @@ const MANIP = { endl: '\n', left: 'left', right: 'right', hex: 'hex', oct: 'oct'
   showpoint: '', noshowpoint: '', flush: '' };
 
 export function cppTree(ast, report, streams = new Map()) {
-  const funcs = new Map(ast.items.filter((it) => it.kind === 'func').map((f) => [f.name, f]));
-  // (a stream passed by reference is the stream: no pointer, hls::stream<T> &s is s)
-  for (const f of funcs.values()) for (const p of f.params || []) if (p.type?.ref && p.type.to?.kind === 'stream') p.type = p.type.to;
+  // (a function by its name: its definition, a declaration after it not taking its place, #1823)
+  const funcs = new Map();
+  for (const it of ast.items) if (it.kind === 'func' && (it.body || !funcs.get(it.name)?.body)) funcs.set(it.name, it);
+  // (a stream passed by reference is the stream: no pointer, hls::stream<T> &s is s; each declaration's)
+  for (const f of ast.items) if (f.kind === 'func') for (const p of f.params || []) if (p.type?.ref && p.type.to?.kind === 'stream') p.type = p.type.to;
   const refs = (f) => new Set((f?.params || []).filter((p) => p.type?.ref).map((p) => p.name));
   for (const f of ast.items) {
     if (f.kind !== 'func' || !f.body) continue;
