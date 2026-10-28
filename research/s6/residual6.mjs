@@ -1,7 +1,8 @@
 // Stages S6-B … S6-D (#725, #726), the residual: every bit of a design ISE implemented, predicted from the databases
 // (the slices: check-slice6.mjs; the INT-like tiles' PIPs: check-pips6.mjs; the other tiles' PIPs: db/s6-pips-other.json
-// placed by gridRegion) and compared with ISE's bitstream, over the rows' frames (the block RAM's frames and the I/O
-// words are the block RAM's and the I/O's, #727 / #728). A bit left over goes to the tiles whose region holds it, by type.
+// placed by gridRegion; the pads: db/<device>-iob.json, from each IOB's settings) and compared with ISE's bitstream,
+// over the rows' frames and the I/O words (the block RAM's frames are #728's). A bit left over goes to the tiles whose
+// region holds it, by type (the I/O words: 'IOB words').
 //   node research/s6/residual6.mjs <dir> …        (each with top.xdl and top.bit, e.g. night 1's impl-nexys3/*)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,9 +18,54 @@ import { gridRegion } from './ana-pipdrop6.mjs';
 const INT_LIKE = /^(INT|INT_BRK|INT_BRAM|INT_BRAM_BRK|IOI_INT|LIOI_INT|INT_GCLK)_X/;
 const read = n => JSON.parse(fs.readFileSync(new URL(`./db/${n}.json`, import.meta.url), 'utf8'));
 
+/** A bit `off` bits from a pad's first output bit (in FDRI's order: 1040 bits a frame). */
+export function padBit(pad, off) {
+  const [f0, b0] = pad.base.map(x => x.split(',').map(Number)).sort((a, b) => a[0] - b[0] || a[1] - b[1])[0];
+  const n = f0 * 1040 + b0 + off;
+  return `${Math.floor(n / 1040)},${n % 1040}`;
+}
+
+/**
+ * A pad's bits from its IOB's settings (db/<device>-iob.json's pad): an output's base, an input's, both for a
+ * bidirectional one; the variants' changes for its drive, slew, standards and pull; an output on a net also the bit
+ * 15 before its first (its path from the OLOGIC: every routed output of the examples, both boards, has it; the pads'
+ * designs had no nets); unknown: the settings not measured.
+ */
+export function predictIob(pad, cfg, { routed = true } = {}) {
+  const by = new Map(cfg.filter(c => c.value !== '#OFF').map(c => [c.attr, c.value])), out = by.has('OUSED'), inb = by.has('IMUX') || by.has('BYPASS_MUX');
+  const bits = new Set(out ? pad.base : inb ? pad.input : []), unknown = [];
+  const apply = (name, v = pad.variants[name]) => { if (!v) { unknown.push(name); return; } for (const x of v.clear) bits.delete(x); for (const x of v.set) bits.add(x); };
+  if (out && inb) apply('inout');
+  if (out) {
+    if (by.get('DRIVEATTRBOX') && by.get('DRIVEATTRBOX') !== '12') apply(`drive${by.get('DRIVEATTRBOX')}`);
+    if (by.get('SLEW') && by.get('SLEW') !== 'SLOW') apply(`slew${by.get('SLEW')}`);
+    if (by.get('OSTANDARD') && by.get('OSTANDARD') !== 'LVCMOS25') apply(`out${by.get('OSTANDARD')}`);
+    if (by.has('TUSED') && !inb) apply('tri');
+    if (routed) bits.add(padBit(pad, -15));
+  } else if (inb) {
+    const s = by.get('ISTANDARD');
+    if (s && !['LVCMOS25', 'LVCMOS33', 'LVTTL'].includes(s)) apply(`in${s} (from in)`);
+    if (by.get('PULLTYPE')) apply(`in${by.get('PULLTYPE')} (from in)`);
+  }
+  return { bits, unknown };
+}
+
 /** The bits the databases predict for a design: { bits: Set 'frame,bit', unknown: Map 'what' -> count }. */
 export function predictDesign(design, device, dev, db) {
   const bits = new Set(), unknown = new Map(), note = w => unknown.set(w, (unknown.get(w) || 0) + 1);
+  if (db.iob) {
+    let used = false;
+    for (const inst of design.insts) {
+      if (inst.type !== 'IOB' || !inst.placed) continue;
+      const pad = db.iob.pads[inst.site];
+      if (!pad) { note(`IOB ${inst.site} not measured`); continue; }
+      used = true;
+      const p = predictIob(pad, inst.cfg);
+      for (const x of p.bits) bits.add(x);
+      for (const u of p.unknown) note(`IOB ${u}`);
+    }
+    if (used) for (const x of db.iob.globals) bits.add(x);
+  }
   const kindOf = new Map([...s6Device(db.part).sites.slices.values()].map(s => [s.name, s.kind])), models = {};
   for (const inst of design.insts) {
     if (!/^SLICE/.test(inst.type) || !inst.placed) continue;
@@ -69,16 +115,24 @@ export function typesAt(device, dev, cache = typesAt.cache ??= new WeakMap()) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dirs = process.argv.slice(2);
   if (!dirs.length) { console.error('usage: node research/s6/residual6.mjs <dir> …'); process.exit(1); }
-  const int = { pips: read('xc6slx16-int').pips, cover: read('xc6slx16-int-cover').pips, own: read('xc6slx16-int-own').pips }, other = read('s6-pips-other');
+  const int = { pips: read('xc6slx16-int').pips, cover: read('xc6slx16-int-cover').pips, own: read('xc6slx16-int-own').pips };
+  // the other tiles' PIPs (the PIP drop) and the I/O path's pairs it could not take apart (the examples' residual)
+  const other = { pips: { ...read('s6-pips-other').pips, ...read('s6-pips-io').pips } };
   const left = new Map(), extra = new Map(), unknown = new Map();
   for (const dir of dirs) {
     const bit = fs.readFileSync(path.join(dir, 'top.bit')), r6 = readBit6(bit), dev = bitFormat6(r6.device.part);
     const part = `${r6.device.device}${r6.device.part.slice(r6.device.device.length - 2)}-3`, { device } = s6Device(part);
     const design = parseXdl(fs.readFileSync(path.join(dir, 'top.xdl'), 'utf8'));
-    const { bits, unknown: u } = predictDesign(design, device, dev, { part, slices: loadDb(r6.device.device), int, other });
+    const iobFile = new URL(`./db/${r6.device.device}-iob.json`, import.meta.url), iob = fs.existsSync(iobFile) ? JSON.parse(fs.readFileSync(iobFile, 'utf8')) : null;
+    const { bits, unknown: u } = predictDesign(design, device, dev, { part, slices: loadDb(r6.device.device), int, other, iob });
     for (const [w, n] of u) unknown.set(w, (unknown.get(w) || 0) + n);
-    const empty = emptyFdri(dev), end = dev.rows * dev.rowFrames * FRAME_WORDS, have = new Set(), where = typesAt(device, dev);
-    for (let w = 0; w < end; w++) { const x = r6.fdri[w] ^ empty[w]; if (x) for (let i = 0; i < 16; i++) if ((x >> (15 - i)) & 1) have.add(`${Math.floor(w / FRAME_WORDS)},${(w % FRAME_WORDS) * 16 + i}`); }
+    const empty = emptyFdri(dev), rows = dev.rows * dev.rowFrames * FRAME_WORDS, iobStart = (dev.rows * dev.rowFrames + dev.bramFrames) * FRAME_WORDS, have = new Set(), w0 = typesAt(device, dev);
+    const where = (f, b) => (f >= dev.rows * dev.rowFrames + dev.bramFrames ? 'IOB words' : w0(f, b));
+    for (let w = 0; w < r6.fdri.length; w++) {
+      if (w >= rows && w < iobStart) continue;
+      const x = r6.fdri[w] ^ empty[w];
+      if (x) for (let i = 0; i < 16; i++) if ((x >> (15 - i)) & 1) have.add(`${Math.floor(w / FRAME_WORDS)},${(w % FRAME_WORDS) * 16 + i}`);
+    }
     let nl = 0, ne = 0;
     for (const x of have) if (!bits.has(x)) { const [f, b] = x.split(',').map(Number), t = where(f, b); left.set(t, [...(left.get(t) || []), `${path.basename(dir)} ${x}`]); nl++; }
     for (const x of bits) if (!have.has(x)) { const [f, b] = x.split(',').map(Number), t = where(f, b); extra.set(t, [...(extra.get(t) || []), `${path.basename(dir)} ${x}`]); ne++; }

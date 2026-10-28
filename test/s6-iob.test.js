@@ -47,3 +47,27 @@ test('the XC6SLX16\'s pads, measured: 6 bits an output, 9 an input, each variant
     assert.equal(counts.size, 1, n);
   }
 });
+
+test('the pads in the residual: a pad\'s bits from its IOB\'s settings, an output\'s path bit; the XC6SLX45\'s pads', async () => {
+  const { predictIob, padBit } = await import('../research/s6/residual6.mjs');
+  const read = d => JSON.parse(fs.readFileSync(new URL(`../research/s6/db/${d}-iob.json`, import.meta.url), 'utf8'));
+  const db = read('xc6slx16'), pad = db.pads.U16;
+  const cfg = s => s.split(' ').map(x => { const [attr, name, value] = x.split(':'); return { attr, name, value }; });
+  // an output: its base and the path bit 15 before its first; drive 4, FAST
+  const out = predictIob(pad, cfg('DRIVEATTRBOX::12 OUSED::0 SLEW::SLOW OSTANDARD::LVCMOS25'));
+  assert.deepEqual([...out.bits].sort(), [...pad.base, padBit(pad, -15)].sort());
+  assert.equal(padBit(pad, -15), '3552,128');
+  const fast = predictIob(pad, cfg('DRIVEATTRBOX::4 OUSED::0 SLEW::FAST OSTANDARD::LVCMOS25'), { routed: false });
+  const want = new Set(pad.base);
+  for (const v of [pad.variants.drive4, pad.variants.slewFAST]) { for (const x of v.clear) want.delete(x); for (const x of v.set) want.add(x); }
+  assert.deepEqual([...fast.bits].sort(), [...want].sort());
+  // an input with a pull-up; a standard not measured
+  const inp = predictIob(pad, cfg('IMUX:p:I PULLTYPE::PULLUP ISTANDARD::LVCMOS33'));
+  assert.equal(inp.bits.size, pad.input.length + 1);
+  assert.deepEqual(predictIob(pad, cfg('OUSED::0 OSTANDARD::SSTL2_I')).unknown, ['outSSTL2_I']);
+  // the XC6SLX45: its 218 pads as the XC6SLX16's, 6 and 9 bits each; its globals the I/O's and the top row's clock word
+  const big = read('xc6slx45');
+  assert.equal(Object.keys(big.pads).length, 218);
+  assert.ok(Object.values(big.pads).every(p => p.base.length === 6 && p.input.length === 9));
+  assert.ok(big.globals.includes('8411,527') && big.globals.length === 9);
+});

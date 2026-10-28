@@ -396,6 +396,15 @@ id designs (output and input, the pads whose index has bit j: which pad each bit
   variant changing the same number on all 232 pads (drive 2: 3 set and 3 cleared, FAST: 4 set, LVCMOS33: 1 and 2,
   a pull-up: 1, …); an input's LVCMOS33 and LVTTL are its LVCMOS25's. Drive 24 is not LVCMOS25's: bitgen refuses it.
 - One bit (frame 734, bit 988: the corner's of the residual) is set by any pad in use: the I/O's, not a pad's.
+- **The XC6SLX45** (the same 41 designs, 10 minutes: `db/xc6slx45-iob.json`): its 218 pads as the XC6SLX16's, 6 and
+  9 bits, the same variants; its globals also the top clock row's 8 bits (minors 16 to 19 of two columns, bit 527)
+  the LUT map's zero design set already.
+- **The I/O logic's route-throughs** (`gen-iologic6.mjs`: OLOGIC2 D1 -> OQ, T1 -> TQ, ILOGIC2 D -> FABRICOUT on every
+  site, as ISE writes them) set no bits without a net, as a PIP does not: they come from the examples. In the
+  residual (`residual6.mjs`, which now predicts the pads from their IOBs' settings): an output on a net sets the bit
+  15 before its pad's first (every routed output of the examples, both boards: its path from the OLOGIC), and the I/O
+  path's PIP pairs the PIP drop could not take apart, always together, have their bits in `db/s6-pips-io.json` (on
+  the pair's first). With them no bit is left in the I/O tiles or words but the clock pad's (the clock path).
 
 ## The order of the work
 
@@ -484,5 +493,6 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `ana-pipdrop6.mjs` | Their bits by tile and PIP: `db/s6-pips-other.json` (#726) |
 | `residual6.mjs` | Every bit of ISE's implemented examples predicted from the databases; what is left, by tile type (#725, #726) |
 | `gen-iob6.mjs` | The pads' designs: every bonded pad an IOB of one setting, the id designs (#727) |
+| `gen-iologic6.mjs` | The I/O logic's route-throughs on every site (they set no bits without a net) (#727) |
 | `ana-iob6.mjs` | The pads' bits: `db/<device>-iob.json` (#727) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
