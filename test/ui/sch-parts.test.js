@@ -37,9 +37,12 @@ uiTest('#405 schematic editor parts: the toolbar, the palette, Select All and De
   await page.waitFor((ed) => window.Silinx.active?.id === 'sch:src/andg.sch.json' && document.querySelector(`${ed} .se-symrow`), [ED], { what: 'the schematic editor' });
   const ev = (fn, ...a) => page.eval(fn, ED, ...a);
   const doc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
-  // ---- the toolbar: its buttons in order, Undo / Redo right after the drawing tools between separators (#1696)
+  // ---- the toolbar: its buttons in order, Undo / Redo right after the drawing tools between separators (#1696); the
+  // zooms and Symbol Info, then Keep connections and the two Rearrange between separators (#1733)
   assert.deepEqual(await ev((ed) => [...document.querySelectorAll(`${ed} .se-toolbar [data-act]`)].map((b) => b.dataset.act)),
-    ['select', 'wire', 'net', 'io', 'undo', 'redo', 'rotate', 'mirror', 'delete', 'rewire', 'relayout', 'zin', 'zout', 'fit', 'info', 'check', 'sim']);
+    ['select', 'wire', 'net', 'io', 'undo', 'redo', 'rotate', 'mirror', 'delete', 'zin', 'zout', 'fit', 'info', 'rewire', 'relayout', 'check', 'sim']);
+  assert.deepEqual(await ev((ed) => [...document.querySelector(`${ed} .se-toolbar`).children].map((e) => e.dataset.act || (e.classList.contains('se-sep') ? '|' : e.className.match(/se-(keep|curved)/)?.[1])).filter(Boolean).slice(11, 21)),
+    ['|', 'zin', 'zout', 'fit', '|', 'info', '|', 'keep', 'rewire', 'relayout']);
   assert.deepEqual(await ev((ed) => [...document.querySelector(`${ed} .se-toolbar`).children].slice(3, 9).map((e) => e.dataset.act || (e.classList.contains('se-sep') ? '|' : e.className))),
     ['io', '|', 'undo', 'redo', '|', 'rotate']);
   // the zooms (the view): Zoom In scales the drawing by 1.25, Fit back

@@ -357,7 +357,7 @@ uiTest('#1163 schematic: Curved wires hop where they cross (Hop-overs ticked); o
 uiTest('#1175 Curved wires before Hop-overs; in Try it, Curved wires and Symbol Info enabled', E, async (page) => {
   await open(page, 'CurvedTry');
   const order = await page.eval((ed) => [...document.querySelector(`${ed} .se-toolbar`).children].map((e) => e.className.match(/se-(curved|hops|names)/)?.[1] || e.dataset.act).filter(Boolean), ED);
-  assert.deepEqual(order.slice(order.indexOf('info')), ['info', 'curved', 'hops', 'names', 'check', 'sim']);
+  assert.deepEqual(order.slice(order.indexOf('info')), ['info', 'rewire', 'relayout', 'curved', 'hops', 'names', 'check', 'sim']);
   await page.click(`${ED} .se-btn[data-act=sim]`);
   await page.waitFor((ed) => document.querySelector(ed).classList.contains('sim-mode') && window.Silinx.active.schEditor.isLive?.() !== false, [ED], { what: 'Try it' });
   // (not greyed out by Try it: it takes clicks; Symbol Info still disabled with nothing selected)
