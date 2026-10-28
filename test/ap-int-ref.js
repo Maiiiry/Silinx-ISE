@@ -55,7 +55,7 @@ export function runWithApInt(src, headers) {
     fs.writeFileSync(path.join(tmp, 't.cpp'), src);
     const exe = path.join(tmp, process.platform === 'win32' ? 't.exe' : 't');
     // (ap_int_special.h and ap_fixed_special.h left out, std::complex of ap_int and ap_fixed: its own declaration of std::complex is ambiguous with libc++)
-    execFileSync(CXX, ['-std=c++11', '-w', '-D__AP_INT_SPECIAL_H__', '-D__AP_FIXED_SPECIAL_H__', '-fsigned-char', '-fwrapv', '-O0', '-I', headers, '-o', exe, path.join(tmp, 't.cpp')], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+    execFileSync(CXX, ['-std=c++11', '-w', '-D__AP_INT_SPECIAL_H__', '-D__AP_FIXED_SPECIAL_H__', '-fsigned-char', '-fwrapv', '-ffp-contract=off', '-O0', '-I', headers, '-o', exe, path.join(tmp, 't.cpp')], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
     return execFileSync(exe, { encoding: 'utf8' });
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }

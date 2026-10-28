@@ -1,4 +1,4 @@
-// Silinx HLS (#1762, core/c-softfloat.js): the binary32 soft-float library, run by Silinx's C simulation, against IEEE
+// Silinx HLS (#1762, #1773, core/c-softfloat.js): the binary32 and binary64 soft-float libraries, run by Silinx's C simulation, against IEEE
 // (JavaScript's Math.fround: a sum, a difference and a product of two floats computed in binary64 and rounded once are
 // the correctly rounded binary32 ones), on the edge cases (zeros, subnormals, the largest and smallest, infinities,
 // NaN, carries into the exponent, ties) and random values; the conversions as the C simulation converts.
@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulateC } from '../core/c-interp.js';
 import { cosimulate } from '../core/c-cosim.js';
-import { SOFTFLOAT32, F32_NAN } from '../core/c-softfloat.js';
+import { SOFTFLOAT32, SOFTFLOAT64, F32_NAN, F64_NAN } from '../core/c-softfloat.js';
 import { rng } from './c-helpers.js';
 
 const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
@@ -101,4 +101,72 @@ int main(void) {
     const r = cosimulate(src, { file: 'sf.c', lang });
     assert.deepEqual([r.errors, r.pass, r.calls, r.gen.diagnostics], [[], true, 384, []], JSON.stringify(r.mismatches.slice(0, 3), (k, v) => (typeof v === 'bigint' ? `${v}` : v)));
   }
+});
+
+// ------------------------------------------------------------------ binary64 (#1773): JavaScript's numbers are binary64
+const f64 = new Float64Array(1), u64 = new BigUint64Array(f64.buffer);
+const val64 = (b) => { u64[0] = b; return f64[0]; };
+const bits64 = (x) => { if (Number.isNaN(x)) return F64_NAN; f64[0] = x; return u64[0]; };
+const EDGE64 = [0n, 1n << 63n, 0x3ff0000000000000n, 0xbff0000000000000n, 1n, 0x8000000000000001n, 0xfffffffffffffn, 0x10000000000000n, 0x7fefffffffffffffn,
+  0xffefffffffffffffn, 0x7ff0000000000000n, 0xfff0000000000000n, 0x7ff8000000000000n, 0x7ff0000000000001n, 0x3ff0000000000001n, 0x3fffffffffffffffn,
+  0x4340000000000000n, 0x3ca0000000000000n, 0x400921fb54442d18n, 0x3fb999999999999an, 0x0008000000000000n, 0x4330000000000001n];
+function run64(pairs, fns, lib = SOFTFLOAT64) {
+  const n = pairs.length;
+  const arr = (k, i) => `static const unsigned long long ${k}[${n}] = {${pairs.map((p) => `${BigInt.asUintN(64, BigInt(p[i]))}ull`).join(', ')}};`;
+  const src = `#include <stdio.h>\n${SOFTFLOAT32}\n${lib}\n${arr('A', 0)}\n${arr('B', 1)}\nint top(int x) { return x; }\nint main(void) {\n  for (int i = 0; i < ${n}; i++) {\n    printf("${fns.map(() => '%llu').join(' ')}\\n", ${fns.map((f) => `(unsigned long long)(${f.c})`).join(', ')});\n  }\n  return 0;\n}\n`;
+  const sim = simulateC(src, { file: 'sf.c', maxSteps: 400_000_000 });
+  assert.deepEqual([sim.error, sim.diagnostics.filter((d) => d.severity === 'error')], [null, []]);
+  return sim.output.trim().split('\n').map((l) => l.split(' ').map(BigInt));
+}
+const check64 = (pairs, ops) => {
+  const got = run64(pairs, ops);
+  const bad = [];
+  pairs.forEach(([a, b], i) => ops.forEach((op, k) => {
+    const e = BigInt.asUintN(64, BigInt(op.ref(a, b)));
+    if (got[i][k] !== e) bad.push(`${op.name}(${a.toString(16)}, ${b.toString(16)}) = ${got[i][k].toString(16)}, not ${e.toString(16)}`);
+  }));
+  assert.deepEqual(bad.slice(0, 10), []);
+};
+const OPS64 = [
+  { name: 'add', c: 'ap_f64_add(A[i], B[i])', ref: (a, b) => bits64(val64(a) + val64(b)) },
+  { name: 'sub', c: 'ap_f64_sub(A[i], B[i])', ref: (a, b) => bits64(val64(a) - val64(b)) },
+  { name: 'mul', c: 'ap_f64_mul(A[i], B[i])', ref: (a, b) => bits64(val64(a) * val64(b)) },
+  { name: 'eq', c: 'ap_f64_eq(A[i], B[i])', ref: (a, b) => +(val64(a) === val64(b)) },
+  { name: 'lt', c: 'ap_f64_lt(A[i], B[i])', ref: (a, b) => +(val64(a) < val64(b)) },
+  { name: 'le', c: 'ap_f64_le(A[i], B[i])', ref: (a, b) => +(val64(a) <= val64(b)) },
+];
+
+test('#1773 binary64 add, sub, mul and the comparisons: every pair of the edge cases and random values, as IEEE', () => {
+  const r = rng(1773);
+  const rnd = () => (BigInt(r() >>> 0) << 32n) | BigInt(r() >>> 0);
+  const pairs = EDGE64.flatMap((a) => EDGE64.map((b) => [a, b]));
+  for (let i = 0; i < 800; i++) {
+    const a = rnd();
+    const b = i % 2 ? rnd() : BigInt.asUintN(64, (a & 0xfff0000000000000n) + BigInt((r() % 5) - 2) * 0x10000000000000n + (rnd() & 0xfffffffffffffn));
+    pairs.push([a, b]);
+  }
+  for (let i = 0; i < 300; i++) {
+    const ea = 1 + (r() % 1000), eb = Math.max(0, Math.min(2046, 1023 - ea + ((r() % 120) - 60) + (i % 2 ? 0 : 1023)));
+    pairs.push([BigInt(r() & 1) << 63n | BigInt(ea) << 52n | (rnd() & 0xfffffffffffffn), BigInt(r() & 1) << 63n | BigInt(eb) << 52n | (rnd() & 0xfffffffffffffn)]);
+  }
+  check64(pairs, OPS64);
+});
+
+test('#1773 binary64 conversions: int and unsigned to double (exact), double to int and unsigned (truncated, as the C simulation), float to double and double to float (rounded to nearest even)', () => {
+  const r = rng(17731);
+  const wrap = (x) => (Number.isFinite(x) ? BigInt.asUintN(32, BigInt(Math.trunc(x))) : 0n);
+  const ints = [0, 1, -1, 2147483647, -2147483648, 0xffffffff, ...Array.from({ length: 40 }, () => r() | 0)];
+  check64(ints.map((x) => [BigInt(x >>> 0), 0n]), [
+    { name: 'from_i32', c: 'ap_f64_from_i32((int)A[i])', ref: (a) => bits64(Number(a) | 0) },
+    { name: 'from_u32', c: 'ap_f64_from_u32((unsigned)A[i])', ref: (a) => bits64(Number(a) >>> 0) },
+  ]);
+  const dbl = [...EDGE64, 0x41dfffffffc00000n, 0x41e0000000000000n, 0xc1e0000000000000n, 0x41f0000000000000n, 0x4430000000000000n, 0x36a0000000000000n, 0x380fffffffffffffn,
+    0x47efffffefffffffn, 0x47effffff0000000n, 0x3810000000000001n, ...Array.from({ length: 60 }, () => (BigInt(r() >>> 0) << 32n) | BigInt(r() >>> 0))];
+  check64(dbl.map((x) => [x, 0n]), [
+    { name: 'to_u32', c: 'ap_f64_to_u32(A[i])', ref: (a) => wrap(val64(a)) },
+    { name: 'to_i32', c: '(unsigned)ap_f64_to_i32(A[i])', ref: (a) => wrap(val64(a)) },
+    { name: 'to_f32', c: 'ap_f32_from_f64(A[i])', ref: (a) => bits(Math.fround(val64(a))) },
+  ]);
+  const flts = [...EDGE, ...Array.from({ length: 60 }, () => r() >>> 0)];
+  check64(flts.map((x) => [BigInt(x >>> 0), 0n]), [{ name: 'from_f32', c: 'ap_f64_from_f32((unsigned)A[i])', ref: (a) => bits64(val(Number(a))) }]);
 });
