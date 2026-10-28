@@ -212,7 +212,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const [out, obsFile] = args;
   const { loadDevice } = await import('../../core/fpga/device.js');
   const dev = loadDevice(readJson(devFile || path.join(HERE, '../../core/fpga/devices', `${PART}.json.gz`)));
-  const DB = path.join(HERE, '../s3e-bitstream/db');
+  const DB = path.join(HERE, '../../core/fpga/bitdb');
   const joins = [
     ...(tests ? tests.split(',') : []).flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]])),
     ...(clock ? clock.split(',') : []).flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]])),

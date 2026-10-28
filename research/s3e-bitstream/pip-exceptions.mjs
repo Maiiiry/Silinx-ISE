@@ -12,8 +12,8 @@
 // A feature "a->b" (the type's wire names: an I/O tile's own wires renamed as by its type's `rename`)
 // is missing in a tile when no wire of the tile has the name a or b (the whole wire is missing: the
 // entry is the wire's name), else when the tile has no PIP between them. What every tile of the type
-// misses, on every device, goes to the type in db/s3e-tiles.json (`absent`); what one device's tiles
-// of the type all miss besides, to the type in db/<device>-tiles.json (`absent`); what only some tiles
+// misses, on every device, goes to the type in core/fpga/bitdb/s3e-tiles.json (`absent`); what one device's tiles
+// of the type all miss besides, to the type in core/fpga/bitdb/<device>-tiles.json (`absent`); what only some tiles
 // miss, there too, by tile (`absentIn: [{ tiles, absent }]`). The router honours them
 // (core/fpga/bitgen.js knownRouting); a device description built from the database needs them too.
 // Only the features the router may use are considered (knownRouting before the exceptions); the

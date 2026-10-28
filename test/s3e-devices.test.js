@@ -1,4 +1,4 @@
-// The bit databases of the Spartan-3E devices (research/s3e-bitstream/db, stage F): the bitstream
+// The bit databases of the Spartan-3E devices (core/fpga/bitdb, stage F): the bitstream
 // format of each device, the one loader (research/s3e-bitstream/db.mjs: shared tile types, the
 // device's own files, the pads per package), and the committed files checked against the shipped
 // device descriptions (core/fpga/devices/), without ISE.

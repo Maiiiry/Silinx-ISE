@@ -11,7 +11,7 @@ import { modulesFromLibrary } from '/core/schdoc.js';
 import { OPEN_STEPS, orderOpenSteps } from '/core/open-steps.js';
 
 // the devices whose device description and bit database are published (core/fpga/devices,
-// research/s3e-bitstream/db): device/package -> the description's file
+// core/fpga/bitdb): device/package -> the description's file
 export const BROWSER_DEVICES = {
   'xc3s100e/cp132': 'xc3s100ecp132-4.json.gz',
   'xc3s250e/cp132': 'xc3s250ecp132-4.json.gz',

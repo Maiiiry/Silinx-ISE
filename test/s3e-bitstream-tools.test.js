@@ -62,8 +62,9 @@ test('share-sb: every tile type shares the switch box at one offset', () => {
 });
 
 // the committed database
-const dbDir = new URL('../research/s3e-bitstream/db/', import.meta.url);
+const dbDir = new URL('../core/fpga/bitdb/', import.meta.url);
 const read = f => JSON.parse(fs.readFileSync(new URL(f, dbDir), 'utf8'));
+const readMeasured = f => JSON.parse(fs.readFileSync(new URL(`../research/s3e-bitstream/measured/${f}`, import.meta.url), 'utf8'));
 
 test('measured database: the I/O, block-RAM and DCM tiles use the CLB switch box', () => {
   const tiles = read('s3e-tiles.json');
@@ -170,8 +171,8 @@ test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, bu
   assert.deepEqual(['DCM_TL_CENTER', 'DCM_BR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_TR_CENTER'].map(type => [t[type].features['DCM:CLKIN:GCLK'], t[type].features['DCM:DFS:OFF']]),
     [[['!0,100'], ['!-39,12', '!-39,43', '!-39,7']], [['!18,-37'], ['!57,20', '!57,51', '!57,56']], [['!18,100'], ['!57,12', '!57,43', '!57,7']], [['!0,-37'], ['!-39,20', '!-39,51', '!-39,56']]]);
   // the DCMs' own switches of #46's designs (learn-10): the outputs and the phase-shift / reset pins
-  assert.deepEqual(t.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3'], read('../measured/learn-10dcm46-pips.json').types.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3']);
-  assert.ok(Object.keys(read('../measured/learn-10dcm46-pips.json').types).every(type => /^DCM_(H_)?[TB][LR]_CENTER$/.test(type)));
+  assert.deepEqual(t.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3'], readMeasured('learn-10dcm46-pips.json').types.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3']);
+  assert.ok(Object.keys(readMeasured('learn-10dcm46-pips.json').types).every(type => /^DCM_(H_)?[TB][LR]_CENTER$/.test(type)));
 });
 
 test('gen-sitevar: variants with other values on each instance (perSite, #46); gen-dcmhdl: designs of several DCMs', async () => {
@@ -248,7 +249,7 @@ const tool = (script, args, opts = {}) => spawnSync(process.execPath, [path.join
 test('want-pips: the PIPs of the database the batches have not measured yet, one measurement serving the types that share a switch box (#48)', () => {
   const W = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-want-'));
   try {
-    let r = tool('want-pips.mjs', ['db', W]);
+    let r = tool('want-pips.mjs', ['../../core/fpga/bitdb', W]);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stderr.trim(), '18204 PIPs (per tile type) known to the reference database, 0 measured, 18204 left');
     const all = JSON.parse(r.stdout);
@@ -259,13 +260,13 @@ test('want-pips: the PIPs of the database the batches have not measured yet, one
     const pip = (tile, type, from, to) => ({ tile, type, from, dir: '->', to, bits: [] });
     fs.writeFileSync(path.join(W, 'pips', 't1', 'pips.json'), JSON.stringify({ pips: [pip('LIOIS_PCI_X0Y16', 'LIOIS_PCI', 'E2BEG4', 'IOIS_CLK0'), pip('CLB_X1Y1', 'CENTER_SMALL', 'BX0', 'BX_PINWIRE0'), pip('BRAM1_SMALL_X5Y1', 'BRAM1_SMALL', 'BRAM_DOA0', 'BRAM_ADDRA_B2')] }));
     assert.deepEqual([...measuredPips(W)], ['LIOIS E2BEG4->IOIS_CLK0', 'CENTER_SMALL BX0->BX_PINWIRE0', 'BRAM0_SMALL BRAM_DOA0->BRAM_ADDRA_B2']);
-    r = tool('want-pips.mjs', ['db', W]);
+    r = tool('want-pips.mjs', ['../../core/fpga/bitdb', W]);
     assert.equal(r.stderr.trim(), '18204 PIPs (per tile type) known to the reference database, 3 measured, 18191 left');
     const left = JSON.parse(r.stdout);
     // measured in LIOIS_PCI: no longer wanted on the left side's I/O tiles; in BRAM1_SMALL: in the four block-RAM interconnect tiles
     for (const t of [...UNIFY[0], ...UNIFY[4], 'CENTER_SMALL']) assert.equal(all[t].length - left[t].length, 1, t);
     assert.equal(left.RIOIS.length, all.RIOIS.length);
-    r = tool('want-pips.mjs', ['db', W, '--types', 'LIOIS,CLKC']);
+    r = tool('want-pips.mjs', ['../../core/fpga/bitdb', W, '--types', 'LIOIS,CLKC']);
     assert.equal(r.stderr.trim(), '257 PIPs (per tile type) known to the reference database, 3 measured, 256 left');
     assert.deepEqual(Object.keys(JSON.parse(r.stdout)), ['LIOIS', 'CLKC']);
   } finally { fs.rmSync(W, { recursive: true, force: true }); }

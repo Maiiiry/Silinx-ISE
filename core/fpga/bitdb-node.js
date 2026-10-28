@@ -1,4 +1,4 @@
-// Silinx - the bit database of a Spartan-3E device for Node (#407): reads its files (db/*.json) for
+// Silinx - the bit database of a Spartan-3E device for Node (#407): reads its files (bitdb/*.json) for
 // core/fpga/bitgen.js; the one loader of the open flow (server/open-flow.js, server/open-flow-run.js)
 // and, through research/s3e-bitstream/db.mjs, of the experiments that build the database. The browser
 // fetches the same files (web/js/open-flow-worker.js). The files, per device (xc3s100e, xc3s250e,
@@ -16,8 +16,8 @@ import { fileURLToPath } from 'node:url';
 import { loadDeviceCache } from './device-node.js';
 import { splitPart, dbFileNames, dbFilesFrom, makeBitDb } from './bitdb.js';
 
-/** The folder of the bit database: research/s3e-bitstream/db, where the experiments write it. */
-export const DB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'research', 's3e-bitstream', 'db');
+/** The folder of the bit database: core/fpga/bitdb, where the experiments write it (core/fpga/bitdb until #1676). */
+export const DB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bitdb');
 
 const readJson = f => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null);
 

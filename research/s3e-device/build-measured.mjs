@@ -14,7 +14,7 @@ import { chipMeasurements } from './chip.mjs';
 import { packMeasured } from './build.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DB = path.join(HERE, '../s3e-bitstream/db');
+const DB = path.join(HERE, '../../core/fpga/bitdb');
 /** The part measured of each Spartan-3E die Silinx supports: the package of its board (Basys2, Nexys2). */
 export const PARTS = { xc3s100e: 'xc3s100ecp132-4', xc3s250e: 'xc3s250ecp132-4', xc3s500e: 'xc3s500efg320-4', xc3s1200e: 'xc3s1200efg320-4' };
 const DATA = path.join(HERE, 'data');
