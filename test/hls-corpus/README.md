@@ -87,7 +87,7 @@ Not part of `npm test` (it needs the network once).
 | pipelining-functions-hier-func | C++ | fail | fail | skip | - | C simulation: 81: 'fp1': structures (FILE) are not supported in Silinx HLS yet |
 | pipelining-loops-imperfect-loop | C++ | pass | pass | pass | 1723 |  |
 | pipelining-loops-perfect-loop | C++ | pass | pass | pass | 1723 |  |
-| pipelining-loops-using-free-running-pipeline | C++ | fail | fail | skip | - | C simulation: 68: '&' takes a variable |
+| pipelining-loops-using-free-running-pipeline | C++ | pass | fail | skip | - | C synthesis: 57: the argument 'strm' is not an integer pointer |
 | task-level-parallelism-control-driven-channels-autorestart | C++ | fail | fail | skip | - | C simulation: diamond_test.cpp:23: the header 'ap_float.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | task-level-parallelism-control-driven-channels-merge-split-merge-load-balance | C++ | pass | pass | pass | 600 |  |
 | task-level-parallelism-control-driven-channels-merge-split-merge-round-robin | C++ | pass | pass | pass | 600 |  |

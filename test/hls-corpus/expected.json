@@ -551,11 +551,11 @@
     "reason": null
   },
   "pipelining-loops-using-free-running-pipeline": {
-    "csim": "fail",
+    "csim": "pass",
     "synth": "fail",
     "cosim": "skip",
     "latency": null,
-    "reason": "C simulation: 68: '&' takes a variable"
+    "reason": "C synthesis: 57: the argument 'strm' is not an integer pointer"
   },
   "task-level-parallelism-control-driven-channels-autorestart": {
     "csim": "fail",
