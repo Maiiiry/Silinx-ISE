@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './designs-corpus/quality-page.mjs';
-import { lastError, newFailures, parseClocks, constrainedPeriod, trcePaths, criticalPath } from './designs-corpus/compare-lib.mjs';
+import { lastError, newFailures, parseClocks, constrainedPeriod, trcePaths, criticalPath, remoteWork } from './designs-corpus/compare-lib.mjs';
+import os from 'node:os';
+import { iseWorkBase } from '../server/toolchain.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -167,4 +169,22 @@ test('quality page: the critical paths\' logic and routing (only when measured) 
   assert.match(plain, /^\| design \| levels Silinx \| levels ISE \| logic Silinx \| logic ISE \|/m);
   assert.doesNotMatch(plain, /^- High:/m);
   assert.doesNotMatch(qualityPage({ ...res, designs: res.designs.map(d => ({ name: d.name, silinx: { periodNs: d.silinx.periodNs }, ise: { periodNs: d.ise.periodNs } })) }), /The critical paths: logic and routing/);
+});
+
+test('#1774 compare-ise.mjs over SSH: the trce of Silinx\'s routings in the ssh config\'s remoteDir, the folder Docker Desktop shares, mounted as it is; else under the remote home', () => {
+  assert.deepEqual(remoteWork('/Users/Shared/silinx-ise/build', 'silinx-compare-ab12'),
+    { remote: '/Users/Shared/silinx-ise/build/silinx-compare-ab12', mount: '/Users/Shared/silinx-ise/build/silinx-compare-ab12' });
+  assert.deepEqual(remoteWork('silinx-compare', 'silinx-compare-ab12'), { remote: 'silinx-compare/silinx-compare-ab12', mount: '$HOME/silinx-compare/silinx-compare-ab12' });
+  // with the user's configuration as compare-ise.mjs copies it into its run's SILINX_CONFIG_DIR (iseWorkBase reads it there)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-1774-')), saved = process.env.SILINX_CONFIG_DIR;
+  try {
+    process.env.SILINX_CONFIG_DIR = dir;
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ mode: 'ssh', ssh: { host: 'h', remoteDir: '/Users/Shared/silinx-ise/build' } }));
+    assert.equal(remoteWork(iseWorkBase('silinx-compare'), 'r').mount, '/Users/Shared/silinx-ise/build/r', 'not $HOME/silinx-compare/r: a folder Docker Desktop may not share');
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ mode: 'ssh', ssh: { host: 'h' } }));
+    assert.equal(remoteWork(iseWorkBase('silinx-compare'), 'r').mount, '$HOME/silinx-compare/r', 'no remoteDir: the home, as before');
+  } finally {
+    if (saved === undefined) delete process.env.SILINX_CONFIG_DIR; else process.env.SILINX_CONFIG_DIR = saved;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -34,7 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './quality-page.mjs';
 import { DOCKER_ISOLATION } from '../../server/ise.js';
-import { lastError, newFailures, parseClocks, constrainedPeriod, criticalPath } from './compare-lib.mjs';
+import { lastError, newFailures, parseClocks, constrainedPeriod, criticalPath, remoteWork } from './compare-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -87,6 +87,7 @@ fs.writeFileSync(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.s
 const { createJob } = await import('../../server/jobs.js');
 const { runImplementation } = await import('../../server/ise.js');
 const { runOpenImplementation } = await import('../../server/open-flow.js');
+const { iseWorkBase } = await import('../../server/toolchain.js');
 
 const copyProject = (name, side) => {
   const to = path.join(work, side, name);
@@ -182,7 +183,8 @@ for (const t of timedNames) {
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(tdir, 'ise-open-check.sh'));
 const sshArgs = LOCAL ? [] : ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
 const ssh = cmd => execFileSync('ssh', [...sshArgs, '--', host, `export PATH="$PATH:/usr/local/bin"; ${cmd}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
-const remote = `silinx-compare/${path.basename(work)}`;
+// (the host's folder for ISE work, #1774: the ssh config's remoteDir, which Docker Desktop shares, else ~/silinx-compare)
+const { remote, mount } = remoteWork(iseWorkBase('silinx-compare'), path.basename(work));
 const trce = {}, paths = {};
 if (timedNames.length) {
   try {
@@ -191,7 +193,7 @@ if (timedNames.length) {
     else {
       ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
       execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
-      out = ssh(`docker run --rm ${DOCKER_ISOLATION.join(' ')} --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+      out = ssh(`docker run --rm ${DOCKER_ISOLATION.join(' ')} --platform linux/amd64 -v "${mount}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
       // (trce's reports back, for the critical paths' breakdown)
       execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, '--include=*/', '--include=routed.twr', '--exclude=*', `${host}:${remote}/`, `${tdir}/`]);
     }
