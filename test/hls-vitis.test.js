@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { vitisConfig, elements, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, selectDesigns, PART } from '../scripts/hls-vitis.mjs';
+import { vitisConfig, elements, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, selectDesigns, keepsRun, PART } from '../scripts/hls-vitis.mjs';
 import { cToHdl } from '../core/c-hdl.js';
 
 test('#1624 the config: the part fixed, the Vivado flow, no packaging nor Vivado run; the rest kept', () => {
@@ -151,4 +151,15 @@ test('#1780 --filter: a regular expression on the names; a plain name as a subst
   assert.deepEqual(names(undefined), designs.map((d) => d.name));
   assert.deepEqual(names('^none$'), []);
   assert.throws(() => names('('), SyntaxError);
+});
+
+test('#1826 --collect keeps the run on the host unless --update saved its results', () => {
+  assert.equal(keepsRun(['--collect', 'silinx-vitis-abc']), true);
+  assert.equal(keepsRun(['--collect', 'silinx-vitis-abc', '--update']), false);
+  assert.equal(keepsRun(['--update', '--collect', 'silinx-vitis-abc']), false);
+  // main() deletes the host's folder only after the --update block wrote vitis.json and the README's table
+  const src = fs.readFileSync(new URL('../scripts/hls-vitis.mjs', import.meta.url), 'utf8');
+  const rm = src.indexOf('rm -rf ${remoteOf(collect)}'), written = src.indexOf("README's Vitis table updated");
+  assert.ok(rm > 0 && written > 0 && rm > written);
+  assert.doesNotMatch(src, /`\$\{work\}\/`\]\);\n\s*ssh\(`rm -rf/, 'no deletion right after the fetch');
 });

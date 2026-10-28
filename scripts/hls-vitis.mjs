@@ -12,7 +12,8 @@
 //     --update: the results written to test/hls-corpus/vitis.json and the table of test/hls-corpus/README.md
 //   node scripts/hls-vitis.mjs --detach [--filter …]   Vitis started on the host in the background (a run of the whole
 //     corpus takes hours: it does not depend on this machine staying awake); it prints the run's name
-//   node scripts/hls-vitis.mjs --collect <run> [--update]   its results fetched once it is done (else its progress)
+//   node scripts/hls-vitis.mjs --collect <run> [--update]   its results fetched once it is done (else its progress);
+//     the run's folder on the host deleted only once --update has saved them (#1826)
 //   SILINX_ISE_HOST=user@host (else ~/.silinx/config.json's ssh user and host, read here, never written in a file),
 //   SILINX_ISE_HOST=local: the image on this machine; SILINX_VITIS_IMAGE (default xilinx/vitis-hls:2025.2),
 //   SILINX_VITIS_PART (default xc7a35tcpg236-1); SILINX_ISE_REMOTE_DIR as scripts/check-open-flow.mjs.
@@ -167,6 +168,12 @@ export function selectDesigns(designs, filter) {
   return designs.filter((d) => !re || re.test(d.name));
 }
 
+/** Whether --collect keeps a run's folder on the host: until --update has saved its results (#1826: a --collect with
+ * no --update had deleted them, and the results were lost). */
+export function keepsRun(args) {
+  return !args.includes('--update');
+}
+
 async function main() {
   const { fetchDesignCorpus, sourceDir } = await import('./fetch-design-corpus.mjs');
   const { runDesign, unitOf } = await import('../test/hls-corpus/lib.mjs');
@@ -201,7 +208,6 @@ async function main() {
         return;
       }
       run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${HOST}:${remote}/designs.txt`, `${HOST}:${remote}/results`, `${work}/`]);
-      ssh(`rm -rf ${remote}`);
       const names = new Set(fs.readFileSync(path.join(work, 'designs.txt'), 'utf8').split('\n').map((l) => l.split(' ')[0]).filter(Boolean));
       designs = manifest.designs.filter((d) => names.has(d.name));
     } else {
@@ -272,6 +278,10 @@ async function main() {
       const text = fs.readFileSync(readme, 'utf8');
       fs.writeFileSync(readme, text.replace(/<!-- vitis -->[\s\S]*<!-- \/vitis -->/, `<!-- vitis -->\n${vitisTable(manifest, all, { image: IMAGE, part })}\n<!-- /vitis -->`));
       console.log(`test/hls-corpus/vitis.json and the README's Vitis table updated (${designs.length} designs)`);
+    }
+    if (collect) {
+      if (keepsRun(a)) console.log(`${collect}: its results kept on the host; save them with: node scripts/hls-vitis.mjs --collect ${collect} --update`);
+      else ssh(`rm -rf ${remoteOf(collect)}`);
     }
   } finally { if (!process.env.SILINX_KEEP) fs.rmSync(work, { recursive: true, force: true }); }
 }
