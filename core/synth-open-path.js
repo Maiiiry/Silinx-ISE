@@ -19,7 +19,8 @@ const isLutCell = t => /^(LUT[1-6]|INV|BUF)$/.test(t);
 /** The estimated critical path (ns) of a Yosys JSON netlist (its top module). */
 export const criticalDelay = (json, top) => pathEnds(json, top).worst;
 /** The estimate of criticalDelay with its ends: worst (ns), and each end { cell (its name), type, port, ns } (the
- *  setup included) of the paths between sequential cells (or, a design without them, from inputs to outputs). */
+ *  setup included) of the paths between sequential cells (or, a design without them, from inputs to outputs); and
+ *  arrival(bit), the estimated arrival at a signal (ns, -Infinity when no path reaches it; #1360). */
 export function pathEnds(json, top) {
   const nl = typeof json === 'string' ? JSON.parse(json) : json;
   const mod = nl.modules[top] || Object.values(nl.modules).find(m => m.attributes?.top) || Object.values(nl.modules)[0];
@@ -93,7 +94,8 @@ export function pathEnds(json, top) {
         if (t > 0) { w = Math.max(w, t); ends.push({ cell: names.get(c), type: c.type, port: p, ns: t }); }
       }
     }
-    return { worst: w, ends };
+    const arrival = bit => { const d = typeof bit === 'number' ? driver.get(bit) : null; return d ? arrOut(d, bit) : -Infinity; };
+    return { worst: w, ends, arrival };
   };
   const ff = worst();
   if (ff.worst > 0) return ff;

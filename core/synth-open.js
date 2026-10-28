@@ -18,6 +18,7 @@ import {
   DEEP_RULE, criticalDelay, deepDesign, logicLevels, pathEnds
 } from './synth-open-path.js';
 import { mountDepth } from './synth-open-depth.js';
+import { bddStage } from './synth-open-resynth.js';
 export {
   DEEP_RULE, criticalDelay, deepDesign, logicLevels, pathEnds
 };
@@ -666,7 +667,9 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * the mapping with the clock enables that end the critical path folded into D (#653), both from the netlist before the
  * LUT mapping, measured against the netlist chosen of the others, on both efforts (speed: false leaves them out); resynth:
  * { rounds, changed, ns, luts, slices, kept } of the netlist chosen of all of them with its critical LUTs made one level
- * shallower, their fan-out kept (#652, core/lut-resynth.js; resynth: false leaves it out).
+ * shallower, their fan-out kept (#652, core/lut-resynth.js; resynth: false leaves it out); bdd: { rounds, cones, ns, luts,
+ * slices, kept } of the netlist chosen of all (the memories' choice, #54, included) with the critical path's wide decodes
+ * collapsed to BDDs and mapped again (#1360, core/synth-open-bdd.js; bdd: false leaves it out).
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (beside it the quiet search for the state machines fsm_detect refuses for their users, #652; no
  * other mapping tried: as depth false; but the critical path's remaps, #652, and the mapping with the
@@ -712,7 +715,7 @@ export async function synthesizeVerilog(input, options = {}) {
 }
 
 // synthesizeVerilog's synthesis but the carry-select candidate (carrySelect: CSEL_RULE when making it)
-async function synthesizeOnce(input, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true, carrySelect = null } = {}) {
+async function synthesizeOnce(input, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, bdd: withBdd = true, lutram: withLutram = true, carrySelect = null } = {}) {
   const { text, top, warnings = [], shiftArrays = [], gates: gateCount = 0 } = input;
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -779,7 +782,7 @@ async function synthesizeOnce(input, { family = 'spartan3e', run, onLine = () =>
     // its messages said, #652)
     const luts = json ? utilization(cellCounts(json, top)).luts : Infinity;
     if (!deep?.deep && luts <= smallRule.maxLuts) {
-      const both = { family, run, depth, abc9: withAbc9, deepRule, fsm: withFsm, speed: withSpeed, wide, resynth: withResynth, lutram: withLutram, carrySelect };
+      const both = { family, run, depth, abc9: withAbc9, deepRule, fsm: withFsm, speed: withSpeed, wide, resynth: withResynth, bdd: withBdd, lutram: withLutram, carrySelect };
       const linesN = [], linesH = [];
       // (side by side: Yosys runs in workers of their own)
       const [own, high] = await Promise.all([
@@ -909,6 +912,11 @@ async function synthesizeOnce(input, { family = 'spartan3e', run, onLine = () =>
     }
     res.info.lutram = lutram;
   }
+  // the critical path's wide decodes of the netlist chosen of all collapsed and mapped again (#1360, core/synth-open-bdd.js):
+  // the T80's register file in distributed RAM is only chosen above, after withDepth's candidates
+  const sayOnce = l => { if (!log.includes(l)) line(l); };
+  const b = await bddStage({ run, speed, top, withBdd }, { chosen: res.chosen, cells: res.cells, info: res.info, slices: j => sliceCount(j, top), sayNew: sayOnce });
+  if (b.chosen !== res.chosen) res = { ...res, chosen: b.chosen, cells: b.cells };
   const { chosen, cells, info } = res;
   if (deep) Object.assign(info, { levels: deep.levels, auto: deep.deep });
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };

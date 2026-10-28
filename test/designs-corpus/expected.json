@@ -185,8 +185,8 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1001,
-   "luts": 2001,
+   "slices": 1075,
+   "luts": 2128,
    "ffs": 0,
    "period": null
   }
@@ -482,10 +482,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1330,
-   "luts": 2649,
-   "ffs": 546,
-   "period": 18.353
+   "slices": 1244,
+   "luts": 2479,
+   "ffs": 554,
+   "period": 17.809
   }
  },
  "itc99-b17": {
@@ -721,7 +721,7 @@
    "slices": 189,
    "luts": 374,
    "ffs": 206,
-   "period": 12.173
+   "period": 12.329
   }
  },
  "nandland-spi-verilog": {
@@ -1080,10 +1080,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1146,
-   "luts": 2283,
-   "ffs": 361,
-   "period": 21.935
+   "slices": 1034,
+   "luts": 2059,
+   "ffs": 237,
+   "period": 18.327
   }
  },
  "uart-for-fpga": {
