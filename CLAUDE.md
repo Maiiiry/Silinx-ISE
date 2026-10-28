@@ -31,6 +31,8 @@ the code and the lessons learnt.
 ## Programming
 
 - Write code that reads like the code around it: its comment density, naming and idiom.
+- Shell output: print only what is needed (the summary, the failures: `tail`, `grep`, `--quiet`); never whole logs,
+  test runs or JSON, which ride along on every later call of the session (#1849).
 - **Small modules and functions** (#405): a source file (`core/`, `web/js/`, `server/`, `scripts/`) stays under
   1000 lines and a function under 300; one module per concern (an editor's panel, its drawing, its tools; a
   compiler's expressions, its statements). A change that would take a file or a function past the limit splits it
