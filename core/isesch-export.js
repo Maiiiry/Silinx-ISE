@@ -6,6 +6,7 @@ import {
   SYMBOLS, compareOps, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, portSide, netlist, normModules, generateHdl, constBits, newDoc, xform,
 } from './schdoc.js';
 import { LIB_GFX, LIB_TS, findModule, gfxShapes, iomarkerOrien, iseXform, lc, libPins, xaiToIseOrien } from './isesch.js';
+import { blockHdlDecls } from './isesch-blockhdl.js';
 
 const S_OUT = 16 / 5;                     // Silinx px -> ISE units (grid 10 -> 32, pin pitch 20 -> 64)
 const SHEET_SIZES = [[1760, 1360], [2720, 1760], [3520, 2720], [5440, 3520], [7040, 5440]];
@@ -357,11 +358,11 @@ export function exportIseSch(docIn, opts = {}) {
     const mini = newDoc(name, lang);
     const s2 = { ...JSON.parse(JSON.stringify(sym)), id: 'S1', x: 200, y: 200, rot: 0, mirror: false, name: 'U1' };
     mini.symbols.push(s2);
-    if (sym.type === 'hdlblock' && doc.hdl?.decls) {
-      // keep the declarations the block uses (temporaries of imported ISE library functions)
-      const code = String(sym.hdl || '');
-      const keep = String(doc.hdl.decls).split('\n').filter(l => { const m = /^\s*(?:signal|reg|wire)\s+(?:\[[^\]]*\]\s*)?([A-Za-z_][\w]*)/.exec(l); return m && new RegExp(`\\b${m[1]}\\b`).test(code); });
-      if (keep.length) mini.hdl = { lang: doc.hdl.lang || lang, decls: keep.join('\n') };
+    if (sym.type === 'hdlblock' && doc.hdl) {
+      // the module's declarations the block's file needs: its context, generics, constants, types, functions (#1695),
+      // and of its signals the block's own temporaries (of imported ISE library functions too)
+      const h = blockHdlDecls(doc.hdl, sym.hdl, new Set(symbolPins(s2, modules).map(q => q.name)), lang);
+      if (h) mini.hdl = h;
     }
     for (const q of symbolPins(s2, modules)) {
       const net = nl.pinNet.get(`${sym.id}/${q.name}`);
