@@ -6,6 +6,7 @@
 //
 //   SOFTFLOAT32, SOFTFLOAT64: the C sources; their functions (p f32 or f64), a and b the values' bits:
 //     ap_p_add(a, b)  ap_p_sub(a, b)  ap_p_mul(a, b)          the result's bits
+//     ap_p_div(a, b)  ap_p_sqrt(a)                            (#1783)
 //     ap_p_eq(a, b)  ap_p_lt(a, b)  ap_p_le(a, b)  ap_p_unord(a, b)   0 or 1 (a NaN: unordered, not equal)
 //     ap_p_from_i32(int x)  ap_p_from_u32(unsigned x)         the nearest value's bits
 //     ap_p_to_i32(a)  ap_p_to_u32(a)                          truncated toward zero, its bits modulo 2^32 (out of
@@ -123,6 +124,68 @@ static ${T} ap_${p}_mul(${T} a, ${T} b) {
   }${mul}
   ${T} r = ap_${p}_pack(s, e, m);
   return special ? res : r;
+}
+/* a / b: the significands' quotient a bit a step (${G + 1} bits), its remainder the sticky bit */
+static ${T} ap_${p}_div(${T} a, ${T} b) {
+  ${T} s = (a ^ b) >> ${W - 1};
+  int ea = (int)((a >> ${M}) & ${emax}${u}), eb = (int)((b >> ${M}) & ${emax}${u});
+  ${T} ma = a & ${MMASK}, mb = b & ${MMASK};
+  int za = (a & ${ABS}) == ${ZERO}, zb = (b & ${ABS}) == ${ZERO};
+  int special = 1;
+  ${T} res = ${ZERO};
+  int nan = ap_${p}_unord(a, b);
+  if (nan || (za && zb) || (ea == ${emax} && eb == ${emax})) res = ${QNAN};
+  else if (ea == ${emax} || zb) res = (s << ${W - 1}) | ${INF};
+  else if (eb == ${emax} || za) res = s << ${W - 1};
+  else special = 0;
+  if (ea) ma = ma | ${IMPL}; else ea = 1;
+  if (eb) mb = mb | ${IMPL}; else eb = 1;
+  for (int i = 0; i < ${M}; i++) {
+    if (!(ma & ${IMPL})) { ma = ma << 1; ea = ea - 1; }
+    if (!(mb & ${IMPL})) { mb = mb << 1; eb = eb - 1; }
+  }
+  if (mb == ${ZERO}) mb = ${ONE};   /* (b 0: its special case; no division by 0 below) */
+  int e = ea - eb + ${bias};
+  if (ma < mb) { ma = ma << 1; e = e - 1; }
+  ${T} q = ${ZERO}, r = ma;
+  for (int i = 0; i < ${G + 1}; i++) {
+    q = q << 1;
+    if (r >= mb) { r = r - mb; q = q | ${ONE}; }
+    r = r << 1;
+  }
+  ${T} rr = ap_${p}_pack(s, e, q | (r != ${ZERO}));
+  return special ? res : rr;
+}
+/* sqrt(a): its root two radicand bits a step (${G + 1} bits), its remainder the sticky bit */
+static ${T} ap_${p}_sqrt(${T} a) {
+  int ea = (int)((a >> ${M}) & ${emax}${u});
+  ${T} ma = a & ${MMASK};
+  int za = (a & ${ABS}) == ${ZERO};
+  int special = 1;
+  ${T} res = ${ZERO};
+  int nan = ap_${p}_unord(a, a);
+  if (nan || (!za && (a >> ${W - 1}))) res = ${QNAN};
+  else if (za) res = a;
+  else if (ea == ${emax}) res = a;
+  else special = 0;
+  if (ea) ma = ma | ${IMPL}; else ea = 1;
+  for (int i = 0; i < ${M}; i++) {
+    if (!(ma & ${IMPL})) { ma = ma << 1; ea = ea - 1; }
+  }
+  int x = ea - ${bias};
+  unsigned long long mx = (unsigned long long)ma;
+  if (x & 1) { mx = mx << 1; x = x - 1; }
+  /* (the radicand mx 2^${M + 6}: its bits from the top, two a step) */
+  unsigned long long top = mx << ${64 - (M + 2)};
+  unsigned long long root = 0ull, rem = 0ull;
+  for (int i = 0; i < ${G + 1}; i++) {
+    rem = (rem << 2) | (top >> 62);
+    top = top << 2;
+    unsigned long long t = (root << 2) | 1ull;
+    if (rem >= t) { rem = rem - t; root = (root << 1) | 1ull; } else root = root << 1;
+  }
+  ${T} rr = ap_${p}_pack(${ZERO}, x / 2 + ${bias}, (${T})root | (rem != 0ull));
+  return special ? res : rr;
 }
 static int ap_${p}_eq(${T} a, ${T} b) {
   if (ap_${p}_unord(a, b)) return 0;
