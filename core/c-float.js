@@ -77,6 +77,9 @@ export function fmtFloat(conv, x, prec, flags = '') {
 }
 
 const R = (f) => ({ n: 1, f });
+const CMIN = (a, b) => (Number.isNaN(a) ? b : Number.isNaN(b) ? a : Math.min(a, b));
+const CMAX = (a, b) => (Number.isNaN(a) ? b : Number.isNaN(b) ? a : Math.max(a, b));
+const CSIGN = (a, b) => (b < 0 || Object.is(b, -0) ? -Math.abs(a) : Math.abs(a));
 export const MATH = {
   sqrt: R(Math.sqrt), sqrtf: R(Math.sqrt), fabs: R(Math.abs), fabsf: R(Math.abs), exp: R(Math.exp), log: R(Math.log), log2: R(Math.log2),
   log10: R(Math.log10), sin: R(Math.sin), cos: R(Math.cos), tan: R(Math.tan), asin: R(Math.asin), acos: R(Math.acos),
@@ -85,6 +88,10 @@ export const MATH = {
   // (round: half away from zero, as C's)
   round: R((x) => Math.sign(x) * Math.round(Math.abs(x))), roundf: R((x) => Math.sign(x) * Math.round(Math.abs(x))),
   pow: { n: 2, f: Math.pow }, powf: { n: 2, f: Math.pow }, atan2: { n: 2, f: Math.atan2 }, hypot: { n: 2, f: Math.hypot },
-  fmod: { n: 2, f: (a, b) => a % b }, fmin: { n: 2, f: Math.min }, fmax: { n: 2, f: Math.max },
+  fmod: { n: 2, f: (a, b) => a % b },
+  // (fmin, fmax: a NaN and a number the number, as C's; copysign: a NaN's sign not known, +, #1843)
+  fmin: { n: 2, f: CMIN }, fmax: { n: 2, f: CMAX }, fminf: { n: 2, f: CMIN }, fmaxf: { n: 2, f: CMAX },
+  floorf: R(Math.floor), ceilf: R(Math.ceil), truncf: R(Math.trunc),
+  copysign: { n: 2, f: CSIGN }, copysignf: { n: 2, f: CSIGN },
   lround: { n: 1, f: (x) => Math.sign(x) * Math.round(Math.abs(x)), int: true },
 };

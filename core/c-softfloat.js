@@ -12,6 +12,9 @@
 //     ap_p_to_i32(a)  ap_p_to_u32(a)                          truncated toward zero, its bits modulo 2^32 (out of
 //                                                               range: the C simulation's; a NaN or an infinity 0)
 //     ap_f64_from_f32(a)  ap_f32_from_f64(a)                  a float as a double (exact), a double rounded to a float
+//     ap_p_trunc(a)  ap_p_floor(a)  ap_p_ceil(a)  ap_p_round(a)   math.h's: an integral value (round: half away from
+//                                                               zero), its sign kept (#1843)
+//     ap_p_fmin(a, b)  ap_p_fmax(a, b)  ap_p_copysign(a, b)   (fmin, fmax: a NaN and a number the number)
 //   F32_NAN, F64_NAN: the quiet NaNs' bits
 
 export const F32_NAN = 0x7fc00000;
@@ -230,6 +233,73 @@ static unsigned ap_${p}_to_u32(${T} a) {
   return (a >> ${W - 1}) ? 0u - v : v;
 }
 static int ap_${p}_to_i32(${T} a) { return (int)ap_${p}_to_u32(a); }
+/* (#1843) an integral value: the fraction's bits of a (its exponent e, unbiased; e < 0: |a| < 1) cleared; floor, ceil
+   and round then add one unit of the integer part to the magnitude (a carry into the exponent is the next binade) */
+static ${T} ap_${p}_trunc(${T} a) {
+  int e = (int)((a >> ${M}) & ${emax}${u}) - ${bias};
+  if (ap_${p}_unord(a, a)) return ${QNAN};
+  if (e < 0) return a & ${SIGN};
+  if (e >= ${M}) return a;
+  return a & ~(${MMASK} >> e);
+}
+static ${T} ap_${p}_floor(${T} a) {
+  int e = (int)((a >> ${M}) & ${emax}${u}) - ${bias};
+  if (ap_${p}_unord(a, a)) return ${QNAN};
+  if (e >= ${M}) return a;
+  if (e < 0) {
+    if ((a & ${ABS}) == ${ZERO} || !(a >> ${W - 1})) return a & ${SIGN};
+    return ${h((1n << BigInt(W - 1)) | (BigInt(bias) << BigInt(M)))};
+  }
+  ${T} mask = ${MMASK} >> e;
+  if ((a & mask) == ${ZERO} || !(a >> ${W - 1})) return a & ~mask;
+  return (a & ~mask) + mask + ${ONE};
+}
+static ${T} ap_${p}_ceil(${T} a) {
+  int e = (int)((a >> ${M}) & ${emax}${u}) - ${bias};
+  if (ap_${p}_unord(a, a)) return ${QNAN};
+  if (e >= ${M}) return a;
+  if (e < 0) {
+    if ((a & ${ABS}) == ${ZERO} || (a >> ${W - 1})) return a & ${SIGN};
+    return ${h(BigInt(bias) << BigInt(M))};
+  }
+  ${T} mask = ${MMASK} >> e;
+  if ((a & mask) == ${ZERO} || (a >> ${W - 1})) return a & ~mask;
+  return (a & ~mask) + mask + ${ONE};
+}
+static ${T} ap_${p}_round(${T} a) {
+  int e = (int)((a >> ${M}) & ${emax}${u}) - ${bias};
+  if (ap_${p}_unord(a, a)) return ${QNAN};
+  if (e >= ${M}) return a;
+  if (e == -1) return (a & ${SIGN}) | ${h(BigInt(bias) << BigInt(M))};
+  if (e < 0) return a & ${SIGN};
+  return (a + (${h(1n << BigInt(M - 1))} >> e)) & ~(${MMASK} >> e);
+}
+static ${T} ap_${p}_fmin(${T} a, ${T} b) {
+  int na = ap_${p}_unord(a, a);
+  int nb = ap_${p}_unord(b, b);
+  int l = ap_${p}_lt(a, b);
+  ${T} r = l ? a : b;
+  if (((a | b) & ${ABS}) == ${ZERO}) r = a | b;
+  if (nb) r = a;
+  if (na) r = b;
+  if (na && nb) r = ${QNAN};
+  return r;
+}
+static ${T} ap_${p}_fmax(${T} a, ${T} b) {
+  int na = ap_${p}_unord(a, a);
+  int nb = ap_${p}_unord(b, b);
+  int l = ap_${p}_lt(b, a);
+  ${T} r = l ? a : b;
+  if (((a | b) & ${ABS}) == ${ZERO}) r = a & b;
+  if (nb) r = a;
+  if (na) r = b;
+  if (na && nb) r = ${QNAN};
+  return r;
+}
+static ${T} ap_${p}_copysign(${T} a, ${T} b) {
+  if (ap_${p}_unord(a, a)) return ${QNAN};
+  return (a & ${ABS}) | (b & ${SIGN});
+}
 `;
 }
 

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { simulateC } from '../core/c-interp.js';
 import { cosimulate } from '../core/c-cosim.js';
 import { SOFTFLOAT32, SOFTFLOAT64, F32_NAN, F64_NAN } from '../core/c-softfloat.js';
+import { MATH } from '../core/c-float.js';
 import { rng } from './c-helpers.js';
 
 const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
@@ -173,4 +174,27 @@ test('#1773 binary64 conversions: int and unsigned to double (exact), double to 
   ]);
   const flts = [...EDGE, ...Array.from({ length: 60 }, () => r() >>> 0)];
   check64(flts.map((x) => [BigInt(x >>> 0), 0n]), [{ name: 'from_f32', c: 'ap_f64_from_f32((unsigned)A[i])', ref: (a) => bits64(val(Number(a))) }]);
+});
+
+// (#1843: math.h's integral values, fmin, fmax and copysign, against the C simulation's, core/c-float.js)
+const ROUNDING = [0x3f000000, 0xbf000000, 0x3effffff, 0xbeffffff, 0x3fc00000, 0xbfc00000, 0x40200000, 0xc0200000, 0x4affffff, 0xcaffffff, 0x4b000000, 0x3f7fffff, 0xbf7fffff];
+const mathOps = (p, val1, bits1, fr) => ['trunc', 'floor', 'ceil', 'round', 'fmin', 'fmax', 'copysign'].map((op) => ({
+  name: op, c: `ap_${p}_${op}(A[i]${['fmin', 'fmax', 'copysign'].includes(op) ? ', B[i]' : ''})`,
+  ref: (a, b) => bits1(fr(MATH[op].f(val1(a), val1(b)))),
+}));
+
+test('#1843 binary32 trunc, floor, ceil, round, fmin, fmax, copysign: the edge cases, halves and random values, as the C simulation', () => {
+  const r = rng(1843);
+  const xs = [...EDGE, ...ROUNDING, ...Array.from({ length: 300 }, (_, i) => (i % 2 ? r() >>> 0 : ((r() & 0x80000000) | ((120 + (r() % 40)) << 23) | (r() & 0x7fffff)) >>> 0))];
+  const pairs = xs.map((a, i) => [a, xs[(i * 7 + 3) % xs.length]]).concat(EDGE.flatMap((a) => EDGE.map((b) => [a, b])));
+  check(pairs, mathOps('f32', val, bits, Math.fround));
+});
+
+test('#1843 binary64 trunc, floor, ceil, round, fmin, fmax, copysign: the edge cases, halves and random values, as the C simulation', () => {
+  const r = rng(18431);
+  const rnd = () => (BigInt(r() >>> 0) << 32n) | BigInt(r() >>> 0);
+  const xs = [...EDGE64, 0x3fe0000000000000n, 0xbfe0000000000000n, 0x3fdfffffffffffffn, 0x3ff8000000000000n, 0xc004000000000000n, 0x432fffffffffffffn, 0xc32fffffffffffffn, 0x4330000000000000n,
+    ...Array.from({ length: 200 }, (_, i) => (i % 2 ? rnd() : (BigInt(r() & 1) << 63n) | (BigInt(1000 + (r() % 70)) << 52n) | (rnd() & 0xfffffffffffffn)))];
+  const pairs = xs.map((a, i) => [a, xs[(i * 7 + 3) % xs.length]]).concat(EDGE64.flatMap((a) => EDGE64.map((b) => [a, b])));
+  check64(pairs, mathOps('f64', val64, bits64, (x) => x));
 });
