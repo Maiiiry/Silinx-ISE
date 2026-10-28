@@ -7,7 +7,7 @@
 //   header are its process's.
 // - Filters by source follow the task in front in the Tasks interface (Implement: Implementation)
 //   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task). A
-//   process started whose source the filter hides turns the filter to its source (#1852).
+//   process started whose source the viewer's filter hides turns that filter to its source (#1852, #1867).
 // - Folded (tasks.js), the panel shows its last line of the current filter.
 // - SSim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulation).
 // - One command line: SSim's commands while simulating (SSim> run 1 us; Simulate in front, or an SSim window in the
@@ -47,11 +47,12 @@ export function filterSources(filter, task) {
   return TASK_SOURCES[task] || null;
 }
 
-/** The filter once a process of `src` starts (#1852): its source when the filter shown hides it (a process the viewer
- *  starts never seems to do nothing), else the filter as it is. */
+/** The filter once a process of `src` starts (#1852): its source when the filter the viewer picked hides it (a process
+ *  the viewer starts never seems to do nothing), else the filter as it is (one following the task stays the task's). */
 export function filterForProcess(src, filter, task) {
+  if (!SOURCES.includes(filter)) return filter;
   const set = filterSources(filter, task);
-  return !set || set.includes(src) ? filter : src;
+  return set.includes(src) ? filter : src;
 }
 
 // ------------------------------------------------------------------ the page

@@ -93,10 +93,10 @@ test('filterSources: a picked filter, All, or the task\'s own sources (Implement
   assert.equal(M.filterSources('bogus', 'nothing'), null);
 });
 
-test('#1852 filterForProcess: a process started whose source the filter hides turns the filter to its source; one shown leaves it', () => {
+test('#1852 filterForProcess: a process started whose source the viewer\'s filter hides turns it to its source; one shown, or the task\'s filter, left', () => {
   assert.equal(M.filterForProcess('sim', 'check', null), 'sim');   // (Design picked: a C Simulation shown)
   assert.equal(M.filterForProcess('impl', 'sim', 'impl'), 'impl');
-  assert.equal(M.filterForProcess('sim', null, 'edit'), 'sim');    // (the task's filter, Design: turned too)
+  assert.equal(M.filterForProcess('check', null, 'emu'), null);    // (the task's filter stays the task's: a Check Syntax while emulating)
   assert.equal(M.filterForProcess('sim', 'all', null), 'all');
   assert.equal(M.filterForProcess('sim', null, null), null);       // (no task, nothing picked: every source)
   assert.equal(M.filterForProcess('check', 'check', 'sim'), 'check');
