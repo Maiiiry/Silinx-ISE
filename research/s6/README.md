@@ -328,6 +328,30 @@ XC6SLX16's settings (the same tiles).
 - Not measured: a LUT RAM's or ROM's contents other than zeros (the SRL modes move bits); Silinx does not write them
   yet (#1153).
 
+### The INT switch box (#726, S6-D, 2026-10-29)
+
+`gen-pipprobe6.mjs` probes whether ISE programs a routing switch (PIP) in isolation: on a net with no pins it does
+not (no bit set anywhere), on a net with one outpin (the tile's TIEOFF, HARD1) it does, whether the PIP is on the
+net's path or not (and an inpin changes nothing). So one design measures a PIP in each of the XC6SLX16's 1083 INT
+tiles next to a CLB at once, each in its own tile's region (minors 0 to 20 of the CLB column, its 64-bit band:
+`ana-pipprobe6.mjs`); `--int` writes a round of such designs, the switch box's PIPs in turn from an offset.
+
+- **The round** (8 designs, 17 minutes): all 3449 PIPs of the INT switch box, all but one in two tiles or more,
+  `db/xc6slx16-int.json`: 1 to 3 bits each (a mux's row and column), 87 with none.
+- **On paths** (`gen-pipcover6.mjs`, one design, 36 seconds): a PIP whose source wire is not driven sets no bits
+  alone: the continuations of a wire (`SR1E1 -> SR1B2`, `EE4E1 -> EE4B1`, …) and a bidirectional PIP's other
+  direction (`LOGICIN_B51 -> GFAN1` sets other bits than `GFAN1 -> LOGICIN_B51`). Each of these 110 is the end of a
+  path from a driver (a TIEOFF's HARD1, HARD0 or KEEP1, or a slice output, in its tile or the next ones) found by a
+  breadth-first search over the device's graph, in a tile of its own; its bits are its tile's less those of every
+  path's PIPs there: `db/xc6slx16-int-cover.json`, by the signal's direction. The KEEP1 PIPs and `LOGICIN_Bk ->
+  LOGICINk` have no bits.
+- **Checked** (`check-pips6.mjs`) on the examples ISE implemented, both boards (the XC6SLX45's INT tiles the same
+  type): a tile's bits are its PIPs' (a bidirectional PIP's direction from its net, walked from its outpins) and its
+  slices' settings in minor 20; **2534 of 2560 INT tiles identical**, 22 241 PIPs. The 26 left have a PIP of the
+  clock-break rows' INT tiles (INT_BRK, `GCLKk_BRK -> CLKk`), not measured yet.
+- **Left**: the INT_BRK tiles, the same switch box in the other columns (INT_BRAM, IOI_INT, LIOI_INT, INT_GCLK:
+  their columns' frames), and the other tile types' PIPs the examples use (the I/O, block RAM, DSP and clock tiles').
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -407,4 +431,8 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `gen-slice6.mjs` | The slice settings' designs in XDL, one per slice kind (#725) |
 | `ana-slice6.mjs` | The slice settings from their bitstreams: `db/<device>-slice.json` (#725) |
 | `check-slice6.mjs` | The LUT and slice databases checked against ISE's implemented examples, tile by tile (#725) |
+| `gen-pipprobe6.mjs` | The PIP probe and the INT switch box's rounds, a PIP per INT tile on a net of its TIEOFF (#726) |
+| `gen-pipcover6.mjs` | The PIPs that need a driven source, on paths from a driver (#726) |
+| `ana-pipprobe6.mjs` | Their bits: `db/<device>-int.json`, `-int-cover.json` (#726) |
+| `check-pips6.mjs` | The INT PIP database checked against ISE's implemented examples, tile by tile (#726) |
 | `check-writer6.mjs` | ISE's `.bit` files written again by `core/fpga/s6/bitstream.js`, compared byte for byte; `--json` writes `measured/format.json` |
