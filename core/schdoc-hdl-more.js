@@ -198,7 +198,7 @@ export function mountSymbolCasesMore(ctx) {
           const lines = [`${s.name} : entity work.${mname}`];
           if (gens.length) lines.push(`  generic map (\n${gens.map(([k, v]) => `    ${k} => ${v}`).join(',\n')}\n  )`);
           const cs = conns.filter(([, a]) => a || true).map(([k, a]) => `    ${k} => ${a ?? 'open'}`);
-          lines.push(`  port map (\n${cs.join(',\n')}\n  );`);
+          if (cs.length) lines.push(`  port map (\n${cs.join(',\n')}\n  );`); else lines[lines.length - 1] += ';';   // (a module without ports, #1695)
           body.push(lines.join('\n'));
         } else {
           const g = gens.length ? ` #(${gens.map(([k, v]) => `.${k}(${v})`).join(', ')})` : '';
