@@ -8,10 +8,10 @@
   },
   "array-array-partition-complete": {
     "csim": "pass",
-    "synth": "fail",
-    "cosim": "skip",
+    "synth": "pass",
+    "cosim": "fail",
     "latency": null,
-    "reason": "C synthesis: 30: 'A': only arrays of integers (one dimension) are supported yet"
+    "reason": "co-simulation: a call did not end in 100000 cycles"
   },
   "dsp-fft-interface-array": {
     "csim": "fail",
@@ -454,11 +454,15 @@
     "reason": null
   },
   "modeling-using-array-stencil-1d": {
-    "csim": "fail",
-    "synth": "fail",
-    "cosim": "skip",
-    "latency": null,
-    "reason": "C simulation: 36: an index of a value that is not an array"
+    "csim": "pass",
+    "synth": "pass",
+    "cosim": "pass",
+    "latency": {
+      "min": 59203,
+      "max": 59203,
+      "avg": 59203
+    },
+    "reason": null
   },
   "modeling-using-array-stencil-2d": {
     "csim": "fail",

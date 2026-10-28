@@ -33,6 +33,16 @@ export function simulateC(source, { file = 'input.c', maxSteps = MAX_STEPS, entr
   return { ...r, top: checked.top, diagnostics: checked.diagnostics, files: Object.fromEntries(m.fs) };
 }
 
+/** An array parameter's dimensions (two or more: int a[3][4], int a[][4]), its first from n, the elements given; else
+ *  null (#1786). */
+function dimsOf(t, n) {
+  const inner = [];
+  for (let at = t.kind === 'ptr' || t.kind === 'array' ? (t.kind === 'ptr' ? t.to : t.of) : null; at?.kind === 'array'; at = at.of) inner.push(Number(at.length ?? 0));
+  if (!inner.length || inner.some((d) => !d)) return null;
+  const stride = inner.reduce((a, b) => a * b, 1);
+  return [Math.floor(n / stride), ...inner];
+}
+
 /** A function run at synthesis (#1779, core/c-const-init.js): fn called with new arrays of the declarations decls, their
  *  values after it (BigInt, or numbers for floats), or null when it cannot run. */
 export function runAtSynthesis(checked, fn, decls, maxSteps = 5_000_000) {
@@ -197,7 +207,7 @@ class Machine {
       const a = args[k];
       if (!a) return;
       if (a.fifo) scope.set(pa.name, { t: a.t, fifo: a.fifo });
-      else if (a.arr) scope.set(pa.name, { t: a.t, arr: a.arr });
+      else if (a.arr) scope.set(pa.name, { t: a.t, arr: a.arr, ...(dimsOf(pa.type, a.arr.length) ? { dims: dimsOf(pa.type, a.arr.length) } : {}) });
       else if (a.ptr) scope.set(pa.name, { t: a.t, ref: a.ptr });
       else { const t = typeOf(pa.type); scope.set(pa.name, { t, v: this.as(a, t, at) }); }
     });
