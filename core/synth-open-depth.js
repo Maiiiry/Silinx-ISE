@@ -2,14 +2,14 @@
 // and, from the design as it was before its LUT mapping, the mappings made for speed, the fastest kept by DEPTH_RULE,
 // their messages apart.
 import { asText } from './synth-open-yosys.js';
-import { criticalDelay, logicLevels, pathEnds } from './synth-open-path.js';
-import { resynthCritical } from './lut-resynth.js';
+import { criticalDelay, logicLevels } from './synth-open-path.js';
+import { resynthStage } from './synth-open-resynth.js';
 import {
   DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC2_LUT4, DEPTH_ABC3, DEPTH_ABC_FILE, DEPTH_RULE, DEPTH_SOPB, FOLD_CE_FILE,
   FOLD_CE_MAP, FOLD_CE_MAP_FILE, LUT4_COSTS, LUT4_ONLY, LUT6_MAP, LUT6_MAP_FILE, LUT_LIB, LUT_LIB_FILE, MUXF_MAP,
-  MUXF_MAP_FILE, PREMAP_FILE, RESYNTH_FILE, SOPB_RULE, SPEED_ABC, SPEED_RULE, SRL_CELLS, SRL_CELLS_FILE,
+  MUXF_MAP_FILE, PREMAP_FILE, SOPB_RULE, SPEED_ABC, SPEED_RULE, SRL_CELLS, SRL_CELLS_FILE,
   abc9RemapCommands, cellCounts, criticalEnables, foldRemapCommands, keepDepth, keepSecond, logicMemories, muxTrees,
-  muxfRemapCommands, outputs, remapCommands, resynthCommands, sliceCount, speedRemapCommands, utilization
+  muxfRemapCommands, outputs, remapCommands, sliceCount, speedRemapCommands, utilization
 } from './synth-open.js';
 
 /** { withDepth } of synthesizeOpen (tryDepth(): its current values). */
@@ -270,30 +270,8 @@ export function mountDepth(ctx) {
         sayNew(`Warning: the mapping with the wider functions failed (${e.message}): the netlist chosen before is kept`);
       }
     }
-    // the chosen netlist's critical LUTs made one level shallower, their fan-out kept (#652, core/lut-resynth.js): the
-    // last candidate, of the netlist chosen of all the others, kept by DEPTH_RULE
-    if (speed && withResynth && !info.muxf?.failed && !info.failed && !info.sopb?.failed && !info.speedFailed && !info.wide?.failed && utilization(cells).luts <= SPEED_RULE.maxLuts) {
-      try {
-        const j0 = chosen[`${top}.json`];
-        const r = resynthCritical(asText(j0) || j0, top, nl => { const { worst, ends } = pathEnds(nl, top); return ends.filter(e => e.ns >= worst - 1e-9); });
-        if (r) {
-          const outR = await run(['-q', '-p', resynthCommands(top)], { [RESYNTH_FILE]: JSON.stringify(r.json), [SRL_CELLS_FILE]: SRL_CELLS }, () => {});
-          const jR = outR[`${top}.json`];
-          if (jR) {
-            const cellsR = cellCounts(jR, top);
-            const ns = [criticalDelay(j0, top), criticalDelay(jR, top)], luts = [utilization(cells).luts, utilization(cellsR).luts], sl = [slices(j0), slices(jR)];
-            info.resynth = { rounds: r.rounds, changed: r.luts, ns: ns[1], luts: luts[1], slices: sl[1], kept: keepDepth(ns, luts, DEPTH_RULE, sl) };
-            if (info.resynth.kept) {
-              chosen = { ...chosen, ...outR };
-              cells = cellsR;
-            }
-          }
-        }
-      } catch (e) {
-        info.resynth = { kept: false, failed: e.message };
-        sayNew(`Warning: the critical path's LUTs could not be made shallower (${e.message}): the netlist chosen before is kept`);
-      }
-    }
+    // the chosen netlist's critical LUTs made one level shallower (#652, core/synth-open-resynth.js)
+    ({ chosen, cells } = await resynthStage({ run, speed, top, withResynth }, { chosen, cells, info, slices, sayNew }));
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]), memories, pool };
   }
 
