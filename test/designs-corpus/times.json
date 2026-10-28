@@ -61,9 +61,9 @@
    "total": 9569
   },
   "epfl-sin": {
-   "synth": 29931,
-   "flow": 9244,
-   "total": 48547
+   "synth": 84981,
+   "flow": 12857,
+   "total": 107456
   },
   "epfl-voter": {
    "synth": 67886,
@@ -156,9 +156,9 @@
    "total": 37549
   },
   "itc99-b15": {
-   "synth": 32561,
-   "flow": 50241,
-   "total": 84776
+   "synth": 28159,
+   "flow": 52543,
+   "total": 83144
   },
   "itc99-b17": {
    "synth": 44200,
@@ -211,9 +211,9 @@
    "total": 10310
   },
   "light8080": {
-   "synth": 9724,
-   "flow": 3931,
-   "total": 15531
+   "synth": 8236,
+   "flow": 2226,
+   "total": 11439
   },
   "nandland-spi-verilog": {
    "synth": 4195,
@@ -271,9 +271,9 @@
    "total": 10507
   },
   "t80": {
-   "synth": 37746,
-   "flow": 37991,
-   "total": 78606
+   "synth": 62205,
+   "flow": 23958,
+   "total": 87891
   },
   "uart-for-fpga": {
    "synth": 5942,
