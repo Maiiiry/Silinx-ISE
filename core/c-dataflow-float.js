@@ -5,7 +5,7 @@
 // float and double, -x, !x. C's usual conversions: a double operand (a double constant too: 0.5) makes the operation a
 // double's, a float with a float or an integer a float's. Isomorphic ES module: no DOM and no Node APIs.
 import { BOOL, INT, typeOf } from './c-types.js';
-import { F32, F64 } from './c-float.js';
+import { F32, F64, MATH } from './c-float.js';
 import { parse } from './c-parse.js';
 import { SOFTFLOAT32, SOFTFLOAT64 } from './c-softfloat.js';
 
@@ -85,9 +85,35 @@ export const floatMethods = {
     const p = (x) => (x.fconst !== undefined ? (x.single ? 32 : 64) : x.t.fl || 0);
     return Math.max(p(l), p(r)) === 64 ? 64 : 32;
   },
+  /** A constant's number (a floating-point one's value, an integer's), else null. */
+  flNumber(x) {
+    if (x.fconst !== undefined) return x.fconst;
+    const n = this.g.nodes[x.id];
+    if (n?.op !== 'const') return null;
+    if (!x.t.fl) return Number(n.k);
+    const k = BigInt.asUintN(x.t.w, n.k);
+    if (x.t.fl === 32) { u32[0] = Number(k); return f32[0]; }
+    u64[0] = k;
+    return f64[0];
+  },
+  /** math.h's function of constant arguments: its value, as the C simulation's (#1779); of others, not made yet. */
+  flMath(name, e, g) {
+    const m = MATH[name];
+    const xs = e.args.map((a) => this.expr(a, g)).map((x) => this.flNumber(x));
+    if (xs.length !== m.n) this.error(e.loc, `${name}() takes ${m.n} argument(s)`);
+    if (xs.some((x) => x === null)) this.error(e.loc, `${name}: floating point is not supported in Silinx HLS yet (math.h in hardware only of constants, a table computed at synthesis, #1761)`);
+    const r = m.f(...xs);
+    if (m.int) return this.v(this.g.const(BigInt(r), { w: 64, s: true }), { w: 64, s: true });
+    return name.endsWith('f') ? this.v(this.g.const(f32Bits(Math.fround(r)), F32), F32) : this.v(this.g.const(f64Bits(r), F64), F64);
+  },
   flArith(op, l, r, e, g) {
     const fl = this.flPrecision(l, r);
     const a = this.flConv(l, TYPE[fl], g), b = this.flConv(r, TYPE[fl], g);
+    // (a division of constants: folded, as the C simulation computes it, #1779)
+    if (op === '/' && this.flNumber(a) !== null && this.flNumber(b) !== null) {
+      const q = this.flNumber(a) / this.flNumber(b);
+      return fl === 32 ? this.v(this.g.const(f32Bits(Math.fround(q)), F32), F32) : this.v(this.g.const(f64Bits(q), F64), F64);
+    }
     const fn = { '+': 'add', '-': 'sub', '*': 'mul' }[op];
     if (!fn) this.error(e.loc, op === '/' ? `a ${fl === 32 ? 'float' : 'double'} division is not made in hardware yet (#1761)` : `'${op}' of a floating-point value is not C`);
     return this.softfloat(`ap_f${fl}_${fn}`, [a, b], TYPE[fl], g, e.loc);

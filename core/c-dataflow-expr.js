@@ -2,6 +2,7 @@
 // C expression a value { id, t } of the graph, with C's and ap_int's arithmetic (core/c-types.js); the assignments
 // guarded by the condition under which they run. Isomorphic ES module: no DOM and no Node APIs.
 import { softfloatFn } from './c-dataflow-float.js';
+import { MATH } from './c-float.js';
 import { BOOL, INT, typeOf, promote, binaryType, compareType, shiftType, unaryType, literalType } from './c-types.js';
 import { constValue } from './c-check.js';
 
@@ -291,6 +292,7 @@ export const exprMethods = {
     const name = e.callee.name;
     // (the soft-float library's own calls, core/c-dataflow-float.js, #1768)
     const fn = this.c.funcs.get(name) ?? softfloatFn(name);
+    if (!fn && MATH[name]) return this.flMath(name, e, g);   // (math.h's of constants, #1779)
     if (!fn) { if (['printf', 'fprintf', 'puts', 'putchar', 'assert'].includes(name)) return this.v(this.g.const(0, INT), INT); this.error(e.loc, `the function '${name}' cannot be called here`); }
     if (!fn.body) this.error(e.loc, `'${name}' is declared but not defined`);   // (#1605)
     const scope = new Map();
