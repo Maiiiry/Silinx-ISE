@@ -1,5 +1,5 @@
 // The parts of the open flow (#405: out of runOpenFlow in core/open-flow-core.js): the simulation models
-// (open-flow-models.js) and the timing, bitstream, pins and power (open-flow-reports.js), through runOpenFlow on the
+// (flow-models.js, the IDE's, #1675) and the timing, bitstream, pins and power (open-flow-reports.js), through runOpenFlow on the
 // gates example (XC3S250E): every step, from the synthesis to the PROM bitstream; the files each step writes, no
 // warning or error in the log.
 import test from 'node:test';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { runOpenFlow } from '../core/open-flow-core.js';
-import { mountSimModels } from '../core/open-flow-models.js';
+import { mountSimModels } from '../core/flow-models.js';
 import { mountFlowReports } from '../core/open-flow-reports.js';
 import { loadDevice } from '../core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '../core/fpga/bitdb.js';

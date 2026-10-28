@@ -14,14 +14,16 @@
 //                                      the Design Summary shows it (build/open/…, build/top.bit)
 //   io.read(name)                      a file written by an earlier run (or null)
 //   io.save(report)                    the report so far (after every step: the Design Summary)
+//   io.frontEnd(sources, top)          the HDL front end (core/synth-front.js flowFrontEnd): { errors, input() } of the
+//                                      synthesis; without it the sources are the flat Verilog Yosys synthesizes (#1675)
+//   io.simModels(ctx)                  the simulation models' steps (core/flow-models.js mountSimModels), optional
+// core/flow-ide.js runOpenFlow is runFlow with the IDE's front end and simulation models (#1675).
 // spec.resources: the part's resources (core/resources.js resourcesOf(part, pkg)), for the synthesis's used of
 // available and its check (#795); without them the synthesis gives the used ones only.
 // Prints "=== SILINX STEP <step> ===" before each step, "=== SILINX FAILED <step> (exit 1) ===" and the
 // ERROR lines when one fails, "=== SILINX DONE ===" at the end (the protocol of ISE's run.sh).
 // Returns { ok, report }.
-import { compile, elaborate } from './compile.js';
-import { primitiveSources } from './unisim.js';
-import { synthesizeOpen, cellCounts, DEEP_RULE } from './synth-open.js';
+import { synthesizeVerilog, cellCounts, DEEP_RULE } from './synth-open.js';
 import { usedOfPrimitives, overResources, overMessage } from './resource-check.js';
 import { parseXdl, writeXdl } from './xdl.js';
 import { parseUcf } from './ucf.js';
@@ -31,8 +33,20 @@ import { placeRouteBest, effortTries, effortExtra } from './fpga/place-route.js'
 import { deviceSites } from './fpga/place.js';
 import { checkRouting } from './fpga/route.js';
 import { bitgen, knownRouting } from './fpga/bitgen.js';
-import { mountSimModels } from './open-flow-models.js';
 import { mountFlowReports } from './open-flow-reports.js';
+
+// without the HDL front end (io.frontEnd): the sources are the flat Verilog given to Yosys, its top module `top` (#1675)
+function flatVerilog(srcs, top) {
+  const vhdl = srcs.filter(s => s.lang === 'vhdl').map(s => s.path);
+  return { errors: vhdl.length ? vhdl.map(p => `${p}: VHDL needs the HDL front end (io.frontEnd)`) : [], input: () => ({ text: srcs.map(s => s.text).join('\n'), top }) };
+}
+// without the simulation models (io.simModels): their steps fail
+function noSimModels() {
+  const none = async () => { throw new StepError('the simulation models need the IDE (io.simModels)', [], ''); };
+  return { runPostMap: none, runPostPar: none, runPostSynth: none, runPostTranslate: none };
+}
+
+export { runOpenFlow } from './flow-ide.js';
 
 export const ISE_HINT = 'The Silinx toolchain does not support this yet: implement the design in an ISE mode (Toolchain Settings).';
 
@@ -47,7 +61,7 @@ export class StepError extends Error {
  * report of the run that made it, or null), when the steps start after the synthesis: the netlist of that
  * run is the design's (#280); it is used as it is, or, when it is not there, the synthesis runs.
  */
-export async function runOpenFlow(spec, io) {
+export async function runFlow(spec, io) {
   const { top } = spec;
   const log = io.log;
   const report = { files: {} };
@@ -71,17 +85,15 @@ export async function runOpenFlow(spec, io) {
     const t = now();
     const srcs = io.sources();
     for (const s of srcs) log(`${s.lang === 'vhdl' ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${s.path}"`);
-    const lib = compile([...primitiveSources(srcs), ...srcs]);
-    const design = elaborate(lib, top);
-    const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
-    if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
+    const fe = (io.frontEnd || flatVerilog)(srcs, top);
+    if (fe.errors.length) throw new StepError('the design has errors', fe.errors, 'Fix them (Check Syntax shows them in the Errors tab).');
     log(`Writing <${top}> as one flat module for Yosys; Yosys (WebAssembly) maps it onto the ${spec.family} cells.`);
     // (the synthesis's Optimization Effort, #282)
     if (spec.synthEffort) log(spec.synthEffort === 'normal' ? 'Optimization Effort Normal: one mapping, and the mappings for speed for a small design or one limited by its logic depth (High tries them for every design, a slower synthesis).'
       : 'Optimization Effort High: the mappings for speed tried too, the fastest kept.');
     let r;
     try {
-      r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high', ...(spec.deepRule && { deepRule: spec.deepRule }), ...(spec.smallRule && { smallRule: spec.smallRule }), onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
+      r = await synthesizeVerilog(fe.input(), { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high', ...(spec.deepRule && { deepRule: spec.deepRule }), ...(spec.smallRule && { smallRule: spec.smallRule }), onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
     } catch (e) {
       for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
       throw new StepError(`synthesis failed: ${e.message}`);
@@ -127,7 +139,7 @@ export async function runOpenFlow(spec, io) {
   }
 
   // The design the simulation models are made of (#120, #121): synthesized with the generics the test bench (open-flow-models.js)
-  const { runPostMap, runPostPar, runPostSynth, runPostTranslate } = mountSimModels({
+  const { runPostMap, runPostPar, runPostSynth, runPostTranslate } = (io.simModels || noSimModels)({
     io, spec, knownPips, log, netlist: () => netlist, packed: () => packed, parTries, parExtra, report,
     routedOrEarlier: (...a) => routedOrEarlier(...a), routedText: () => routedText, step, synth: () => synth, top,
     ucfText
