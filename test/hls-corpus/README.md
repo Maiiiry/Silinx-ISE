@@ -27,7 +27,7 @@ Not part of `npm test` (it needs the network once).
 | Design | Language | C simulation | C synthesis | Co-simulation | Latency | Why not |
 |---|---|---|---|---|---|---|
 | array-array-partition-block-cyclic | C++ | pass | pass | fail | - | co-simulation: a call did not end in 100000 cycles |
-| array-array-partition-complete | C++ | pass | fail | skip | - | C synthesis: 30: 'A': only arrays of integers (one dimension) are supported yet |
+| array-array-partition-complete | C++ | pass | pass | fail | - | co-simulation: a call did not end in 100000 cycles |
 | dsp-fft-interface-array | C++ | fail | fail | skip | - | C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fft-interface-array-float-ssr2 | C++ | fail | fail | skip | - | C simulation: fft_top.h:17: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | dsp-fft-interface-stream | C++ | fail | fail | skip | - | C simulation: fft_top.h:18: the header 'hls_fft.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
@@ -76,7 +76,7 @@ Not part of `npm test` (it needs the network once).
 | modeling-free-running-kernel-remerge-ii4to1 | C++ | pass | pass | pass | 459 |  |
 | modeling-using-arbitrary-precision-arith | C++ | pass | pass | pass | - |  |
 | modeling-using-arbitrary-precision-casting | C++ | pass | pass | pass | - |  |
-| modeling-using-array-stencil-1d | C++ | fail | fail | skip | - | C simulation: 36: an index of a value that is not an array |
+| modeling-using-array-stencil-1d | C++ | pass | pass | pass | 59203 |  |
 | modeling-using-array-stencil-2d | C++ | fail | fail | skip | - | C simulation: test.cpp:19: the header 'malloc.h' is not one of Silinx HLS's (ap_int.h, ap_fixed.h, stdint.h, stdbool.h, stdio.h, stdlib.h, string.h, math.h, stddef.h, limits.h, assert.h) |
 | modeling-using-cpp-templates | C++ | pass | pass | pass | - |  |
 | modeling-using-fixed-point | C++ | pass | pass | pass | 1 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 44 through co-simulation.
+73 designs: 45 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS

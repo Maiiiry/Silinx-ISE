@@ -13,6 +13,7 @@ import { vhdlSeq, verilogSeq } from './c-hdl-seq.js';
 import { aggregate, aggregable } from './c-aggregate.js';
 import { cProcesses } from './c-processes.js';
 import { foldTables } from './c-const-init.js';
+import { flattenArrays } from './c-flatten.js';
 
 export const bits = (k, w) => {
   const m = (1n << BigInt(w)) - 1n;
@@ -27,8 +28,11 @@ export function cToHdl(source, { file = 'input.c', lang = 'vhdl', headers = null
   const checked = checkC(source, file, { headers, top, depths });
   const diagnostics = [...checked.diagnostics];
   if (!checked.ok || !checked.top) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics };
-  // (a table filled from constants: computed at synthesis, a ROM, #1779)
+  // (a table filled from constants: computed at synthesis, a ROM, #1779; arrays of more dimensions one, #1786)
   foldTables(checked);
+  const flatErrs = [];
+  flattenArrays(checked, (loc, message) => flatErrs.push({ file, line: loc?.line || 1, col: loc?.col || 1, message, severity: 'error' }));
+  if (flatErrs.length) return { ok: false, hdl: '', top: checked.top, ports: [], diagnostics: [...diagnostics, ...flatErrs] };
   // #pragma HLS DATAFLOW: the top's calls processes of their own (#1707); a region not of calls, sequential (said)
   if (checked.dataflow) {
     const r = cProcesses(source, checked, { file, lang, headers, cToHdl });
