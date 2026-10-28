@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { vitisConfig, elements, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, PART } from '../scripts/hls-vitis.mjs';
+import { vitisConfig, elements, parseCsynth, parseCosim, parseStatus, comparePorts, compareDesign, vitisTable, selectDesigns, PART } from '../scripts/hls-vitis.mjs';
 import { cToHdl } from '../core/c-hdl.js';
 
 test('#1624 the config: the part fixed, the Vivado flow, no packaging nor Vivado run; the rest kept', () => {
@@ -139,4 +139,16 @@ test('#1624 a design compared: Silinx\'s ports (cToHdl) against a Vitis report w
   assert.deepEqual(lines.filter((l) => l.startsWith('| f ')), ['| f | pass / pass | pass / pass | same | 0 / 1-2 | VITIS_LOOP_3_1 1 / 2 |']);
   assert.ok(!t.includes('not-run'));
   assert.equal(lines.at(-1), '2 designs: 1 through Vitis\'s C simulation, 1 with Silinx\'s ports the same as Vitis\'s.');
+});
+
+test('#1780 --filter: a regular expression on the names; a plain name as a substring; no filter, every design; a bad one throws', () => {
+  const designs = ['modeling-pointers-basic-arithmetic', 'modeling-pointers-stream-good', 'pipelining-loops-perfect-loop', 'dsp-fft-interface-array'].map((name) => ({ name }));
+  const names = (f) => selectDesigns(designs, f).map((d) => d.name);
+  assert.deepEqual(names('pointer'), ['modeling-pointers-basic-arithmetic', 'modeling-pointers-stream-good']);
+  assert.deepEqual(names('^(modeling-pointers-stream|pipelining-loops)-'), ['modeling-pointers-stream-good', 'pipelining-loops-perfect-loop']);
+  assert.deepEqual(names('^(dsp-fft-interface-array|modeling-pointers-basic-arithmetic)$'), ['modeling-pointers-basic-arithmetic', 'dsp-fft-interface-array']);
+  assert.deepEqual(names(''), designs.map((d) => d.name));
+  assert.deepEqual(names(undefined), designs.map((d) => d.name));
+  assert.deepEqual(names('^none$'), []);
+  assert.throws(() => names('('), SyntaxError);
 });
