@@ -189,3 +189,34 @@ uiTest('#681 schematic: an adder placed shows its width (ADD4, 4 by its bus pins
   assert.match(svg, />4</, 'the constant\'s');
   await page.key('Escape');
 });
+
+uiTest('#1815 schematic: a bus tap\'s Properties refuse an MSB below its LSB (and an LSB above its MSB), saying why; in Portuguese', E, async (page) => {
+  const doc = newDoc('tp', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'slice', x: 300, y: 200, rot: 0, mirror: false, name: 'T1', params: { msb: 2, lsb: 1 } });
+  await makeProject(env, { name: 'TapPj', files: { 'src/tp.sch.json': JSON.stringify(doc) } });
+  await page.openProject('TapPj');
+  await page.eval(() => window.SilinxApp.openSch('src/tp.sch.json'));
+  await page.waitFor((ed) => document.querySelector(`${ed} svg .sym[data-id="S1"]`), [ED], { what: 'drawn' });
+  await page.click(`${ED} svg .sym[data-id="S1"] .hitbox`);
+  await page.waitFor((ed) => document.querySelector(`${ed} [data-param=msb]`), [ED], { what: 'the tap\'s properties' });
+  const params = () => page.eval(() => window.Silinx.active.schEditor.getDoc().symbols[0].params);
+  const hint = (t) => page.waitFor((ed, x) => { const e = document.querySelector(`${ed} .se-hint`); return !!e && !e.hidden && e.textContent === x; }, [ED, t], { what: `the note: ${t}` });
+  const set = async (name, v) => { await page.fill(`${ED} [data-param=${name}]`, String(v)); };
+  await set('msb', 0);
+  await hint('A bus tap takes the bits MSB downto LSB: its MSB (0) cannot be below its LSB (1)');
+  assert.deepEqual([await params(), await page.eval((ed) => document.querySelector(`${ed} [data-param=msb]`).value, ED)], [{ msb: 2, lsb: 1 }, '2'], 'refused, the field back');
+  await set('lsb', 3);
+  await hint('A bus tap takes the bits MSB downto LSB: its LSB (3) cannot be above its MSB (2)');
+  assert.deepEqual(await params(), { msb: 2, lsb: 1 });
+  await set('msb', 5);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols[0].params.msb === 5, [], { what: 'MSB 5 taken' });
+  await set('lsb', 5);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols[0].params.lsb === 5, [], { what: 'LSB 5 taken (MSB = LSB)' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  try {
+    await set('msb', 4);
+    await hint('Um bus tap tira os bits MSB downto LSB: o seu MSB (4) não pode ser menor que o seu LSB (5)');
+  } finally {
+    await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  }
+});

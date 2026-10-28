@@ -106,6 +106,9 @@ export const SCH_PT_PATTERNS = [
     return p;
   }).join(' e ')}`],
   [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
+  // a bus tap's MSB below its LSB refused (#1815)
+  [/^A bus tap takes the bits MSB downto LSB: its MSB \((\d+)\) cannot be below its LSB \((\d+)\)$/, 'Um bus tap tira os bits MSB downto LSB: o seu MSB ($1) não pode ser menor que o seu LSB ($2)'],
+  [/^A bus tap takes the bits MSB downto LSB: its LSB \((\d+)\) cannot be above its MSB \((\d+)\)$/, 'Um bus tap tira os bits MSB downto LSB: o seu LSB ($1) não pode ser maior que o seu MSB ($2)'],
   [/^Rearrange Wires: (\d+) wires? drawn again$/, (m, n) => `Reorganizar fios: ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
   [/^Rearrange Schematic: the symbols kept where they were; (\d+) wires? drawn again$/, (m, n) => `Reorganizar esquemático: os símbolos ficaram onde estavam; ${n} fio${n === '1' ? '' : 's'} desenhado${n === '1' ? '' : 's'} de novo`],
   // a wire, a move or a paste between two named nets refused, as in ISE (#754, #806)
