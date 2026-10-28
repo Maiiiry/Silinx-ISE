@@ -40,6 +40,11 @@ const editItems = async (page, menu = 'Edit') => {
 };
 const tbEnabled = (page) => page.eval(async () => { (await import('/js/menus.js')).refreshSteps(); return Object.fromEntries(['cut', 'copy', 'paste'].map((c) => [c, !document.querySelector(`#toolbar .tb-btn[data-cmd=${c}]`).disabled])); });
 const schDoc = (page) => page.eval(() => window.Silinx.active.schEditor.getDoc());
+// whether sheet points are in the part of the schematic in view (its canvas)
+const inView = (page, pts) => page.eval((ed, pts) => {
+  const vp = document.querySelector(`${ed} .se-vp`), m = vp.getScreenCTM(), r = vp.ownerSVGElement.getBoundingClientRect();
+  return pts.every(([x, y]) => { const sx = m.a * x + m.e, sy = m.d * y + m.f; return sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom; });
+}, ED, pts);
 const sorted = (a) => [...a].sort();
 
 uiTest('Edit ▸ Cut / Copy / Paste / Delete and the toolbar: the text editor\'s selection', E, async (page) => {
@@ -81,7 +86,7 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete and the toolbar: the text editor\'s
   assert.deepEqual(await page.eval(() => { const it = window.Silinx.menus.find((x) => x.label === 'Edit').items().filter((i) => ['Cut', 'Copy', 'Paste', 'Delete'].includes(i.label)); return it.map((i) => i.shortcut); }), ['Ctrl+X', 'Ctrl+C', 'Ctrl+V', 'Del']);
 });
 
-uiTest('Edit ▸ Cut / Copy / Paste in the schematic: offset, selected, fresh names; the keyboard; another schematic; another project', E, async (page) => {
+uiTest('Edit ▸ Cut / Copy / Paste in the schematic: in a blank place in view, selected, fresh names; the keyboard; another schematic; another project', E, async (page) => {
   await makeProject(env, { name: 'ClipSch', files: { 'src/a.sch.json': JSON.stringify(chain('a')), 'src/b.sch.json': JSON.stringify(newDoc('b', 'vhdl')) } });
   await makeProject(env, { name: 'ClipSch2', files: { 'src/c.sch.json': JSON.stringify(normalizeDoc({ ...newDoc('c', 'verilog'), symbols: [{ id: 'S1', type: 'inv', x: 600, y: 400, name: 'U1' }] })) } });
   await page.openProject('ClipSch');
@@ -105,7 +110,11 @@ uiTest('Edit ▸ Cut / Copy / Paste in the schematic: offset, selected, fresh na
   assert.deepEqual(sorted(d.ports.map((p) => p.name)), ['a', 'a_1', 'y', 'y_1']);
   assert.deepEqual(sorted(d.labels.map((l) => l.net)), ['mid', 'mid_1']);
   assert.equal(d.wires.length, 6);
-  assert.deepEqual(d.symbols.filter((s) => s.name.startsWith('inst')).map((s) => [s.x, s.y]), [[240, 140], [440, 140]], 'offset by 40, 40');
+  // (Edit ▸ Paste, the mouse on the menu: in a blank place of the sheet in view, clear of the chain, #1797)
+  const copy = d.symbols.filter((s) => s.name.startsWith('inst')).map((s) => [s.x, s.y]);
+  assert.equal(copy[1][0] - copy[0][0], 200, 'the copy as it was: U2 200 right of U1');
+  assert.ok(copy[0][1] >= 160 || copy[0][1] <= 40, `clear of the chain (y 100): ${JSON.stringify(copy)}`);
+  assert.deepEqual(await inView(page, copy), true, `in view: ${JSON.stringify(copy)}`);
   // the copy is the selection: Delete removes it
   await page.menu('Edit', 'Delete');
   await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 2, [ED], { what: 'the pasted copy deleted' });
@@ -121,7 +130,7 @@ uiTest('Edit ▸ Cut / Copy / Paste in the schematic: offset, selected, fresh na
   await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 4, [ED], { what: 'pasted from the toolbar' });
   d = await schDoc(page);
   assert.deepEqual(sorted(d.symbols.map((s) => s.name)), ['U1', 'U2', 'inst_1', 'inst_2']);
-  // another schematic of the project: pasted where it was, nothing renamed
+  // another schematic of the project: in a blank place in view, nothing renamed
   await page.eval(() => window.SilinxApp.openSch('src/b.sch.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/b.sch.json');
   await page.menu('Edit', 'Paste');

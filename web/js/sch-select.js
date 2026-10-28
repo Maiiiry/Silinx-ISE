@@ -1,7 +1,7 @@
 // The schematic editor's selection operations (#405: out of mountSchEditor in sch-editor.js): the items selected,
 // Delete, Select All, Rotate and Mirror, and Cut / Copy / Paste (#677, core/schclip.js: the selection with the wires
-// joining it, pasted offset and untangled), Duplicate (#1556: its symbols and I/O markers only, beside it).
-import { clipEmpty, copySchematic, pasteSchematic } from '/core/schclip.js';
+// joining it, pasted at the mouse or in a blank place in view (#1797) and untangled), Duplicate (#1556: its symbols and I/O markers only, beside it).
+import { clipEmpty, copySchematic, pasteOffset, pasteSchematic } from '/core/schclip.js';
 import { GRID, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef, turnSide } from '/core/schdoc.js';
 import { readClip, writeClip } from './clipboard.js';
 import { untangleNew } from '/core/schpath.js';
@@ -11,7 +11,7 @@ import { KEYS, snap } from './sch-editor.js';
 export function mountSchSelect(ctx) {
   const {
     container, changed, destroyed, doc, edit, live, modules, placing, readOnly, refusedShort, render, renderOverlay,
-    renderProps, sel, setTool, snapshot, tool, undoStack, setSel
+    renderProps, sel, setTool, snapshot, svg, toSheet, tool, undoStack, setSel
   } = ctx;
 
   // ---------------- selection operations
@@ -49,27 +49,33 @@ export function mountSchSelect(ctx) {
     });
   }
   // Cut / Copy / Paste (#677, core/schclip.js): the selection with the wires joining it, through the app's
-  // clipboard (web/js/clipboard.js), pasted offset, selected, with fresh names
-  let pasteN = 0, pasteText = null;
+  // clipboard (web/js/clipboard.js), pasted at the mouse pointer on the sheet, or else in a blank place of the part
+  // of the sheet in view (#1797, pasteOffset), selected, with fresh names
+  let pointer = null;   // (the mouse over the sheet: its screen point; off it, null)
+  svg?.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') pointer = { x: e.clientX, y: e.clientY }; });
+  svg?.addEventListener('pointerleave', () => { pointer = null; });
+  function visibleArea() {
+    const r = svg?.getBoundingClientRect();
+    if (!r || r.width < 20 || r.height < 20) return null;
+    const a = toSheet(r.left, r.top), b = toSheet(r.right, r.bottom);
+    return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+  }
   function copySel(cut = false) {
     if (!sel().size || readOnly || live()) return;
     const clip = copySchematic(doc(), { symbols: selected('sym'), wires: selected('wire'), ports: selected('port'), labels: selected('label') }, modules());
     writeClip('schematic', clip);
-    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
     if (cut) deleteSel();
   }
-  async function paste(clip) {
+  /** Pastes the clipboard (or `clip`) at the mouse or in a blank place in view; `offset` ({ dx, dy }) given: there. */
+  async function paste(clip, offset = null) {
     if (readOnly || live()) return;
     clip ??= await readClip('schematic');
     if (clipEmpty(clip) || destroyed()) return;
-    // the same clipboard pasted again: one step further; another schematic's copy: where it was there
-    const t = JSON.stringify(clip);
-    if (t !== pasteText) { pasteText = t; pasteN = clip.from === doc().name ? 0 : -1; }
-    const d = 40 * ++pasteN;
+    const { dx, dy } = offset || pasteOffset(doc(), clip, { at: pointer && toSheet(pointer.x, pointer.y), area: visibleArea(), modules: modules() });
     if (tool() !== 'select') setTool('select');
     const before = snapshot();
     edit(() => {
-      const { ids } = pasteSchematic(doc(), clip, { dx: d, dy: d });
+      const { ids } = pasteSchematic(doc(), clip, { dx, dy });
       // (its wires routed clear of what was there, #948)
       try { untangleNew(JSON.parse(before), doc(), { modules: modules(), prefer: ids.wires }); } catch (e) { console.error(e); }
       setSel(new Set([...ids.symbols.map(id => `sym:${id}`), ...ids.wires.map(id => `wire:${id}`), ...ids.ports.map(id => `port:${id}`), ...ids.labels.map(id => `label:${id}`)]));

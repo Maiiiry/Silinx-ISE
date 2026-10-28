@@ -196,7 +196,8 @@ uiTest('#806 schematic: a segment dragged, a marker moved or a paste onto anothe
     // W11 (u) copied and pasted (40 right and down): the copy (its net u_1, a name of its own) ends on W2's end
     await page.click(await at(170, 60));
     await page.eval(() => window.Silinx.active.schEditor.copy());
-    await page.eval(() => window.Silinx.active.schEditor.paste());
+    // (an offset given: the paste goes there, not at the mouse nor in a blank place, #1797)
+    await page.eval(() => window.Silinx.active.schEditor.paste(undefined, { dx: 40, dy: 40 }));
     await hint(note(lang, 'Pasting', 's', 'u_1'));
     await same(`${lang}: the paste`);
     await page.key('Escape');

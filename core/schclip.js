@@ -15,7 +15,7 @@
 // a net name already used in the sheet gets _1, _2… too (the same new name for every label of that net, so
 // the copy's own nets stay joined). A net name of an I/O marker of the sheet that is not pasted is kept: the
 // copy connects to that port (the clk of the sheet, say), as a label of that name drawn by hand does.
-import { DOC_VERSION, GRID, normalizeDoc, symbolPins, parseNetName } from './schdoc.js';
+import { DOC_VERSION, GRID, normalizeDoc, portBox, symbolBox, symbolPins, parseNetName } from './schdoc.js';
 import { clone } from './util.js';
 
 const CLIP_VERSION = 1;
@@ -123,4 +123,54 @@ export function pasteSchematic(doc, clip, { dx = 0, dy = 0 } = {}) {
     doc.wires.push(w); ids.wires.push(w.id);
   }
   return { ids, renamed };
+}
+
+// ------------------------------------------------------------------ where a paste goes (#1797)
+// the boxes a sheet's things take: a symbol with its name above it, a marker, a net name's text, each wire segment
+function boxesOf(d, modules) {
+  const out = [];
+  for (const sy of d.symbols) { const b = symbolBox(sy, modules); out.push({ x: b.x, y: b.y - 14, w: b.w, h: b.h + 14 }); }
+  for (const p of d.ports) out.push(portBox(p));
+  for (const l of d.labels) out.push({ x: l.x, y: l.y - 12, w: 8 * String(l.net).length, h: 12 });
+  for (const w of d.wires) for (let i = 0; i + 1 < w.points.length; i++) {
+    const a = w.points[i], b = w.points[i + 1];
+    out.push({ x: Math.min(a.x, b.x) - 2, y: Math.min(a.y, b.y) - 2, w: Math.abs(a.x - b.x) + 4, h: Math.abs(a.y - b.y) + 4 });
+  }
+  return out;
+}
+const around = bs => {
+  if (!bs.length) return null;
+  const x = Math.min(...bs.map(b => b.x)), y = Math.min(...bs.map(b => b.y));
+  return { x, y, w: Math.max(...bs.map(b => b.x + b.w)) - x, h: Math.max(...bs.map(b => b.y + b.h)) - y };
+};
+const meets = (a, b, m) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+const onGrid = v => Math.round(v / GRID) * GRID || 0;   // (no -0)
+
+/** The offset { dx, dy } (on the grid) that pasteSchematic is given for clip pasted into doc: its contents centred
+ *  on `at` (the mouse pointer on the sheet), or else in the blank place of `area` (the part of the sheet in view,
+ *  { x, y, w, h }) nearest to its centre, clear of what is drawn there by a grid step; no place blank: centred in
+ *  `area` (its part on the sheet). With neither, 40 right and down (where it was copied from, beside it). */
+export function pasteOffset(doc, clip, { at = null, area = null, modules = {} } = {}) {
+  const c = normalizeDoc({ version: +clip?.docVersion || 3, lang: doc.lang, symbols: clip?.symbols, wires: clip?.wires, ports: clip?.ports, labels: clip?.labels });
+  const box = around(boxesOf(c, modules));
+  if (!box) return { dx: 0, dy: 0 };
+  const centredOn = p => ({ dx: onGrid(p.x - (box.x + box.w / 2)), dy: onGrid(p.y - (box.y + box.h / 2)) });
+  if (at) return centredOn(at);
+  if (!area) return { dx: 40, dy: 40 };
+  // (the area within the sheet; zoomed far out, a coarser step: about 100 places a row)
+  const sh = doc.sheet || { w: Infinity, h: Infinity };
+  const x0 = Math.max(area.x, 0), y0 = Math.max(area.y, 0), x1 = Math.min(area.x + area.w, sh.w), y1 = Math.min(area.y + area.h, sh.h);
+  const taken = boxesOf(doc, modules), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const step = Math.max(GRID, onGrid((x1 - x0) / 100));
+  let best = null;
+  // (the copy's top-left on the grid steps of the area, the copy inside it with a grid step's margin)
+  for (let y = onGrid(y0 + GRID); y + box.h <= y1 - GRID; y += step) {
+    for (let x = onGrid(x0 + GRID); x + box.w <= x1 - GRID; x += step) {
+      const at0 = { x, y, w: box.w, h: box.h };
+      const d = (x + box.w / 2 - cx) ** 2 + (y + box.h / 2 - cy) ** 2;
+      if ((!best || d < best.d) && !taken.some(b => meets(at0, b, GRID))) best = { x, y, d };
+    }
+  }
+  if (!best) return centredOn({ x: cx, y: cy });
+  return { dx: onGrid(best.x - box.x), dy: onGrid(best.y - box.y) };
 }

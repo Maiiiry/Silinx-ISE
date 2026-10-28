@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulate } from '../core/compile.js';
 import { newDoc, normalizeDoc, netlist, generateHdl, symbolPins } from '../core/schdoc.js';
-import { copySchematic, pasteSchematic, clipEmpty } from '../core/schclip.js';
+import { copySchematic, pasteSchematic, pasteOffset, clipEmpty } from '../core/schclip.js';
 
 const pin = (doc, id, name) => { const s = doc.symbols.find(x => x.id === id); const p = symbolPins(s).find(q => q.name === name); return { x: p.x, y: p.y }; };
 const names = arr => arr.map(o => o.name ?? o.net).sort();
@@ -183,3 +183,51 @@ endmodule`;
     assert.ok(log.includes(lang === 'vhdl' ? 'note:done' : 'print:errs=0'), log.join('\n'));
   });
 }
+
+// #1797: where a paste goes. The copy's box (its symbols with their names above, markers, net names, wires) centred on
+// the mouse, or else in the blank place of the part in view nearest to its centre, never on what is drawn there
+const boxOf = (doc, ids) => {
+  const xs = [], ys = [];
+  for (const s of doc.symbols.filter(o => ids.symbols.includes(o.id))) { xs.push(s.x); ys.push(s.y); }
+  return { x: Math.min(...xs), y: Math.min(...ys) };
+};
+test('#1797 pasteOffset: centred on the mouse pointer, on the grid', () => {
+  const doc = chain(), clip = copySchematic(doc, { symbols: ['S1', 'S2'], ports: ['P1', 'P2'] });
+  // (the copy's box: x 120..540 and the gates' names above them; its centre then on the pointer)
+  const o = pasteOffset(doc, clip, { at: { x: 1003, y: 706 }, area: { x: 0, y: 0, w: 1700, h: 1100 } });
+  assert.ok(o.dx % 10 === 0 && o.dy % 10 === 0, JSON.stringify(o));
+  const { ids } = pasteSchematic(doc, clip, o);
+  const ps = doc.ports.filter(p => ids.ports.includes(p.id)).map(p => p.x);
+  assert.equal((Math.min(...ps) + Math.max(...ps)) / 2 + 0, 330 + o.dx);
+  assert.ok(Math.abs(330 + o.dx - 1003) <= 5, `centred on x: ${330 + o.dx}`);
+});
+
+test('#1797 pasteOffset: the mouse off the sheet: a blank place in view, nearest to its centre, clear of what is there', () => {
+  const doc = chain(), clip = copySchematic(doc, { symbols: ['S1', 'S2'], ports: ['P1', 'P2'] });
+  // the view: x 0..800, y 0..400; the chain at y 85..115 across 120..540
+  const area = { x: 0, y: 0, w: 800, h: 400 };
+  const o = pasteOffset(doc, clip, { area });
+  const { ids } = pasteSchematic(doc, clip, o);
+  const b = boxOf(doc, ids);
+  // in view, not on the original (below it), as near the centre (400, 200) as a blank place is
+  assert.ok(b.x >= 0 && b.x + 420 <= 800 && b.y >= 0 && b.y + 40 <= 400, JSON.stringify(b));
+  assert.ok(o.dy > 0, 'below the original, which takes the top of the view');
+  assert.deepEqual(errorsAndWarnings(doc), [], 'not touching it: no short, no warnings');
+  // pasted again: another blank place, the two copies apart
+  const o2 = pasteOffset(doc, clip, { area });
+  assert.notDeepEqual(o2, o);
+  const r2 = pasteSchematic(doc, clip, o2);
+  assert.deepEqual(errorsAndWarnings(doc), [], 'the third chain clear of the two');
+  assert.equal(r2.ids.symbols.length, 2);
+});
+
+test('#1797 pasteOffset: no blank place in view: centred in it; no view: 40 right and down; an empty clip: nothing', () => {
+  const doc = chain(), clip = copySchematic(doc, { symbols: ['S1', 'S2'], ports: ['P1', 'P2'] });
+  // a view that is all chain
+  assert.deepEqual(pasteOffset(doc, clip, { area: { x: 100, y: 60, w: 460, h: 80 } }), { dx: 0, dy: 0 });
+  assert.deepEqual(pasteOffset(doc, clip), { dx: 40, dy: 40 });
+  assert.deepEqual(pasteOffset(doc, { symbols: [], wires: [], ports: [], labels: [] }, { area: { x: 0, y: 0, w: 800, h: 400 } }), { dx: 0, dy: 0 });
+  // a view beyond the sheet's right edge: the copy kept on the sheet
+  const far = pasteOffset(doc, clip, { area: { x: 1100, y: 0, w: 800, h: 400 } });
+  assert.ok(120 + far.dx >= 1100 && 540 + far.dx <= 1700, JSON.stringify(far));
+});
