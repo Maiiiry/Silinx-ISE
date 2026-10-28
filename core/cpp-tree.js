@@ -41,6 +41,8 @@ export function cppTree(ast, report, streams = new Map()) {
     // the uses of a reference parameter: *x
     if (mine.size) {
       f.body = walkExpr(f.body, (x) => {
+        // (&x of a reference: the pointer it is, #1805)
+        if (x.kind === 'unary' && x.op === '&' && x.e.kind === 'id' && mine.has(x.e.name)) return { ...x.e };
         if (x.kind === 'id' && mine.has(x.name) && !x.refPass) return { kind: 'unary', op: '*', e: { ...x }, loc: x.loc };
         if (x.kind === 'id' && x.refPass) { delete x.refPass; return x; }
         return undefined;

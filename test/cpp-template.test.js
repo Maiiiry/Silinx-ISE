@@ -168,3 +168,11 @@ test('#1590 New Source ▸ C++ Function (HLS): its template simulated (its test 
     assert.deepEqual([r.errors, r.pass, r.gen.diagnostics], [[], true, []]);
   }
 });
+
+test('#1805 the address of a reference parameter (&r: the pointer it is), passed on to a pointer parameter: the C simulation (C++ gives 17); synthesized', () => {
+  const src = '#include <stdio.h>\nstatic void put(int *p, int v) { *p = v * 3; }\nvoid top(int a, int &out) {\n  put(&out, a + 1);\n  out = out + 2;\n}\nint main() { int r = 0; top(4, r); printf("%d\\n", r); return 0; }\n';
+  const sim = simulateC(src, { file: 'r.cpp' });
+  assert.deepEqual([sim.error, sim.exitCode, sim.output], [null, 0, '17\n']);
+  const r = cosimulate(src, { file: 'r.cpp', lang: 'verilog' });
+  assert.deepEqual([r.errors, r.pass], [[], true]);
+});
