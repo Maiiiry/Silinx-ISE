@@ -35,7 +35,9 @@ export function f32Bits(x) { if (Number.isNaN(x)) return 0x7fc00000n; f32[0] = x
 export function f64Bits(x) { if (Number.isNaN(x)) return 0x7ff8000000000000n; f64[0] = x; return u64[0]; }
 const TYPE = { 32: F32, 64: F64 };
 // (math.h's made in hardware of any value, #1783: its precision and the library's operation)
+// (floor, ceil, trunc, round, fmin, fmax, copysign too, #1843)
 const HW_MATH = { sqrt: [64, 'sqrt'], sqrtf: [32, 'sqrt'], fabs: [64, 'abs'], fabsf: [32, 'abs'] };
+for (const op of ['floor', 'ceil', 'trunc', 'round', 'fmin', 'fmax', 'copysign']) { HW_MATH[op] = [64, op]; HW_MATH[`${op}f`] = [32, op]; }
 
 export const floatMethods = {
   /** The library's function `name` called on the values args, where the operation is: its result of type rt. */
@@ -104,14 +106,14 @@ export const floatMethods = {
     const vals = e.args.map((a) => this.expr(a, g));
     const xs = vals.map((x) => this.flNumber(x));
     if (xs.length !== m.n) this.error(e.loc, `${name}() takes ${m.n} argument(s)`);
-    // (sqrt, fabs of values that are not constants: the library's, #1783)
+    // (sqrt, fabs, floor, … of values that are not constants: the library's, #1783, #1843)
     if (xs.some((x) => x === null) && HW_MATH[name]) {
       const [fl, op] = HW_MATH[name];
-      const a = this.flConv(vals[0], TYPE[fl], g);
-      if (op === 'abs') return this.v(this.g.add('and', [a.id, this.g.const((1n << BigInt(fl - 1)) - 1n, TYPE[fl])], TYPE[fl]), TYPE[fl]);
-      return this.softfloat(`ap_f${fl}_${op}`, [a], TYPE[fl], g, e.loc);
+      const as = vals.map((x) => this.flConv(x, TYPE[fl], g));
+      if (op === 'abs') return this.v(this.g.add('and', [as[0].id, this.g.const((1n << BigInt(fl - 1)) - 1n, TYPE[fl])], TYPE[fl]), TYPE[fl]);
+      return this.softfloat(`ap_f${fl}_${op}`, as, TYPE[fl], g, e.loc);
     }
-    if (xs.some((x) => x === null)) this.error(e.loc, `${name}: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)`);
+    if (xs.some((x) => x === null)) this.error(e.loc, `${name}: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt, fabs, floor, ceil, trunc, round, fmin, fmax and copysign, the others only of constants, a table computed at synthesis, #1761)`);
     const r = m.f(...xs);
     if (m.int) return this.v(this.g.const(BigInt(r), { w: 64, s: true }), { w: 64, s: true });
     return name.endsWith('f') ? this.v(this.g.const(f32Bits(Math.fround(r)), F32), F32) : this.v(this.g.const(f64Bits(r), F64), F64);

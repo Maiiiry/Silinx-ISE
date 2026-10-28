@@ -135,6 +135,41 @@ int main(void) {
 
 test('#1783 math.h in hardware: sqrt and fabs of any value, the others of constants only (said)', () => {
   const errs = (src) => cToHdl(src, { file: 'e.c' }).diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.line} ${d.message}`);
-  assert.deepEqual(errs('#include <math.h>\ndouble f(double x) { return exp(x); }\n'), ['2 exp: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt and fabs, the others only of constants, a table computed at synthesis, #1761)']);
+  assert.deepEqual(errs('#include <math.h>\ndouble f(double x) { return exp(x); }\n'), ['2 exp: floating point is not supported in Silinx HLS yet (math.h in hardware: sqrt, fabs, floor, ceil, trunc, round, fmin, fmax and copysign, the others only of constants, a table computed at synthesis, #1761)']);
   assert.deepEqual(errs('#include <math.h>\nfloat f(float x, int k) { return sqrtf(x) / k + exp(1.0); }\n'), []);
+});
+
+const ROUND = `#include <stdio.h>
+#include <math.h>
+double g(double a, double b, float c, float d, double *lo, double *hi, float *q) {
+  *lo = floor(a) + fmin(a, b);
+  *hi = ceil(b) - fmax(a, b);
+  *q = roundf(c) * copysignf(1.5f, d) + truncf(d) + fminf(c, d);
+  return round(a) + trunc(b) + copysign(a, b) + fmax(b, 0.25);
+}
+int main(void) {
+  double v[8] = {0.0, -0.0, 2.5, -2.5, 0.49999999999999994, -1e-310, 4503599627370495.5, 1.0 / 0.0};
+  float w[6] = {-0.5f, 1.5f, 8388607.5f, -3.25f, 0.0f / 0.0f, -0.0f};
+  double lo, hi;
+  float q;
+  for (int i = 0; i < 8; i++) for (int j = 0; j < 8; j++) {
+    double r = g(v[i], v[j], w[(i + j) % 6], w[(i * 3 + j) % 6], &lo, &hi, &q);
+    if (i == j) printf("%g %g %g %g\\n", r, lo, hi, (double)q);
+  }
+  printf("%g %g %g %g\\n", fmin(0.0 / 0.0, 1.0), fmaxf(2.0f, 0.0f / 0.0f), copysign(3.0, -0.0), floorf(-0.5f));
+  return 0;
+}
+`;
+
+test('#1843 floor, ceil, trunc, round, fmin, fmax, copysign (float and double): the C simulation as cc\'s (fmin of a NaN the number)', { skip: noCC }, () => {
+  const sim = simulateC(ROUND, { file: 'r.c' });
+  assert.deepEqual([sim.error, sim.exitCode], [null, 0]);
+  assert.equal(sim.output, compiledRun(ROUND).output);
+});
+
+test('#1843 floor, ceil, trunc, round, fmin, fmax, copysign of any value in hardware: co-simulated in VHDL and Verilog on the edge values (halves, ±0, subnormals, 2^52, infinities, NaN), no warnings', () => {
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = cosimulate(ROUND, { file: 'r.c', lang });
+    assert.deepEqual([r.errors, r.pass, r.calls, r.gen.diagnostics], [[], true, 64, []], JSON.stringify(r.mismatches.slice(0, 3), big));
+  }
 });
