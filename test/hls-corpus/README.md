@@ -52,7 +52,7 @@ Not part of `npm test` (it needs the network once).
 | interface-memory-rom-lookup-table-math | C++ | pass | pass | pass | - |  |
 | interface-memory-using-axi-master | C++ | fail | fail | skip | - | C simulation: 37: memcpy is a system call: not possible in the synthesized code (Silinx HLS, as Vitis HLS) |
 | interface-register-using-axi-lite-with-user-defined-offset | C++ | pass | pass | pass | - |  |
-| interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | fail | fail | skip | - | C simulation: 20: a type expected, not 'packet' |
+| interface-streaming-axi-stream-custom-side-channel-data-2 | C++ | pass | pass | pass | 9-10 |  |
 | interface-streaming-axi-stream-to-master | C++ | fail | fail | skip | - | C simulation: 32: 'out_memory' is an array: give an index |
 | interface-streaming-axis-array-stream-no-side-channel-data | C++ | pass | pass | pass | 203 |  |
 | interface-streaming-using-array-of-streams | C++ | pass | pass | pass | 348 |  |
@@ -100,7 +100,7 @@ Not part of `npm test` (it needs the network once).
 | task-level-parallelism-data-driven-simple-data-driven | C++ | pass | pass | pass | 58 |  |
 | task-level-parallelism-data-driven-unique-task-regions | C++ | pass | fail | skip | - | C synthesis: 38: 'mid_class_c1_in1_t' is not an integer |
 
-73 designs: 45 through co-simulation.
+73 designs: 46 through co-simulation.
 <!-- /results -->
 
 ## Against Vitis HLS
