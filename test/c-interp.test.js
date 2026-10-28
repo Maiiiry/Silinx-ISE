@@ -217,3 +217,12 @@ test('#1714 an ofstream closed in a loop (AMD\'s simple_fifos test bench): its w
   const sim = simulateC(cpp, { file: 'f.cpp' });
   assert.deepEqual([sim.error, sim.diagnostics, sim.exitCode, sim.output], [null, [], 0, '0\n']);
 });
+
+// #1757: a hexadecimal constant ending in F (or with an E) is an integer, its F / E hexadecimal digits: 0xFFFF is 65535
+// (it was read as a float with the f suffix, 4095), 0x1F 31, 0xE 14; a decimal one with a fraction, an exponent or an f
+// suffix is still a float
+test('#1757 C simulation: a hexadecimal constant ending in F is an integer (0xFFFF 65535, 0x1F 31); 1.5f a float', () => {
+  const src = '#include <stdio.h>\nint main(void) {\n  float f = 1.5f; double e = 2e1;\n  printf("%u %u %d %u %d %d\\n", 0xFFFF, 0x1F, 0xE, 0xAbCdEf, (int)(f * 2), (int)e);\n  return 0;\n}\n';
+  const r = simulateC(src, { file: 't.c' });
+  assert.deepEqual([r.ok, r.diagnostics.map((d) => d.message), r.output, r.exitCode], [true, ['no function to synthesize: Silinx HLS makes the top function into a module (main() is the test bench)'], '65535 31 14 11259375 3 20\n', 0]);
+});

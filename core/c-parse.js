@@ -203,7 +203,8 @@ function exprParser(T, typedefs, cpp = false) {
     const t = toks[S.p];
     if (t.t === 'num') {
       S.p++;
-      if (/[.eE]/.test(t.v) && !/^0[xX]/.test(t.v) || /[fF]$/.test(t.v)) return { kind: 'float', text: t.v, loc: loc(t) };
+      // (a hexadecimal constant's e / f are digits, 0xFFFF, #1757: not an exponent nor a float suffix)
+      if (!/^0[xX]/.test(t.v) && /[.eE]|[fF]$/.test(t.v)) return { kind: 'float', text: t.v, loc: loc(t) };
       let value;
       try { value = BigInt(numText(t.v)); } catch { fail(`'${t.v}' is not a number`, t); }
       return { kind: 'num', value, text: t.v, unsigned: /[uU]/.test(t.v), long: /[lL]/.test(t.v), loc: loc(t) };
