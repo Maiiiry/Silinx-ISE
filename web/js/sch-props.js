@@ -158,6 +158,7 @@ export function mountProps(ctx) {
       if (p.kind === 'multi') el = compareTicks(s);   // (a COMP's comparisons, #1555)
       else if (p.kind === 'bool') el = chk(v, x => { s.params[p.name] = x; });
       else if (p.kind === 'select') el = selBox(String(v), p.options, x => { s.params[p.name] = x; });
+      else if (s.type === 'slice' && (p.name === 'msb' || p.name === 'lsb')) el = tapIndex(s, p, inp, flash);
       else if (p.kind === 'int') el = inp(v, x => { s.params[p.name] = Math.max(p.min ?? 0, Math.min(p.max ?? 1e6, Math.round(+x || p.default))); }, { type: 'number', min: p.min, max: p.max });
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
@@ -308,4 +309,21 @@ export function mountProps(ctx) {
   }
 
   return { renderProps, openSelected, renamed, joinByName, renameLabel };
+}
+
+// a bus tap's MSB / LSB index (#1815): it takes the bits MSB downto LSB, so an MSB below its LSB (or an LSB above its
+// MSB) is refused, the reason said, the field back to its value
+function tapIndex(s, p, inp, flash) {
+  const other = () => Math.max(0, Math.round(+s.params[p.name === 'msb' ? 'lsb' : 'msb'] || 0));
+  const el = inp(s.params[p.name], x => {
+    const n = Math.max(0, Math.round(+x || 0)), o = other();
+    if (p.name === 'msb' ? n < o : n > o) {
+      flash(p.name === 'msb' ? `A bus tap takes the bits MSB downto LSB: its MSB (${n}) cannot be below its LSB (${o})`
+        : `A bus tap takes the bits MSB downto LSB: its LSB (${n}) cannot be above its MSB (${o})`, 4000);
+      el.value = s.params[p.name];
+      return;
+    }
+    s.params[p.name] = n;
+  }, { type: 'number', ...(p.name === 'msb' ? { min: other() } : { min: 0, max: other() }) });
+  return el;
 }
