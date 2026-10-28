@@ -34,7 +34,7 @@ import { packMeasured } from './build.mjs';
 import { pinCensus, renamePads } from './pins.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DB = path.join(HERE, '../s3e-bitstream/db');
+const DB = path.join(HERE, '../../core/fpga/bitdb');
 const PART = process.env.PART || 'xc3s250ecp132-4';
 const readJson = f => JSON.parse(/\.gz$/.test(f) ? zlib.gunzipSync(fs.readFileSync(f)).toString() : fs.readFileSync(f, 'utf8'));
 const lines = f => fs.readFileSync(f, 'utf8').split('\n').map(s => s.trim()).filter(Boolean);

@@ -59,7 +59,7 @@ model and elkjs: it belongs to the IDE although it lives in `core/fpga/`), the U
 |---|---|---|
 | Routing graphs, Spartan-3E (4 parts) | `core/fpga/devices/*.json.gz` | 8.3 MB |
 | Routing graphs, Spartan-6 (2 parts) | `core/fpga/devices/*.json.gz` | 4.3 MB |
-| Bit database (Spartan-3E) | `research/s3e-bitstream/db/` (22 files) | 4.9 MB |
+| Bit database (Spartan-3E) | `core/fpga/bitdb/` (22 files) | 4.9 MB |
 | Yosys in WebAssembly | `@yowasp/yosys` (npm, pinned) | 76 MB installed, 69 MB of it `yosys.core.wasm` |
 
 The graphs ship for the supported parts only; other parts are built by each user from their own ISE
@@ -168,7 +168,7 @@ in the layout and can start now; the decisions steps 6 and 10 needed are taken (
    paths' re-exports, which go with step 7.
 5. **The bit database out of research/** ([#1676](https://github.com/pmnmalo/Silinx-ISE/issues/1676)): the
    data the application ships moves next to the graphs; research re-exports its path (`test/layering.test.js`);
-   the standalone build and the related tests' data map (#772) follow.
+   the standalone build and the related tests' data map (#772) follow. Done: `core/fpga/bitdb/`.
 6. **The workspace package** ([#1677](https://github.com/pmnmalo/Silinx-ISE/issues/1677)): `packages/silinx-fpga/`
    with its `package.json` (private until step 10) and its Apache-2.0 LICENSE, the root's `workspaces`; `core/fpga/` (the
    Spartan-6 part, the graphs and the bit database included) and the toolchain's modules of `core/` move there
