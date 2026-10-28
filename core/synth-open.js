@@ -1,15 +1,15 @@
 // Silinx - open synthesis (browser + Node): Silinx's front end writes the elaborated design as one
-// flat SystemVerilog module (core/synth-verilog.js), and Yosys compiled to WebAssembly (YoWASP,
+// flat SystemVerilog module (core/synth-verilog.js, through core/synth-front.js, #1674), and Yosys compiled to WebAssembly (YoWASP,
 // package @yowasp/yosys, ISC licence) maps it onto the cells of the device family (synth_xilinx)
 // and writes the netlist: JSON (as core/fpga/netlist.js reads it) and Verilog, with its statistics.
 // No Xilinx tool is involved. The caller says how Yosys runs: in a Web Worker in the browser
 // (web/js/yosys-worker.js), directly in Node (core/synth-open-node.js).
 //
 //   const r = await synthesizeOpen(design, { family: 'spartan3e', run, onLine })
+//   const r = await synthesizeVerilog({ text, top }, { family: 'spartan3e', run, onLine })   (the flat Verilog given)
 //   r: { top, files: { '<top>_syn.v', '<top>.json', '<top>_yosys.v', '<top>_stat.txt' }, cells, util,
 //        warnings, log }
-import { toVerilog } from './synth-verilog.js';
-import { rewriteCarryChains, gateAssignments, GATE_MIN, ADDER_MIN } from './carry-chain.js';
+import { rewriteCarryChains, GATE_MIN, ADDER_MIN } from './carry-chain.js';
 import { readYosysJson } from './fpga/netlist.js';
 import { pack } from './fpga/pack.js';
 import { fsmProbeCommands, fsmChosen, fsmExtractCommands, fsmForceCommands, fsmInits, fsmRestCommands, markWires, setInits, oldStateInits, refusedForUsers, quietForced, FSM_PRE_FILE, FSM_MARKED_FILE, FSM_POST_FILE, FSM_ENC_FILE, FSM_DETECT_FILE, FSM_FORCED_FILE } from './synth-fsm.js';
@@ -21,6 +21,7 @@ import { mountDepth } from './synth-open-depth.js';
 export {
   DEEP_RULE, criticalDelay, deepDesign, logicLevels, pathEnds
 };
+export { synthesizeOpen, synthesisInput } from './synth-front.js';
 export { asText, lineStream, readableBlobs, runYosysOnce, verifiedYosysUrl, yosysError, yosysWorkerSource } from './synth-open-yosys.js';
 
 // Silinx's device families -> synth_xilinx -family
@@ -644,7 +645,8 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
 export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'normal');
 
 /**
- * Synthesize an elaborated design (core/elaborate.js). run(args, files, onLine) runs Yosys and
+ * Synthesize a design's flat Verilog: { text, top, warnings, shiftArrays, gates } (core/synth-front.js synthesisInput, the
+ * HDL front end's part, which synthesizeOpen gives it for an elaborated design, #1674). run(args, files, onLine) runs Yosys and
  * resolves with its output files ({ name: text }), or rejects with an error whose `lines` holds
  * Yosys's messages. onLine receives Yosys's output line by line. depth (true): on the
  * 4-input-LUT families the design (mapped onto LUT4s alone) is mapped again with the wider functions
@@ -689,8 +691,8 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * segments (#1361), kept when DEPTH_RULE.gain faster by the estimate with no more slices in proportion: r.depth.csel { chain, ns,
  * luts, slices, kept } (csel: false leaves it out).
  */
-export async function synthesizeOpen(design, options = {}) {
-  const r = await synthesizeOnce(design, options);
+export async function synthesizeVerilog(input, options = {}) {
+  const r = await synthesizeOnce(input, options);
   // a carry chain of CSEL_RULE.chain stages or more: synthesized again with carry-select segments (#1361), kept by DEPTH_RULE
   const { family = 'spartan3e', depth = true, csel = true } = options;
   const top = r.top, json = r.files[`${top}.json`];
@@ -698,7 +700,7 @@ export async function synthesizeOpen(design, options = {}) {
   const chain = csel && depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && json && r.util.luts <= DEPTH_RULE.maxLuts ? longestCarryChain(json, top) : 0;
   if (chain < CSEL_RULE.chain) return r;
   let c = null, failed = null;
-  try { c = await synthesizeOnce(design, { ...options, onLine: () => {}, carrySelect: CSEL_RULE }); } catch (e) { failed = e.message; }
+  try { c = await synthesizeOnce(input, { ...options, onLine: () => {}, carrySelect: CSEL_RULE }); } catch (e) { failed = e.message; }
   const jc = c?.files[`${top}.json`];
   if (!jc) return { ...r, depth: { ...r.depth, csel: { chain, kept: false, ...(failed && { failed }) } } };
   const ns = [criticalDelay(json, top), criticalDelay(jc, top)], luts = [r.util.luts, c.util.luts], sl = [sliceCount(json, top), sliceCount(jc, top)];
@@ -709,9 +711,9 @@ export async function synthesizeOpen(design, options = {}) {
   return info.kept ? { ...c, depth: { ...c.depth, csel: info } } : { ...r, depth: { ...r.depth, csel: info } };
 }
 
-// synthesizeOpen's synthesis but the carry-select candidate (carrySelect: CSEL_RULE when making it)
-async function synthesizeOnce(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true, carrySelect = null } = {}) {
-  const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
+// synthesizeVerilog's synthesis but the carry-select candidate (carrySelect: CSEL_RULE when making it)
+async function synthesizeOnce(input, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, smallRule = SMALL_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true, carrySelect = null } = {}) {
+  const { text, top, warnings = [], shiftArrays = [], gates: gateCount = 0 } = input;
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
   const speed = withSpeed && depth && lut4;
@@ -734,7 +736,7 @@ async function synthesizeOnce(design, { family = 'spartan3e', run, onLine = () =
   };
   // a design written as gates (#77): the first of its two runs, up to synth_xilinx's fine step (the coarse
   // netlist, its carry chains found there); at Normal started at once beside the usual run (#377)
-  const gates = lut4 && gateAssignments(design) >= GATE_MIN;
+  const gates = lut4 && gateCount >= GATE_MIN;
   const lines1 = [];
   const coarse = () => run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${splitCommands(top, family, opts)[0]}; ${TOP_ONLY}; write_json -selected ${CHAIN_FILE}`],
     yosysFiles(top, text, opts), l => { if (!quiet(l)) lines1.push(l); });
@@ -781,8 +783,8 @@ async function synthesizeOnce(design, { family = 'spartan3e', run, onLine = () =
       const linesN = [], linesH = [];
       // (side by side: Yosys runs in workers of their own)
       const [own, high] = await Promise.all([
-        synthesizeOnce(design, { ...both, onLine: l => linesN.push(l), effort: 'normal', smallRule: { ...smallRule, maxLuts: -1 } }),
-        synthesizeOnce(design, { ...both, onLine: l => linesH.push(l), effort: 'high' })]);
+        synthesizeOnce(input, { ...both, onLine: l => linesN.push(l), effort: 'normal', smallRule: { ...smallRule, maxLuts: -1 } }),
+        synthesizeOnce(input, { ...both, onLine: l => linesH.push(l), effort: 'high' })]);
       const ns = [criticalDelay(own.files[`${top}.json`], top), criticalDelay(high.files[`${top}.json`], top)];
       const small = { luts, ns, kept: ns[1] <= ns[0] * (1 - (smallRule.gain ?? 0)) + 1e-9 };
       const pick = small.kept ? high : own;
@@ -917,7 +919,7 @@ async function synthesizeOnce(design, { family = 'spartan3e', run, onLine = () =
   // (Normal, a deep design: High's mappings kept only when DEEP_RULE.gain faster than Normal's own netlist, #611;
   // else that one, its levels and the time High's took said)
   if (deep?.deep) {
-    const plain = await synthesizeOnce(design, { family, run, depth: false, effort, abc9: withAbc9, carrySelect });
+    const plain = await synthesizeOnce(input, { family, run, depth: false, effort, abc9: withAbc9, carrySelect });
     const ns = [criticalDelay(plain.files[`${top}.json`], top), criticalDelay(files[`${top}.json`], top)];
     info.normal = { ns: ns[0], luts: plain.util.luts, kept: !(ns[1] <= ns[0] * (1 - deepRule.gain)) };
     if (info.normal.kept) return { ...plain, depth: { ...plain.depth, levels: deep.levels, auto: true, high: { ns: ns[1], luts: result.util.luts }, normal: info.normal } };
